@@ -1,0 +1,1406 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8"><title>青屿</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#000}
+#gl{display:block}
+#hud{position:fixed;left:12px;bottom:12px;width:200px;height:200px;border:1px solid #fff5;background:#0008;cursor:crosshair;image-rendering:pixelated}
+#tip{position:fixed;left:12px;bottom:218px;color:#fffb;font:12px/1.5 monospace;white-space:pre;text-shadow:0 0 3px #000}
+</style>
+<script type="importmap">{"imports":{
+ "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+ "tweakpane":"https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js"}}</script>
+</head><body>
+<canvas id="gl"></canvas><canvas id="hud" width="200" height="200"></canvas><div id="tip"><abbr title="【触屏版】双指触摸即可模拟WASD"></abbr><b>Ctrl 下降</b> · <b>F 放食物</b></div>
+
+<!-- ========== 1. 核心 + Simplex FBM 噪声 + 噪声面板 ========== -->
+<script type="module">
+import * as THREE from 'three';
+import {Pane} from 'tweakpane';
+const gg = window.gg = {
+  THREE,
+  tickers: [],
+  ctl: {yaw:0,pitch:0,fly:true,vy:0,keys:{},rising:[], lastSpace:0,grounded:false},
+  terrainDirty: true,
+};
+/* ---- 实际参数：不是面板中的归一化值 ---- */
+//> copy(JSON.stringify(gg.P))
+const P = gg.P = {"seed":710,"scaleWater":{"x":0.008745989857293216,"y":-14.699999999999996},"peakSharp":{"x":50.2375,"y":0.126},"ridgeFrac":{"x":0.353,"y":2.065},"offset":{"x":12.5,"y":-6},"hour":22.933333333333334,"sun":1.25,"exposure":1.08,"fog":0.11999999999999995,"wire":2,"lightDir":{"x":1.4,"y":0.35},"wind":{"x":1.4,"y":0.35},"cDeep":"#3ac5cd","cShallow":"#1c9ca4","cPlat":"#9effe3","cSnow":"#cdc484","speed":22,"smooth":12}
+/* ---- 种子化 Simplex 2D：采用新算法的 LCG 洗牌 ---- */
+const F2 = 0.5 * (Math.sqrt(3) - 1);
+const G2 = (3 - Math.sqrt(3)) / 6;
+const grad2 = [
+  [1, 1], [-1, 1], [1, -1], [-1, -1],
+  [1, 0], [-1, 0], [0, 1], [0, -1],
+];
+const perm = new Uint8Array(512);
+let noiseSeed;
+gg.seedNoise = seed => {
+  let s = (seed >>> 0) || 1;
+  const p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--) {
+    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+    const j = s % (i + 1);
+    const t = p[i];
+    p[i] = p[j];
+    p[j] = t;
+  }
+  for (let i = 0; i < 512; i++) {
+    perm[i] = p[i & 255];
+  }
+  noiseSeed = seed;
+};
+gg.seedNoise(P.seed);
+const simplex2 = gg.snoise = (xin, yin) => {
+  const s = (xin + yin) * F2;
+  const i = Math.floor(xin + s);
+  const j = Math.floor(yin + s);
+  const t = (i + j) * G2;
+  const x0 = xin - (i - t);
+  const y0 = yin - (j - t);
+  const i1 = x0 > y0 ? 1 : 0;
+  const j1 = 1 - i1;
+  const x1 = x0 - i1 + G2;
+  const y1 = y0 - j1 + G2;
+  const x2 = x0 - 1 + 2 * G2;
+  const y2 = y0 - 1 + 2 * G2;
+  const ii = i & 255;
+  const jj = j & 255;
+  let n0 = 0, n1 = 0, n2 = 0;
+  let t0 = 0.5 - x0 * x0 - y0 * y0;
+  if (t0 > 0) {
+    const g = grad2[perm[ii + perm[jj]] & 7];
+    t0 *= t0;
+    n0 = t0 * t0 * (g[0] * x0 + g[1] * y0);
+  }
+  let t1 = 0.5 - x1 * x1 - y1 * y1;
+  if (t1 > 0) {
+    const g = grad2[perm[ii + i1 + perm[jj + j1]] & 7];
+    t1 *= t1;
+    n1 = t1 * t1 * (g[0] * x1 + g[1] * y1);
+  }
+  let t2 = 0.5 - x2 * x2 - y2 * y2;
+  if (t2 > 0) {
+    const g = grad2[perm[ii + 1 + perm[jj + 1]] & 7];
+    t2 *= t2;
+    n2 = t2 * t2 * (g[0] * x2 + g[1] * y2);
+  }
+  return 70 * (n0 + n1 + n2);
+};
+/* ---- 新 FBM：每层加入相同的噪声偏移 ---- */
+function fbm(x, z) {
+  let a = 1;
+  let f = 1;
+  let sum = 0;
+  let norm = 0;
+  const octaves = Math.max(1, Math.round(P.ridgeFrac.y));
+  const persistence = 5*P.peakSharp.y;
+  for (let o = 0; o < 7 ; o++) {
+    sum += simplex2(x*f,z*f) * a;
+    norm += a;
+    a *= persistence;
+    f *= P.ridgeFrac.y;
+  }
+  return sum / (norm || 1);
+}
+gg.fbm = fbm;
+/* ---- 地形高度：FBM + 低频山脊混合 ---- */
+gg.height = (x, z) => {
+  const s = P.scaleWater.x;
+  const ridge = P.ridgeFrac.x;
+  const n = fbm(x * s, z * s);
+  const r = 1 - Math.abs(simplex2(
+    x * s * 0.42 + 19.2,
+    z * s * 0.42 - 4.4,
+  ));
+  const shaped =
+    n * (1 - ridge) +
+    (r * r * 2 - 1) * ridge;
+  return shaped * P.peakSharp.x;
+};
+// 新算法中的水位已经是世界坐标，不再乘振幅
+gg.waterY = () => P.scaleWater.y;
+// 可用于角色/飞行器的最低通行高度，不用于生成海底网格
+gg.floorAt = (x, z) => Math.max(
+  gg.height(x, z),
+  gg.waterY(),
+);
+/* ---- 渲染器 / 场景 ---- */
+const renderer = gg.renderer = new THREE.WebGLRenderer({
+  canvas: document.getElementById('gl'),
+  antialias: true,
+});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+gg.scene = new THREE.Scene();
+gg.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 700);
+
+const resize = () => {
+  renderer.setSize(innerWidth, innerHeight);
+  gg.camera.aspect = innerWidth / innerHeight;
+  gg.camera.updateProjectionMatrix();
+};
+addEventListener('resize', resize);
+resize();
+/* ---- 归一化映射：面板 -1～+1 → 实际参数 ---- */
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const ranges = {
+  scaleWater: {
+    label: '锋数,水（↓）',
+    x: {min: 0.002, max: 0.06, log: true},
+    y: {min: -50, max: 50},
+  },
+  ridgeFrac: {
+    label: '坡度,坑洼',
+    x: {min: 0, max: 1},
+    y: {min: 1.5,
+      max: 3.5,
+      step: 0.01},
+  },
+  peakSharp: {
+    label: '峰高尖利',
+    x: {min: 5, max: 80},
+    y: {min: 0.1, max: 0.9},
+  },
+};
+function toActual(value, range) {
+  const t = (clamp(value, -1, 1) + 1) * 0.5;
+  const result = range.log
+    ? range.min * Math.pow(range.max / range.min, t)
+    : range.min + (range.max - range.min) * t;
+  return range.integer ? Math.round(result) : result;
+}
+function toNormalized(value, range) {
+  value = clamp(value, range.min, range.max);
+  const t = range.log
+    ? Math.log(value / range.min) / Math.log(range.max / range.min)
+    : (value - range.min) / (range.max - range.min);
+  return clamp(t * 2 - 1, -1, 1);
+}
+// 单独保存面板值，避免把归一化参数暴露给其他模块
+const UI = gg.noiseUI = {};
+for (const [key, range] of Object.entries(ranges)) {
+  UI[key] = {
+    x: toNormalized(P[key].x, range.x),
+    y: toNormalized(P[key].y, range.y),
+  };
+}
+function applyNoiseUI() {
+  for (const [key, range] of Object.entries(ranges)) {
+    P[key].x = toActual(UI[key].x, range.x);
+    P[key].y = toActual(UI[key].y, range.y);
+  }
+}
+function invalidateTerrain() {
+  // 仅种子变化时重新生成排列数组
+  if (noiseSeed !== P.seed) gg.seedNoise(P.seed);
+  gg.terrainDirty = true;
+}
+/* ---- 面板：所有二维绑定均为 -1～+1 ---- */
+const pane = gg.pane = new Pane({title: '青屿-生成体素世界块'});
+const fN = pane.addFolder({title: '噪声'});
+fN.addBinding(P, 'seed', {
+  label: '种子',
+  min: 0,
+  max: 9999,
+  step: 1,
+});
+for (const [key, range] of Object.entries(ranges)) {
+  const axisOptions = axis => ({
+    min: -1,
+    max: 1,
+    // 层数 1～9 对应归一化步长 0.25
+    step: axis.integer
+      ? 2 / (axis.max - axis.min)
+      : 0.001,
+  });
+  fN.addBinding(UI, key, {
+    label: range.label,
+    x: axisOptions(range.x),
+    y: axisOptions(range.y),
+  });
+}
+fN.on('change', () => {
+  applyNoiseUI();
+  invalidateTerrain();
+});
+fN.addButton({title: '重掷种子'}).on('click', () => {
+  P.seed = Math.floor(Math.random() * 10000);
+  // refresh() 不等同于用户修改，显式刷新噪声与地形
+  invalidateTerrain();
+  pane.refresh();
+});
+// 外部代码修改实际参数后，可调用此方法同步面板并重建地形
+gg.refreshNoisePanel = () => {
+  for (const [key, range] of Object.entries(ranges)) {
+    UI[key].x = toNormalized(P[key].x, range.x);
+    UI[key].y = toNormalized(P[key].y, range.y);
+  }
+  invalidateTerrain();
+  pane.refresh();
+};
+</script>
+
+
+<!-- ========== 2. 无限地形分块 + 水面 + 色带 ========== -->
+<script type="module">
+const {THREE,P,scene,pane} = gg;
+const CS=64, SEG=24, R=4;
+const chunks=new Map(); let gen=0;
+const mat = gg.terrainMat = new THREE.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:.95});
+const cB=new THREE.Color(), col=new THREE.Color();
+gg.colorAt = (h,out) => {
+  const w=gg.waterY(), p=P.peakSharp.x;
+  if(h<w-6) return out.set(P.cDeep);
+  if(h<w+1.5) return out.set(P.cDeep).lerp(cB.set(P.cShallow),(h-(w-6))/7.5);
+  const t=(h-(w+1.5))/Math.max(1,p*.6);
+  if(t<.3) return out.set(P.cShallow).lerp(cB.set(P.cPlat),t/.3);
+  return out.set(P.cPlat).lerp(cB.set(P.cSnow),Math.min(1,(t-.3)/.7));
+};
+
+
+const rising = gg.ctl.rising = [];
+const CHUNK_MS = 10;
+const AHEAD = 4, ATAIL = 4;                       // 朝向前方多预取的 chunk 圈数
+const RISE_H = 40, FALL_H = 5, RISE_MS = 700;
+const easeOut = t => 1 - Math.pow(1 - t, 3);     // easeOutCubic
+
+function build(cx,cz){
+  const g=new THREE.PlaneGeometry(CS,CS,SEG,SEG); g.rotateX(-Math.PI/2);
+  const ox=cx*CS, oz=cz*CS, pos=g.attributes.position;
+  for(let i=0;i<pos.count;i++) pos.setY(i, gg.height(pos.getX(i)+ox, pos.getZ(i)+oz));
+  const ng=g.toNonIndexed(); g.dispose(); ng.computeVertexNormals();
+  const p=ng.attributes.position, c=new Float32Array(p.count*3);
+  for(let i=0;i<p.count;i+=3){
+    gg.colorAt((p.getY(i)+p.getY(i+1)+p.getY(i+2))/3, col);
+    for(let k=0;k<3;k++) c.set([col.r,col.g,col.b],(i+k)*3);
+  }
+  ng.setAttribute('color',new THREE.BufferAttribute(c,3));
+  const m=new THREE.Mesh(ng,mat);
+  m.position.set(ox,-RISE_H,oz);                   // 从地下出生
+  m.born=performance.now(); rising.push(m);
+  m.gen=gen; m.layers.enable(1); scene.add(m); return (P.wire === 3)? gg.voxelizeGeometry(m) : m;
+}
+const remove = (k,m) => {scene.remove(m);m.geometry.dispose();chunks.delete(k)};
+
+/* 水面 */
+const water = new THREE.Mesh(new THREE.PlaneGeometry(CS*(2*R+2),CS*(2*R+2)),
+  new THREE.MeshStandardMaterial({color:'#1a8f9e',transparent:true,opacity:.72,roughness:.2,metalness:.3,side:THREE.DoubleSide}));
+water.rotation.x=-Math.PI/2; scene.add(water);
+
+let lastWire = P.wire;
+let lastKey = null, lastGen = -1, need = [];
+const fwd = new THREE.Vector3();
+
+gg.tickers.push(() => {
+  const pp = gg.p1.position;
+  const pcx = Math.round(pp.x / CS), pcz = Math.round(pp.z / CS);
+  water.visible=(P.wire != 2)
+  water.position.set(pcx * CS, gg.waterY(), pcz * CS);
+
+  mat.wireframe = (P.wire === 1);
+  if (P.wire !== lastWire) {
+    // 0↔1 只切材质
+    if (P.wire === 3 || lastWire === 3) gg.terrainDirty = true;
+    lastWire = P.wire;
+  }
+  if (gg.terrainDirty) { gen++; gg.terrainDirty = false; }
+
+
+  // 相机水平朝向，量化成 8 个扇区 → 只有转过一个扇区才重排，避免每帧抖动
+  gg.camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+  const sec = Math.round(Math.atan2(fwd.z, fwd.x) / (Math.PI / 4)) & 7;
+  const key = pcx + ',' + pcz + ',' + sec;
+  if (key !== lastKey || gen !== lastGen) {
+    lastKey = key; lastGen = gen;
+    need.length = 0;
+    const RA = R + AHEAD;
+    for (let dx = -RA; dx <= RA; dx++)
+      for (let dz = -RA; dz <= RA; dz++) {
+        const d = dx * dx + dz * dz, dot = dx * fwd.x + dz * fwd.z;
+        // 身后保持 R 圈，视线前方额外多 AHEAD 圈
+        if (d > R * R && !(dot > 0 && d <= RA * RA)) continue;
+        need.push({ cx: pcx + dx, cz: pcz + dz, d: d - dot * R });   // 前方优先
+      }
+    need.sort((a, b) => a.d - b.d);
+    // 转身/折返不反复重建
+    for (const [k, m] of chunks)
+      if (Math.abs(m.cx - pcx) > RA + ATAIL || Math.abs(m.cz - pcz) > RA + ATAIL) remove(k, m);
+  }
+
+  const t0 = performance.now();
+  for (const { cx, cz } of need) {
+    const k = cx + ',' + cz, m = chunks.get(k);
+    if (m && m.gen === gen) continue;
+    if (performance.now() - t0 > CHUNK_MS) break;
+    const n = build(cx, cz);
+    n.cx = cx; n.cz = cz; n.gen = gen;
+    if (m) remove(k, m);
+    chunks.set(k, n);
+  }
+  // 新块 easeOut 升起
+  const now=performance.now();
+  for(let i=rising.length-1;i>=0;i--){
+    const m=rising[i];
+    if(!m.parent){rising.splice(i,1);continue}
+    const t=Math.min(1,(now-m.born)/RISE_MS),k=1-easeOut(t);
+    m.position.y = m.fallY!==undefined ? m.fallY+FALL_H*k : -RISE_H*k;   // 下落 / 上升
+    if(t>=1){rising.splice(i,1); m.fallY=0;}
+  }
+
+});
+/* 色带面板 */
+const fC = pane.addFolder({title:'色带'});
+fC.addBinding(P,'cDeep',{label:'深峡'}); fC.addBinding(P,'cShallow',{label:'浅湾'});
+fC.addBinding(P,'cPlat',{label:'台地'}); fC.addBinding(P,'cSnow',{label:'雪脊'});
+fC.on('change',()=>gg.terrainDirty=true);
+</script>
+
+<!-- ========== 3. 光照 / 昼夜 (8~24) / 风 ========== -->
+<script type="module">
+const {THREE,P,scene,pane,renderer} = gg;
+
+
+const sun=gg.sun=new THREE.DirectionalLight(0xffffff,1), hemi=new THREE.HemisphereLight(0xc8fff4, 0x0c3c42, 0.55);
+scene.add(sun,hemi);
+const moon = new THREE.DirectionalLight(0x9ec4ff, 0.2);
+const fill = new THREE.AmbientLight(0x8fdfff, 0.18);
+moon.position.set(-60, 80, -30);
+scene.add(moon,fill);
+
+scene.fog=new THREE.FogExp2(0x6fb7c8,.003); scene.background=new THREE.Color();
+const daySky=new THREE.Color('#5fb3c4'), dusk=new THREE.Color('#e08a5a'), nightSky=new THREE.Color('#061325'), under=new THREE.Color('#0b4f5a');
+// ---- 天空：渐变球 + 星星 ----
+const dayTop=new THREE.Color('#3b9fae'), dayHor=new THREE.Color('#8acbb9'),
+      nightTop=new THREE.Color('#061220'), nightHor=new THREE.Color('#1c3844'),
+        S=THREE.MathUtils.smoothstep;
+const skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,depthTest:false,
+ uniforms:{top:{value:new THREE.Color()},hor:{value:new THREE.Color()},star:{value:0}},
+ vertexShader:`varying vec3 p;
+ void main(){p=normalize(position);
+  mat4 v=viewMatrix; v[3].xyz=vec3(0.);
+  gl_Position=projectionMatrix*v*vec4(position,1.); gl_Position.z=gl_Position.w;}`,
+ fragmentShader:`uniform vec3 top,hor;uniform float star;varying vec3 p;
+ float h(vec3 q){return fract(sin(dot(floor(q*300.),vec3(12.9898,78.233,45.164)))*43758.5453);}
+ void main(){float t=smoothstep(-.05,.6,p.y);vec3 c=mix(hor,top,t);
+  c+=star*t*step(.997,h(p));gl_FragColor=vec4(c,1.);}`});
+const skyMesh=new THREE.Mesh(new THREE.SphereGeometry(1,32,16),skyMat);
+skyMesh.frustumCulled=false; skyMesh.renderOrder=-1; scene.add(skyMesh);
+const sunC=new THREE.Color(), camP=new THREE.Vector3();
+gg.tickers.push(()=>{
+  const el=Math.sin((P.hour-6)/12*Math.PI);
+  const day=THREE.MathUtils.clamp(el,0,1), dk=Math.max(0,1-Math.abs(el)*3);
+  const nt=P.hour<12? 1-S(P.hour,5,7) : S(P.hour,17,19);          // 17→19 平滑入夜
+  skyMat.uniforms.top.value.copy(nightTop).lerp(dayTop,day);
+  skyMat.uniforms.hor.value.copy(nightHor).lerp(dayHor,day).lerp(dusk,dk*.6);
+  skyMat.uniforms.star.value=nt;
+  moon.intensity=nt;                                              // 月亮随星光一起淡入
+  sun.intensity=P.sun*Math.pow(day,.7); hemi.intensity=.12+.5*day;
+  sun.color.copy(sunC.set('#fff6e8')).lerp(dusk,dk);
+  sun.position.set(P.lightDir.x,Math.max(.1,el)+.1,P.lightDir.y).normalize().multiplyScalar(100);
+  renderer.toneMappingExposure=P.exposure*(.3+.7*day);
+  gg.camera.getWorldPosition(camP);
+  if(camP.y<gg.waterY()){skyMesh.visible=false;scene.background=under;scene.fog.color.copy(under);scene.fog.density=.03;}
+  else{skyMesh.visible=true;scene.background=null;scene.fog.color.copy(skyMat.uniforms.hor.value);scene.fog.density=.0015+P.fog*.02;}
+});
+const fL=pane.addFolder({title:'光照与风'}); fL.expanded = 0
+fL.addBinding(P,'sun',{label:'日照',min:0,max:3,step:.01});
+fL.addBinding(P,'exposure',{label:'曝光',min:.2,max:3,step:.01});
+fL.addBinding(P,'fog',{label:'FoV迷雾',min:0,max:1,step:.01});
+fL.addBinding(P,'lightDir',{label:'光照向量',x:{min:-2,max:2},y:{min:-2,max:2}});
+fL.addBinding(P,'wind',{label:'风向量',x:{min:-3,max:3},y:{min:-3,max:3}});
+fL.addBinding(P,'speed',{label:'航速',min:2,max:80,step:.5});
+</script>
+
+<!-- ========== 4. p1操控：WASD / 鼠标 / 双击空格飞行切换 / Shift / Ctrl / F ========== -->
+<script type="module">
+const {THREE,P,scene,camera} = gg;
+const p1 = gg.p1 = new THREE.Object3D(); p1.position.set(10,15,0); p1.add(camera); scene.add(p1);
+Object.defineProperty(p1,'xyz',{get:()=>p1.position.clone()});
+
+const S = gg.ctl, ctlF=()=>{
+    camera.getWorldDirection(fwd); const p=p1.position.clone().addScaledVector(fwd,3);
+    p.y=Math.max(gg.height(p.x,p.z),gg.waterY())+.3; gg.spawn?.('food',p);
+  };
+const canvas=gl, fwd=new THREE.Vector3(), right=new THREE.Vector3(), mv=new THREE.Vector3();
+
+canvas.addEventListener('click',()=>{canvas.requestPointerLock(); if(S.fly)document.body.requestFullscreen()});
+addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==canvas) return;
+  S.yaw-=e.movementX*.002; S.pitch=THREE.MathUtils.clamp(S.pitch-e.movementY*.002,-1.5,1.5);
+});
+addEventListener('keydown',e=>{
+  if(e.target.closest?.('.tp-dfwv')) return;
+  S.keys[e.code]=true;
+  if(e.code==='Space'&& !e.repeat){const t=performance.now(); if(t-S.lastSpace<300){S.fly=!S.fly;S.vy=0;} S.lastSpace=t; e.preventDefault();}
+  if(e.code==='KeyF') ctlF()
+  if(['KeyW','KeyA','KeyS','KeyD','ControlLeft','ShiftLeft'].includes(e.code)&&document.pointerLockElement) e.preventDefault();
+});
+addEventListener('keyup',e=>S.keys[e.code]=false);
+window.addEventListener('beforeunload', (e) => {
+  if (document.pointerLockElement&&S.keys['ControlLeft']) {
+    e.preventDefault();
+    e.returnValue = ''; // 触发浏览器默认的“确认离开此页面？”弹窗
+  }
+});
+
+let [eA,eB,eC]=tip.children
+S.tp = S.tp || p1.position.clone();
+P.smooth = P.smooth ?? 12;
+const CAM_R = 0.7;           // 相机碰撞半径（略大于近裁剪面）
+let lastGround = p1.position.y, Q=4;
+// 基础安全采样
+const rawH = (x,z)=>{
+  const h = gg.height(x,z);
+  return Number.isFinite(h) ? h : lastGround;
+};
+// 单个格子的"方块顶面"高度 —— 这里的量化方式必须和你的 mesh 生成一模一样
+// （格子中心采样 + ceil 到 4 的倍数，如果你用的是 round/floor 或格子角点采样，改这一行）
+const cellTop = (cx,cz)=>Math.ceil(rawH((cx+.5)*Q,(cz+.5)*Q)/Q)*Q;
+// 量化模式的碰撞高度：覆盖 (x±r, z±r) 范围内所有格子，取最高
+const voxelH = (x,z,r=CAM_R)=>{
+  const x0=Math.floor((x-r)/Q), x1=Math.floor((x+r)/Q);
+  const z0=Math.floor((z-r)/Q), z1=Math.floor((z+r)/Q);
+  let m=-Infinity;
+  for(let cx=x0;cx<=x1;cx++)
+    for(let cz=z0;cz<=z1;cz++)
+      m=Math.max(m,cellTop(cx,cz));
+  return m;
+};
+// 统一入口：根据模式切换
+const groundH = (x,z)=> (P.wire>1) ? voxelH(x,z) : rawH(x,z);
+
+
+gg.tickers.push(dt=>{
+  dt = Math.min(dt, 1/20);                      // 切后台回来不炸
+  const k=S.keys, pos=S.tp;
+  p1.rotation.y=S.yaw; camera.rotation.x=S.pitch;
+  const sp=P.speed*((k.ShiftLeft||k.ShiftRight)?5:2);
+  right.set(Math.cos(S.yaw),0,-Math.sin(S.yaw));
+  if(S.fly) camera.getWorldDirection(fwd); else fwd.set(-Math.sin(S.yaw),0,-Math.cos(S.yaw));
+  mv.set(0,0,0).addScaledVector(fwd,(k.KeyW?1:0)-(k.KeyS?1:0)).addScaledVector(right,(k.KeyD?1:0)-(k.KeyA?1:0));
+
+  const eye = S.fly ? .6 : 1.7;
+  if(S.fly){
+    mv.y+=(k.Space?1:0)-((k.ControlLeft||k.ControlRight)?1:0);
+    if(mv.lengthSq()>0) pos.addScaledVector(mv.normalize(),sp*dt*((P.wire>1)? 1.6:1));
+    lastGround = groundH(pos.x,pos.z);
+    pos.y=Math.max(pos.y,lastGround+eye);
+    S.vy=0;                                     // 飞行时清空，切回行走不会突然砸地
+  }else{
+    if(mv.lengthSq()>0) pos.addScaledVector(mv.normalize(),sp*.7*dt);
+    lastGround = Math.max(groundH(pos.x,pos.z), gg.waterY());
+    const ground = lastGround+eye;
+    S.vy = Math.max(S.vy-270*dt, -120);         // 终端速度，防止一帧穿地
+    pos.y+=S.vy*dt;
+    S.grounded=pos.y<=ground; if(S.grounded){pos.y=ground;S.vy=0;}
+  }
+
+  //> 镜头平滑
+  const a=1-Math.exp(-P.smooth*dt);
+  p1.position.lerp(pos,a);
+
+  //> 防穿模：平滑后的实际相机点也必须在它脚下地形之上
+  const camFloor = Math.max(groundH(p1.position.x,p1.position.z),
+                            S.fly ? -Infinity : gg.waterY()) + eye*((P.wire>1)? 1.4:.9);;
+  if(p1.position.y < camFloor) p1.position.y = camFloor;
+
+  eA.textContent=`${S.fly?'✈ 飞行':'🚶 耶稣行走'}  (${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}, ${pos.z.toFixed(0)})\n`;
+});
+eC.onclick=()=>ctlF()
+</script>
+<!-- ========== 5. HUD 高程图（+悬停旋转相机） ========== -->
+<script type="module">
+const {THREE} = gg;
+const c=hud, ctx=c.getContext('2d'), N=100, RANGE=256;
+c.style.cssText='filter: blur(1px) contrast(0.9)';
+
+const off=document.createElement('canvas'); off.width=off.height=N;
+const octx=off.getContext('2d'), img=octx.createImageData(N,N), col=new THREE.Color();
+const center=new THREE.Vector3(); let last=-9;
+
+function redraw(){
+  const d=img.data, w=gg.waterY();
+  for(let py=0;py<N;py++)for(let px=0;px<N;px++){
+    const x=center.x+(px/N-.5)*2*RANGE, z=center.z+(py/N-.5)*2*RANGE, h=gg.height(x,z);
+    gg.colorAt(h,col).convertLinearToSRGB();
+    const f=h<w?.6:1, i=(py*N+px)*4;
+    d[i]=col.r*255*f; d[i+1]=col.g*255*f; d[i+2]=col.b*255*f; d[i+3]=255;
+  }
+  octx.putImageData(img,0,0);
+}
+gg.tickers.push((dt,t)=>{
+  if(t-last>.8||gg.hudDirty){last=t;gg.hudDirty=false;center.copy(gg.p1.position);redraw();}
+  ctx.clearRect(0,0,200,200); ctx.drawImage(off,0,0,200,200);
+  const p=gg.p1.position, sx=((p.x-center.x)/RANGE*.5+.5)*200, sz=((p.z-center.z)/RANGE*.5+.5)*200;
+  const yaw=gg.ctl.yaw, hf=gg.camera.fov*Math.PI/360*gg.camera.aspect;
+  ctx.fillStyle='#ffd34d55'; ctx.beginPath(); ctx.moveTo(sx,sz);
+  ctx.arc(sx,sz,60,-Math.PI/2-yaw-hf,-Math.PI/2-yaw+hf); ctx.fill();
+  ctx.fillStyle='#ffd34d'; ctx.beginPath(); ctx.arc(sx,sz,3,0,7); ctx.fill();
+});
+c.addEventListener('mousemove',e=>{
+  const r=c.getBoundingClientRect();
+  const x=center.x+((e.clientX-r.left)/r.width-.5)*2*RANGE, z=center.z+((e.clientY-r.top)/r.height-.5)*2*RANGE;
+  const p=gg.p1.position, dx=x-p.x, dz=z-p.z;
+  if(dx*dx+dz*dz>1e-4)gg.ctl.yaw=Math.atan2(-dx,-dz);
+
+});
+c.addEventListener('click',e=>{
+  const r=c.getBoundingClientRect();
+  const x=center.x+((e.clientX-r.left)/r.width-.5)*2*RANGE, z=center.z+((e.clientY-r.top)/r.height-.5)*2*RANGE;
+  const g=Math.max(gg.height(x,z),gg.waterY());
+  gg.ctl.tp.set(x, g+(gg.ctl.fly?50:1.7), z); gg.ctl.vy=0; gg.hudDirty=true;
+});
+</script>
+<script type="module">
+function hookWASD(S,el=window){
+  let canvas=document.querySelector('canvas')
+  canvas.style.touchAction='none';
+  const key=(t,c)=>el.dispatchEvent(new KeyboardEvent(t,{code:c,bubbles:true}));
+  const K=['KeyW','KeyS','KeyA','KeyD'],on=[0,0,0,0],
+    set=(...v)=>v.forEach((b,i)=>b!=on[i]&&key((on[i]=b)?'keydown':'keyup',K[i]));
+  const lock=b=>b?Object.defineProperty(document,'pointerLockElement',{configurable:true,get:()=>canvas}):delete document.pointerLockElement;
+
+  let look,move,timer,tap=0, kMv=S.wasdLook??1.6, dz=S.wasdDead??20;
+  const onTouch={
+    start(ev){lock(1);for(const t of ev.changedTouches)
+      if(!look){look={id:t.identifier,x:t.clientX,y:t.clientY,moved:0,up:0};
+        timer=setTimeout(()=>{if(!look.moved&&!move)S.fly=look.up=1,key('keydown','Space')},200);}
+      else if(!move)move={id:t.identifier,x:t.clientX,y:t.clientY};},
+    move(ev){for(const t of ev.changedTouches){
+      const dx=t.clientX-(look?.id===t.identifier?look:move).x,dy=t.clientY-(look?.id===t.identifier?look:move).y;
+      if(look?.id===t.identifier){
+        if(Math.hypot(dx,dy)>5)look.moved=1,clearTimeout(timer);
+        look.x=t.clientX;look.y=t.clientY;
+        look.up||el.dispatchEvent(new MouseEvent('mousemove',{movementX:-kMv*dx,movementY:-kMv*dy}));
+      }else if(move?.id===t.identifier)set(dy<-dz,dy>dz,dx<-dz,dx>dz);}},
+    end(ev){for(const t of ev.changedTouches)
+      if(look?.id===t.identifier){clearTimeout(timer);
+        if(look.up)key('keyup','Space');
+        else if(!look.moved&&!move){const n=performance.now();n-tap<300&&(S.fly=S.vy=0);tap=n;}
+        look=move=null;set(0,0,0,0);}
+      else if(move?.id===t.identifier)move=null,set(0,0,0,0);
+      ev.touches.length||lock(0);},
+    cancel(ev){onTouch.end(ev)}
+  };
+  for(const n in onTouch)el.addEventListener('touch'+n,onTouch[n]);
+}
+const bindPtrToKey=(el,e1,code,key=code.replace(/Left|Right$/,''),keyCode)=>{
+el.style.cssText=`touch-action:none;user-select:none;-webkit-touch-callout:none;`
+// el.ontouchstart=e=>e.preventDefault() //WONTFIX
+;['down','up'].forEach(t=>el.addEventListener('pointer'+t,e=>(e1.dispatchEvent(new KeyboardEvent('key'+t,{code,key,keyCode,bubbles:true,cancelable:false})), gg.ctl.fly^=1  )));
+}
+bindPtrToKey(tip, gl, 'ControlLeft', 'Control', 17)
+hookWASD(gg.ctl)
+if(innerHeight/innerWidth>.7)gg.pane.expanded^=1
+</script>
+
+
+// ===== voxel.js（或放在同一文件里）=====
+
+<script type="module">
+import * as THREE from 'three';
+
+// ─────────────────────────────────────────────────────────────
+// 体素化后处理：把一个高度场类网格（非索引、带 color 属性）转换为方块地形
+// mesh : THREE.Mesh（几何体局部坐标，PlaneGeometry 旋转到 XZ 平面）
+// V    : 方块边长（长宽高相同），默认 1.6
+// 返回同一个 mesh（geometry 被替换，旧的已 dispose）
+// ─────────────────────────────────────────────────────────────
+
+
+const VOX = gg.VOX = {"size":4,"hmRes":1024,"mipLevels":6,"range":2048,"maxDFactor":0.4,"steps":72,"shadowSteps":48,"scale":0.85,"fogStart":326.0869565217391,"fogEnd":630.4347826086956,"fogEnd2":1217.3913043478262,"fogA1":0.5760869565217391,"fogA2":0.9456521739130435,"ambient":0.6086956521739131,"aoStrength":0.7934782608695652,"aoCurve":1.016304347826087,"shadowStrength":0.7934782608695652,"shadowDist":300,"sunMode":"angles","waterClarity":0.31521739130434784,"waterA1":0.6956521739130435,"waterA2":0.92,"waterD1":2.1739130434782608,"waterD2":7.173913043478261,"waveStrength":0.12391304347826088,"reflStrength":0.9347826086956522,"foamWidth":0.21739130434782608,"specPower":20,"hMax":300,"stoneH":6,"snowH":21,"steep":2.5,"terrainLayer":1,"hmEveryFrame":false,"dirty":false}
+
+const fV0 = gg.pane.addFolder({ title: '体素地形 (废弃)' }); fV0.expanded = 0;
+const vDirty = () => { VOX.dirty = true; };
+// ── 射线步进 ──
+fV0.addBinding(VOX, 'steps',      { min: 1,  max: 200, step: 8,    label: 'DDA 步数' });
+fV0.addBinding(VOX, 'maxDFactor', { min: 0.5, max: 2,   step: 0.05, label: '最远距离系数' });
+// ── 几何 / 高度图 ──
+fV0.addBinding(VOX, 'hmRes', {
+  label: '+高程图',
+  options: { 256: 256, 512: 512, 1024: 1024, 2048: 2048 },
+}).on('change', vDirty);
+fV0.addBinding(VOX, 'range', { readonly: true, label: '=可视半径', format: v => v.toFixed(1) });
+// ── 地形外观 ──
+const fV = gg.pane.addFolder({ title: '体素地形' }); fV.expanded = 0;
+
+fV.addBinding(VOX, 'size',        { min: 0.5, max: 6,    step: 0.1, label: '块边长' }).on('change', vDirty);
+fV.addBinding(VOX, 'stoneH', { min: 0,  max: 30, step: 1,   label: '石头高度' });
+fV.addBinding(VOX, 'snowH',  { min: 0,  max: 30, step: 1,   label: '雪线高度' });
+fV.addBinding(VOX, 'steep',  { min: 0.5,max: 3,   step: 0.1, label: '陡坡草坪数' });
+
+
+gg.voxelizeGeometry = function (mesh, V = gg.VOX.size) {
+  const src = mesh.geometry;
+  const pos = src.attributes.position, colA = src.attributes.color;
+  src.computeBoundingBox();
+  const bb = src.boundingBox;
+  // ★ 网格原点对齐到世界坐标的 V 整数倍（把 mesh 的位移也算进去）
+  mesh.updateMatrixWorld();
+  const ox = mesh.matrixWorld.elements[12], oz = mesh.matrixWorld.elements[14];
+  const x0 = Math.floor((bb.min.x + ox) / V) * V - ox;
+  const z0 = Math.floor((bb.min.z + oz) / V) * V - oz;
+  const nx = Math.max(1, Math.ceil((bb.max.x - x0) / V));
+  const nz = Math.max(1, Math.ceil((bb.max.z - z0) / V));
+  const oy = mesh.matrixWorld.elements[13];
+
+
+  // ── 1. 光栅化：每个格子中心落在哪个三角形上 → 插值高度 + 取该三角形颜色
+  const H = new Float32Array(nx * nz).fill(NaN);
+  const C = new Float32Array(nx * nz * 3);
+  const EPS = -1e-4;
+  for (let t = 0; t < pos.count; t += 3) {
+    const ax = pos.getX(t),   ay = pos.getY(t),   az = pos.getZ(t);
+    const bx = pos.getX(t+1), by = pos.getY(t+1), bz = pos.getZ(t+1);
+    const cx = pos.getX(t+2), cy = pos.getY(t+2), cz = pos.getZ(t+2);
+    const det = (bx-ax)*(cz-az) - (cx-ax)*(bz-az);
+    if (Math.abs(det) < 1e-9) continue;
+    const i0 = Math.max(0,    Math.floor((Math.min(ax,bx,cx) - x0) / V));
+    const i1 = Math.min(nx-1, Math.floor((Math.max(ax,bx,cx) - x0) / V));
+    const k0 = Math.max(0,    Math.floor((Math.min(az,bz,cz) - z0) / V));
+    const k1 = Math.min(nz-1, Math.floor((Math.max(az,bz,cz) - z0) / V));
+    const cr = colA ? colA.getX(t) : 1, cg = colA ? colA.getY(t) : 1, cb = colA ? colA.getZ(t) : 1;
+    for (let k = k0; k <= k1; k++) {
+      const pz = z0 + (k + 0.5) * V;
+      for (let i = i0; i <= i1; i++) {
+        const px = x0 + (i + 0.5) * V;
+        const u = ((px-ax)*(cz-az) - (cx-ax)*(pz-az)) / det;   // b 的权重
+        const v = ((bx-ax)*(pz-az) - (px-ax)*(bz-az)) / det;   // c 的权重
+        const w = 1 - u - v;
+        if (u < EPS || v < EPS || w < EPS) continue;
+        const idx = k * nx + i;
+        H[idx] = w*ay + u*by + v*cy;
+        C[idx*3] = cr; C[idx*3+1] = cg; C[idx*3+2] = cb;
+      }
+    }
+  }
+
+  // ── 2. 补洞（边缘数值误差可能漏掉格子）：取任意已知邻居
+  for (let k = 0; k < nz; k++) for (let i = 0; i < nx; i++) {
+    const idx = k * nx + i;
+    if (!Number.isNaN(H[idx])) continue;
+    const nb = [idx-1, idx+1, idx-nx, idx+nx].find(j => j >= 0 && j < nx*nz && !Number.isNaN(H[j]));
+    if (nb !== undefined) { H[idx] = H[nb]; C[idx*3] = C[nb*3]; C[idx*3+1] = C[nb*3+1]; C[idx*3+2] = C[nb*3+2]; }
+    else H[idx] = bb.min.y;
+  }
+
+  // ── 3. 高度量化到 V 的整数倍（方块顶面）
+  const T = new Float32Array(nx * nz);
+  let minT = Infinity;
+  for (let j = 0; j < T.length; j++) {
+    T[j] = Math.floor((H[j] + oy) / V + 0.5) * V - oy;
+    if (T[j] < minT) minT = T[j];
+  }
+  const FLOOR = minT - V;                        // 区块边界侧面落到这个高度
+
+  // ── 4. 生成几何体：顶面 + 只在比邻居高时才生成的侧面（自动修正绕序）
+  const verts = [], norms = [], cols = [];
+  const quad = (a, b, c, d, n, r, g, bl) => {
+    // 检查 (b-a)×(c-a) 是否与 n 同向，不同向则翻转
+    const e1x=b[0]-a[0], e1y=b[1]-a[1], e1z=b[2]-a[2];
+    const e2x=c[0]-a[0], e2y=c[1]-a[1], e2z=c[2]-a[2];
+    const dot = (e1y*e2z-e1z*e2y)*n[0] + (e1z*e2x-e1x*e2z)*n[1] + (e1x*e2y-e1y*e2x)*n[2];
+    if (dot < 0) { const t = b; b = d; d = t; }
+    for (const p of [a, b, c, a, c, d]) { verts.push(p[0], p[1], p[2]); norms.push(n[0], n[1], n[2]); cols.push(r, g, bl); }
+  };
+  const topOf = (i, k) => (i < 0 || k < 0 || i >= nx || k >= nz) ? FLOOR : T[k * nx + i];
+
+  for (let k = 0; k < nz; k++) for (let i = 0; i < nx; i++) {
+    const idx = k * nx + i, t = T[idx];
+    const xa = x0 + i * V, xb = xa + V, za = z0 + k * V, zb = za + V;
+    const r = C[idx*3], g = C[idx*3+1], b = C[idx*3+2];
+    // 顶面
+    quad([xa,t,za], [xa,t,zb], [xb,t,zb], [xb,t,za], [0,1,0], r, g, b);
+    // 四个侧面：邻居较低则露出 [tn, t] 这一段
+    let tn;
+    if ((tn = topOf(i-1, k)) < t) quad([xa,tn,za], [xa,tn,zb], [xa,t,zb], [xa,t,za], [-1,0,0], r, g, b);
+    if ((tn = topOf(i+1, k)) < t) quad([xb,tn,za], [xb,tn,zb], [xb,t,zb], [xb,t,za], [ 1,0,0], r, g, b);
+    if ((tn = topOf(i, k-1)) < t) quad([xa,tn,za], [xb,tn,za], [xb,t,za], [xa,t,za], [0,0,-1], r, g, b);
+    if ((tn = topOf(i, k+1)) < t) quad([xa,tn,zb], [xb,tn,zb], [xb,t,zb], [xa,t,zb], [0,0, 1], r, g, b);
+  }
+
+  const ng = new THREE.BufferGeometry();
+  ng.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  ng.setAttribute('normal',   new THREE.Float32BufferAttribute(norms, 3));
+  ng.setAttribute('color',    new THREE.Float32BufferAttribute(cols, 3));
+  ng.computeBoundingSphere();
+
+  src.dispose();
+  mesh.geometry = ng;
+  return mesh;
+}
+
+
+;(function thanksFable5() {
+  const R = gg.renderer;
+  const NLEV = VOX.mipLevels;
+  gg.P = gg.P || {};
+  if (!gg.P.lightDir) gg.P.lightDir = new THREE.Vector3(0.9, 0.9, 0); // x=方位角 y=仰角
+
+  /* ---------- 0. 通用全屏四边形 ---------- */
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+  const quadScene = new THREE.Scene(); quadScene.add(quad);
+  const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const fsVS = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }`;
+  function blit(mat, rt) { quad.material = mat; R.setRenderTarget(rt); R.render(quadScene, quadCam); }
+
+  /* ---------- 1. 高度图 RT + Max-Mip 金字塔 ---------- */
+  const mkRT = (w, h, depth) => new THREE.WebGLRenderTarget(w, h, {
+    type: THREE.FloatType, format: THREE.RGBAFormat,
+    minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter,
+    depthBuffer: depth, generateMipmaps: false,
+  });
+  const lv = [mkRT(VOX.hmRes, VOX.hmRes, true)];           // lv[0] = 原高度图
+  for (let i = 1; i <= NLEV; i++) lv.push(mkRT(VOX.hmRes >> i, VOX.hmRes >> i, false));
+  const hmRT = lv[0];
+
+  const hmCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1000);
+  hmCam.up.set(0, 0, -1);
+  hmCam.layers.set(VOX.terrainLayer);
+  const hmMat = new THREE.ShaderMaterial({
+    uniforms: { vox: { value: VOX.size } },
+    vertexShader: `varying float vY;
+      void main(){ vec4 w = modelMatrix*vec4(position,1.); vY = w.y;
+                   gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader: `varying float vY; uniform float vox;
+      void main(){ gl_FragColor = vec4(floor(vY/vox + 0.5)*vox, 1.0, 0., 1.); }`, // r=量化高度 g=1 有地形
+  });
+  // 2x2 取最大 → 上一层（空格子不参与；全空则 g=0）
+  const maxMat = new THREE.ShaderMaterial({
+    uniforms: { tSrc: { value: null }, srcRes: { value: new THREE.Vector2() } },
+    vertexShader: fsVS,
+    fragmentShader: `precision highp float; uniform sampler2D tSrc; uniform vec2 srcRes;
+      void main(){
+        vec2 b = floor(gl_FragCoord.xy) * 2.0 + 0.5;
+        float h = -1e9, g = 0.0; vec2 s;
+        s = texture2D(tSrc, (b)            /srcRes).rg; if (s.g > 0.5){ h = max(h, s.r); g = 1.0; }
+        s = texture2D(tSrc, (b+vec2(1.,0.))/srcRes).rg; if (s.g > 0.5){ h = max(h, s.r); g = 1.0; }
+        s = texture2D(tSrc, (b+vec2(0.,1.))/srcRes).rg; if (s.g > 0.5){ h = max(h, s.r); g = 1.0; }
+        s = texture2D(tSrc, (b+vec2(1.,1.))/srcRes).rg; if (s.g > 0.5){ h = max(h, s.r); g = 1.0; }
+        gl_FragColor = vec4(h, g, 0., 1.);
+      }`,
+  });
+  function buildMips() {
+    for (let i = 1; i <= NLEV; i++) {
+      maxMat.uniforms.tSrc.value = lv[i - 1].texture;
+      maxMat.uniforms.srcRes.value.set(lv[i - 1].width, lv[i - 1].height);
+      blit(maxMat, lv[i]);
+    }
+  }
+
+  /* ---------- 2. 合成 pass ---------- */
+  const mipDecl  = Array.from({ length: NLEV }, (_, i) => `uniform sampler2D tMip${i + 1};`).join('\n');
+  const mipChain = Array.from({ length: NLEV }, (_, i) => `else if (L == ${i + 1}) s = texture2D(tMip${i + 1}, uv).rg;`).join('\n');
+  const mipUniforms = {};
+  for (let i = 1; i <= NLEV; i++) mipUniforms['tMip' + i] = { value: lv[i].texture };
+
+  const post = new THREE.ShaderMaterial({
+    defines: { STEPS: VOX.steps, SHADOW_STEPS: VOX.shadowSteps, MAXL: NLEV },
+    depthTest: false, depthWrite: false,
+    uniforms: Object.assign({
+      tScene: { value: null }, tDepth: { value: null }, tHeight: { value: hmRT.texture },
+      org: { value: new THREE.Vector2() }, hmRes: { value: VOX.hmRes },
+      vox: { value: VOX.size }, waterY: { value: 0 }, hMax: { value: VOX.hMax }, maxDist: { value: 1 },
+      stoneH: { value: VOX.stoneH }, snowH: { value: VOX.snowH }, steepT: { value: VOX.steep },
+      near: { value: 0.1 }, far: { value: 1000 }, time: { value: 0 }, toScreen: { value: 1 },
+      camPos: { value: new THREE.Vector3() }, fogColor: { value: new THREE.Color(0.75, 0.85, 1) },
+      invProj: { value: new THREE.Matrix4() }, camWorld: { value: new THREE.Matrix4() },
+      sunDir: { value: new THREE.Vector3(0.4, 0.8, 0.3) }, sunColor: { value: new THREE.Color(1.0, 0.96, 0.88) },
+      ambient: { value: 0 }, aoStrength: { value: 0 }, aoCurve: { value: 1 },
+      shadowStrength: { value: 0 }, shadowDist: { value: 0 },
+      fogStart: { value: 0 }, fogEnd: { value: 0 }, fogEnd2: { value: 0 }, fogA1: { value: 0 }, fogA2: { value: 0 },
+      waterClarity: { value: 0 }, waterA1: { value: 0 }, waterA2: { value: 0 }, waterD1: { value: 0 }, waterD2: { value: 0 },
+      waterShallow: { value: new THREE.Color(0.45, 0.85, 0.80) }, waterDeep: { value: new THREE.Color(0.05, 0.30, 0.60) },
+      waveStrength: { value: 0 }, reflStrength: { value: 0 }, foamWidth: { value: 0 }, specPower: { value: 0 },
+    }, mipUniforms),
+    vertexShader: fsVS,
+    fragmentShader: /* glsl */`
+  precision highp float;
+  uniform sampler2D tScene, tDepth, tHeight;
+  ${mipDecl}
+  uniform vec2  org;                 // 高度图左下角对应的格子坐标（整数）
+  uniform float hmRes, vox, waterY, hMax, maxDist, stoneH, snowH, steepT, near, far, time, toScreen;
+  uniform vec3  camPos, fogColor, sunDir, sunColor;
+  uniform mat4  invProj, camWorld;
+  uniform float ambient, aoStrength, aoCurve, shadowStrength, shadowDist;
+  uniform float fogStart, fogEnd, fogEnd2, fogA1, fogA2;
+  uniform float waterClarity, waterA1, waterA2, waterD1, waterD2;
+  uniform vec3  waterShallow, waterDeep;
+  uniform float waveStrength, reflStrength, foamWidth, specPower;
+  varying vec2 vUv;
+
+  /* ---- 层级高度查询：L=0 为单格，L>0 为 2^L×2^L 节点的最大高度；空 / 越界 返回 -1e9 ---- */
+  float nodeH(int L, vec2 cell){
+    vec2 tx = cell - org;
+    if (any(lessThan(tx, vec2(0.))) || any(greaterThanEqual(tx, vec2(hmRes)))) return -1e9;
+    float sz = exp2(float(L));
+    vec2 uv = (floor(tx / sz) + 0.5) * sz / hmRes;
+    uv.y = 1.0 - uv.y;                       // 高度图 v 轴朝 -z
+    vec2 s;
+    if (L == 0) s = texture2D(tHeight, uv).rg;
+    ${mipChain}
+    else s = vec2(0.);
+    return s.g < 0.5 ? -1e9 : s.r;
+  }
+  float colH(vec2 cell){ return nodeH(0, cell); }
+  float nb(vec2 cell, float fb){ float h = colH(cell); return h < -1e8 ? fb : h; }
+  // 方块 (cell, 层索引 j) 是否实心
+  float solidAt(vec2 cell, float j){ return colH(cell) >= (j + 1.0) * vox - 0.01 ? 1.0 : 0.0; }
+
+  /* ---- 分层 DDA（Max-Mip 四叉树）----
+     节点整段射线都高于节点最大高度 ⇒ 跳过整个节点并上升一层；否则下降；到 L=0 做精确命中。
+     向上射线：y>hMax 直接判空；y>节点max 也等价于跳过（min(y0,y1)=y0）。*/
+  bool trace(vec3 ro, vec3 rd, float maxD, int maxSteps,
+             out float tHit, out vec3 n, out float topY, out vec2 hitCell){
+    vec3 rr = rd;
+    rr.x = abs(rr.x) < 1e-5 ? 1e-5 : rr.x;
+    rr.y = abs(rr.y) < 1e-5 ? 1e-5 : rr.y;
+    rr.z = abs(rr.z) < 1e-5 ? 1e-5 : rr.z;
+    float t0 = 0.0;
+    if (ro.y > hMax) { if (rd.y >= 0.0) return false; t0 = (hMax - ro.y) / rr.y; }
+    if (t0 > maxD) return false;
+
+    vec3 ps   = ro + rd * t0;
+    vec2 cell = floor(ps.xz / vox);
+    vec2 stp  = sign(rr.xz);
+    vec2 pos  = max(stp, 0.0);
+    vec3 nIn  = vec3(0, 1, 0);
+    int  L    = MAXL;
+
+    for (int i = 0; i < STEPS; i++) {
+      if (i >= maxSteps) break;
+      float y0 = ro.y + rd.y * t0;
+      if (rd.y > 0.0 && y0 > hMax) break;              // 向上且已高于最高地形 ⇒ 空
+
+      float sz   = exp2(float(L));
+      vec2 nMin  = floor((cell - org) / sz) * sz + org; // 节点左下角（格子单位，和纹素块对齐）
+      vec2 bnd   = (nMin + pos * sz) * vox;             // 出射平面（世界）
+      vec2 tB    = (bnd - ro.xz) / rr.xz;
+      float t1   = min(tB.x, tB.y);
+      float y1   = ro.y + rd.y * t1;
+      float h    = nodeH(L, cell);
+
+      if (min(y0, y1) <= h) {                           // 射线段可能碰到此节点
+        if (L > 0) { L--; continue; }                   // 下降精化
+        hitCell = cell; topY = h;
+        if (y0 <= h) { tHit = t0; n = nIn; }            // 侧面
+        else         { tHit = (h - ro.y) / rr.y; n = vec3(0, 1, 0); } // 顶面
+        return true;
+      }
+      // 跳过整个节点
+      if (tB.x < tB.y) {
+        t0 = tB.x; cell.x = nMin.x + (stp.x > 0.0 ? sz : -1.0);
+        cell.y = floor((ro.z + rd.z * t0) / vox); nIn = vec3(-stp.x, 0., 0.);
+      } else {
+        t0 = tB.y; cell.y = nMin.y + (stp.y > 0.0 ? sz : -1.0);
+        cell.x = floor((ro.x + rd.x * t0) / vox); nIn = vec3(0., 0., -stp.y);
+      }
+      if (t0 > maxD) break;
+      if (L < MAXL) L++;                                // 上升一层，继续粗跳
+    }
+    return false;
+  }
+
+  /* ---- Veloren 风格顶点 AO：side1/side2/corner ---- */
+  float vAO(float s1, float s2, float c){ return (s1 * s2 > 0.5) ? 0.0 : (3.0 - s1 - s2 - c) / 3.0; }
+  float faceAO(vec3 n, vec3 bid, vec2 hitCell, vec3 p){
+    vec2 f; float a00, a10, a01, a11;
+    if (n.y > 0.5) {
+      float j = bid.y + 1.0;  f = fract(p.xz / vox);
+      float l = solidAt(hitCell + vec2(-1, 0), j), r = solidAt(hitCell + vec2(1, 0), j);
+      float d = solidAt(hitCell + vec2(0, -1), j), u = solidAt(hitCell + vec2(0, 1), j);
+      a00 = vAO(l, d, solidAt(hitCell + vec2(-1, -1), j));
+      a10 = vAO(r, d, solidAt(hitCell + vec2( 1, -1), j));
+      a01 = vAO(l, u, solidAt(hitCell + vec2(-1,  1), j));
+      a11 = vAO(r, u, solidAt(hitCell + vec2( 1,  1), j));
+    } else {
+      vec2 tg = vec2(abs(n.z), abs(n.x));           // 面内水平切向
+      vec2 fr = hitCell + n.xz;                     // 面前方的空气列
+      float j = bid.y;
+      f = vec2(fract(dot(p.xz, tg) / vox), fract(p.y / vox));
+      float sL = solidAt(fr - tg, j), sR = solidAt(fr + tg, j);
+      float sD = solidAt(fr, j - 1.0), sU = solidAt(fr, j + 1.0);
+      a00 = vAO(sL, sD, solidAt(fr - tg, j - 1.0));
+      a10 = vAO(sR, sD, solidAt(fr + tg, j - 1.0));
+      a01 = vAO(sL, sU, solidAt(fr - tg, j + 1.0));
+      a11 = vAO(sR, sU, solidAt(fr + tg, j + 1.0));
+    }
+    return mix(mix(a00, a10, f.x), mix(a01, a11, f.x), f.y);
+  }
+
+  float hash(vec3 p){ p = fract(p*0.3183099 + vec3(.1,.2,.3)); p *= 17.0;
+                      return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
+  vec3 blockTex(int ty, vec3 bid, vec2 px){
+    float n = hash(bid + vec3(px, float(ty)) / 16.0);
+    float v = 0.82 + 0.3 * n;
+    vec3 grass = vec3(0.36, 0.63, 0.21), dirt = vec3(0.49, 0.34, 0.2);
+    if (ty == 0) return grass * v;
+    if (ty == 1) { float edge = 12.0 - floor(hash(bid + vec3(px.x, 0., 7.)) * 3.0);
+                   return px.y >= edge ? grass * (0.9 + 0.2*n) : dirt * v; }
+    if (ty == 2) return dirt * v;
+    if (ty == 3) { vec3 c = vec3(0.52) * v; if (n > 0.86) c *= 0.7; return c; }
+    if (ty == 4) return vec3(0.90, 0.85, 0.64) * (0.92 + 0.14*n);
+    return vec3(0.95, 0.96, 1.0) * (0.94 + 0.08*n);
+  }
+  // 两阶雾：0..fogEnd 升到 fogA1，fogEnd..fogEnd2 升到 fogA2
+  float fogAmt(float d){
+    return mix(smoothstep(fogStart, fogEnd, d) * fogA1, fogA2, smoothstep(fogEnd, fogEnd2, d));
+  }
+
+  void main(){
+    vec2 ndc = vUv * 2.0 - 1.0;
+    vec4 v = invProj * vec4(ndc, 1.0, 1.0); v.xyz /= v.w;
+    vec3 rd  = normalize((camWorld * vec4(v.xyz, 0.0)).xyz);
+    vec3 ro  = camPos;
+    vec3 fwd = -normalize(camWorld[2].xyz);
+    float cosF = max(dot(rd, fwd), 1e-3);
+
+    vec4  sc = texture2D(tScene, vUv);
+    float d  = texture2D(tDepth, vUv).r;
+    float sceneZ = d >= 1.0 ? 1e9 : (near*far) / (far - d*(far - near));
+    float maxD = min(maxDist, sceneZ / cosF);
+
+    float tHit = -1.0, topY = 0.0; vec3 n = vec3(0, 1, 0); vec2 hitCell = vec2(0.);
+    bool hit = trace(ro, rd, maxD, STEPS, tHit, n, topY, hitCell);
+
+    vec3 col = sc.rgb; float voxZ = 1e9; float fogT = 0.0; float flag = 0.0;
+
+    if (hit) {
+      vec3 p   = ro + rd * tHit;
+      vec3 bid = floor((p - n * 0.5 * vox) / vox);
+      float layer = (topY - (bid.y + 1.0) * vox) / vox;
+
+      float hl = nb(hitCell + vec2(-1,0), topY), hr = nb(hitCell + vec2(1,0), topY);
+      float hd = nb(hitCell + vec2(0,-1), topY), hu = nb(hitCell + vec2(0,1), topY);
+      float steep = max(max(abs(hl-topY), abs(hr-topY)), max(abs(hd-topY), abs(hu-topY)));
+      int surf = 0;
+      if      (topY <= waterY + vox * 1.5) surf = 4;
+      else if (topY > snowH)               surf = 5;
+      else if (topY > stoneH || steep > steepT * vox) surf = 3;
+      int ty;
+      if      (layer < 0.5) ty = (surf == 0 && n.y < 0.5) ? 1 : surf;
+      else if (layer < 3.5) ty = (surf == 3) ? 3 : (surf == 4 ? 4 : 2);
+      else                  ty = 3;
+
+      vec2 local = n.y > 0.5 ? p.xz : (abs(n.x) > 0.5 ? p.zy : p.xy);
+      vec2 px = floor(fract(local / vox) * 16.0);
+      vec3 c = blockTex(ty, bid, px);
+
+      // 顶点 AO
+      float ao = faceAO(n, bid, hitCell, p);
+      float shade = mix(1.0 - aoStrength, 1.0, pow(clamp(ao, 0.0, 1.0), aoCurve));
+
+      // 太阳漫反射 + 阴影射线
+      float dayF = smoothstep(-0.05, 0.12, sunDir.y);
+      float ndl  = max(dot(n, sunDir), 0.0) * dayF;
+      float sh   = 1.0;
+#if SHADOW_STEPS > 0
+      if (ndl > 0.0 && shadowStrength > 0.0) {
+        float st; vec3 sn; float sy; vec2 scl;
+        if (trace(p + n * (0.05 * vox), sunDir, shadowDist, SHADOW_STEPS, st, sn, sy, scl))
+          sh = 1.0 - shadowStrength;
+      }
+#endif
+      col = c * (vec3(ambient) + sunColor * ndl * sh) * shade;
+      voxZ = tHit * cosF; fogT = tHit; flag = 1.0;
+    }
+
+    // ---- 水面 ----
+    bool aboveW = ro.y > waterY;
+    float ry = abs(rd.y) < 1e-5 ? 1e-5 : rd.y;
+    float tw = (waterY - ro.y) / ry;
+    if (aboveW && tw > 0.0 && (!hit || tw < tHit) && tw < maxD) {
+      vec3 wp = ro + rd * tw;
+      float depth = hit ? (tHit - tw) * (-rd.y) : 60.0;
+
+      float w1 = sin(wp.x*0.9 + time*1.2) + 0.5*sin(wp.z*1.7 - time*0.8 + wp.x*0.4);
+      float w2 = sin(wp.z*0.8 - time*1.0) + 0.5*sin((wp.x+wp.z)*1.3 + time*1.5);
+      vec3 wN = normalize(vec3(-w1 * waveStrength, 1.0, -w2 * waveStrength));
+      float cosT = max(dot(-rd, wN), 0.0);
+      float fres = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
+
+      float k     = mix(1.5, 0.06, clamp(waterClarity, 0.0, 1.0));
+      float trans = exp(-depth * k);
+      vec3  body  = mix(waterShallow, waterDeep, 1.0 - exp(-depth * 0.10));
+      vec3  seen  = mix(body, col * mix(vec3(1.0), waterShallow * 1.15, 0.5), trans);
+      float caus  = 0.5 + 0.5 * sin(wp.x*2.3 + time*0.7) * sin(wp.z*2.1 - time*0.6);
+      seen += caus * caus * 0.10 * trans;
+
+      vec3 sky  = mix(fogColor, vec3(1.0), 0.35);
+      vec3 hV   = normalize(-rd + sunDir);
+      float spec = pow(max(dot(wN, hV), 0.0), specPower) * smoothstep(0.0, 0.1, sunDir.y);
+      vec3 wcol = mix(seen, sky, fres * reflStrength) + spec * 0.6;
+
+      if (hit && depth < foamWidth) {
+        float f = (1.0 - depth / foamWidth);
+        float fn = 0.5 + 0.5*sin(wp.x*6.0 + time*2.0 + sin(wp.z*4.0));
+        wcol = mix(wcol, vec3(0.96), f * f * fn * 0.8);
+      }
+      // 两阶不透明度：浅水 waterA1 → 深水 waterA2（waterD1..waterD2 之间过渡）
+      float a = clamp(mix(waterA1, waterA2, smoothstep(waterD1, waterD2, depth)) + fres * reflStrength * 0.5, 0.0, 1.0);
+      col = mix(col, wcol, a);
+      voxZ = min(voxZ, tw * cosF); fogT = tw; flag = 1.0;
+    }
+
+    if (voxZ < 1e8) {
+      col = mix(col, fogColor, fogAmt(fogT));
+      if (voxZ < sceneZ) sc.rgb = col;
+    }
+    if (!aboveW) {
+      float dist = min(voxZ, sceneZ);
+      float f = 1.0 - exp(-dist * mix(0.25, 0.03, waterClarity));
+      sc.rgb = mix(sc.rgb * mix(vec3(1.0), waterShallow, 0.4), waterDeep, f);
+      flag = 1.0;
+    }
+    gl_FragColor = vec4(sc.rgb, max(flag, toScreen));
+  }`,
+  });
+
+  // 低分辨率体素结果 → 全分辨率合成
+  const compMat = new THREE.ShaderMaterial({
+    depthTest: false, depthWrite: false,
+    uniforms: { tScene: { value: null }, tLow: { value: null } },
+    vertexShader: fsVS,
+    fragmentShader: `precision highp float; uniform sampler2D tScene, tLow; varying vec2 vUv;
+      void main(){ vec4 s = texture2D(tScene, vUv), l = texture2D(tLow, vUv);
+                   gl_FragColor = vec4(mix(s.rgb, l.rgb, l.a), 1.0); }`,
+  });
+
+  /* ---------- 3. 场景 RT / 低分辨率 RT ---------- */
+  let sceneRT = null, lowRT = null;
+  function ensureRT(w, h) {
+    if (!sceneRT || sceneRT.width !== w || sceneRT.height !== h) {
+      if (sceneRT) { sceneRT.depthTexture.dispose(); sceneRT.dispose(); }
+      const dt = new THREE.DepthTexture(w, h); dt.type = THREE.UnsignedIntType;
+      sceneRT = new THREE.WebGLRenderTarget(w, h, { depthTexture: dt, depthBuffer: true });
+      post.uniforms.tScene.value = sceneRT.texture; post.uniforms.tDepth.value = dt;
+      compMat.uniforms.tScene.value = sceneRT.texture;
+    }
+    const lw = Math.max(1, (w * VOX.scale) | 0), lh = Math.max(1, (h * VOX.scale) | 0);
+    if (VOX.scale < 1 && (!lowRT || lowRT.width !== lw || lowRT.height !== lh)) {
+      if (lowRT) lowRT.dispose();
+      lowRT = new THREE.WebGLRenderTarget(lw, lh, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
+      compMat.uniforms.tLow.value = lowRT.texture;
+    }
+  }
+
+  /* ---------- 4. 太阳方向（gg.P.lightDir.xy） ---------- */
+  function updateSun() {
+    const L = gg.P.lightDir, s = post.uniforms.sunDir.value;
+    if (VOX.sunMode === 'vector') s.set(L.x, L.y, L.z || 0).normalize();
+    else { const a = L.x, e = L.y; s.set(Math.cos(e) * Math.sin(a), Math.sin(e), Math.cos(e) * Math.cos(a)); }
+  }
+
+  /* ---------- 5. 每帧 ---------- */
+  const _size = new THREE.Vector2(), _clear = new THREE.Color(), _hidden = [];
+  let lastCx = NaN, lastCz = NaN;
+
+  gg.rendere = gg.render = function () {
+    const cam = gg.camera, scene = gg.scene, u = post.uniforms;
+    R.getSize(_size); const pr = R.getPixelRatio();
+    ensureRT((_size.x * pr) | 0, (_size.y * pr) | 0);
+    cam.updateMatrixWorld();
+
+    R.getClearColor(_clear); const oldAlpha = R.getClearAlpha();
+    const oldOv = scene.overrideMaterial, oldBg = scene.background, oldFog = scene.fog;
+
+    // ① 高度图 + Max-Mip（跨格 / dirty 时重建）
+    const pp = gg.p1.position;
+    const cx = Math.floor(pp.x / VOX.size) * VOX.size, cz = Math.floor(pp.z / VOX.size) * VOX.size;
+    if (gg.ctl.rising.length!=0 || VOX.dirty || cx !== lastCx || cz !== lastCz) {
+      lastCx = cx; lastCz = cz; VOX.dirty = gg.terrainDirty = false;
+      const r = (VOX.hmRes * VOX.size / 2);
+      hmCam.left = -r; hmCam.right = r; hmCam.top = r; hmCam.bottom = -r; hmCam.updateProjectionMatrix();
+      hmCam.position.set(cx, 500, cz); hmCam.lookAt(cx, 0, cz); hmCam.updateMatrixWorld();
+      hmCam.layers.set(VOX.terrainLayer);
+      scene.overrideMaterial = hmMat; scene.background = null; scene.fog = null;
+      R.setRenderTarget(hmRT); R.setClearColor(0x000000, 0); R.clear(); R.render(scene, hmCam);
+      scene.overrideMaterial = oldOv; scene.background = oldBg; scene.fog = oldFog;
+      R.setClearColor(_clear, oldAlpha);
+      buildMips();
+    }
+
+    // ② 场景 → sceneRT（地形层交给 DDA）
+    _hidden.length = 0;
+    scene.traverse(o => { if (o.visible && o.isMesh && o.layers.isEnabled(VOX.terrainLayer)) { o.visible = false; _hidden.push(o); } });
+    R.setRenderTarget(sceneRT); R.clear(); R.render(scene, cam);
+    for (const o of _hidden) o.visible = true;
+
+    // ③ uniforms
+    u.org.value.set(cx / VOX.size - VOX.hmRes / 2, cz / VOX.size - VOX.hmRes / 2);
+    u.maxDist.value = (VOX.hmRes * VOX.size / 2) * VOX.maxDFactor; u.vox.value = VOX.size;
+    u.hMax.value = VOX.hMax; u.stoneH.value = VOX.stoneH; u.snowH.value = VOX.snowH; u.steepT.value = VOX.steep;
+    u.waterY.value = gg.waterY(); u.near.value = cam.near; u.far.value = cam.far;
+    u.time.value = performance.now() * 0.001;
+    u.camPos.value.setFromMatrixPosition(cam.matrixWorld);
+    u.invProj.value.copy(cam.projectionMatrixInverse); u.camWorld.value.copy(cam.matrixWorld);
+    if (oldFog) u.fogColor.value.copy(oldFog.color); else if (oldBg && oldBg.isColor) u.fogColor.value.copy(oldBg);
+    for (const k of ['ambient', 'aoStrength', 'aoCurve', 'shadowStrength', 'shadowDist',
+                     'fogStart', 'fogEnd', 'fogEnd2', 'fogA1', 'fogA2',
+                     'waterClarity', 'waterA1', 'waterA2', 'waterD1', 'waterD2',
+                     'waveStrength', 'reflStrength', 'foamWidth', 'specPower']) u[k].value = VOX[k];
+    updateSun();
+
+    // ④ 合成（scale<1 时体素 pass 走低分辨率，再与全分辨率场景合成）
+    if (VOX.scale < 1) {
+      u.toScreen.value = 0; blit(post, lowRT);
+      blit(compMat, null);
+    } else {
+      u.toScreen.value = 1; blit(post, null);
+    }
+  };
+
+  /* ---------- 6. 面板 ---------- */
+  const bind = (o, k, opt, cb) => {
+    const b = (fV.addBinding || fV.addInput).call(fV, o, k, opt);
+    if (cb) b.on('change', e => cb(e.value)); return b;
+  };
+  const recompile = () => {
+    post.defines.STEPS = VOX.steps | 0;
+    post.defines.SHADOW_STEPS = Math.min(VOX.shadowSteps | 0, VOX.steps | 0);
+    post.needsUpdate = true;
+  };
+  bind(VOX, 'scale',       { min: 0.25, max: 1, step: 0.05 });
+  bind(VOX, 'steps',       { min: 16, max: 512, step: 8 }, recompile);
+  bind(VOX, 'shadowSteps', { min: 0, max: 128, step: 4 }, recompile);
+  // bind(VOX, 'maxDFactor',  { min: 0.1, max: 1.0, step: 0.05 });
+  bind(VOX, 'ambient',     { min: 0, max: 1 });
+  bind(VOX, 'aoStrength',  { min: 0, max: 1 });
+  bind(VOX, 'aoCurve',     { min: 0.5, max: 3 });
+  bind(VOX, 'shadowStrength', { min: 0, max: 1 });
+  bind(VOX, 'shadowDist',  { min: 10, max: 1000 });
+  bind(VOX, 'fogStart',    { min: 0, max: 2000 });
+  bind(VOX, 'fogEnd',      { min: 0, max: 2000 });
+  bind(VOX, 'fogEnd2',     { min: 0, max: 2000 });
+  bind(VOX, 'fogA1',       { min: 0, max: 1 });
+  bind(VOX, 'fogA2',       { min: 0, max: 1 });
+
+  bind(VOX, 'waterClarity', { min: 0, max: 1 });
+  bind(VOX, 'waterA1',     { min: 0, max: 1, label: '浅水不透明' });
+  bind(VOX, 'waterA2',     { min: 0, max: 1, label: '深水不透明' });
+  bind(VOX, 'waterD1',     { min: 0, max: 20 });
+  bind(VOX, 'waterD2',     { min: 0, max: 60 });
+  bind(VOX, 'waveStrength', { min: 0, max: 0.2 });
+  bind(VOX, 'reflStrength', { min: 0, max: 1 });
+  bind(VOX, 'foamWidth',   { min: 0, max: 2 });
+})();
+
+
+
+</script>
+
+
+<!-- ========== 6. 生物系统（分组 SoA + 地/空双哈希 + 状态机）+ 主循环 ========== -->
+<script type="module">
+const {THREE,P,scene,pane,camera}=gg;
+let GROUPS = {
+  deer: { domain: "land", speed: 2.4, turn: 1.6, sep: 1.8, feedR: 14 },
+  crab: { domain: "seaside", speed: 1.1, turn: 2.2, sep: 1.1, feedR: 9 },
+  gull: { domain: "air",    speed: 6.5, turn: 2.4, sep: 2.2, align: 0.7, coh: 0.35, alt: 6 },
+  ray:  { domain: "sea",    speed: 4.2, turn: 0.8, sep: 4.0, align: 1.1, coh: 0.2,  alt: 18 },
+};
+const NAMES=Object.keys(GROUPS), MAX=24, FEED=0,REST=1,FLEE=2,WIND=3;
+const prob={deer:4.5,gull:2.4,crab:5.2,ray:3};
+const ui={cid:'deer',get p(){return prob[ui.cid]},set p(v){prob[ui.cid]=v},count:0};
+const fB=pane.addFolder({title:'生物'});
+
+fB.addBinding(ui,'cid',{label:'生物cid',options:Object.fromEntries(NAMES.map(c=>[c,c]))}).on('change',()=>pb.refresh());
+const pb=fB.addBinding(ui,'p',{label:'FoV内生成率/秒',min:0,max:3,step:.01});
+fB.addBinding(ui,'count',{label:'当前数量',readonly:true,format:v=>v.toFixed(0)});
+{let f=0, b=fB.addBinding(P,'hour',{label:'夜间(时)',min:8,max:24,step:.1}), t=setInterval(()=>(f=1, P.hour=(P.hour+1/30)%24, b.refresh(), f=0), 1000); b.on('change', ()=>(!f && clearInterval(t)));}
+fB.addBinding(P,'wire',{label:'线框化',min:0,max:3,step:1});
+
+/* ---------- 1. 低多边形模型（合并成一块几何，-Z 为前方） ---------- */
+function loBody(parts){ // [w,h,d, x,y,z, rotZ?]
+  const gs=parts.map(([w,h,d,x,y,z,rz=0])=>{const b=new THREE.BoxGeometry(w,h,d);b.rotateZ(rz);b.translate(x,y,z);return b.toNonIndexed();});
+  let n=0;for(const b of gs)n+=b.attributes.position.count;
+  const pos=new Float32Array(n*3),nor=new Float32Array(n*3);let o=0;
+  for(const b of gs){pos.set(b.attributes.position.array,o);nor.set(b.attributes.normal.array,o);o+=b.attributes.position.count*3;}
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('normal',new THREE.BufferAttribute(nor,3));return g;
+}
+/* ---- 空间哈希（原样） ---- */
+class Hash{
+  constructor(cell,cap){this.cell=cell;this.T=1<<12;this.start=new Int32Array(this.T+1);this.cur=new Int32Array(this.T);
+    this.items=new Int32Array(cap);this.ids=new Int32Array(cap);this.keys=new Int32Array(cap);}
+  key(cx,cz,l){return ((cx*73856093)^(cz*19349663)^(l*83492791))&(this.T-1);}
+  build(groups){
+    const s=this.start.fill(0);let n=0;
+    for(const g of groups)for(let i=0;i<g.n;i++){
+      const k=this.key(Math.floor(g.x[i]/this.cell),Math.floor(g.z[i]/this.cell),g.layer[i]);
+      this.keys[n]=k;this.ids[n]=g.gi<<16|i;s[k+1]++;n++;}
+    for(let k=0;k<this.T;k++)s[k+1]+=s[k];
+    this.cur.set(s.subarray(0,this.T));
+    for(let j=0;j<n;j++)this.items[this.cur[this.keys[j]]++]=this.ids[j];
+  }
+  each(x,z,l,r,layers,fn){
+    const c=this.cell,R=Math.ceil(r/c),cx=Math.floor(x/c),cz=Math.floor(z/c);
+    for(let ll=Math.max(0,l-1);ll<=Math.min(layers-1,l+1);ll++)
+    for(let dx=-R;dx<=R;dx++)for(let dz=-R;dz<=R;dz++){
+      const k=this.key(cx+dx,cz+dz,ll);
+      for(let j=this.start[k],e=this.start[k+1];j<e;j++)fn(this.items[j]);
+    }
+  }
+}
+
+/* ---- 低多边形模型（全部朝 -Z） ---- */
+const M=c=>new THREE.MeshStandardMaterial({color:c,flatShading:true,roughness:.9});
+const box=(w,h,d,c,x=0,y=0,z=0)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c));m.position.set(x,y,z);return m};
+const grp=(...ch)=>{const g=new THREE.Group();ch.length!=0&&g.add(...ch);return g};
+const build={
+  deer(){const g=grp(box(2.1,2.4,4.8,0x8b5a2b,0,3.9),box(1.2,1.2,1.8,0x8b5a2b,0,5.4,-3),box(.15,1.5,.15,0x332211,.36,6.6,-3),box(.15,1.5,.15,0x332211,-.36,6.6,-3));
+    const legs=grp(...[[.75,-1.8],[-.75,-1.8],[.75,1.8],[-.75,1.8]].map(([x,z])=>box(.54,3,.54,0x6b4423,x,-1.5,z)));legs.position.y=3;g.add(legs);g.userData.legs=legs;return g},
+  crab(){const g=grp(box(3.6,1.05,2.4,0xd9533a,0,.9),box(.3,.45,.3,0x111,.9,1.65,-1.2),box(.3,.45,.3,0x111,-.9,1.65,-1.2));
+    const legs=grp(...[-.9,0,.9].flatMap(z=>[box(2.1,.24,.24,0xb0402c,2.7,.45,z),box(2.1,.24,.24,0xb0402c,-2.7,.45,z)]));g.add(legs);g.userData.legs=legs;return g},
+  gull(){const g=grp(box(.9,.75,2.7,0xf0f0f0),box(.3,.3,.9,0xf0a000,0,0,-1.8));
+    const wl=grp(box(3.6,.15,1.2,0xdddddd,1.8,0,0)),wr=grp(box(3.6,.15,1.2,0xdddddd,-1.8,0,0));wl.position.x=.45;wr.position.x=-.45;g.add(wl,wr);Object.assign(g.userData,{wl,wr});return g},
+  ray(){return grp(box(6.6,.7,3.6,0x4a5a6a))},
+};const anim={
+  deer:(m,t,k)=>m.userData.legs.rotation.x=Math.sin(t*10)*.6*k,
+  crab:(m,t,k)=>m.userData.legs.rotation.y=Math.sin(t*14)*.25*k,
+  gull:(m,t)=>{const f=Math.sin(t*9)*.6;m.userData.wl.rotation.z=f;m.userData.wr.rotation.z=-f},
+  ray:(m,t,k)=>{m.rotation.z=Math.sin(t*7)*.4*k;m.rotation.x=Math.sin(t*1.3)*.08*k},  // 随游动整体轻微翻动
+};
+
+/* ---- 分组数据（SoA）与双哈希 ---- */
+const G=NAMES.map((cid,gi)=>{const F=()=>new Float32Array(MAX);
+  return {cid,gi,cfg:GROUPS[cid],n:0,x:F(),y:F(),z:F(),hd:F(),tm:F(),t:F(),st:new Int8Array(MAX),layer:new Int32Array(MAX),m:[]}});
+const ground=G.filter(g=>!g.cfg.alt), aerial=G.filter(g=>g.cfg.alt);
+const hG=new Hash(6,MAX*2), hA=new Hash(10,MAX*2);
+const layerOf=(y,w)=>Math.max(0,Math.min(9,(y-w+40)/10|0));      // 空域按高度分 10 层
+const fit={land:(h,w)=>h>w+1,seaside:(h,w)=>h>w-.5&&h<w+2,air:()=>true,sea:(h,w)=>h<w-3};
+const grad=(x,z)=>[(gg.height(x+1,z)-gg.height(x-1,z))/2,(gg.height(x,z+1)-gg.height(x,z-1))/2];
+const H=v=>Math.atan2(-v[0],-v[1]);                                  // 方向向量 → heading（x-=sin,z-=cos）
+
+gg.spawn=(cid,p=gg.p1.position)=>{
+  if('food'==cid){let g=build.food();g.position.copy(p);scene.add(g);return}
+  const g=G[NAMES.indexOf(cid)]; if(!g||g.n>=MAX)return console.warn('spawn fail',cid);
+  const i=g.n++,m=build[cid](),x=p[0]??p.x,y=p[1]??p.y,z=p[2]??p.z;
+  m.position.set(x,y+3,z); scene.add(m); g.m[i]=m;
+  g.x[i]=x;g.y[i]=y;g.z[i]=z;g.hd[i]=Math.random()*7;g.tm[i]=2+Math.random()*4;g.t[i]=Math.random()*9;
+  g.st[i]=127;                                            // 下落中禁用模拟
+  m.born=performance.now(); m.fallY=y; (m.land=()=>{g.st[i]=FEED});
+  gg.ctl.rising.push(m);
+  return m;
+};
+const kill=(g,i)=>{scene.remove(g.m[i]);const j=--g.n;for(const k of ['x','y','z','hd','st','tm','t'])g[k][i]=g[k][j];g.m[i]=g.m[j];g.m.length=j};
+
+/* ---- 生成：FoV 内 + 栖息地匹配 + 空区（哈希无邻居） ---- */
+function candidate(g,w){
+  const c=g.cfg,hf=camera.fov*Math.PI/360*camera.aspect,a=gg.ctl.yaw+(Math.random()-.5)*hf*1.8,d=30+Math.random()*150,pp=gg.p1.position;
+  const x=pp.x-Math.sin(a)*d,z=pp.z-Math.cos(a)*d,h=gg.height(x,z); if(!fit[c.domain](h,w))return;
+  const y=c.domain=='air'?Math.max(h,w)+c.alt+Math.random()*20:c.domain=='sea'?h+1+Math.random()*(w-h-2):Math.max(h,w);
+  let cnt=0;(c.alt?hA:hG).each(x,z,c.alt?layerOf(y,w):0,12,c.alt?10:1,()=>cnt++);
+  return cnt?null:[x,y,z];
+}
+function inFov(x,z){const pp=gg.p1.position,dx=x-pp.x,dz=z-pp.z;if(dx*dx+dz*dz>240*240)return false;
+  let da=Math.atan2(-dx,-dz)-gg.ctl.yaw;da=Math.atan2(Math.sin(da),Math.cos(da));return Math.abs(da)<camera.fov*Math.PI/360*camera.aspect+.15}
+
+/* ---- 行为 ---- */
+gg.tickers.push((dt,t)=>{
+  const w=gg.waterY(),wind=P.wind,pp=gg.p1.position;
+  for(const g of aerial)for(let i=0;i<g.n;i++)g.layer[i]=layerOf(g.y[i],w);
+  hG.build(ground);hA.build(aerial);
+  for(const g of G){
+    const c=g.cfg,hash=c.alt?hA:hG,L=c.alt?10:1,fl=!!c.align;
+    if(Math.random()<prob[g.cid]*dt&&g.n<MAX){const p=candidate(g,w);if(p)gg.spawn(g.cid,p)}
+    for(let i=g.n-1;i>=0;i--){
+      let x=g.x[i],y=g.y[i],z=g.z[i],hd=g.hd[i];
+      if(!inFov(x,z)){kill(g,i);continue}
+      g.t[i]+=dt; const T=g.t[i];
+      if((g.tm[i]-=dt)<0){g.st[i]=Math.random()<.5?FEED:Math.random()<.5?REST:WIND;g.tm[i]=3+Math.random()*6}
+      const dpx=x-pp.x,dpz=z-pp.z; if(dpx*dpx+dpz*dpz<400){g.st[i]=FLEE;g.tm[i]=2}
+      const st=g.st[i],[gx,gz]=grad(x,z),sl=Math.hypot(gx,gz),h0=gg.height(x,z);
+      let sp=c.speed,want=hd+gg.snoise(T*.3,i*7.3+g.gi)*.8;                       // 基础游走
+      if (st==127) { const m=g.m[i]; if(m.fallY==0){g.st[i]=FEED;} else continue }
+      if(st==FEED){sp*=.7; if(c.domain=='land')want=H([gx,gz]);                   // 鹿：朝高处
+        else if(c.domain!='air'){const s=h0<w+.5?1:-1;want=H([gx*s,gz*s])}}        // 蟹/鳐：朝水边
+      if(st==REST)sp*=.05;
+      if(st==FLEE){want=H([dpx,dpz]);sp*=2.2}                                     // 远离玩家
+      if(st==WIND){want=H([wind.x,wind.y]);sp*=1.2}
+      if(!c.alt&&sl>.8){const s=Math.sin(T*.5)>0?1:-1;want=H([-gz*s,gx*s]);sp*=.6} // 陡坡：沿等高线游走
+      // 邻居：分离 + （群飞/群游）对齐、聚合
+      let vx=-Math.sin(want),vz=-Math.cos(want),ax=0,az=0,cx=0,cz=0,n=0;
+      hash.each(x,z,g.layer[i],fl?c.sep*3:c.sep*1.5,L,id=>{const og=G[id>>16],j=id&0xffff;if(og===g&&j===i)return;
+        const dx=x-og.x[j],dz=z-og.z[j],d2=dx*dx+dz*dz+1e-4;
+        if(d2<c.sep*c.sep){vx+=dx/d2*c.sep;vz+=dz/d2*c.sep}
+        if(fl&&og===g){ax-=Math.sin(og.hd[j]);az-=Math.cos(og.hd[j]);cx+=og.x[j];cz+=og.z[j];n++}});
+      if(n){vx+=ax/n*c.align+(cx/n-x)*c.coh*.1;vz+=az/n*c.align+(cz/n-z)*c.coh*.1}
+      const d=Math.atan2(Math.sin(H([vx,vz])-hd),Math.cos(H([vx,vz])-hd));
+      hd+=THREE.MathUtils.clamp(d,-c.turn*dt,c.turn*dt);
+      // 移动 + 域边界反弹
+      const wf=c.domain=='air'?1:st==WIND?.3:0;
+      let nx=x-Math.sin(hd)*sp*dt+wind.x*wf*dt,nz=z-Math.cos(hd)*sp*dt+wind.y*wf*dt,h=gg.height(nx,nz);
+      if(!fit[c.domain](h,w)){hd+=Math.PI*(.6+Math.random()*.8);nx=x;nz=z;h=h0}
+      x=nx;z=nz;
+      y=c.domain=='air'?Math.max(y+Math.sin(T*.7)*dt*2,Math.max(h,w)+c.alt)
+       :c.domain=='sea'?THREE.MathUtils.clamp(y+Math.sin(T*.5)*dt,h+1,w-2):Math.max(h,w);
+      g.x[i]=x;g.y[i]=y;g.z[i]=z;g.hd[i]=hd;
+      const m=g.m[i];m.position.set(x,y,z);m.rotation.y=hd;anim[g.cid](m,T,sp/c.speed);
+    }
+  }
+  ui.count=G[NAMES.indexOf(ui.cid)].n;
+});
+
+/* ---- 主循环 ---- */
+const clock=new THREE.Clock();
+(function loop(){requestAnimationFrame(loop);const dt=Math.min(clock.getDelta(),.05);for(const f of gg.tickers)f(dt,clock.elapsedTime);(P.wire==2)?gg.rendere():gg.renderer.render(scene,camera)})();
+
+if('ok')
+{
+  // 共享资源，避免每只生物重复创建几何体和材质
+  const B = new THREE.BoxGeometry(1, 1, 1);
+  const C = new THREE.ConeGeometry(1, 1, 4);
+  const I = new THREE.IcosahedronGeometry(1, 0);
+  const mat = (color, emissive, side = THREE.FrontSide) =>
+    new THREE.MeshLambertMaterial({
+      color, emissive, emissiveIntensity: .45,
+      flatShading: true, side
+    });
+
+  const land = mat(0x1ec8b0, 0x063e3c);
+  const air  = mat(0x7ef0ff, 0x146888);
+  const sea  = mat(0x46cbbb, 0x09534e, THREE.DoubleSide);
+  const food = mat(0xa8ed64, 0x385c12);
+  const eye  = new THREE.MeshBasicMaterial({ color: 0xffe08a });
+
+  const R = new THREE.BufferGeometry();
+  R.setAttribute('position', new THREE.Float32BufferAttribute([
+    0,.08,-1.6,  0,.22,.6,   1.6,0,.2,
+    0,.08,-1.6, -1.6,0,.2,  0,.22,.6,
+    -.1,.2,.6,  0,0,2.2,    .1,.2,.6
+  ], 3));
+  R.computeVertexNormals();
+
+  function group(kind) {
+    const g = new THREE.Group();
+    g.userData.kind = kind;
+    return g;
+  }
+  function part(g, geo, material, scale, pos = [0, 0, 0]) {
+    const m = new THREE.Mesh(geo, material);
+    m.scale.fromArray(scale);
+    m.position.fromArray(pos);
+    g.add(m);
+    return m;
+  }
+  const eyes = (g, positions) =>
+    positions.forEach(p => part(g, I, eye, [.065, .065, .065], p));
+
+Object.assign(build,  {
+   ray() {
+      const g = group('流光鳐');
+      part(g, R, sea, [1, 1, 1]);
+      eyes(g, [[-.16, .16, -.75], [.16, .16, -.75]]);
+      return g;
+    },
+
+    food() {
+      const g = group('能量芽');
+      part(g, I, food, [.9, 1.42, .9]);
+      return g;
+    }
+  });
+}
+</script>
+</body></html>
