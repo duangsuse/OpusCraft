@@ -571,81 +571,84 @@ const leafDrops = (sapling) => (r, meta, held) => {
   return out;
 };
 
-// ---- Definitions ------------------------------------------------------------
-Blocks.define('air', { model: 'none', solid: false, transparent: true, replaceable: true, hardness: 0, noItem: true, cullSame: false, opaque: false });
-Blocks.define('stone', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true, drops: 'cobblestone' });
-Blocks.define('granite', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('diorite', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('andesite', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('grass_block', {
-  tex: { top: 'grass_block_top', side: 'grass_block_side', bottom: 'dirt' }, tint: { top: 'grass' },
-  hardness: 0.6, tool: 'shovel', drops: 'dirt',
-  variants: (m) => m === 1 ? { top: 'snow', side: 'grass_block_snow', bottom: 'dirt' } : null
-});
-Blocks.define('dirt', { hardness: 0.5, tool: 'shovel' });
-Blocks.define('cobblestone', { hardness: 2, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('mossy_cobblestone', { hardness: 2, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('stone_bricks', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('sand', { hardness: 0.5, tool: 'shovel', gravity: true });
-Blocks.define('gravel', { hardness: 0.6, tool: 'shovel', gravity: true, drops: dropChance('flint', 0.1, 'gravel') });
-Blocks.define('sandstone', { tex: { top: 'sandstone_top', bottom: 'sandstone_bottom', side: 'sandstone' }, hardness: 0.8, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('bedrock', { hardness: -1, noItem: false });
-for (const w of ['oak', 'birch', 'spruce']) {
-  Blocks.define(w + '_log', { tex: { top: w + '_log_top', side: w + '_log' }, hardness: 2, tool: 'axe', flammable: 5 });
-  Blocks.define(w + '_planks', { hardness: 2, tool: 'axe', flammable: 20 });
-  Blocks.define(w + '_leaves', { hardness: 0.2, tool: 'shears', transparent: true, opacity: 1, tint: w === 'oak' ? 'foliage' : w, flammable: 60, drops: leafDrops(w + '_sapling') });
-  Blocks.define(w + '_sapling', { model: 'cross', solid: false, transparent: true, hardness: 0, needsSupport: 'below', flammable: 30, icon: 'flat' });
-}
-Blocks.define('glass', { hardness: 0.3, transparent: true, drops: dropNothing });
-Blocks.define('water', { model: 'liquid', liquid: true, solid: false, transparent: true, opacity: 2, tint: 'water', replaceable: true, hardness: 100, noItem: true, tex: 'water_still' });
-Blocks.define('lava', { model: 'liquid', liquid: true, solid: false, transparent: true, light: 15, replaceable: true, hardness: 100, noItem: true, tex: 'lava_still', damage: 4 });
-Blocks.define('coal_ore', { hardness: 3, tool: 'pickaxe', tier: 1, requiresTool: true, drops: 'coal' });
-Blocks.define('iron_ore', { hardness: 3, tool: 'pickaxe', tier: 2, requiresTool: true });
-Blocks.define('gold_ore', { hardness: 3, tool: 'pickaxe', tier: 3, requiresTool: true });
-Blocks.define('lapis_ore', { hardness: 3, tool: 'pickaxe', tier: 2, requiresTool: true, drops: dropCount('lapis_lazuli', 4, 8) });
-Blocks.define('diamond_ore', { hardness: 3, tool: 'pickaxe', tier: 3, requiresTool: true, drops: 'diamond' });
-Blocks.define('emerald_ore', { hardness: 3, tool: 'pickaxe', tier: 3, requiresTool: true, drops: 'emerald' });
-Blocks.define('coal_block', { hardness: 5, tool: 'pickaxe', tier: 1, requiresTool: true, flammable: 5 });
-Blocks.define('iron_block', { hardness: 5, tool: 'pickaxe', tier: 2, requiresTool: true });
-Blocks.define('gold_block', { hardness: 3, tool: 'pickaxe', tier: 3, requiresTool: true });
-Blocks.define('diamond_block', { hardness: 5, tool: 'pickaxe', tier: 3, requiresTool: true });
-Blocks.define('lapis_block', { hardness: 3, tool: 'pickaxe', tier: 2, requiresTool: true });
-Blocks.define('emerald_block', { hardness: 5, tool: 'pickaxe', tier: 3, requiresTool: true });
-Blocks.define('crafting_table', { tex: { top: 'crafting_table_top', bottom: 'oak_planks', side: 'crafting_table_side', front: 'crafting_table_front' }, hardness: 2.5, tool: 'axe', flammable: 20, interactive: 'crafting', facing: true });
-Blocks.define('furnace', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'furnace_front' }, hardness: 3.5, tool: 'pickaxe', tier: 1, requiresTool: true, interactive: 'furnace', tileEntity: true, facing: true });
-Blocks.define('furnace_lit', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'furnace_front_on' }, hardness: 3.5, tool: 'pickaxe', tier: 1, requiresTool: true, interactive: 'furnace', tileEntity: true, facing: true, light: 13, drops: 'furnace', noItem: true });
-Blocks.define('chest', { model: 'box', box: [1, 0, 1, 15, 14, 15], tex: { top: 'chest_top', bottom: 'chest_top', side: 'chest_side', front: 'chest_front' }, hardness: 2.5, tool: 'axe', flammable: 20, interactive: 'chest', tileEntity: true, facing: true, transparent: true, opaque: false, cullSame: false });
-Blocks.define('torch', { model: 'torch', solid: false, transparent: true, light: 14, hardness: 0, needsSupport: 'any', icon: 'flat' });
-Blocks.define('ladder', { model: 'ladder', solid: false, transparent: true, hardness: 0.4, tool: 'axe', climbable: true, needsSupport: 'wall', flammable: 10, icon: 'flat' });
-for (const c of WOOL_NAMES) Blocks.define(c + '_wool', { hardness: 0.8, tool: 'shears', flammable: 30 });
-Blocks.define('glowstone', { hardness: 0.3, tool: 'pickaxe', light: 15, drops: dropCount('glowstone_dust', 2, 4) });
-Blocks.define('obsidian', { hardness: 50, tool: 'pickaxe', tier: 4, requiresTool: true });
-Blocks.define('tnt', { tex: { top: 'tnt_top', bottom: 'tnt_bottom', side: 'tnt_side' }, hardness: 0, flammable: 15, interactive: 'tnt' });
-Blocks.define('bookshelf', { tex: { top: 'oak_planks', bottom: 'oak_planks', side: 'bookshelf' }, hardness: 1.5, tool: 'axe', flammable: 30, drops: dropCount('book', 3, 3) });
-Blocks.define('farmland', { model: 'box', box: [0, 0, 0, 16, 15, 16], tex: { top: 'farmland', side: 'dirt', bottom: 'dirt' }, hardness: 0.6, tool: 'shovel', drops: 'dirt', transparent: true, opaque: false, cullSame: false,
-  variants: (m) => m >= 1 ? { top: 'farmland_moist', side: 'dirt', bottom: 'dirt' } : null });
-Blocks.define('dirt_path', { model: 'box', box: [0, 0, 0, 16, 15, 16], tex: { top: 'dirt_path_top', side: 'dirt_path_side', bottom: 'dirt' }, hardness: 0.65, tool: 'shovel', drops: 'dirt', transparent: true, opaque: false, cullSame: false });
-Blocks.define('snow', { model: 'layer', box: [0, 0, 0, 16, 2, 16], solid: false, transparent: true, replaceable: true, hardness: 0.1, tool: 'shovel', drops: 'snowball', icon: 'cube', displayName: 'Snow Layer' });
-Blocks.define('snow_block', { tex: 'snow', hardness: 0.2, tool: 'shovel', drops: dropCount('snowball', 4, 4) });
-Blocks.define('ice', { hardness: 0.5, tool: 'pickaxe', transparent: true, opacity: 1, drops: dropNothing });
-Blocks.define('cactus', { model: 'box', box: [1, 0, 1, 15, 16, 15], tex: { top: 'cactus_top', bottom: 'cactus_bottom', side: 'cactus_side' }, hardness: 0.4, transparent: true, opaque: false, cullSame: false, damage: 1, needsSupport: 'below' });
-Blocks.define('dead_bush', { model: 'cross', solid: false, transparent: true, hardness: 0, replaceable: true, drops: dropCount('stick', 0, 2), needsSupport: 'below', icon: 'flat' });
-Blocks.define('short_grass', { model: 'cross', solid: false, transparent: true, hardness: 0, replaceable: true, tint: 'grass', needsSupport: 'below', flammable: 60, icon: 'flat', displayName: 'Grass',
-  drops: (r, m, held) => held && held.name === 'shears' ? [{ self: true, count: 1 }] : (r.chance(0.125) ? [{ item: 'wheat_seeds', count: 1 }] : []) });
-Blocks.define('fern', { model: 'cross', solid: false, transparent: true, hardness: 0, replaceable: true, tint: 'grass', needsSupport: 'below', flammable: 60, icon: 'flat',
-  drops: (r) => r.chance(0.125) ? [{ item: 'wheat_seeds', count: 1 }] : [] });
-for (const f of ['dandelion', 'poppy', 'cornflower', 'oxeye_daisy']) Blocks.define(f, { model: 'cross', solid: false, transparent: true, hardness: 0, needsSupport: 'below', flammable: 60, icon: 'flat' });
-Blocks.define('wheat', { model: 'crop', solid: false, transparent: true, hardness: 0, needsSupport: 'farmland', noItem: true, tex: 'wheat_stage7',
-  extraTex: ['wheat_stage0', 'wheat_stage1', 'wheat_stage2', 'wheat_stage3', 'wheat_stage4', 'wheat_stage5', 'wheat_stage6', 'wheat_stage7'],
-  drops: (r, meta) => meta >= 7 ? [{ item: 'wheat', count: 1 }, { item: 'wheat_seeds', count: r.irange(0, 3) }] : [{ item: 'wheat_seeds', count: 1 }] });
-Blocks.define('pumpkin', { tex: { top: 'pumpkin_top', bottom: 'pumpkin_top', side: 'pumpkin_side' }, hardness: 1, tool: 'axe' });
-Blocks.define('jack_o_lantern', { tex: { top: 'pumpkin_top', bottom: 'pumpkin_top', side: 'pumpkin_side', front: 'jack_o_lantern' }, hardness: 1, tool: 'axe', light: 15, facing: true });
-Blocks.define('spawner', { hardness: 5, tool: 'pickaxe', tier: 1, requiresTool: true, transparent: true, cullSame: false, drops: dropNothing, tileEntity: true });
-Blocks.define('fire', { model: 'fire', tex: 'fire_0', solid: false, transparent: true, light: 15, hardness: 0, replaceable: true, drops: dropNothing, noItem: true, damage: 1 });
-Blocks.define('netherrack', { hardness: 0.4, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('end_stone', { hardness: 3, tool: 'pickaxe', tier: 1, requiresTool: true });
-Blocks.define('oak_door', { model: 'door', tex: { all: 'oak_door_bottom', top: 'oak_door_top', bottom: 'oak_door_bottom' }, itemTex: 'oak_door', hardness: 3, tool: 'axe', transparent: true, opaque: false, cullSame: false, flammable: 20, icon: 'flat',
-  drops: (r, meta) => (meta & 1) ? [] : [{ item: 'oak_door', count: 1 }] });
+// ---- Definitions (declarative: [name, props]) -------------------------------
+const BLOCK_DEFS = [
+  ['air', { model: 'none', solid: false, transparent: true, replaceable: true, hardness: 0, noItem: true, cullSame: false, opaque: false }],
+  ['stone', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true, drops: 'cobblestone' }],
+  ['granite', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['diorite', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['andesite', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['grass_block', {
+    tex: { top: 'grass_block_top', side: 'grass_block_side', bottom: 'dirt' }, tint: { top: 'grass' },
+    hardness: 0.6, tool: 'shovel', drops: 'dirt',
+    variants: (m) => m === 1 ? { top: 'snow', side: 'grass_block_snow', bottom: 'dirt' } : null
+  }],
+  ['dirt', { hardness: 0.5, tool: 'shovel' }],
+  ['cobblestone', { hardness: 2, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['mossy_cobblestone', { hardness: 2, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['stone_bricks', { hardness: 1.5, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['sand', { hardness: 0.5, tool: 'shovel', gravity: true }],
+  ['gravel', { hardness: 0.6, tool: 'shovel', gravity: true, drops: dropChance('flint', 0.1, 'gravel') }],
+  ['sandstone', { tex: { top: 'sandstone_top', bottom: 'sandstone_bottom', side: 'sandstone' }, hardness: 0.8, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['bedrock', { hardness: -1, noItem: false }],
+  ...['oak', 'birch', 'spruce'].flatMap(w => [
+      [w + '_log', { tex: { top: w + '_log_top', side: w + '_log' }, hardness: 2, tool: 'axe', flammable: 5 }],
+      [w + '_planks', { hardness: 2, tool: 'axe', flammable: 20 }],
+      [w + '_leaves', { hardness: 0.2, tool: 'shears', transparent: true, opacity: 1, tint: w === 'oak' ? 'foliage' : w, flammable: 60, drops: leafDrops(w + '_sapling') }],
+      [w + '_sapling', { model: 'cross', solid: false, transparent: true, hardness: 0, needsSupport: 'below', flammable: 30, icon: 'flat' }],
+    ]),
+  ['glass', { hardness: 0.3, transparent: true, drops: dropNothing }],
+  ['water', { model: 'liquid', liquid: true, solid: false, transparent: true, opacity: 2, tint: 'water', replaceable: true, hardness: 100, noItem: true, tex: 'water_still' }],
+  ['lava', { model: 'liquid', liquid: true, solid: false, transparent: true, light: 15, replaceable: true, hardness: 100, noItem: true, tex: 'lava_still', damage: 4 }],
+  ['coal_ore', { hardness: 3, tool: 'pickaxe', tier: 1, requiresTool: true, drops: 'coal' }],
+  ['iron_ore', { hardness: 3, tool: 'pickaxe', tier: 2, requiresTool: true }],
+  ['gold_ore', { hardness: 3, tool: 'pickaxe', tier: 3, requiresTool: true }],
+  ['lapis_ore', { hardness: 3, tool: 'pickaxe', tier: 2, requiresTool: true, drops: dropCount('lapis_lazuli', 4, 8) }],
+  ['diamond_ore', { hardness: 3, tool: 'pickaxe', tier: 3, requiresTool: true, drops: 'diamond' }],
+  ['emerald_ore', { hardness: 3, tool: 'pickaxe', tier: 3, requiresTool: true, drops: 'emerald' }],
+  ['coal_block', { hardness: 5, tool: 'pickaxe', tier: 1, requiresTool: true, flammable: 5 }],
+  ['iron_block', { hardness: 5, tool: 'pickaxe', tier: 2, requiresTool: true }],
+  ['gold_block', { hardness: 3, tool: 'pickaxe', tier: 3, requiresTool: true }],
+  ['diamond_block', { hardness: 5, tool: 'pickaxe', tier: 3, requiresTool: true }],
+  ['lapis_block', { hardness: 3, tool: 'pickaxe', tier: 2, requiresTool: true }],
+  ['emerald_block', { hardness: 5, tool: 'pickaxe', tier: 3, requiresTool: true }],
+  ['crafting_table', { tex: { top: 'crafting_table_top', bottom: 'oak_planks', side: 'crafting_table_side', front: 'crafting_table_front' }, hardness: 2.5, tool: 'axe', flammable: 20, interactive: 'crafting', facing: true }],
+  ['furnace', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'furnace_front' }, hardness: 3.5, tool: 'pickaxe', tier: 1, requiresTool: true, interactive: 'furnace', tileEntity: true, facing: true }],
+  ['furnace_lit', { tex: { top: 'furnace_top', bottom: 'furnace_top', side: 'furnace_side', front: 'furnace_front_on' }, hardness: 3.5, tool: 'pickaxe', tier: 1, requiresTool: true, interactive: 'furnace', tileEntity: true, facing: true, light: 13, drops: 'furnace', noItem: true }],
+  ['chest', { model: 'box', box: [1, 0, 1, 15, 14, 15], tex: { top: 'chest_top', bottom: 'chest_top', side: 'chest_side', front: 'chest_front' }, hardness: 2.5, tool: 'axe', flammable: 20, interactive: 'chest', tileEntity: true, facing: true, transparent: true, opaque: false, cullSame: false }],
+  ['torch', { model: 'torch', solid: false, transparent: true, light: 14, hardness: 0, needsSupport: 'any', icon: 'flat' }],
+  ['ladder', { model: 'ladder', solid: false, transparent: true, hardness: 0.4, tool: 'axe', climbable: true, needsSupport: 'wall', flammable: 10, icon: 'flat' }],
+  ...WOOL_NAMES.map(c => [c + '_wool', { hardness: 0.8, tool: 'shears', flammable: 30 }]),
+  ['glowstone', { hardness: 0.3, tool: 'pickaxe', light: 15, drops: dropCount('glowstone_dust', 2, 4) }],
+  ['obsidian', { hardness: 50, tool: 'pickaxe', tier: 4, requiresTool: true }],
+  ['tnt', { tex: { top: 'tnt_top', bottom: 'tnt_bottom', side: 'tnt_side' }, hardness: 0, flammable: 15, interactive: 'tnt' }],
+  ['bookshelf', { tex: { top: 'oak_planks', bottom: 'oak_planks', side: 'bookshelf' }, hardness: 1.5, tool: 'axe', flammable: 30, drops: dropCount('book', 3, 3) }],
+  ['farmland', { model: 'box', box: [0, 0, 0, 16, 15, 16], tex: { top: 'farmland', side: 'dirt', bottom: 'dirt' }, hardness: 0.6, tool: 'shovel', drops: 'dirt', transparent: true, opaque: false, cullSame: false,
+    variants: (m) => m >= 1 ? { top: 'farmland_moist', side: 'dirt', bottom: 'dirt' } : null }],
+  ['dirt_path', { model: 'box', box: [0, 0, 0, 16, 15, 16], tex: { top: 'dirt_path_top', side: 'dirt_path_side', bottom: 'dirt' }, hardness: 0.65, tool: 'shovel', drops: 'dirt', transparent: true, opaque: false, cullSame: false }],
+  ['snow', { model: 'layer', box: [0, 0, 0, 16, 2, 16], needsSupport: 'below', solid: false, transparent: true, replaceable: true, hardness: 0.1, tool: 'shovel', drops: 'snowball', icon: 'cube', displayName: 'Snow Layer' }],
+  ['snow_block', { tex: 'snow', hardness: 0.2, tool: 'shovel', drops: dropCount('snowball', 4, 4) }],
+  ['ice', { hardness: 0.5, tool: 'pickaxe', transparent: true, opacity: 1, drops: dropNothing }],
+  ['cactus', { model: 'box', box: [1, 0, 1, 15, 16, 15], tex: { top: 'cactus_top', bottom: 'cactus_bottom', side: 'cactus_side' }, hardness: 0.4, transparent: true, opaque: false, cullSame: false, damage: 1, needsSupport: 'below' }],
+  ['dead_bush', { model: 'cross', solid: false, transparent: true, hardness: 0, replaceable: true, drops: dropCount('stick', 0, 2), needsSupport: 'below', icon: 'flat' }],
+  ['short_grass', { model: 'cross', solid: false, transparent: true, hardness: 0, replaceable: true, tint: 'grass', needsSupport: 'below', flammable: 60, icon: 'flat', displayName: 'Grass',
+    drops: (r, m, held) => held && held.name === 'shears' ? [{ self: true, count: 1 }] : (r.chance(0.125) ? [{ item: 'wheat_seeds', count: 1 }] : []) }],
+  ['fern', { model: 'cross', solid: false, transparent: true, hardness: 0, replaceable: true, tint: 'grass', needsSupport: 'below', flammable: 60, icon: 'flat',
+    drops: (r) => r.chance(0.125) ? [{ item: 'wheat_seeds', count: 1 }] : [] }],
+  ...['dandelion', 'poppy', 'cornflower', 'oxeye_daisy'].map(f => [f, { model: 'cross', solid: false, transparent: true, hardness: 0, needsSupport: 'below', flammable: 60, icon: 'flat' }]),
+  ['wheat', { model: 'crop', solid: false, transparent: true, hardness: 0, needsSupport: 'farmland', noItem: true, tex: 'wheat_stage7',
+    extraTex: ['wheat_stage0', 'wheat_stage1', 'wheat_stage2', 'wheat_stage3', 'wheat_stage4', 'wheat_stage5', 'wheat_stage6', 'wheat_stage7'],
+    drops: (r, meta) => meta >= 7 ? [{ item: 'wheat', count: 1 }, { item: 'wheat_seeds', count: r.irange(0, 3) }] : [{ item: 'wheat_seeds', count: 1 }] }],
+  ['pumpkin', { tex: { top: 'pumpkin_top', bottom: 'pumpkin_top', side: 'pumpkin_side' }, hardness: 1, tool: 'axe' }],
+  ['jack_o_lantern', { tex: { top: 'pumpkin_top', bottom: 'pumpkin_top', side: 'pumpkin_side', front: 'jack_o_lantern' }, hardness: 1, tool: 'axe', light: 15, facing: true }],
+  ['spawner', { hardness: 5, tool: 'pickaxe', tier: 1, requiresTool: true, transparent: true, cullSame: false, drops: dropNothing, tileEntity: true }],
+  ['fire', { model: 'fire', tex: 'fire_0', solid: false, transparent: true, light: 15, hardness: 0, replaceable: true, drops: dropNothing, noItem: true, damage: 1 }],
+  ['netherrack', { hardness: 0.4, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['end_stone', { hardness: 3, tool: 'pickaxe', tier: 1, requiresTool: true }],
+  ['oak_door', { model: 'door', tex: { all: 'oak_door_bottom', top: 'oak_door_top', bottom: 'oak_door_bottom' }, itemTex: 'oak_door', hardness: 3, tool: 'axe', transparent: true, opaque: false, cullSame: false, flammable: 20, icon: 'flat',
+    drops: (r, meta) => (meta & 1) ? [] : [{ item: 'oak_door', count: 1 }] }],
+];
+BLOCK_DEFS.forEach(([n, o]) => Blocks.define(n, o));
 // Extra textures that are not a block face but must live in the atlas
 for (let i = 0; i < 10; i++) Blocks.textureNames.add('destroy_stage_' + i);
 Blocks.textureNames.add('missing');
@@ -700,29 +703,32 @@ const Items = {
 // Every block that can be held becomes an item of the same name.
 for (const b of Blocks.byId) if (!b.noItem) Items.define(b.name, { type: 'block', block: b.id, tex: b.itemTex || b.name, displayName: b.displayName, creativeTab: 'blocks' });
 
-const mat = (n, o) => Items.define(n, Object.assign({ type: 'material', creativeTab: 'materials' }, o || {}));
-mat('stick'); mat('coal'); mat('charcoal'); mat('iron_ingot'); mat('gold_ingot'); mat('diamond'); mat('emerald');
-mat('lapis_lazuli'); mat('glowstone_dust'); mat('gunpowder'); mat('flint');
-mat('string'); mat('feather'); mat('leather'); mat('bone'); mat('book'); mat('snowball', { stack: 16 }); mat('wheat'); mat('wheat_seeds');
-mat('egg', { stack: 16 }); mat('paper'); mat('sugar');
-const food = (n, hunger, sat, extra) => Items.define(n, Object.assign({ type: 'food', food: { hunger, saturation: sat }, creativeTab: 'food' }, extra || {}));
-food('apple', 4, 2.4); food('bread', 5, 6); food('porkchop', 3, 1.8); food('cooked_porkchop', 8, 12.8); food('beef', 3, 1.8); food('cooked_beef', 8, 12.8);
-food('chicken', 2, 1.2); food('cooked_chicken', 6, 7.2); food('mutton', 2, 1.2); food('cooked_mutton', 6, 9.6); food('rotten_flesh', 4, 0.8);
-food('carrot', 3, 3.6); food('melon_slice', 2, 1.2);
-for (const tier of Object.keys(TOOL_TIERS)) {
-  const t = TOOL_TIERS[tier];
-  for (const kind of ['pickaxe', 'axe', 'shovel', 'hoe', 'sword']) {
-    Items.define(tier + '_' + kind, { type: kind === 'sword' ? 'weapon' : 'tool', stack: 1, creativeTab: 'tools',
-      tool: { kind, tier, level: t.level, speed: t.speed, durability: t.durability }, damage: TOOL_DAMAGE[kind][tier] });
-  }
-}
-Items.define('shears', { type: 'tool', stack: 1, tool: { kind: 'shears', tier: 'iron', level: 1, speed: 15, durability: 238 }, creativeTab: 'tools' });
-Items.define('flint_and_steel', { type: 'tool', stack: 1, tool: { kind: 'igniter', tier: 'iron', level: 0, speed: 1, durability: 64 }, creativeTab: 'tools' });
-Items.define('bucket', { type: 'tool', stack: 16, creativeTab: 'tools' });
-Items.define('water_bucket', { type: 'tool', stack: 1, creativeTab: 'tools' });
-Items.define('lava_bucket', { type: 'tool', stack: 1, creativeTab: 'tools' });
-Items.define('bow', { type: 'weapon', stack: 1, tool: { kind: 'bow', tier: 'wooden', level: 0, speed: 1, durability: 384 }, creativeTab: 'tools' });
-Items.define('arrow', { type: 'material', creativeTab: 'tools' });
+// ---- Item tables (declarative) ---------------------------------------------
+const MATERIALS = [
+  ...'stick coal charcoal iron_ingot gold_ingot diamond emerald lapis_lazuli glowstone_dust gunpowder flint string feather leather bone book wheat wheat_seeds paper sugar'.split(' ').map(n => [n]),
+  ['snowball', { stack: 16 }], ['egg', { stack: 16 }],
+];
+// [name, hunger, saturation]
+const FOODS = [
+  ['apple', 4, 2.4], ['bread', 5, 6], ['porkchop', 3, 1.8], ['cooked_porkchop', 8, 12.8], ['beef', 3, 1.8], ['cooked_beef', 8, 12.8],
+  ['chicken', 2, 1.2], ['cooked_chicken', 6, 7.2], ['mutton', 2, 1.2], ['cooked_mutton', 6, 9.6], ['rotten_flesh', 4, 0.8],
+  ['carrot', 3, 3.6], ['melon_slice', 2, 1.2],
+];
+const TOOL_KINDS = ['pickaxe', 'axe', 'shovel', 'hoe', 'sword'];
+const ITEM_DEFS = [
+  ...MATERIALS.map(([n, o]) => [n, { type: 'material', creativeTab: 'materials', ...o }]),
+  ...FOODS.map(([n, hunger, saturation]) => [n, { type: 'food', food: { hunger, saturation }, creativeTab: 'food' }]),
+  ...Object.entries(TOOL_TIERS).flatMap(([tier, t]) => TOOL_KINDS.map(kind => [tier + '_' + kind, { type: kind === 'sword' ? 'weapon' : 'tool', stack: 1, creativeTab: 'tools',
+    tool: { kind, tier, level: t.level, speed: t.speed, durability: t.durability }, damage: TOOL_DAMAGE[kind][tier] }])),
+  ['shears', { type: 'tool', stack: 1, tool: { kind: 'shears', tier: 'iron', level: 1, speed: 15, durability: 238 }, creativeTab: 'tools' }],
+  ['flint_and_steel', { type: 'tool', stack: 1, tool: { kind: 'igniter', tier: 'iron', level: 0, speed: 1, durability: 64 }, creativeTab: 'tools' }],
+  ['bucket', { type: 'tool', stack: 16, creativeTab: 'tools' }],
+  ['water_bucket', { type: 'tool', stack: 1, creativeTab: 'tools' }],
+  ['lava_bucket', { type: 'tool', stack: 1, creativeTab: 'tools' }],
+  ['bow', { type: 'weapon', stack: 1, tool: { kind: 'bow', tier: 'wooden', level: 0, speed: 1, durability: 384 }, creativeTab: 'tools' }],
+  ['arrow', { type: 'material', creativeTab: 'tools' }],
+];
+ITEM_DEFS.forEach(([n, o]) => Items.define(n, o));
 
 // Tag groups used by recipes and behaviour checks
 const Tags = {
@@ -828,67 +834,65 @@ const Recipes = {
   }
 };
 
-// ---- Crafting recipes -------------------------------------------------------
-(function defineRecipes() {
-  const R = Recipes;
-  for (const w of ['oak', 'birch', 'spruce']) R.addShapeless(w + '_planks', 4, [w + '_log']);
-  R.addShaped('stick', 4, ['P', 'P'], { P: 'tag:planks' });
-  R.addShaped('crafting_table', 1, ['PP', 'PP'], { P: 'tag:planks' });
-  R.addShaped('torch', 4, ['C', 'S'], { C: 'tag:coals', S: 'stick' });
-  R.addShaped('chest', 1, ['PPP', 'P P', 'PPP'], { P: 'tag:planks' });
-  R.addShaped('furnace', 1, ['CCC', 'C C', 'CCC'], { C: 'cobblestone' });
-  const mats = { wooden: 'tag:planks', stone: 'cobblestone', iron: 'iron_ingot', golden: 'gold_ingot', diamond: 'diamond' };
-  for (const tier of Object.keys(mats)) {
-    const M = mats[tier], S = 'stick';
-    R.addShaped(tier + '_pickaxe', 1, ['MMM', ' S ', ' S '], { M, S });
-    R.addShaped(tier + '_axe', 1, ['MM', 'MS', ' S'], { M, S });
-    R.addShaped(tier + '_shovel', 1, ['M', 'S', 'S'], { M, S });
-    R.addShaped(tier + '_hoe', 1, ['MM', ' S', ' S'], { M, S });
-    R.addShaped(tier + '_sword', 1, ['M', 'M', 'S'], { M, S });
-  }
-  R.addShaped('shears', 1, [' I', 'I '], { I: 'iron_ingot' });
-  R.addShaped('tnt', 1, ['GSG', 'SGS', 'GSG'], { G: 'gunpowder', S: 'sand' });
-  R.addShaped('bookshelf', 1, ['PPP', 'BBB', 'PPP'], { P: 'tag:planks', B: 'book' });
-  R.addShaped('ladder', 3, ['S S', 'SSS', 'S S'], { S: 'stick' });
-  R.addShaped('sandstone', 1, ['SS', 'SS'], { S: 'sand' });
-  R.addShaped('stone_bricks', 4, ['SS', 'SS'], { S: 'stone' });
-  R.addShaped('snow_block', 1, ['SS', 'SS'], { S: 'snowball' });
-  R.addShaped('glowstone', 1, ['GG', 'GG'], { G: 'glowstone_dust' });
-  R.addShaped('bread', 1, ['WWW'], { W: 'wheat' });
-  R.addShaped('white_wool', 1, ['SS', 'SS'], { S: 'string' });
-  R.addShaped('oak_door', 3, ['PP', 'PP', 'PP'], { P: 'tag:planks' });
-  R.addShaped('bucket', 1, ['I I', ' I '], { I: 'iron_ingot' });
-  R.addShaped('bow', 1, [' SW', 'S W', ' SW'], { S: 'stick', W: 'string' });
-  R.addShaped('arrow', 4, ['F', 'S', 'E'], { F: 'flint', S: 'stick', E: 'feather' });
-  R.addShaped('jack_o_lantern', 1, ['P', 'T'], { P: 'pumpkin', T: 'torch' });
-  R.addShaped('paper', 3, ['SSS'], { S: 'sugar' });
-  R.addShaped('book', 1, ['P', 'P', 'L'], { P: 'paper', L: 'leather' });
-  R.addShapeless('flint_and_steel', 1, ['iron_ingot', 'flint']);
-  R.addShapeless('mossy_cobblestone', 1, ['cobblestone', 'fern']);
-  const blocks9 = { coal_block: 'coal', iron_block: 'iron_ingot', gold_block: 'gold_ingot', diamond_block: 'diamond', lapis_block: 'lapis_lazuli', emerald_block: 'emerald' };
-  for (const blk of Object.keys(blocks9)) {
-    R.addShaped(blk, 1, ['III', 'III', 'III'], { I: blocks9[blk] });
-    R.addShapeless(blocks9[blk], 9, [blk]);
-  }
-  // Dye recipes: STUB — only white wool is craftable; other colours come from sheep.
-
-  // ---- Smelting ----
-  R.addSmelting('iron_ore', 'iron_ingot'); R.addSmelting('gold_ore', 'gold_ingot');
-  R.addSmelting('sand', 'glass'); R.addSmelting('cobblestone', 'stone');
-  for (const w of ['oak', 'birch', 'spruce']) R.addSmelting(w + '_log', 'charcoal');
-  R.addSmelting('porkchop', 'cooked_porkchop'); R.addSmelting('beef', 'cooked_beef');
-  R.addSmelting('chicken', 'cooked_chicken'); R.addSmelting('mutton', 'cooked_mutton');
-  R.addSmelting('netherrack', 'stone'); // STUB: should produce nether brick once that item exists
-
-  // ---- Fuels (burn seconds; 10 s smelts one item) ----
-  R.addFuel('coal', 80); R.addFuel('charcoal', 80); R.addFuel('coal_block', 800);
-  R.addFuel('lava_bucket', 1000, 'bucket');
-  for (const w of ['oak', 'birch', 'spruce']) { R.addFuel(w + '_log', 15); R.addFuel(w + '_planks', 15); R.addFuel(w + '_sapling', 5); }
-  R.addFuel('stick', 5); R.addFuel('crafting_table', 15); R.addFuel('chest', 15); R.addFuel('bookshelf', 15); R.addFuel('ladder', 15);
-  for (const k of ['pickaxe', 'axe', 'shovel', 'hoe', 'sword']) R.addFuel('wooden_' + k, 10);
-  R.addFuel('bow', 15); R.addFuel('dead_bush', 5);
-})();
-Object.assign(gg, { CHUNK_W, CHUNK_H, CHUNK_VOL, SEA_LEVEL, TICK_RATE, TICK_DT, DAY_LENGTH, bidx, DIRS, FACE_PX, FACE_NX, FACE_PY, FACE_NY, FACE_PZ, FACE_NZ, HDIRS, clamp, lerp, smoothstep, floor, dist2, hexToRgb, rgbToHex, mixColor, posKey, chunkKey, hashString, Rand, rng, Noise, GrowBuf, Scheduler, Events, $, FACING_FACE, WOOL_COLORS, WOOL_NAMES, texFaces, Blocks, prettify, B, dropNothing, dropCount, dropChance, leafDrops, AIR, isLeaves, isLog, isWaterId, isLiquidId, TOOL_TIERS, TOOL_DAMAGE, Items, mat, food, Tags, canHarvest, breakTime, blockDrops, Recipes });
+// ---- Crafting / smelting / fuel tables (declarative) ------------------------
+const WOODS = ['oak', 'birch', 'spruce'];
+const TOOL_MATS = { wooden: 'tag:planks', stone: 'cobblestone', iron: 'iron_ingot', golden: 'gold_ingot', diamond: 'diamond' };
+const TOOL_SHAPES = { pickaxe: ['MMM', ' S ', ' S '], axe: ['MM', 'MS', ' S'], shovel: ['M', 'S', 'S'], hoe: ['MM', ' S', ' S'], sword: ['M', 'M', 'S'] };
+const BLOCKS9 = { coal_block: 'coal', iron_block: 'iron_ingot', gold_block: 'gold_ingot', diamond_block: 'diamond', lapis_block: 'lapis_lazuli', emerald_block: 'emerald' };
+// [result, count, pattern, key]
+const SHAPED = [
+  ['stick', 4, ['P', 'P'], { P: 'tag:planks' }],
+  ['crafting_table', 1, ['PP', 'PP'], { P: 'tag:planks' }],
+  ['torch', 4, ['C', 'S'], { C: 'tag:coals', S: 'stick' }],
+  ['chest', 1, ['PPP', 'P P', 'PPP'], { P: 'tag:planks' }],
+  ['furnace', 1, ['CCC', 'C C', 'CCC'], { C: 'cobblestone' }],
+  ...Object.entries(TOOL_MATS).flatMap(([tier, M]) => Object.entries(TOOL_SHAPES).map(([k, pat]) => [tier + '_' + k, 1, pat, { M, S: 'stick' }])),
+  ['shears', 1, [' I', 'I '], { I: 'iron_ingot' }],
+  ['tnt', 1, ['GSG', 'SGS', 'GSG'], { G: 'gunpowder', S: 'sand' }],
+  ['bookshelf', 1, ['PPP', 'BBB', 'PPP'], { P: 'tag:planks', B: 'book' }],
+  ['ladder', 3, ['S S', 'SSS', 'S S'], { S: 'stick' }],
+  ['sandstone', 1, ['SS', 'SS'], { S: 'sand' }],
+  ['stone_bricks', 4, ['SS', 'SS'], { S: 'stone' }],
+  ['snow_block', 1, ['SS', 'SS'], { S: 'snowball' }],
+  ['glowstone', 1, ['GG', 'GG'], { G: 'glowstone_dust' }],
+  ['bread', 1, ['WWW'], { W: 'wheat' }],
+  ['white_wool', 1, ['SS', 'SS'], { S: 'string' }],
+  ['oak_door', 3, ['PP', 'PP', 'PP'], { P: 'tag:planks' }],
+  ['bucket', 1, ['I I', ' I '], { I: 'iron_ingot' }],
+  ['bow', 1, [' SW', 'S W', ' SW'], { S: 'stick', W: 'string' }],
+  ['arrow', 4, ['F', 'S', 'E'], { F: 'flint', S: 'stick', E: 'feather' }],
+  ['jack_o_lantern', 1, ['P', 'T'], { P: 'pumpkin', T: 'torch' }],
+  ['paper', 3, ['SSS'], { S: 'sugar' }],
+  ['book', 1, ['P', 'P', 'L'], { P: 'paper', L: 'leather' }],
+  ...Object.entries(BLOCKS9).map(([blk, i]) => [blk, 1, ['III', 'III', 'III'], { I: i }]),
+];
+// [result, count, ingredients]
+const SHAPELESS = [
+  ...WOODS.map(w => [w + '_planks', 4, [w + '_log']]),
+  ['flint_and_steel', 1, ['iron_ingot', 'flint']],
+  ['mossy_cobblestone', 1, ['cobblestone', 'fern']],
+  ...Object.entries(BLOCKS9).map(([blk, i]) => [i, 9, [blk]]),
+];
+// [input, output]
+const SMELTING = [
+  ['iron_ore', 'iron_ingot'], ['gold_ore', 'gold_ingot'], ['sand', 'glass'], ['cobblestone', 'stone'],
+  ...WOODS.map(w => [w + '_log', 'charcoal']),
+  ['porkchop', 'cooked_porkchop'], ['beef', 'cooked_beef'], ['chicken', 'cooked_chicken'], ['mutton', 'cooked_mutton'],
+  ['netherrack', 'stone'],
+];
+// [item, seconds, container]
+const FUELS = [
+  ['coal', 80], ['charcoal', 80], ['coal_block', 800], ['lava_bucket', 1000, 'bucket'],
+  ...WOODS.flatMap(w => [[w + '_log', 15], [w + '_planks', 15], [w + '_sapling', 5]]),
+  ['stick', 5], ['crafting_table', 15], ['chest', 15], ['bookshelf', 15], ['ladder', 15],
+  ...Object.keys(TOOL_SHAPES).map(k => ['wooden_' + k, 10]),
+  ['bow', 15], ['dead_bush', 5],
+];
+SHAPED.forEach(r => Recipes.addShaped(...r));
+SHAPELESS.forEach(r => Recipes.addShapeless(...r));
+SMELTING.forEach(r => Recipes.addSmelting(...r));
+FUELS.forEach(r => Recipes.addFuel(...r));
+Object.assign(gg, { ITEM_DEFS, FOODS, MATERIALS, BLOCK_DEFS, SHAPED, SHAPELESS, SMELTING, FUELS, WOODS, CHUNK_W, CHUNK_H, CHUNK_VOL, SEA_LEVEL, TICK_RATE, TICK_DT, DAY_LENGTH, bidx, DIRS, FACE_PX, FACE_NX, FACE_PY, FACE_NY, FACE_PZ, FACE_NZ, HDIRS, clamp, lerp, smoothstep, floor, dist2, hexToRgb, rgbToHex, mixColor, posKey, chunkKey, hashString, Rand, rng, Noise, GrowBuf, Scheduler, Events, $, FACING_FACE, WOOL_COLORS, WOOL_NAMES, texFaces, Blocks, prettify, B, dropNothing, dropCount, dropChance, leafDrops, AIR, isLeaves, isLog, isWaterId, isLiquidId, TOOL_TIERS, TOOL_DAMAGE, Items, Tags, canHarvest, breakTime, blockDrops, Recipes });
 
 </script>
 <script defer src="res_vam.js"></script>
@@ -2564,6 +2568,10 @@ const Fluids = {
     const id = world.getBlock(x, y, z);
     if (!isLiquidId(id)) return;
     const meta = world.getMeta(x, y, z), drop = id === B.water ? 1 : 2, delay = this.delay(id);
+    // Lava touching water (sides/above) hardens: source -> obsidian, flowing -> cobblestone
+    if (id === B.lava && [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]].some(d => world.getBlock(x + d[0], y + d[1], z + d[2]) === B.water)) {
+      world.setBlock(x, y, z, meta === 0 ? B.obsidian : B.cobblestone); Particles.burst(x + 0.5, y + 1, z + 0.5, 10, [0.4, 0.4, 0.4]); return;
+    }
     let str = this.strength(id, meta);
     // 1. Re-evaluate supply for non-source blocks
     if (meta !== 0) {
@@ -2580,28 +2588,35 @@ const Fluids = {
     const below = world.getBlock(x, y - 1, z), bdef = Blocks.byId[below];
     if (y > 0 && this.canFlowInto(id, below, x, y - 1, z)) {
       if (this.interact(id, x, y - 1, z)) return;
-      if (!(below === id && world.getMeta(x, y - 1, z) === 0)) { world.setBlock(x, y - 1, z, id, 8); this.schedule(x, y - 1, z, delay); }
+      if (!(below === id && world.getMeta(x, y - 1, z) === 0)) { this.wash(x, y - 1, z); world.setBlock(x, y - 1, z, id, 8); this.schedule(x, y - 1, z, delay); }
       if (meta >= 8) return; // falling columns only spread once they land
     }
     // 3. Spread sideways
     const next = str - drop;
     if (next < 1) return;
-    if (y > 0 && !bdef.solid && !(below === id) && bdef.replaceable) return; // still falling
+    if (y > 0 && !bdef.solid && !(below === id) && this.washable(bdef)) return; // still falling
     for (const d of HDIRS) {
       const nx = x + d[0], nz = z + d[2], nid = world.getBlock(nx, y, nz);
       if (!this.canFlowInto(id, nid, nx, y, nz)) continue;
       if (this.interact(id, nx, y, nz)) continue;
       if (nid === id) { if (this.strength(id, world.getMeta(nx, y, nz)) >= next) continue; }
-      else if (nid !== AIR) { const nd = Blocks.byId[nid]; for (const dr of blockDrops(nd, world.getMeta(nx, y, nz), null)) Entities.spawnItem(nx + 0.5, y + 0.5, nz + 0.5, { name: dr.item, count: dr.count }); }
+      else this.wash(nx, y, nz);
       world.setBlock(nx, y, nz, id, 8 - next);
       this.schedule(nx, y, nz, delay);
     }
   },
+  // Washable = non-solid attached blocks (torches, plants, crops, snow layers): fluids pop them as items.
+  washable: (nd) => !nd.solid && !nd.liquid && (nd.replaceable || !!nd.needsSupport),
   canFlowInto(id, nid, x, y, z) {
     if (nid === AIR) return true;
     const nd = Blocks.byId[nid];
     if (nd.liquid) { if (nid === id) return world.getMeta(x, y, z) !== 0; return true; }
-    return nd.replaceable && !nd.liquid;
+    return this.washable(nd);
+  },
+  wash(x, y, z) {
+    const nid = world.getBlock(x, y, z); if (nid === AIR) return;
+    const nd = Blocks.byId[nid]; if (nd.liquid || nd.replaceable && nid !== B.snow) return;
+    for (const dr of blockDrops(nd, world.getMeta(x, y, z), null)) Entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, { name: dr.item, count: dr.count });
   },
   // Water/lava interaction at the destination block. Returns true if handled.
   interact(id, x, y, z) {
