@@ -399,6 +399,105 @@ const MOB_TYPES = {
   creeper:  { w: 0.3,  h: 1.7,  health: 20, speed: 2.6, hostile: true,  explodes: true, drops: [['gunpowder', 0, 2]], name: 'Creeper' }
 };
 const SHEEP_COLOR_WEIGHTS = [['white', 81], ['black', 5], ['gray', 5], ['light_gray', 5], ['brown', 3], ['pink', 1]];
+
+/* ============================================================================
+   AUDIO — WebAudio synth (ported from VoxelCraft). No samples: filtered noise
+   bursts + oscillator chirps. Use as gg.res_vam.a.<name>(pos?).
+   ========================================================================== */
+const c_Audio = { ctx: null, master: null, noise: null, volume: 0.55, range: 28 };
+const audioInit = () => {
+  const A = c_Audio;
+  if (A.ctx) { if (A.ctx.state === 'suspended') A.ctx.resume(); return; }
+  try { A.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  A.master = A.ctx.createGain(); A.master.gain.value = A.volume; A.master.connect(A.ctx.destination);
+  A.noise = A.ctx.createBuffer(1, A.ctx.sampleRate * 2, A.ctx.sampleRate);
+  const d = A.noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+};
+// [gain, pan] for a world position relative to the listener (gg.player)
+const spatial = (pos) => {
+  const p = gg.player; if (!pos || !p) return [1, 0];
+  const dx = pos[0] - p.x, dy = pos[1] - (p.y + 1.6), dz = pos[2] - p.z, d = Math.hypot(dx, dy, dz);
+  if (d > c_Audio.range) return [0, 0];
+  const rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw);
+  return [Math.max(0, 1 - d / c_Audio.range), d > 0.5 ? clamp((dx * rx + dz * rz) / d, -1, 1) * 0.7 : 0];
+};
+const sndNoise = (dur, freq, { q = 1, vol = 0.3, type = 'bandpass', pos = null, freqEnd = 0, delay = 0 } = {}) => {
+  const A = c_Audio; if (!A.ctx) return; const [sv, pan] = spatial(pos); if (sv <= 0) return;
+  const t = A.ctx.currentTime + delay;
+  const src = A.ctx.createBufferSource(); src.buffer = A.noise;
+  const f = A.ctx.createBiquadFilter(); f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q;
+  if (freqEnd) f.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+  const g = A.ctx.createGain(); g.gain.setValueAtTime(vol * sv, t); g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+  const p = A.ctx.createStereoPanner(); p.pan.value = pan;
+  src.connect(f).connect(g).connect(p).connect(A.master); src.start(t, Math.random() * 1.5); src.stop(t + dur + 0.05);
+};
+const sndTone = (freq, freqEnd, dur, { type = 'square', vol = 0.2, pos = null, delay = 0, lp = 0 } = {}) => {
+  const A = c_Audio; if (!A.ctx) return; const [sv, pan] = spatial(pos); if (sv <= 0) return;
+  const t = A.ctx.currentTime + delay;
+  const o = A.ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (freqEnd) o.frequency.exponentialRampToValueAtTime(freqEnd, t + dur);
+  const g = A.ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol * sv, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0005, t + dur);
+  const p = A.ctx.createStereoPanner(); p.pan.value = pan;
+  let node = o.connect(g);
+  if (lp) { const f = A.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; node = g.connect(f); }
+  node.connect(p).connect(A.master); o.start(t); o.stop(t + dur + 0.05);
+};
+// material -> [freq, q, filter]
+const SOUND_MAT = { stone: [1700, 1.4, 'bandpass'], wood: [850, 2.2, 'bandpass'], grass: [2600, 0.7, 'highpass'], gravel: [700, 0.9, 'lowpass'],
+  sand: [3000, 0.6, 'highpass'], snow: [2000, 0.6, 'highpass'], glass: [3200, 3, 'bandpass'], wool: [500, 0.5, 'lowpass'] };
+// first matching rule wins: [predicate(def), material]
+const SOUND_RULES = [
+  [d => /glass|ice|glowstone/.test(d.name), 'glass'],
+  [d => /wool/.test(d.name), 'wool'],
+  [d => /snow/.test(d.name), 'snow'],
+  [d => /sand/.test(d.name) && d.tool === 'shovel', 'sand'],
+  [d => /gravel|dirt|farmland|path/.test(d.name), 'gravel'],
+  [d => d.tool === 'axe', 'wood'],
+  [d => d.tool === 'shears' || d.tool === 'shovel' || d.model === 'cross' || d.model === 'crop', 'grass'],
+  [d => true, 'stone'],
+];
+const soundOf = (def) => def.sound || (def.sound = SOUND_RULES.find(([p]) => p(def))[1]);
+const sndBlock = (def, pos, kind) => {
+  if (!def || def.id === 0) return;
+  const mat = soundOf(def), [f, q, type] = SOUND_MAT[mat];
+  ({
+    step: () => sndNoise(0.07, f * 0.8, { q, type, vol: 0.07, pos }),
+    hit: () => sndNoise(0.06, f, { q, type, vol: 0.12, pos }),
+    place: () => sndNoise(0.1, f * 0.9, { q, type, vol: 0.3, pos }),
+    break: () => { sndNoise(0.18, f, { q, type, vol: 0.38, pos, freqEnd: f * 0.6 });
+      if (mat === 'glass') { sndTone(2400, 1400, 0.25, { type: 'triangle', vol: 0.12, pos }); sndTone(3100, 1900, 0.2, { type: 'triangle', vol: 0.1, pos, delay: 0.04 }); } },
+  })[kind]();
+};
+const MOB_VOICE = {
+  pig: [430, 330, 'square', 1200], cow: [180, 120, 'sawtooth', 600], sheep: [520, 480, 'sawtooth', 1400], chicken: [1400, 1100, 'square', 2500],
+  zombie: [105, 72, 'sawtooth', 500], skeleton: [900, 700, 'triangle', 2000], creeper: [300, 200, 'sawtooth', 800],
+};
+const SND = {
+  init: audioInit, noise: sndNoise, tone: sndTone, block: sndBlock,
+  pop: () => sndTone(700 + Math.random() * 400, 1400, 0.07, { type: 'sine', vol: 0.18 }),
+  hurt: () => { sndTone(320, 140, 0.2, { type: 'square', vol: 0.12, lp: 1500 }); sndNoise(0.12, 500, { vol: 0.2, type: 'lowpass' }); },
+  hit: pos => { sndNoise(0.1, 420, { vol: 0.45, type: 'lowpass', pos }); sndTone(170, 70, 0.12, { type: 'sine', vol: 0.3, pos }); },
+  mob: (type, pos, hurt) => { const v = MOB_VOICE[type]; if (!v) return; const k = hurt ? 1.4 : 1;
+    sndTone(v[0] * k, v[1] * k, hurt ? 0.2 : 0.35, { type: v[2], vol: 0.08, pos, lp: v[3] }); },
+  fuse: pos => sndNoise(1.4, 5000, { vol: 0.25, type: 'highpass', q: 0.5, pos }),
+  explode: pos => { sndNoise(1.6, 900, { vol: 1.0, type: 'lowpass', q: 0.6, pos, freqEnd: 60 }); sndTone(70, 28, 1.2, { type: 'sine', vol: 0.8, pos }); },
+  eat: () => { for (let i = 0; i < 3; i++) sndNoise(0.07, 1100, { vol: 0.22, q: 1, delay: i * 0.13 }); },
+  burp: () => sndTone(200, 120, 0.25, { type: 'sawtooth', vol: 0.08, lp: 600, delay: 0.45 }),
+  splash: () => sndNoise(0.45, 1200, { vol: 0.35, type: 'lowpass', q: 0.4 }),
+  sizzle: () => sndNoise(0.6, 4000, { vol: 0.25, type: 'highpass', q: 0.7 }),
+  click: () => sndTone(950, 700, 0.04, { type: 'square', vol: 0.05 }),
+  toolBreak: () => { sndTone(1300, 380, 0.22, { type: 'triangle', vol: 0.22 }); sndNoise(0.15, 3000, { vol: 0.2 }); },
+  craft: () => { sndNoise(0.08, 900, { vol: 0.2, q: 2 }); sndTone(520, 780, 0.08, { type: 'sine', vol: 0.1, delay: 0.05 }); },
+  walk: (def, pos) => sndBlock(def, pos, 'step'),
+};
+['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, audioInit, { passive: true }));
+
+// Resource namespaces: .v visuals (textures), .m models/mob specs, .a audio
+gg.res_vam = {
+  v: new Proxy(G, { get: (t, k) => typeof k === 'string' ? ProcTex.get(k) : undefined, has: (t, k) => k in t }), // canvas per texture name
+  m: MOB_TYPES, a: SND, c_Audio, SOUND_MAT, SOUND_RULES, MOB_VOICE, ProcTex, Atlas, TINTS,
+};
 Object.assign(gg, { C, mulc, Pix, planks, cobble, logSide, logTop, leaves, pile, gem, ingot, meat, bucket, drawMap, TOOL_MAPS, TOOL_MAT_COLORS, G, M, sapling, ORE, MB, chest, torch, flower, ProcTex, TINTS, Atlas, tintColor, TEX_ALIASES, ResourcePack, blobToImage, MOB_TYPES, SHEEP_COLOR_WEIGHTS });
 
 })();

@@ -78,6 +78,15 @@
   #damage-flash { position: absolute; inset: 0; background: rgba(255,0,0,0); pointer-events: none; transition: background .15s; }
   #water-tint { position: absolute; inset: 0; background: rgba(20,60,160,0); pointer-events: none; }
   #fire-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(255,120,0,0.55), rgba(255,60,0,0)); pointer-events: none; }
+  #liquid-fx { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+  #liquid-fx.water-in { animation: lqIn .65s ease-out; --lq: rgba(40,90,220,.85); --lq2: rgba(160,210,255,.9); }
+  #liquid-fx.water-out { animation: lqOut .65s ease-in; --lq: rgba(40,90,220,.6); --lq2: rgba(200,230,255,.5); }
+  #liquid-fx.lava-in { animation: lqIn .65s ease-out; --lq: rgba(255,90,0,.95); --lq2: rgba(255,220,60,.95); }
+  #liquid-fx.lava-out { animation: lqOut .65s ease-in; --lq: rgba(255,90,0,.7); --lq2: rgba(255,200,60,.6); }
+  @keyframes lqIn { 0% { opacity: 1; background: linear-gradient(to bottom, var(--lq2) 0%, var(--lq) 8%, transparent 9%); background-size: 100% 300%; background-position: 0 100%; }
+    55% { opacity: 1; background-position: 0 0; } 100% { opacity: 0; background-position: 0 0; } }
+  @keyframes lqOut { 0% { opacity: 1; backdrop-filter: blur(6px); background: repeating-linear-gradient(90deg, var(--lq) 0 6px, transparent 6px 23px), linear-gradient(transparent, var(--lq2)); background-position: 0 0; }
+    100% { opacity: 0; backdrop-filter: blur(0); background-position: 0 70vh; } }
   #mode { position: absolute; right: 8px; top: 8px; font-size: 12px; color: #fff; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.25); padding: 4px 6px; text-align: right; white-space: pre; }
   #breakhint { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); width: 120px; height: 6px; background: rgba(0,0,0,0.5); display: none; }
   #breakhint i { display: block; height: 100%; background: #fff; width: 0; }
@@ -140,6 +149,7 @@
     <div id="water-tint"></div>
     <div id="fire-overlay" class="hidden"></div>
     <div id="damage-flash"></div>
+    <div id="liquid-fx"></div>
     <div id="crosshair"></div>
     <div id="debug"></div>
     <div id="mode"></div>
@@ -247,6 +257,8 @@ import * as THREE from 'three';
 import { Pane } from 'tweakpane';
 import JSZip from 'jszip';
 const gg = window.gg = { THREE, Pane, JSZip };
+// gg.my(class Topic{ static ... }) — registers a long-function topic class as gg.Topic and returns it
+gg.my = (cls) => (gg[cls.name] = cls);
 THREE.ColorManagement.enabled = false;
 /* ============================================================================
    1. UTILITIES
@@ -900,7 +912,7 @@ Object.assign(gg, { ITEM_DEFS, FOODS, MATERIALS, BLOCK_DEFS, SHAPED, SHAPELESS, 
 <script defer src="gls.js"></script>
 <script type="module">
 const { THREE, JSZip } = gg;
-const { $, AIR, Atlas, B, BIOMES, BIO_BIRCH, BIO_FOREST, BIO_TAIGA, Blocks, C, CHUNK_H, CHUNK_VOL, CHUNK_W, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, FACE_SHADE, HDIRS, Items, Lighting, MOB_TYPES, MeshBuilder, Mesher, Pix, Recipes, ResourcePack, SEA_LEVEL, SHEEP_COLOR_WEIGHTS, Scheduler, Sky, TICK_DT, TICK_RATE, TOOL_TIERS, Terrain, WHITE_RGB, WOOL_COLORS, Weather, bidx, blockBoxes, blockDrops, breakTime, chunkKey, clamp, dist2, floor, isLeaves, isLiquidId, isLog, posKey, prettify, rng, texFaces } = gg;
+const { $, lerp, AIR, Atlas, B, BIOMES, BIO_BIRCH, BIO_FOREST, BIO_TAIGA, Blocks, C, CHUNK_H, CHUNK_VOL, CHUNK_W, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, FACE_SHADE, HDIRS, Items, Lighting, MOB_TYPES, MeshBuilder, Mesher, Pix, Recipes, ResourcePack, SEA_LEVEL, SHEEP_COLOR_WEIGHTS, Scheduler, Sky, TICK_DT, TICK_RATE, TOOL_TIERS, Terrain, WHITE_RGB, WOOL_COLORS, Weather, bidx, blockBoxes, blockDrops, breakTime, chunkKey, clamp, dist2, floor, isLeaves, isLiquidId, isLog, posKey, prettify, rng, texFaces } = gg;
 
 /* ============================================================================
    6. WORLD STORAGE — chunks, tile entities, the block-change pipeline
@@ -1336,8 +1348,44 @@ const player = {
   health: 20, maxHealth: 20, hunger: 20, saturation: 5, exhaustion: 0, air: 300, fire: 0,
   flying: false, sneaking: false, sprinting: false, inWater: false, headInWater: false, inLava: false, onLadder: false,
   inventory: new Array(36).fill(null), hotbar: 0, dead: false, fallStart: 0, regenTimer: 0, starveTimer: 0, hurtTimer: 0,
-  lastSpaceTap: 0, lastWTap: 0, damageTimer: 0, spawn: [0, 80, 0], ticksAlive: 0, lastHurtBy: ''
+  lastSpaceTap: 0, lastWTap: 0, damageTimer: 0, spawn: [0, 80, 0], ticksAlive: 0, lastHurtBy: '',
+  headInLava: false, bob: 0, bobAmt: 0, stepDist: 0, land: 0
 };
+/* ---- Motion feel (VoxelCraft port): footsteps, view bob, landing dip, sprint FOV ---- */
+const c_Motion = { stepLen: 1.7, bobFreq: 1.9, bobY: 0.07, bobX: 0.04, landDip: 0.28, landDecay: 5, sprintFov: 1.1, waterFov: 0.92, flyFov: 1.15, hurtRoll: 0.12, deathRoll: 0.6 };
+const Motion = gg.my(class Motion {
+  static update(p, dt, wasGround, fallFrom) {
+    const C = c_Motion, hs = Math.hypot(p.vx, p.vz), walking = p.onGround && !p.flying;
+    p.bobAmt = lerp(p.bobAmt, walking ? Math.min(1, hs / 4.3) : 0, 1 - Math.exp(-dt * 10));
+    p.bob += hs * dt * C.bobFreq;
+    const below = () => world.getDef(floor(p.x), floor(p.y - 0.2), floor(p.z));
+    if (walking) { p.stepDist += hs * dt; if (p.stepDist > C.stepLen) { p.stepDist = 0; const d = below(); if (d.id !== AIR) gg.res_vam.a.walk(d, [p.x, p.y, p.z]); } }
+    if (p.onGround && !wasGround && !p.flying) {
+      const fall = fallFrom - p.y;
+      if (fall > 0.8) { const d = below(); if (d.id !== AIR) gg.res_vam.a.walk(d, [p.x, p.y, p.z]); p.land = Math.min(1, fall / 8); }
+    }
+    p.land = Math.max(0, p.land - dt * C.landDecay * (0.3 + p.land));
+    Player.fovTarget = Game.fovBase * (p.sprinting ? (p.flying ? C.flyFov : C.sprintFov) : 1) * (p.headInWater ? C.waterFov : 1);
+  }
+  static camera(cam, p) {
+    const C = c_Motion, by = -Math.abs(Math.cos(p.bob)) * C.bobY * p.bobAmt, bx = Math.sin(p.bob) * C.bobX * p.bobAmt;
+    cam.position.set(p.x + Math.cos(p.yaw) * bx, p.y + p.eyeHeight + by - p.land * C.landDip + (p.dead ? -1.3 : 0), p.z - Math.sin(p.yaw) * bx);
+    const roll = Math.sin(Math.max(0, p.hurtTimer) / 0.3 * Math.PI) * C.hurtRoll + (p.dead ? C.deathRoll : 0);
+    cam.rotation.set(p.pitch - p.land * 0.08, p.yaw, roll);
+  }
+});
+/* ---- Full-screen liquid enter/leave animation + splash/sizzle ---- */
+const c_LiquidFx = { splashVy: -4, ms: 650 };
+const LiquidFx = gg.my(class LiquidFx {
+  static play(cls) { const el = $('liquid-fx'); el.className = ''; void el.offsetWidth; el.className = cls; clearTimeout(this._t); this._t = setTimeout(() => el.className = '', c_LiquidFx.ms); }
+  static transition(was, p) {
+    const a = gg.res_vam.a;
+    if (p.inWater && !was.w) { if (p.vy < c_LiquidFx.splashVy) { a.splash(); Particles.splash?.(p.x, p.y + 0.5, p.z, 12); } }
+    if (p.inLava && !was.l) a.sizzle();
+    if (p.headInWater !== was.hw) { this.play(p.headInWater ? 'water-in' : 'water-out'); if (!p.headInWater) a.splash(); }
+    if (p.headInLava !== was.hl) this.play(p.headInLava ? 'lava-in' : 'lava-out');
+  }
+});
 const Player = {
   SENS: 0.0022, fovTarget: 70,
   reset(spawn) {
@@ -1362,10 +1410,12 @@ const Player = {
     // Mouse wheel scrolls the hotbar
     if (Input.wheel && controls) { p.hotbar = ((p.hotbar + Input.wheel) % 9 + 9) % 9; Input.wheel = 0; HUD.refreshHotbar(); } else Input.wheel = 0;
     // Environment
+    const was = { w: p.inWater, l: p.inLava, hw: p.headInWater, hl: p.headInLava };
     const feet = world.getDef(floor(p.x), floor(p.y + 0.1), floor(p.z)), body = world.getDef(floor(p.x), floor(p.y + 0.9), floor(p.z)), eye = world.getDef(floor(p.x), floor(p.y + p.eyeHeight), floor(p.z));
     p.inWater = feet.id === B.water || body.id === B.water; p.headInWater = eye.id === B.water;
     p.inLava = feet.id === B.lava || body.id === B.lava;
-    p.onLadder = feet.climbable || body.climbable;
+    p.onLadder = feet.climbable || body.climbable; p.headInLava = eye.id === B.lava;
+    LiquidFx.transition(was, p);
     // Movement input
     let mx = 0, mz = 0;
     if (controls) {
@@ -1404,7 +1454,7 @@ const Player = {
       p.vy = Math.max(p.vy - Physics.GRAVITY * dt, -Physics.TERMINAL);
     }
     p.stepHeight = p.sneaking ? 0.6 : 1.0;
-    const prevOnGround = p.onGround, prevY = p.y;
+    const prevOnGround = p.onGround, prevY = p.y, prevFall = p.fallStart;
     Physics.move(p, p.vx * dt, p.vy * dt, p.vz * dt);
     if (p.hitX) p.vx = 0; if (p.hitZ) p.vz = 0;
     if (p.flying && (p.hitX || p.hitZ)) { /* no step penalty */ }
@@ -1417,8 +1467,7 @@ const Player = {
       p.fallStart = p.y;
     } else if (p.y > p.fallStart) p.fallStart = p.y;
     if (p.sprinting && !p.flying) p.exhaustion += speed * dt * 0.1; // 0.1 per metre sprinted
-    // Sprint FOV
-    this.fovTarget = p.sprinting ? (p.flying ? 90 : 80) : 70;
+    Motion.update(p, dt, prevOnGround, prevFall);
     if (p.hurtTimer > 0) p.hurtTimer -= dt;
   },
   gravity(dt) { return Physics.GRAVITY * dt; },
@@ -1459,7 +1508,7 @@ const Player = {
     p.damageTimer = 0.5;
     p.health -= amount; p.hurtTimer = 0.3; p.exhaustion += 0.1; p.lastHurtBy = cause;
     if (knock) { p.vx += knock[0]; p.vy += knock[1]; p.vz += knock[2]; }
-    HUD.flashDamage();
+    HUD.flashDamage(); gg.res_vam.a.hurt();
     if (p.health <= 0) this.die(cause);
   },
   die(cause) {
@@ -1599,7 +1648,7 @@ const Interaction = {
       if (heldItem && heldItem.food && (p.hunger < 20 || Player.isCreative())) {
         this.eatTimer += dt;
         if (this.eatTimer > 0.25 && Math.random() < dt * 8) Particles.burst(p.x, p.y + 1.4, p.z, 2, Atlas.avgColor.subarray(Atlas.index(heldItem.tex) * 3, Atlas.index(heldItem.tex) * 3 + 3));
-        if (this.eatTimer >= 1.6) { this.eatTimer = 0; Player.eat(heldItem); Inventory.consumeHeld(); }
+        if (this.eatTimer >= 1.6) { this.eatTimer = 0; Player.eat(heldItem); Inventory.consumeHeld(); gg.res_vam.a.burp(); } else if (Math.random() < dt * 2) gg.res_vam.a.eat();
       } else if (this.useCooldown <= 0) { this.eatTimer = 0; this.use(); this.useCooldown = 0.25; }
     } else this.eatTimer = 0;
   },
@@ -1612,7 +1661,7 @@ const Interaction = {
     const time = breakTime(def, Player.held());
     if (time === Infinity) { this.breaking.progress = 0; return; }
     this.breaking.progress += dt / time;
-    if (Math.random() < dt * 6) Particles.blockBreak(t.x, t.y, t.z, def, 2);
+    if (Math.random() < dt * 6) { Particles.blockBreak(t.x, t.y, t.z, def, 2); gg.res_vam.a.block(def, [t.x + 0.5, t.y + 0.5, t.z + 0.5], 'hit'); }
     if (this.breaking.progress >= 1) {
       this.breakBlock(t.x, t.y, t.z, true);
       Inventory.damageHeldTool();
@@ -1624,7 +1673,7 @@ const Interaction = {
   breakBlock(x, y, z, drop = true, held = Player.held()) {
     const id = world.getBlock(x, y, z); if (id === AIR) return;
     const def = Blocks.byId[id], meta = world.getMeta(x, y, z);
-    Particles.blockBreak(x, y, z, def, 14);
+    Particles.blockBreak(x, y, z, def, 14); gg.res_vam.a.block(def, [x + 0.5, y + 0.5, z + 0.5], 'break');
     if (drop) for (const d of blockDrops(def, meta, held)) Entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, { name: d.item, count: d.count });
     if (def.id === B.ice && world.getBlock(x, y - 1, z) !== AIR) { world.setBlock(x, y, z, B.water, 0); return; }
     if (def.model === 'door') { const other = (meta & 1) ? y - 1 : y + 1; if (world.getBlock(x, other, z) === id) world.setBlock(x, other, z, AIR); }
@@ -1719,7 +1768,7 @@ const Interaction = {
     if (def.tileEntity && def.interactive === 'chest') world.setTile(x, y, z, { type: 'chest', slots: new Array(27).fill(null) });
     if (def.onPlace) def.onPlace(x, y, z, meta);
     if (!Player.isCreative()) Inventory.consumeHeld();
-    Particles.blockBreak(x, y, z, def, 0);
+    Particles.blockBreak(x, y, z, def, 0); gg.res_vam.a.block(def, [x + 0.5, y + 0.5, z + 0.5], 'place');
     player.exhaustion += 0.005;
   },
   attack(mob) {
@@ -1858,7 +1907,7 @@ const Inventory = {
     const s = Player.held(); if (!s || Player.isCreative()) return;
     const it = Items.get(s.name); if (!it || !it.tool) return;
     s.dur = (s.dur || 0) + 1;
-    if (s.dur >= it.tool.durability) { player.inventory[player.hotbar] = null; HUD.message(it.displayName + ' broke!'); Particles.burst(player.x, player.y + 1.2, player.z, 8, [0.6, 0.6, 0.6]); }
+    if (s.dur >= it.tool.durability) { player.inventory[player.hotbar] = null; HUD.message(it.displayName + ' broke!'); gg.res_vam.a.toolBreak(); Particles.burst(player.x, player.y + 1.2, player.z, 8, [0.6, 0.6, 0.6]); }
     HUD.refreshHotbar();
   }
 };
@@ -2193,6 +2242,7 @@ const Entities = {
         // pickup
         if (e.pickupDelay <= 0 && !p.dead && dist2(e.x, e.y, e.z, p.x, p.y + 0.8, p.z) < 1.8) {
           const left = Inventory.addToPlayer(e.stack);
+          if (left !== e.stack.count) gg.res_vam.a.pop();
           if (left === 0) { this.remove(e); continue; }
           e.stack.count = left;
         }
@@ -2239,7 +2289,7 @@ const Entities = {
   // Explosion: destroys blocks in a jittered sphere, damages entities, chains TNT.
   explode(x, y, z, power) {
     const R = power;
-    Particles.burst(x, y, z, 80, [1, 0.8, 0.4], 6); Particles.burst(x, y, z, 60, [0.4, 0.4, 0.4], 3);
+    gg.res_vam.a.explode([x, y, z]); Particles.burst(x, y, z, 80, [1, 0.8, 0.4], 6); Particles.burst(x, y, z, 60, [0.4, 0.4, 0.4], 3);
     const chain = [];
     for (let dx = -R; dx <= R; dx++) for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) {
       const bx = floor(x) + dx, by = floor(y) + dy, bz = floor(z) + dz;
@@ -2434,6 +2484,7 @@ const Mobs = {
       if (feet.id === B.water) m.fire = 0;
       if (m.fire > 0) { m.fire--; if (m.age % 20 === 0) this.hurt(m, 1, 'fire'); if (rng.chance(0.3)) Particles.burst(m.x, m.y + m.h * 0.5, m.z, 1, [1, 0.5, 0.1], 1); }
       if (feet.id === B.cactus && m.age % 10 === 0) this.hurt(m, 1, 'cactus');
+      if (dist < 20 && rng.chance(1 / 300)) gg.res_vam.a.mob(m.type, [m.x, m.y + m.h * 0.8, m.z]);
       // Behaviour
       const canSeePlayer = !p.dead && !Player.isCreative() && dist < 24;
       if (d.hostile && canSeePlayer) {
@@ -2518,7 +2569,7 @@ const Mobs = {
 
   hurt(m, amount, source, kb) {
     if (m.dead) return;
-    m.health -= amount; m.hurtTimer = 0.35;
+    m.health -= amount; m.hurtTimer = 0.35; gg.res_vam.a.mob(m.type, [m.x, m.y + 1, m.z], true);
     if (kb) { m.vx += kb[0]; m.vy += kb[1]; m.vz += kb[2]; }
     this.updateHealthBar(m);
     if (m.def.passive) { m.state = 'flee'; m.stateTimer = 4; m.fleeFrom = [player.x, player.y, player.z]; }
@@ -2928,7 +2979,7 @@ const Menus = {
    ========================================================================== */
 const Game = {
   running: false, paused: false, ready: false, mode: 'survival', seed: '', scene: null, camera: null, renderer: null, canvas: null,
-  last: 0, tickAccum: 0, autosave: 0, fov: 70,
+  last: 0, tickAccum: 0, autosave: 0, fov: 70, fovBase: 70,
   init() {
     this.canvas = $('gl');
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, powerPreference: 'high-performance' });
@@ -3041,8 +3092,7 @@ const Game = {
       }
       // Camera
       const p = player;
-      this.camera.position.set(p.x, p.y + p.eyeHeight, p.z);
-      this.camera.rotation.set(p.pitch, p.yaw, 0);
+      Motion.camera(this.camera, p);
       this.fov += (Player.fovTarget - this.fov) * Math.min(1, dt * 8);
       if (Math.abs(this.camera.fov - this.fov) > 0.05) { this.camera.fov = this.fov; this.camera.updateProjectionMatrix(); }
       Sky.update(dt, this.camera, this.scene);
