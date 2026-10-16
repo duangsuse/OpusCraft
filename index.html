@@ -85,7 +85,7 @@
   #overlay.lq-out { animation: lqOut .8s ease-in; }
   @keyframes lqIn { 0% { opacity: 1; transform: translateY(-100%); } 45% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(0); } }
   @keyframes lqOut { 0% { opacity: 1; transform: translateY(0); filter: blur(1.5px); } 100% { opacity: 0; transform: translateY(18%); filter: blur(0); } }
-  #mode { position: absolute; right: 8px; top: 8px; font-size: 12px; color: #fff; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.25); padding: 4px 6px; text-align: right; white-space: pre; }
+  #mode { position: absolute; right: 8px; top: 40px; font-size: 12px; color: #fff; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.25); padding: 4px 6px; text-align: right; white-space: pre; }
   #breakhint { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); width: 120px; height: 6px; background: rgba(0,0,0,0.5); display: none; }
   #breakhint i { display: block; height: 100%; background: #fff; width: 0; }
 
@@ -141,7 +141,7 @@
     text-shadow: 2px 2px 0 #3f3f00; transform: rotate(-16deg); animation: splashPulse .6s ease-in-out infinite alternate; white-space: nowrap; }
   @keyframes splashPulse { from { transform: rotate(-16deg) scale(.95); } to { transform: rotate(-16deg) scale(1.06); } }
   #sub {font-size: 32px;color: #cfcfcf;margin-bottom: 14px;text-shadow: 2px 2px 0 #222;}
-  #start.title {background: radial-gradient(ellipse at center, rgba(0, 0, 0, .35) 39%, rgb(69 34 34 / 85%) 97%);}
+  #start.title {background: radial-gradient(ellipse at center, rgba(0, 0, 0, .35) 39%, rgb(34 49 69 / 85%) 97%);}
   #start.title #menu-pane { display: none; }
   .screen .btn { width: 580px; max-width: 92vw; height: 60px; margin: 0; padding: 0 20px; background: #717171; color: #e8e8e8; font-family: 'VT323', monospace; font-size: 36px;
     border: 3px solid; border-color: #b0b0b0 #3a3a3a #3a3a3a #b0b0b0; box-shadow: 0 0 0 2px #000; text-shadow: 2px 2px 0 #383838; cursor: pointer;
@@ -158,13 +158,23 @@
   .save-row b { flex: 1; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .save-row small { color: #aaa; font-size: 17px; }
   .save-row.empty { color: #666; cursor: default; } .save-row.empty:hover { background: none; color: #666; }
   .save-row .del { color: #c88; padding: 0 4px; } .save-row .del:hover { color: #f44; }
+  #rt-pane { position: fixed; top: 8px; right: 8px; width: 300px; z-index: 40; }
+  #dbg-pane { position: absolute; left: 8px; top: 8px; width: 330px; z-index: 6; pointer-events: auto; }
+  #dbg-pane textarea { font: 11px/1.35 monospace !important; }
   #menu-pane { width: 580px; max-width: 92vw; --tp-base-background-color: rgba(0,0,0,.55); }
   #help { margin-top: 8px; display: grid; grid-template-columns: auto auto; gap: 1px 18px; font-size: 21px; color: #ddd; background: rgba(0,0,0,.5); padding: 10px 18px; border: 2px solid #000; }
   #help b { color: #ffe68a; font-weight: normal; } #help .wide { grid-column: span 2; color: #bbb; }
-  #loading .panel { text-align: center; min-width: 320px; }
-  #loadbar { width: 300px; height: 14px; background: #333; margin: 8px auto; border: 2px solid #fff; }
-  #loadbar i { display: block; height: 100%; background: var(--accent); width: 0; }
-  #death .panel { text-align: center; }
+  /* non-blocking loader: bottom text + spinner + thin progress */
+  #loading { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 12; pointer-events: none; display: flex; align-items: center; gap: 10px;
+    padding: 6px 14px 8px; background: rgba(0,0,0,.55); border: 2px solid #000; font: 22px 'VT323', monospace; color: #eee; text-shadow: 2px 2px 0 #222; }
+  #loading .spin { width: 14px; height: 14px; border: 3px solid #888; border-top-color: #fff; border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loadbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; } #loadbar i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+  /* MC death screen: red gradient, buttons enabled after 1 s */
+  #death { background: linear-gradient(rgba(80,0,0,.38), rgba(128,48,48,.63)); }
+  #death h1 { font: clamp(28px, 5vw, 56px) 'Press Start 2P', monospace; color: #fff; text-shadow: 4px 4px 0 #3f3f3f; margin: 0 0 18px; }
+  #death p { font-size: 28px; margin: 0 0 22px; } #death .btn:disabled { color: #a0a0a0; background: #4a4a4a; cursor: default; }
+
   .warn { color: #7a2a00; font-size: 11px; }
 </style>
 </head>
@@ -181,6 +191,7 @@
     <canvas id="overlay"></canvas>
     <div id="crosshair"></div>
     <div id="debug"></div>
+    <div id="dbg-pane" class="hidden"></div>
     <div id="mode"></div>
     <div id="msgs"></div>
     <div id="breakhint"><i></i></div>
@@ -195,22 +206,21 @@
   <div id="tooltip"></div>
 
   <!-- Death screen -->
-  <div id="death" class="overlay hidden">
-    <div class="panel">
-      <h1 style="color:#a00">You died!</h1>
-      <p id="death-cause">Cause of death</p>
-      <button class="btn" id="btn-respawn">Respawn</button>
-    </div>
+  <div id="death" class="screen hidden">
+    <h1>You Died!</h1>
+    <p id="death-cause">Cause of death</p>
+    <button class="btn" id="btn-respawn">Respawn</button>
+    <button class="btn" id="btn-death-title">Title Screen</button>
   </div>
 
   <!-- Title = pause screen (VoxelCraft layout). Esc / click on the backdrop = Continue -->
   <div id="start" class="screen">
     <div id="title">VOXELCRAFT<span id="splash"></span></div>
     <div id="sub">a tiny block game</div>
-    <button class="btn" id="btn-play">Continue</button>
+    <button class="btn" id="btn-play"></button>
     <div class="mrow">
       <form id="new-form" class="btn"><button type="submit">New World</button><input id="seed-input" name="seed" size="5" placeholder="seed.." pattern="z1-[A-Za-z0-9_\-]+" title="z1-xxxx (empty = random)" spellcheck="false" autocomplete="off"><small id="new-mode">G</small></form>
-      <button class="btn" id="btn-save">Save <input id="io" size="2" placeholder="⇅" title="paste JSON here to import"></button>
+      <button class="btn" id="btn-save">Share <input id="io" size="2" placeholder="⇅" title="paste JSON here to import"></button>
     </div>
     <div id="save-list"></div>
     <div id="menu-pane"></div>
@@ -226,10 +236,9 @@
     </div>
   </div>
 
+  <div id="rt-pane"></div>
   <!-- Loading overlay -->
-  <div id="loading" class="overlay hidden">
-    <div class="panel"><h2 id="loadtext">Generating world…</h2><div id="loadbar"><i></i></div></div>
-  </div>
+  <div id="loading" class="hidden"><i class="spin"></i><span id="loadtext">Generating world…</span><div id="loadbar"><i></i></div></div>
 </div>
 
 <script type="importmap">{"imports":{
@@ -243,6 +252,9 @@ import JSZip from 'jszip';
 const gg = window.gg = { THREE, Pane, JSZip };
 // gg.my(class Topic{ static ... }) — registers a long-function topic class as gg.Topic and returns it
 gg.my = (cls) => (gg[cls.name] = cls);
+// CSS.fx(op): run a DOM/canvas update as a View Transition (old frame cross-fades to new). Firefox: stub with the same shape.
+CSS.fx = (op) => document.startViewTransition ? document.startViewTransition(op)
+  : ((done) => ({ updateCallbackDone: done, ready: done, finished: done, skipTransition() {} }))(Promise.resolve().then(op));
 THREE.ColorManagement.enabled = false;
 /* ============================================================================
    1. UTILITIES
@@ -1361,28 +1373,34 @@ const player = {
   flying: false, sneaking: false, sprinting: false, inWater: false, headInWater: false, inLava: false, onLadder: false,
   inventory: new Array(36).fill(null), hotbar: 0, dead: false, fallStart: 0, regenTimer: 0, starveTimer: 0, hurtTimer: 0,
   lastSpaceTap: 0, lastWTap: 0, damageTimer: 0, spawn: [0, 80, 0], ticksAlive: 0, lastHurtBy: '',
-  headInLava: false, bob: 0, bobAmt: 0, stepDist: 0, land: 0
+  headInLava: false, noclip: false, aj: 0, bob: 0, bobAmt: 0, stepDist: 0, land: 0, camEye: 1.62, deathTime: 0, hurtDir: 1, hurt: {}
 };
 /* ---- Motion feel (VoxelCraft port): footsteps, view bob, landing dip, sprint FOV ---- */
-const c_Motion = { stepLen: 1.7, bobFreq: 1.9, bobY: 0.07, bobX: 0.04, landDip: 0.28, landDecay: 5, sprintFov: 1.1, waterFov: 0.92, flyFov: 1.15, hurtRoll: 0.12, deathRoll: 0.6 };
+/* MC camera: eye height eases 50%/tick (sneak, dying pose 0.2), hurt tilt -sin(f^4·π)·14° over 10 ticks,
+   death roll 40 - 8000/(t+200) degrees (t = death ticks, max 20) */
+const c_Motion = { stepLen: 1.7, bobFreq: 1.9, bobY: 0.07, bobX: 0.04, landDip: 0.28, landDecay: 5, sprintFov: 1.1, waterFov: 0.92, flyFov: 1.15,
+  hurtDur: 0.5, hurtRoll: 14 * Math.PI / 180, deathEye: 0.2, eyeEase: 0.5, deathRoll: (t) => (40 - 8000 / (Math.min(t, 20) + 200)) * Math.PI / 180, autoJumpReach: 0.45, autoJumpSprint: 1.5 };
 const Motion = gg.my(class Motion {
   static update(p, dt, wasGround, fallFrom) {
-    const C = c_Motion, hs = Math.hypot(p.vx, p.vz), walking = p.onGround && !p.flying;
+    const C = c_Motion, hs = Math.hypot(p.vx, p.vz), walking = (p.onGround || p.aj) && !p.flying;
     p.bobAmt = lerp(p.bobAmt, walking ? Math.min(1, hs / 4.3) : 0, 1 - Math.exp(-dt * 10));
     p.bob += hs * dt * C.bobFreq;
     const below = () => world.getDef(floor(p.x), floor(p.y - 0.2), floor(p.z));
     if (walking) { p.stepDist += hs * dt; if (p.stepDist > C.stepLen) { p.stepDist = 0; const d = below(); if (d.id !== AIR) gg.res_vam.a.walk(d, [p.x, p.y, p.z]); } }
-    if (p.onGround && !wasGround && !p.flying) {
+    if (p.onGround && !wasGround && !p.flying && !p.ajLand) {
       const fall = fallFrom - p.y;
       if (fall > 0.8) { const d = below(); if (d.id !== AIR) gg.res_vam.a.walk(d, [p.x, p.y, p.z]); p.land = Math.min(1, fall / 8); }
     }
     p.land = Math.max(0, p.land - dt * C.landDecay * (0.3 + p.land));
     Player.fovTarget = Game.fovBase * (p.sprinting ? (p.flying ? C.flyFov : C.sprintFov) : 1) * (p.headInWater ? C.waterFov : 1);
   }
+  // Eye height eases toward the pose target at MC's 50% per tick (frame-rate independent)
+  static eye(p, dt) { const t = p.dead ? c_Motion.deathEye : p.eyeHeight; p.camEye += (t - p.camEye) * (1 - Math.pow(1 - c_Motion.eyeEase, dt * TICK_RATE)); }
   static camera(cam, p) {
     const C = c_Motion, by = -Math.abs(Math.cos(p.bob)) * C.bobY * p.bobAmt, bx = Math.sin(p.bob) * C.bobX * p.bobAmt;
-    cam.position.set(p.x + Math.cos(p.yaw) * bx, p.y + p.eyeHeight + by - p.land * C.landDip + (p.dead ? -1.3 : 0), p.z - Math.sin(p.yaw) * bx);
-    const roll = Math.sin(Math.max(0, p.hurtTimer) / 0.3 * Math.PI) * C.hurtRoll + (p.dead ? C.deathRoll : 0);
+    cam.position.set(p.x + Math.cos(p.yaw) * bx, p.y + p.camEye + by - p.land * C.landDip, p.z - Math.sin(p.yaw) * bx);
+    const f = clamp(p.hurtTimer / C.hurtDur, 0, 1);
+    const roll = -Math.sin(f * f * f * f * Math.PI) * C.hurtRoll * p.hurtDir + (p.dead ? C.deathRoll(p.deathTime) : 0);
     cam.rotation.set(p.pitch - p.land * 0.08, p.yaw, roll);
   }
 });
@@ -1425,10 +1443,23 @@ const LiquidFx = gg.my(class LiquidFx {
     if (p.headInLava !== was.hl) this.play('lava', p.headInLava ? 'in' : 'out');
   }
 });
+/* ---- Status damage table (survival only). first = tick offset of the first hit (0 = immediately on contact).
+   Lava: 2♥/0.5 s + 5 s afterburn (gentler than vanilla's 4 + 15 s). Edited live in the menu pane (伤害). */
+const c_Burn = { lava: 100, fireBlock: 80 };
+const hurtRow = (id, cause, every, amount, first, when, onTick) => ({ id, cause, every, amount, first, when, onTick });
+const c_Hurt = [
+  ['lava',    'tried to swim in lava', 10, 2, 0,  (p) => p.inLava, (p) => { p.fire = Math.max(p.fire, c_Burn.lava); }],
+  ['burn',    'burned to death',       20, 1, 19, (p) => p.fire > 0 && !p.inLava],
+  ['drown',   'drowned',               20, 2, 0,  (p) => p.headInWater && p.air <= 0],
+  ['cactus',  'was pricked to death',  10, 1, 0,  (p, t) => t.has(B.cactus)],
+  ['fire',    'went up in flames',     10, 1, 0,  (p, t) => t.has(B.fire), (p) => { p.fire = Math.max(p.fire, c_Burn.fireBlock); }],
+  ['starve',  'starved to death',      80, 1, 79, (p) => p.hunger <= 0 && p.health > 1],
+  ['void',    'fell out of the world', 10, 4, 0,  (p) => p.y < -64],
+].map(r => hurtRow(...r));
 const Player = {
   SENS: 0.0022, fovTarget: 70, flySpeed: 10.9,
   reset(spawn) {
-    Object.assign(player, { x: spawn[0], y: spawn[1], z: spawn[2], vx: 0, vy: 0, vz: 0, health: 20, hunger: 20, saturation: 5, exhaustion: 0, air: 300, fire: 0, dead: false, flying: false, sprinting: false, sneaking: false, fallStart: spawn[1], yaw: 0, pitch: 0 });
+    Object.assign(player, { x: spawn[0], y: spawn[1], z: spawn[2], vx: 0, vy: 0, vz: 0, health: 20, hunger: 20, saturation: 5, exhaustion: 0, air: 300, fire: 0, dead: false, flying: false, sprinting: false, sneaking: false, fallStart: spawn[1], yaw: 0, pitch: 0, aj: 0, deathTime: 0, hurtTimer: 0, camEye: 1.62, hurt: {} });
     player.spawn = spawn.slice();
   },
   held() { return player.inventory[player.hotbar]; },
@@ -1439,7 +1470,7 @@ const Player = {
 
   update(dt) {
     const p = player;
-    if (p.dead) return;
+    if (p.dead) { p.deathTime += dt * TICK_RATE; if (p.hurtTimer > 0) p.hurtTimer -= dt; Motion.eye(p, dt); Input.consumeMouse(); return; }
     const k = Input.keys, controls = Input.locked && !Screens.isOpen() && !Game.paused;
     // Mouse look
     if (Input.locked && !Screens.isOpen()) {
@@ -1472,7 +1503,8 @@ const Player = {
     if (p.flying) speed = Player.flySpeed * (p.sprinting ? 2 : 1);
     else if (p.inWater || p.inLava) speed = p.inLava ? 1.2 : 2.2;
     else if (p.onLadder) speed = 2;
-    const rate = p.flying ? 8 : (p.onGround ? 18 : (p.inWater ? 6 : 3));
+    // Auto-jump keeps ground traction so the hop doesn't stall against the ledge and creep at the end
+    const rate = p.flying ? 8 : (p.onGround || p.aj ? 18 : (p.inWater ? 6 : 3));
     const kk = 1 - Math.exp(-rate * dt);
     p.vx += (wx * speed - p.vx) * kk; p.vz += (wz * speed - p.vz) * kk;
     // Vertical
@@ -1490,12 +1522,16 @@ const Player = {
       if (jump || (controls && k.KeyW)) p.vy = 2.35; else if (p.sneaking) p.vy = 0; else p.vy = Math.max(p.vy - this.gravity(dt), -2.35);
     } else {
       if (jump && p.onGround) { p.vy = Physics.JUMP_VEL; p.onGround = false; p.exhaustion += p.sprinting ? 0.2 : 0.05; }
-      p.vy = Math.max(p.vy - Physics.GRAVITY * dt, -Physics.TERMINAL);
+      p.vy = Math.max(p.vy - Physics.GRAVITY * (p.aj || 1) * dt, -Physics.TERMINAL);
     }
-    p.stepHeight = p.sneaking ? 0.6 : 1.0;
+    p.stepHeight = 0.6; // MC step (slabs); full blocks are cleared by auto-jump below
     const prevOnGround = p.onGround, prevY = p.y, prevFall = p.fallStart;
-    Physics.move(p, p.vx * dt, p.vy * dt, p.vz * dt);
-    if (p.hitX) p.vx = 0; if (p.hitZ) p.vz = 0;
+    if (p.noclip) { p.flying = true; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.onGround = p.hitX = p.hitZ = false; }
+    else Physics.move(p, p.vx * dt, p.vy * dt, p.vz * dt);
+    p.ajLand = false;
+    if (p.aj && (p.onGround || p.flying || p.inWater || p.inLava || p.onLadder)) { p.ajLand = p.onGround; p.aj = 0; }
+    this.autoJump(p, wx, wz, prevOnGround);
+    if (!p.aj) { if (p.hitX) p.vx = 0; if (p.hitZ) p.vz = 0; }
     if (p.flying && (p.hitX || p.hitZ)) { /* no step penalty */ }
     // Fall damage
     if (p.onGround || p.inWater || p.onLadder || p.flying) {
@@ -1506,63 +1542,75 @@ const Player = {
       p.fallStart = p.y;
     } else if (p.y > p.fallStart) p.fallStart = p.y;
     if (p.sprinting && !p.flying) p.exhaustion += speed * dt * 0.1; // 0.1 per metre sprinted
-    Motion.update(p, dt, prevOnGround, prevFall);
+    Motion.update(p, dt, prevOnGround, prevFall); Motion.eye(p, dt);
     if (p.hurtTimer > 0) p.hurtTimer -= dt;
   },
   gravity(dt) { return Physics.GRAVITY * dt; },
+  // MC auto-jump: walking into a 1-block ledge with headroom triggers a real jump (camera follows the arc)
+  autoJump(p, wx, wz, wasGround) {
+    if (!(p.hitX || p.hitZ) || !(p.onGround || wasGround) || p.flying || p.sneaking || p.inWater || p.inLava || p.onLadder || (!wx && !wz)) return;
+    const r = c_Motion.autoJumpReach, probe = { x: p.x + wx * r, y: p.y, z: p.z + wz * r, w: p.w, h: p.h };
+    if (!Physics.intersects(probe)) return;
+    probe.y = floor(p.y + 0.01) + 1.001;
+    if (probe.y - p.y > 1.05 || Physics.intersects(probe) || Physics.intersects({ x: p.x, y: probe.y, z: p.z, w: p.w, h: p.h })) return;
+    // Sprinting: same apex, 50% faster (v·k, g·k²)
+    const k = p.sprinting ? c_Motion.autoJumpSprint : 1;
+    p.vy = Physics.JUMP_VEL * k; p.aj = k * k; p.onGround = false; p.exhaustion += p.sprinting ? 0.2 : 0.05;
+  },
 
   // 20 Hz survival bookkeeping
   tick() {
     const p = player; if (p.dead) return;
     p.ticksAlive++;
     const creative = this.isCreative();
-    // Air / drowning
-    if (p.headInWater && !creative) { p.air--; if (p.air <= -20) { p.air = 0; this.damage(2, 'drowned'); } }
-    else p.air = Math.min(300, p.air + 4);
-    // Lava and fire
-    if (p.inLava && !creative) { p.fire = 300; if (p.ticksAlive % 10 === 0) this.damage(4, 'tried to swim in lava'); }
+    // Air: bubbles drain under water, refill fast above
+    p.air = p.headInWater && !creative ? Math.max(0, p.air - 1) : Math.min(300, p.air + 4);
     if (p.inWater) p.fire = 0;
-    if (p.fire > 0) { p.fire--; if (!creative && p.ticksAlive % 20 === 0) this.damage(1, 'burned to death'); }
-    // Contact damage (cactus, fire block) + fire ignition
-    if (!creative && p.ticksAlive % 10 === 0) {
-      for (let x = floor(p.x - p.w - 0.05); x <= floor(p.x + p.w + 0.05); x++) for (let z = floor(p.z - p.w - 0.05); z <= floor(p.z + p.w + 0.05); z++) for (let y = floor(p.y); y <= floor(p.y + p.h); y++) {
-        const d = world.getDef(x, y, z);
-        if (d.id === B.cactus) this.damage(1, 'was pricked to death');
-        else if (d.id === B.fire) { p.fire = 160; this.damage(1, 'went up in flames'); }
-      }
-    }
+    if (p.fire > 0) p.fire--;
+    if (!creative && !p.noclip) this.statusDamage(p);
     // Hunger
     if (!creative) {
       if (p.exhaustion >= 4) { p.exhaustion -= 4; if (p.saturation > 0) p.saturation = Math.max(0, p.saturation - 1); else p.hunger = Math.max(0, p.hunger - 1); }
       if (p.hunger >= 18 && p.health < p.maxHealth) { p.regenTimer++; if (p.regenTimer >= 80) { p.regenTimer = 0; p.health = Math.min(p.maxHealth, p.health + 1); p.exhaustion += 6; } }
       else p.regenTimer = 0;
-      if (p.hunger <= 0) { p.starveTimer++; if (p.starveTimer >= 80) { p.starveTimer = 0; if (p.health > 1) this.damage(1, 'starved to death'); } }
       if (p.ticksAlive % 1200 === 0) p.exhaustion += 0.5; // slow baseline drain
     } else { p.health = p.maxHealth; p.hunger = 20; }
+  },
+  // Declarative status damage (c_Hurt): each row ticks its own counter while its condition holds
+  statusDamage(p) {
+    const touch = new Set();
+    for (let x = floor(p.x - p.w - 0.05); x <= floor(p.x + p.w + 0.05); x++) for (let z = floor(p.z - p.w - 0.05); z <= floor(p.z + p.w + 0.05); z++) for (let y = floor(p.y); y <= floor(p.y + p.h); y++) touch.add(world.getBlock(x, y, z));
+    for (const h of c_Hurt) {
+      if (!h.when(p, touch)) { p.hurt[h.id] = 0; continue; }
+      const n = p.hurt[h.id] = (p.hurt[h.id] || 0) + 1;
+      if (h.onTick) h.onTick(p);
+      if ((n - 1) % h.every === h.first) this.damage(h.amount, h.cause);
+    }
   },
   damage(amount, cause, knock) {
     const p = player;
     if (p.dead || amount <= 0 || this.isCreative()) return;
     if (p.damageTimer > 0) return; // brief invulnerability (like vanilla's 10 ticks)
     p.damageTimer = 0.5;
-    p.health -= amount; p.hurtTimer = 0.3; p.exhaustion += 0.1; p.lastHurtBy = cause;
+    p.health -= amount; p.hurtTimer = c_Motion.hurtDur; p.hurtDir = rng.chance(0.5) ? 1 : -1; p.exhaustion += 0.1; p.lastHurtBy = cause;
     if (knock) { p.vx += knock[0]; p.vy += knock[1]; p.vz += knock[2]; }
     HUD.flashDamage(); gg.res_vam.a.hurt();
     if (p.health <= 0) this.die(cause);
   },
   die(cause) {
     const p = player;
-    p.dead = true; p.health = 0;
+    p.dead = true; p.health = 0; p.deathTime = 0;
     // Drop inventory
     for (let i = 0; i < p.inventory.length; i++) { const s = p.inventory[i]; if (s) { Entities.spawnItem(p.x, p.y + 1, p.z, s, (rng.next() - 0.5) * 4, 3, (rng.next() - 0.5) * 4); p.inventory[i] = null; } }
     Input.unlock();
     $('death-cause').textContent = 'You ' + cause.replace(/^was /, 'were ') + '.';
     $('death').classList.remove('hidden');
+    const btns = ['btn-respawn', 'btn-death-title'].map($); btns.forEach(b => b.disabled = true); setTimeout(() => btns.forEach(b => b.disabled = false), 1000);
   },
   respawn() {
     const p = player;
     const s = p.spawn;
-    Object.assign(p, { x: s[0], y: s[1], z: s[2], vx: 0, vy: 0, vz: 0, health: 20, hunger: 20, saturation: 5, exhaustion: 0, air: 300, fire: 0, dead: false, fallStart: s[1], damageTimer: 0 });
+    Object.assign(p, { x: s[0], y: s[1], z: s[2], vx: 0, vy: 0, vz: 0, health: 20, hunger: 20, saturation: 5, exhaustion: 0, air: 300, fire: 0, dead: false, fallStart: s[1], damageTimer: 0, deathTime: 0, hurtTimer: 0, camEye: 1.62, hurt: {} });
     $('death').classList.add('hidden');
     HUD.refreshHotbar();
     Input.lock();
@@ -1584,7 +1632,7 @@ const Player = {
     else if (code === 'KeyG') Game.toggleMode();
     else if (code === 'KeyT') { Sky.time = 1000; HUD.message('Time set to morning'); }
     else if (code === 'KeyR') Weather.toggle();
-    else if (code === 'F3') HUD.debug = !HUD.debug;
+    else if (code === 'F3') HUD.toggleDebug();
   }
 };
 Events.on('keypress', (code) => Player.handleKey(code));
@@ -2013,8 +2061,10 @@ const Screens = {
     $('screen').classList.remove('hidden');
     this.render();
   },
-  close() {
+  // byEsc: Esc is not a user gesture → no relock attempt (a failed/raced lock would surface as the pause menu)
+  close(byEsc) {
     if (!this.current) return;
+    this.closedAt = performance.now();
     // return crafting grid + cursor to the inventory (or drop)
     const give = (s) => { if (!s) return; const left = Inventory.add(player.inventory, s); if (left) Entities.spawnItem(player.x, player.y + 1, player.z, { name: s.name, count: left, dur: s.dur }); };
     for (let i = 0; i < 4; i++) { give(this.craft2[i]); this.craft2[i] = null; }
@@ -2023,7 +2073,7 @@ const Screens = {
     this.current = null; this.data = null;
     $('screen').classList.add('hidden'); $('cursor-stack').style.display = 'none'; $('tooltip').style.display = 'none';
     HUD.refreshHotbar();
-    if (Game.running && !Game.paused && !player.dead) Input.lock();
+    if (Game.running && !Game.paused && !player.dead) { if (byEsc) HUD.message('Click to capture the mouse'); else Input.lock(); }
   },
   slotHTML(c, i, cls = '') { return `<div class="slot ${cls}" data-c="${c}" data-i="${i}"><img alt=""><span class="cnt"></span><div class="dur hidden"><i></i></div></div>`; },
   gridHTML(c, n, cols, start = 0, cls = '') { let h = `<div class="grid" style="grid-template-columns: repeat(${cols}, 40px)">`; for (let i = 0; i < n; i++) h += this.slotHTML(c, start + i, cls); return h + '</div>'; },
@@ -2159,7 +2209,7 @@ const Screens = {
     $('screen').addEventListener('mousedown', (e) => { if (e.target === $('screen')) this.close(); });
     Events.on('keypress', (code) => {
       if (code === 'KeyE') { if (this.isOpen()) this.close(); else if (Game.running && !Game.paused && !player.dead) this.open('inventory'); }
-      else if (code === 'Escape' && this.isOpen()) this.close();
+      else if (code === 'Escape' && this.isOpen()) this.close(true);
     });
     Events.on('atlasRebuilt', () => { if (this.isOpen()) this.refresh(); HUD.refreshHotbar(); });
   }
@@ -2186,6 +2236,7 @@ const Particles = {
   blockBreak(x, y, z, def, count) {
     const tiles = Blocks.tilesFor(def, 0), t = tiles[FACE_PZ] * 3, tint = Mesher.tintFor(def, FACE_PZ, BIOMES[world.getBiome(x, z)]);
     const r = Atlas.avgColor[t] * tint[0], g = Atlas.avgColor[t + 1] * tint[1], b = Atlas.avgColor[t + 2] * tint[2];
+    count = Math.round(count * c_Particles.breakMul);
     for (let i = 0; i < count; i++) { const k = 0.7 + rng.next() * 0.5; this.spawn(x + rng.next(), y + rng.next(), z + rng.next(), (rng.next() - 0.5) * 3, rng.next() * 3 + 1, (rng.next() - 0.5) * 3, 0.5 + rng.next() * 0.6, r * k, g * k, b * k); }
   },
   burst(x, y, z, count, rgb, speed = 2) { for (let i = 0; i < count; i++) { const k = 0.8 + rng.next() * 0.4; this.spawn(x + (rng.next() - 0.5) * 0.5, y + (rng.next() - 0.5) * 0.5, z + (rng.next() - 0.5) * 0.5, (rng.next() - 0.5) * speed * 2, rng.next() * speed, (rng.next() - 0.5) * speed * 2, 0.4 + rng.next() * 0.6, rgb[0] * k, rgb[1] * k, rgb[2] * k); } },
@@ -2199,7 +2250,7 @@ const Particles = {
         for (let k = 0; k < 3; k++) { p[i * 3 + k] = p[l * 3 + k]; v[i * 3 + k] = v[l * 3 + k]; this.col[i * 3 + k] = this.col[l * 3 + k]; }
         this.life[i] = this.life[l]; continue;
       }
-      v[i * 3 + 1] -= 18 * dt;
+      v[i * 3 + 1] -= c_Particles.gravity * dt;
       const nx = p[i * 3] + v[i * 3] * dt, ny = p[i * 3 + 1] + v[i * 3 + 1] * dt, nz = p[i * 3 + 2] + v[i * 3 + 2] * dt;
       if (world.isSolid(floor(nx), floor(ny), floor(nz))) { v[i * 3] *= 0.5; v[i * 3 + 2] *= 0.5; if (v[i * 3 + 1] < 0) v[i * 3 + 1] = 0; }
       else { p[i * 3] = nx; p[i * 3 + 1] = ny; p[i * 3 + 2] = nz; }
@@ -2875,10 +2926,28 @@ const RandomTicks = {
    18. HUD, MESSAGES, PERSISTENCE, MENUS
    ========================================================================== */
 const HUD = {
-  debug: true, fps: 0, frames: 0, fpsTimer: 0, uiTimer: 0, nameTimer: 0, flashTimer: 0,
+  debug: false, dbg: { text: '' }, fps: 0, frames: 0, fpsTimer: 0, uiTimer: 0, nameTimer: 0, flashTimer: 0,
   HEART: ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'],
   FOOD: ['..XXX..', '.XXXXX.', '.XXXXX.', '..XXX..', '...XX..', '..XX...'],
   BUBBLE: ['..XXX..', '.X...X.', 'X.....X', 'X.....X', '.X...X.', '..XXX..'],
+  // Merged debug info (bridge-mind + VoxelCraft F3 screen)
+  debugText(p, bx, by, bz, bio) {
+    const face = ['north (-Z)', 'west (-X)', 'south (+Z)', 'east (+X)'][((Math.round(p.yaw / (Math.PI / 2)) % 4) + 4) % 4];
+    const ri = Game.renderer.info.render, st = ChunkManager.stats, t = Interaction.target;
+    return [`VoxelCraft ${this.fps} fps · ${(Game.frameMs || 0).toFixed(1)} ms`,
+      `XYZ ${p.x.toFixed(2)} / ${p.y.toFixed(2)} / ${p.z.toFixed(2)}`, `Block ${bx} ${by} ${bz}  Chunk ${bx >> 4}, ${bz >> 4}`, `Facing ${face}`,
+      `Light sky ${world.getSky(bx, by, bz)} block ${world.getBlockLight(bx, by, bz)}`, `Biome ${bio.name}`,
+      `${Sky.clockString()} · ${Weather.state}`, `Chunks ${st.loaded} · gen ${st.generated} · meshed ${st.meshed} · rd ${ChunkManager.renderDistance}`,
+      `Entities ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}`, `Draw calls ${ri.calls} · Tris ${(ri.triangles / 1000).toFixed(0)}k`,
+      `Mode ${Game.mode}${p.flying ? ' · fly' : ''}${p.noclip ? ' · noclip' : ''}`, `Seed ${Game.seed}`,
+      t ? `Target ${Blocks.byId[world.getBlock(t.x, t.y, t.z)].displayName} @ ${t.x} ${t.y} ${t.z} meta ${world.getMeta(t.x, t.y, t.z)}` : 'Target —'].join('\n');
+  },
+  // F3: debug pane (top-left) + noclip
+  toggleDebug() {
+    this.debug = !this.debug; player.noclip = this.debug; if (this.debug) player.flying = true;
+    if (!this.dbgPane) this.dbgPane = buildPane(new gg.Pane({ container: $('dbg-pane') }), menu.DBG);
+    $('dbg-pane').classList.toggle('hidden', !this.debug); $('debug').classList.toggle('hidden', this.debug);
+  },
   init() {
     const hb = $('hotbar'); hb.innerHTML = '';
     for (let i = 0; i < 9; i++) { const d = document.createElement('div'); d.className = 'hslot'; d.innerHTML = '<img alt=""><span class="cnt"></span><div class="dur hidden"><i></i></div>'; hb.appendChild(d); }
@@ -2933,10 +3002,8 @@ const HUD = {
     const bx = floor(p.x), by = floor(p.y), bz = floor(p.z);
     const bio = BIOMES[world.getBiome(bx, bz)];
     $('mode').textContent = `${Game.mode === 'creative' ? 'Creative' : 'Survival'}${p.flying ? ' · Flying' : ''}${p.sprinting ? ' · Sprinting' : ''}\n${bio.name} · ${Sky.clockString()}${Weather.amount > 0.5 ? (Weather.snowMode ? ' · Snow' : ' · Rain') : ''}`;
-    if (this.debug) {
-      const sky = world.getSky(bx, by, bz), blk = world.getBlockLight(bx, by, bz);
-      $('debug').textContent = `FPS ${this.fps}\nXYZ ${p.x.toFixed(1)} / ${p.y.toFixed(1)} / ${p.z.toFixed(1)}\nChunk ${bx >> 4}, ${bz >> 4}  Light sky ${sky} block ${blk}\nBiome ${bio.name}  Seed ${Game.seed}\nChunks ${ChunkManager.stats.loaded} loaded · gen ${ChunkManager.stats.generated} · meshed ${ChunkManager.stats.meshed}\nEntities ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}\n${Interaction.target ? 'Target: ' + Blocks.byId[world.getBlock(Interaction.target.x, Interaction.target.y, Interaction.target.z)].displayName + ' meta ' + world.getMeta(Interaction.target.x, Interaction.target.y, Interaction.target.z) : ''}`;
-    } else $('debug').textContent = `FPS ${this.fps}`;
+    if (this.debug) this.dbg.text = this.debugText(p, bx, by, bz, bio);
+    $('debug').textContent = `FPS ${this.fps}`;
   }
 };
 
@@ -2963,8 +3030,8 @@ const Save = {
     const chunks = [];
     for (const c of world.chunks.values()) if (c.modified) chunks.push(world.serializeChunk(c));
     for (const c of world.stored.values()) chunks.push(world.serializeChunk(c));
-    const p = player;
-    return { version: 1, seed: Game.seed, time: Sky.time, day: Sky.day, mode: Game.mode, raining: Weather.raining,
+    const p = { ...player, ...Screensaver.saved };   // never persist a screensaver viewpoint
+    return { version: 1, seed: Game.seed, time: Sky.time, day: Sky.day, mode: Game.mode, raining: Weather.raining, thunder: Weather.thunder,
       player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying },
       chunks };
   },
@@ -3016,24 +3083,132 @@ const Save = {
 };
 
 /* ---- Title = pause screen: Continue · New World <seed> (G: mode) · Save <io> · save list · settings pane ---- */
-const c_Title = { modes: ['survival', 'creative'], minRows: 4, lookSpeed: 1.6, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } };
-// Settings pane declaration: [folder, [[key, target(), tweakpane opts, onChange?]]]
-const c_MenuPane = [
-  ['性能', [
-    ['renderDistance', () => ChunkManager, { label: '视距', min: 2, max: 16, step: 1 }, (v) => ChunkManager.setRenderDistance(v)],
-    ['scale', () => Game, { label: '渲染缩放', min: 0.25, max: 2, step: 0.05 }, (v) => Game.applyScale(v)],
-  ]],
-  ['生态环境', [
-    ['time', () => Sky, { label: '时间', min: 0, max: 1000, step: 50 }],
-    ['raining', () => Weather, { label: '下雨' }],
-  ]],
-  ['操控', [
-    ['mode', () => Game, { label: '模式', options: Object.fromEntries(c_Title.modes.map(m => [m, m])) }, (v) => Game.setMode(v)],
-    ['fovBase', () => Game, { label: 'FoV', min: 30, max: 120, step: 1 }],
-    ['SENS', () => Player, { label: '鼠标速度', min: 0.0005, max: 0.008, step: 0.0001 }],
-    ['flySpeed', () => Player, { label: '飞行速度', min: 2, max: 40, step: 0.5 }],
-  ]],
-];
+const c_Title = { modes: ['survival', 'creative'], previewFov: 90, previewRd: 16, minRows: 4, lookSpeed: 1.6, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } };
+/* ---- Tunables. gg.rndr = render pipeline, gg.sim = simulation/environment/controls. Ranges follow old.htm (VOX/P).
+   Values the current mesher doesn't consume yet are stored for the DDA pipeline refactor. ---- */
+const rndr = gg.rndr = {
+  get viewDist() { return ChunkManager.renderDistance; }, set viewDist(v) { ChunkManager.setRenderDistance(v); },
+  get scale() { return Game.scale; }, set scale(v) { Game.applyScale(v); },
+  steps: 72, shadowSteps: 48, shadowStrength: 0.79, shadowDist: 300, waterClarity: 0.315, reflStrength: 0.935, fogA1: 0.576,
+  exposure: 1.08, lightDir: { x: 1.4, y: 0.35 }, aoStrength: 0.79, aoCurve: 1.016, waterA1: 0.696, waterA2: 0.92, waveStrength: 0.124, foamWidth: 0.217,
+  palette: { cDeep: '#3ac5cd', cShallow: '#1c9ca4', cPlat: '#9effe3', cSnow: '#cdc484' },
+};
+const sim = gg.sim = {
+  ambient: 0.609, screensaver: 0,
+  get time() { return Sky.time; }, set time(v) { Sky.time = v; },
+  get weather() { return Weather.state; }, set weather(v) { Weather.state = v; },
+  get fov() { return Game.fovBase; }, set fov(v) { Game.fovBase = v; Player.fovTarget = v; },
+  get mouse() { return Player.SENS; }, set mouse(v) { Player.SENS = v; },
+  get flySpeed() { return Player.flySpeed; }, set flySpeed(v) { Player.flySpeed = v; },
+};
+const c_Particles = { gravity: 18, breakMul: 1 };
+/* Binding combinators: every pane row is [key, target(), tweakpane opts, onChange?] or a (folder) => void builder */
+const vec2 = (o, a, b) => () => ({ v: { get x() { return o[a]; }, set x(v) { o[a] = v; }, get y() { return o[b]; }, set y(v) { o[b] = v; } } });
+const rgbArr = (arr) => () => ({ v: { get r() { return arr[0]; }, set r(x) { arr[0] = x; }, get g() { return arr[1]; }, set g(x) { arr[1] = x; }, get b() { return arr[2]; }, set b(x) { arr[2] = x; } } });
+const V2 = (label, x, y) => ({ label, x, y }), R = (min, max, step) => ({ min, max, ...(step ? { step } : {}) });
+// SoA view: c_FLUID.delay.water … → rows [{ id: 'water', delay, drop, seek }] with live accessors
+const soaRows = (obj, keys, fields) => keys.map(id => Object.defineProperties({ id }, Object.fromEntries(fields.map(f => [f, { enumerable: true, get: () => obj[f][id], set: (v) => { obj[f][id] = v; } }]))));
+// Declaration-library editor: single-select a row by key, then live-edit its fields
+const lib = (rows, key, fields, onChange) => (f) => {
+  const list = typeof rows === 'function' ? rows() : rows, sel = { k: list[0][key] }, binds = [];
+  const bindRow = () => {
+    const row = list.find(r => r[key] === sel.k); binds.splice(0).forEach(b => b.dispose());
+    for (const [k, o] of Object.entries(fields)) { const b = f.addBinding(row, k, o); if (onChange) b.on('change', () => onChange(row, k)); binds.push(b); }
+  };
+  f.addBinding(sel, 'k', { label: '条目', options: Object.fromEntries(list.map(r => [r[key], r[key]])) }).on('change', bindRow);
+  bindRow();
+};
+const remeshAll = () => { for (const c of world.chunks.values()) if (c.meshed) c.dirty = true; };
+const biomeChanged = (b) => { b.grassRGB = hexToRgb(b.grass); b.foliageRGB = hexToRgb(b.foliage); b.waterRGB = hexToRgb(b.water); remeshAll(); };
+const menu = gg.menu = {
+  // Pause screen, below the button row
+  ESC: [
+    ['性能', [
+      ['viewDist', () => rndr, { label: '视距', ...R(2, 16, 1) }],
+      ['scale', () => rndr, { label: 'scale', ...R(0.25, 2, 0.05) }],
+      ['shadowSteps', () => rndr, { label: '阴影迭代', ...R(0, 128, 4) }],
+      ['steps', () => rndr, { label: '渲染迭代', ...R(16, 512, 8) }],
+      ['v', vec2(rndr, 'shadowStrength', 'shadowDist'), V2('拖影向量', R(0, 1), R(10, 1000))],
+      ['waterClarity', () => rndr, { label: '水透亮度', ...R(0, 1) }],
+      ['reflStrength', () => rndr, { label: '水反射度', ...R(0, 1) }],
+      ['fogA1', () => rndr, { label: '雾气浓度', ...R(0, 1) }],
+    ]],
+    ['生态环境', [
+      ['ambient', () => sim, { label: '日照倍率', ...R(0, 1) }],
+      ['time', () => sim, { label: '时间', ...R(0, gg.DAY_LENGTH - 1, 100) }],
+      ['weather', () => sim, { label: '天气', options: { '晴': 'clear', '雨/雪': 'rain', '雷暴': 'thunder' } }],
+    ]],
+    ['操控', [
+      ['mode', () => Game, { label: '模式', options: Object.fromEntries(c_Title.modes.map(m => [m, m])) }, (v) => Game.setMode(v)],
+      ['fov', () => sim, { label: 'FoV', ...R(30, 120, 1) }],
+      ['mouse', () => sim, { label: '鼠标速度', ...R(0.0005, 0.008, 0.0001) }],
+      ['flySpeed', () => sim, { label: '航速', ...R(2, 80, 0.5) }],
+      ['screensaver', () => sim, { label: '屏幕保护 s', ...R(0, 120, 1) }],
+    ]],
+  ],
+  // Top-right corner menu
+  RT: [
+    ['光影', [
+      ['exposure', () => rndr, { label: '曝光度', ...R(0.2, 3, 0.01) }],
+      ['lightDir', () => rndr, V2('光向量', R(-2, 2), R(-2, 2))],
+      ['v', vec2(rndr, 'aoStrength', 'aoCurve'), V2('阴影向量', R(0, 1), R(0.5, 3))],
+      ['v', vec2(rndr, 'waterA2', 'waterA1'), V2('水体向量 深/浅', R(0, 1), R(0, 1))],
+      ['v', vec2(rndr, 'waveStrength', 'foamWidth'), V2('水面向量', R(0, 0.2), R(0, 2))],
+    ]],
+    ['调色板', [
+      ...Object.keys(Sky.colors).map(k => ['v', rgbArr(Sky.colors[k]), { label: k, color: { type: 'float' } }]),
+      ...Object.keys(rndr.palette).map(k => [k, () => rndr.palette, { label: k }]),
+    ]],
+    ['粒子与覆盖', [
+      ['size', () => Particles.points.material, { label: '粒子大小', ...R(0.02, 0.5, 0.01) }],
+      ['gravity', () => c_Particles, { label: '粒子重力', ...R(0, 40, 0.5) }],
+      ['breakMul', () => c_Particles, { label: '破坏粒子倍数', ...R(0, 4, 0.25) }],
+      ['opacity', () => Interaction.crackMat, { label: '裂纹不透明', ...R(0, 1, 0.05) }],
+    ]],
+    ['声明库', [
+      (f) => lib(c_Hurt, 'id', { every: { label: '间隔 tick', ...R(1, 100, 1) }, amount: { label: '伤害 ♥/2', ...R(0, 20, 1) }, first: { label: '首次延迟', ...R(0, 99, 1) } })(f.addFolder({ title: '伤害 c_Hurt', expanded: false })),
+      (f) => lib(BIOMES, 'name', { grass: { label: '草' }, foliage: { label: '树叶' }, water: { label: '水' }, trees: { label: '树密度', ...R(0, 0.1, 0.001) } }, biomeChanged)(f.addFolder({ title: '生物群系 BIOMES', expanded: false })),
+      (f) => lib(() => soaRows(c_FLUID, ['water', 'lava'], ['delay', 'drop', 'seek']), 'id', { delay: { label: '流速 tick', ...R(1, 60, 1) }, drop: { label: '衰减', ...R(1, 4, 1) }, seek: { label: '坡度搜索', ...R(0, 6, 1) } })(f.addFolder({ title: '流体 c_FLUID', expanded: false })),
+    ]],
+  ],
+  // F3 debug pane (top-left): merged debug text + fps graph + noclip
+  DBG: [
+    ['调试', [
+      ['text', () => HUD.dbg, { label: '', readonly: true, multiline: true, rows: 15, interval: 250 }],
+      ['fps', () => HUD, { label: 'FPS', readonly: true, view: 'graph', min: 0, max: 150, interval: 250 }],
+      ['noclip', () => player, { label: 'noclip' }],
+    ], true],
+  ],
+};
+// Build a pane from a menu declaration
+const buildPane = (pane, decl) => {
+  for (const [title, rows, expanded] of decl) {
+    const f = pane.addFolder({ title, expanded: !!expanded });
+    for (const row of rows) {
+      if (typeof row === 'function') { row(f); continue; }
+      const [key, target, opts, onChange] = row, b = f.addBinding(target(), key, opts);
+      if (onChange) b.on('change', (ev) => onChange(ev.value));
+    }
+  }
+  return pane;
+};
+/* Screensaver: while paused, every sim.screensaver seconds jump to a random sky viewpoint with a wide FoV
+   (mobs are already frozen while paused). The real position comes back on resume / save. */
+const c_Saver = { spread: 160, height: [24, 64], pitch: [-0.6, -0.15], fov: [95, 125] };
+const Screensaver = gg.my(class Screensaver {
+  static t = 0; static saved = null; static fov = 0;
+  static update(dt) {
+    if (!sim.screensaver || !Game.ready) return;
+    if ((this.t += dt) < sim.screensaver) return; this.t = 0;
+    const p = player, C = c_Saver;
+    if (!this.saved) this.saved = { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch };
+    const o = this.saved, x = o.x + rng.range(-C.spread, C.spread), z = o.z + rng.range(-C.spread, C.spread);
+    const h = world.isLoaded(floor(x), floor(z)) ? world.getHeight(floor(x), floor(z)) : Terrain.heightAt(x, z);
+    Object.assign(p, { x, z, y: Math.max(h, SEA_LEVEL) + rng.range(...C.height), yaw: rng.range(0, Math.PI * 2), pitch: rng.range(...C.pitch) });
+    this.fov = rng.range(...C.fov);
+  }
+  static restore() { this.t = 0; this.fov = 0; if (this.saved) { Object.assign(player, this.saved); this.saved = null; } }
+});
 const Title = gg.my(class Title {
   static modeIdx = 0; static bootId = 0; static pane = null;
   static get visible() { return !$('start').classList.contains('hidden'); }
@@ -3050,7 +3225,8 @@ const Title = gg.my(class Title {
   static open(state = Game.running && Game.ready && !Game.atTitle ? 'paused' : 'title') {
     $('start').classList.toggle('title', state === 'title'); $('start').classList.toggle('paused', state === 'paused');
     Game.atTitle = state === 'title'; Game.paused = true; Input.unlock(); Screens.close();
-    ['death', 'loading'].forEach(id => $(id).classList.add('hidden'));
+    $('death').classList.add('hidden'); $('loading').classList.toggle('hidden', !Game.running || Game.ready);
+    this.preview(state === 'title');
     const sp = gg.res_vam.t.splash; $('splash').textContent = sp[Math.floor(Math.random() * sp.length)];
     $('start').classList.remove('hidden'); this.render(); this.pane?.refresh();
   }
@@ -3069,24 +3245,38 @@ const Title = gg.my(class Title {
     const list = Save.list();
     $('save-list').replaceChildren(...[...list, ...Array(Math.max(0, c_Title.minRows - list.length)).fill(null)].map(e => this.row(e)));
     $('new-mode').textContent = 'G:' + c_Title.modes[this.modeIdx];
-    $('btn-play').textContent = Game.running ? 'Continue' : list.length ? 'Continue: ' + (list[0].name || list[0].seed) : 'Play (random seed)';
+    $('btn-play').textContent = Game.running ? 'Continue' : list.length ? 'Enter: ' + (list[0].name || list[0].seed) : 'Play (new seed)';
   }
   static del(e) {
     if (!confirm(`Delete "${e.name}" (${e.seed})?`)) return;
     Save.remove(e.seed); this.render();
   }
+  // Title preview uses a fixed wide view (FoV 90, 16 chunks); the user's view distance comes back on enter
+  static preview(on) {
+    if (on && this.userRd == null) { this.userRd = ChunkManager.renderDistance; ChunkManager.setRenderDistance(c_Title.previewRd); }
+    else if (!on && this.userRd != null) { ChunkManager.setRenderDistance(this.userRd); this.userRd = null; }
+  }
+  // Leave the menu right away and show the bottom spinner while the old world is saved / the new one decoded
+  static async leave(text) {
+    Screensaver.restore(); $('start').classList.add('hidden'); Game.atTitle = false; this.preview(false);
+    $('loadtext').textContent = text; $('loadbar').firstElementChild.style.width = '0'; $('loading').classList.remove('hidden');
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r)));
+    if (Game.running && Game.ready) await Save.save(true);
+  }
   static async pick(seed) {
     this.bootId++;
     if (Game.running && seed === Game.seed) return this.enter();
-    if (Game.running && Game.ready) await Save.save(true);
+    await this.leave('Loading world…');
     const data = await Save.loadData(seed), e = Save.list().find(x => x.seed === seed);
     if (!data && e) Game.mode = e.mode || 'survival';
     Game.start(seed, data, false); Save.touch(seed); this.enter();
   }
-  static enter() {
+  // lock=false for Esc: Esc never counts as a user gesture, so pointer lock waits for the next click
+  static enter(lock = true) {
     if (!Game.running) return;
-    Game.atTitle = false; Game.paused = false; $('start').classList.add('hidden');
-    if (Game.ready) { if (!player.dead) Input.lock(); } else $('loading').classList.remove('hidden');
+    Screensaver.restore(); Game.atTitle = false; Game.paused = false; this.preview(false); $('start').classList.add('hidden');
+    if (!Game.ready) $('loading').classList.remove('hidden');
+    else if (!player.dead) { if (lock) Input.lock(); else HUD.message('Click to capture the mouse'); }
   }
   static play() {
     if (Game.running) return this.enter();
@@ -3096,7 +3286,7 @@ const Title = gg.my(class Title {
   // Seed format is validated by the HTML layer (<input pattern> inside a submit form)
   static async newWorld(v) {
     this.bootId++;
-    if (Game.running && Game.ready) await Save.save(true);
+    await this.leave('Generating world…');
     const seed = v || Save.randomSeed();
     Game.mode = c_Title.modes[this.modeIdx]; $('seed-input').value = '';
     Game.start(seed, null, false); Save.touch(seed); this.enter();
@@ -3119,11 +3309,8 @@ const Title = gg.my(class Title {
     io.addEventListener('keydown', (e) => e.stopPropagation());
   }
   static buildPane() {
-    this.pane = new gg.Pane({ container: $('menu-pane') });
-    for (const [title, rows] of c_MenuPane) {
-      const f = this.pane.addFolder({ title, expanded: false });
-      for (const [key, target, opts, onChange] of rows) { const b = f.addBinding(target(), key, opts); if (onChange) b.on('change', (ev) => onChange(ev.value)); }
-    }
+    this.pane = buildPane(new gg.Pane({ container: $('menu-pane') }), menu.ESC);
+    this.rt = buildPane(new gg.Pane({ container: $('rt-pane'), title: '菜单', expanded: false }), menu.RT);
   }
   static init() {
     $('btn-play').addEventListener('click', () => this.play());
@@ -3134,7 +3321,7 @@ const Title = gg.my(class Title {
     $('start').addEventListener('mousedown', (e) => { if (e.target === $('start') && Game.running) this.enter(); });
     Events.on('keypress', (code) => {
       if (!this.visible) return;
-      if (code === 'KeyG') this.cycleMode(); else if (code === 'Escape' && Game.running) this.enter();
+      if (code === 'KeyG') this.cycleMode(); else if (code === 'Escape' && Game.running) this.enter(false);
     });
     this.io(); this.buildPane();
   }
@@ -3155,8 +3342,10 @@ const Menus = {
     }
     Title.init();
     $('btn-respawn').addEventListener('click', () => Player.respawn());
+    $('btn-death-title').addEventListener('click', () => { Player.respawn(); Title.open('title'); });
     Events.on('unlock', () => {
       if (Screens.suppressUnlock) { Screens.suppressUnlock = false; return; }
+      if (Screens.isOpen() || performance.now() - (Screens.closedAt || 0) < 600) return; // E-window Esc never opens the pause menu
       if (Game.running && !Screens.isOpen() && !player.dead && !Game.paused && Game.ready) Game.pause();
     });
   }
@@ -3195,10 +3384,10 @@ const Game = {
     this.seed = String(seed);
     world.reset(this.seed); Terrain.init(this.seed); Scheduler.clear(); Entities.clear(); Mobs.clear(); Particles.n = 0;
     ChunkManager.needsScan = true; ChunkManager.pcx = 1e9; ChunkManager.stats = { generated: 0, meshed: 0, loaded: 0 };
-    Sky.time = 1000; Sky.day = 0; Weather.raining = false; Weather.amount = 0;
+    Sky.time = 1000; Sky.day = 0; Weather.raining = Weather.thunder = false; Weather.amount = Weather.storm = 0;
     if (data) {
       for (const cd of data.chunks || []) { const c = world.deserializeChunk(cd); world.stored.set(c.key, c); }
-      Sky.time = data.time || 1000; Sky.day = data.day || 0; Weather.raining = !!data.raining; this.mode = data.mode || 'survival';
+      Sky.time = data.time || 1000; Sky.day = data.day || 0; Weather.raining = !!data.raining; Weather.thunder = !!data.thunder; this.mode = data.mode || 'survival';
       const pl = data.player;
       Player.reset(pl.spawn || [pl.x, pl.y, pl.z]);
       Object.assign(player, { x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw || 0, pitch: pl.pitch || 0, health: pl.health, hunger: pl.hunger, saturation: pl.saturation || 0, hotbar: pl.hotbar || 0, flying: !!pl.flying && this.mode === 'creative' });
@@ -3212,7 +3401,8 @@ const Game = {
     }
     HUD.refreshHotbar(); Motion.camera(this.camera, player);
     $('death').classList.add('hidden'); $('start').classList.toggle('hidden', !title);
-    $('loadtext').textContent = 'Generating world…'; $('loading').classList.toggle('hidden', !!title);
+    $('loadtext').textContent = 'Generating world…'; $('loading').classList.remove('hidden');
+    this.hold = true;   // keep presenting the previous frame until the new world is ready (see loop)
     this.running = true; this.ready = false; this.autosave = 0; this.atTitle = !!title; this.paused = !!title;
     HUD.message('Seed: ' + this.seed + ' · Press E for inventory, Esc for menu');
   },
@@ -3258,10 +3448,11 @@ const Game = {
         $('loadbar').firstElementChild.style.width = (ChunkManager.progress() * 100) + '%';
         if (ChunkManager.isReady(player.x, player.z)) {
           this.ready = true; $('loading').classList.add('hidden');
+          CSS.fx(() => { this.hold = false; this.renderer.render(this.scene, this.camera); });
           if (this.freshSpawn) this.settleSpawn(); else if (Physics.intersects(player)) player.y = world.getHeight(floor(player.x), floor(player.z)) + 1;
           if (this.atTitle) Title.render(); else { Input.lock(); HUD.message('Click to capture the mouse if it is not captured.'); }
         }
-      } else if (this.paused) Title.look(dt);
+      } else if (this.paused) { Title.look(dt); Screensaver.update(dt); ChunkManager.update(player.x, player.z, 4); }
       else {
         Player.update(dt);
         ChunkManager.update(player.x, player.z, 6);
@@ -3278,7 +3469,7 @@ const Game = {
       // Camera
       const p = player;
       Motion.camera(this.camera, p);
-      this.fov += (Player.fovTarget - this.fov) * Math.min(1, dt * 8);
+      this.fov += ((Screensaver.fov || (this.atTitle ? c_Title.previewFov : Player.fovTarget)) - this.fov) * Math.min(1, dt * 8);
       if (Math.abs(this.camera.fov - this.fov) > 0.05) { this.camera.fov = this.fov; this.camera.updateProjectionMatrix(); }
       Sky.update(dt, this.camera, this.scene);
       HUD.update(dt);
@@ -3287,7 +3478,7 @@ const Game = {
       // Title screen: slowly rotating empty sky
       Sky.update(dt, this.camera, this.scene);
     }
-    this.renderer.render(this.scene, this.camera);
+    if (!this.hold) this.renderer.render(this.scene, this.camera);
   }
 };
 window.addEventListener('load', () => {

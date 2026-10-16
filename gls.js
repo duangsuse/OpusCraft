@@ -2,7 +2,7 @@
 (() => {
 'use strict';
 const { THREE, JSZip } = gg;
-const { AIR, Atlas, B, BIOMES, BIO_DESERT, BIO_MOUNTAINS, BIO_SNOWY, BIO_TAIGA, Blocks, CHUNK_H, DAY_LENGTH, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, GrowBuf, HDIRS, TICK_RATE, TINTS, bidx, floor, hexToRgb, mixColor, rng, smoothstep } = gg;
+const { AIR, Atlas, B, BIOMES, BIO_DESERT, BIO_MOUNTAINS, BIO_SNOWY, BIO_TAIGA, Blocks, CHUNK_H, DAY_LENGTH, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, GrowBuf, HDIRS, TICK_RATE, TINTS, bidx, clamp, floor, hexToRgb, mixColor, rng, smoothstep } = gg;
 
 /* ============================================================================
    8. LIGHTING ENGINE — sky light + block light, BFS propagation
@@ -598,7 +598,7 @@ const Sky = {
     const alt = Math.cos(theta);
     this.dayFactor = smoothstep(-0.12, 0.25, alt);
     const rain = Weather.amount;
-    this.skyBright = (0.2 + 0.8 * this.dayFactor) * (1 - 0.35 * rain); // 0.2 = moonlight floor
+    this.skyBright = Math.min(1, ((gg.sim?.ambient ?? 0.609) * 0.33 + 0.8 * this.dayFactor) * (1 - 0.35 * rain - 0.25 * Weather.storm) + Weather.flash); // sim.ambient·0.33 = moonlight floor (default 0.2)
     // Colours
     const c = this.colors, sunset = Math.max(0, 1 - Math.abs(alt) / 0.22) * 0.85;
     let top = mixColor(c.nightTop, c.dayTop, this.dayFactor), hor = mixColor(c.nightHor, c.dayHor, this.dayFactor);
@@ -614,7 +614,7 @@ const Sky = {
     const far = gg.ChunkManager.renderDistance * 16;
     if (gg.player.headInWater) { this.fogColor.setRGB(0.1 * this.skyBright + 0.02, 0.25 * this.skyBright + 0.03, 0.6 * this.skyBright + 0.05); scene.fog.near = 2; scene.fog.far = 14; }
     else if (gg.world.getBlock(floor(gg.player.x), floor(gg.player.y + gg.player.eyeHeight), floor(gg.player.z)) === B.lava) { this.fogColor.setRGB(0.8, 0.3, 0.05); scene.fog.near = 0.5; scene.fog.far = 3; }
-    else { this.fogColor.setRGB(hor[0], hor[1], hor[2]); scene.fog.near = far * 0.55; scene.fog.far = far * 0.98; }
+    else { this.fogColor.setRGB(hor[0], hor[1], hor[2]); scene.fog.near = far * clamp(1.13 - (gg.rndr?.fogA1 ?? 0.576), 0, 0.95); scene.fog.far = far * 0.98; }
     scene.fog.color.copy(this.fogColor);
     gg.Game.renderer.setClearColor(this.fogColor);
     Mesher.setSkyBrightness(this.skyBright);
@@ -623,7 +623,14 @@ const Sky = {
 };
 
 const Weather = {
-  raining: false, amount: 0, timer: 6000, points: null, pos: null, N: 1400, snowMode: false,
+  raining: false, thunder: false, amount: 0, storm: 0, flash: 0, timer: 6000, points: null, pos: null, N: 1400, snowMode: false,
+  STATES: ['clear', 'rain', 'thunder'],
+  // Single-select weather (menu pane): applies instantly, even while paused
+  get state() { return this.thunder ? 'thunder' : this.raining ? 'rain' : 'clear'; },
+  set state(v) {
+    this.raining = v !== 'clear'; this.thunder = v === 'thunder'; this.timer = 4000 + rng.int(8000);
+    this.amount = this.raining ? 1 : 0; this.storm = this.thunder ? 1 : 0; this.update(0);
+  },
   init(scene) {
     this.pos = new Float32Array(this.N * 3);
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
@@ -633,13 +640,18 @@ const Weather = {
     for (let i = 0; i < this.N; i++) this.reset(i, true);
   },
   reset(i, anywhere) { this.pos[i * 3] = gg.player.x + (rng.next() - 0.5) * 28; this.pos[i * 3 + 1] = gg.player.y + (anywhere ? rng.next() * 20 - 4 : 14 + rng.next() * 6); this.pos[i * 3 + 2] = gg.player.z + (rng.next() - 0.5) * 28; },
-  toggle() { this.raining = !this.raining; this.timer = 4000 + rng.int(8000); gg.HUD.message(this.raining ? 'Rain starts' : 'Rain stops'); },
-  tick() { if (--this.timer <= 0) { this.raining = !this.raining; this.timer = this.raining ? 2000 + rng.int(5000) : 8000 + rng.int(16000); } },
+  toggle() { this.state = this.STATES[(this.STATES.indexOf(this.state) + 1) % 3]; gg.HUD.message('Weather: ' + this.state); },
+  tick() {
+    if (--this.timer <= 0) { this.raining = !this.raining; this.thunder = this.raining && rng.chance(0.3); this.timer = this.raining ? 2000 + rng.int(5000) : 8000 + rng.int(16000); }
+    if (this.storm > 0.5 && rng.chance(1 / 300)) { this.flash = 0.8; gg.res_vam.a.explode([gg.player.x + rng.range(-60, 60), gg.player.y + 30, gg.player.z + rng.range(-60, 60)]); }
+  },
   update(dt) {
     const bio = gg.world.getBiome(floor(gg.player.x), floor(gg.player.z));
     const canRain = bio !== BIO_DESERT;
     const target = this.raining && canRain ? 1 : 0;
     this.amount += (target - this.amount) * Math.min(1, dt * 0.5);
+    this.storm += ((this.thunder && canRain ? 1 : 0) - this.storm) * Math.min(1, dt * 0.5);
+    this.flash = Math.max(0, this.flash - dt * 3);
     this.snowMode = bio === BIO_SNOWY || (bio === BIO_MOUNTAINS && gg.player.y > 90) || bio === BIO_TAIGA && gg.player.y > 80;
     this.points.material = this.snowMode ? this.snowMat : this.rainMat;
     this.points.visible = this.amount > 0.05;
