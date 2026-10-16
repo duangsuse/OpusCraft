@@ -256,7 +256,7 @@ import * as THREE from 'three';
 import { Pane } from 'tweakpane';
 import JSZip from 'jszip';
 const gg = window.gg = { THREE, Pane, JSZip };
-// gg.my(class Topic{ static ... }) or gg.my(new class Topic{ ... }) (singleton) — registers it as gg.Topic and returns it
+// Must gg.my(new class Topic{ ... }) (singleton) — registers it as gg.Topic and returns it
 gg.my = (x) => (gg[typeof x === 'function' ? x.name : x.constructor.name] = x);
 // gg.ev(target, { type(e) {…}, … }, opts) — attach a map of listeners (handlers keep the native this = target); returns target
 gg.ev = (t, map, opts) => (Object.entries(map).forEach(([k, f]) => t.addEventListener(k, f, opts)), t);
@@ -942,9 +942,11 @@ Object.assign(gg, { ITEM_DEFS, FOODS, MATERIALS, BLOCK_DEFS, SHAPED, SHAPELESS, 
 <script defer src="res_vam.js"></script>
 <script defer src="gen.js"></script>
 <script defer src="gls.js"></script>
+<script defer src="mobsim.js"></script>
 <script type="module">
 const { THREE, JSZip } = gg;
 const { $, lerp, AIR, Atlas, B, BIOMES, BIO_BIRCH, BIO_FOREST, BIO_TAIGA, Blocks, C, CHUNK_H, CHUNK_VOL, CHUNK_W, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, FACE_SHADE, HDIRS, Items, Lighting, MOB_TYPES, MeshBuilder, Mesher, Pix, Recipes, ResourcePack, SEA_LEVEL, SHEEP_COLOR_WEIGHTS, Scheduler, Sky, TICK_DT, TICK_RATE, TOOL_TIERS, Terrain, WHITE_RGB, WOOL_COLORS, Weather, bidx, blockBoxes, blockDrops, breakTime, chunkKey, clamp, dist2, floor, isLeaves, isLiquidId, isLog, posKey, prettify, rng, texFaces } = gg;
+const { TICK_FLUID, TICK_FALL, TICK_FIRE, c_MobAI, Mobs, FLUID, Fluids, Fire, runScheduledTick, RandomTicks } = gg; // mobsim.js
 
 /* ============================================================================
    6. WORLD STORAGE — chunks, tile entities, the block-change pipeline
@@ -1306,6 +1308,13 @@ const Physics = {
     }
     return d;
   },
+  // Stuck -> teleport to the nearest free spot in the same column (up first on ties)
+  unstuck(e) {
+    if (!this.intersects(e)) return false;
+    for (let d = 1; d < CHUNK_H; d++) for (const y of [floor(e.y) + d, floor(e.y) - d])
+      if (y >= 0 && y < CHUNK_H && !this.intersects({ x: e.x, y, z: e.z, w: e.w - 1e-3, h: e.h })) { e.y = y; e.vy = 0; e.fallStart = y; return true; }
+    return false;
+  },
   // Move an entity by (dx,dy,dz) resolving collisions. Sets e.onGround, e.hitX, e.hitZ.
   move(e, dx, dy, dz) {
     const pad = 1.0;
@@ -1395,8 +1404,8 @@ const player = {
    death roll 40 - 8000/(t+200) degrees (t = death ticks, max 20) */
 const c_Motion = { stepLen: 3.20, bobFreq: 1.6, bobY: 0.11, bobX: 0.035, landDip: 0.40, landDecay: 7.0, sprintFov: 1.1, waterFov: 0.92, flyFov: 1.23,
   hurtDur: 0.15, hurtRoll: 0.46, deathEye: 1.60, eyeEase: 0.50, deathRoll: (t) => (40 - 8000 / (Math.min(t, 20) + 200)) * Math.PI / 180, autoJumpReach: 0.25, autoJumpSprint: 1.65 };
-const Motion = gg.my(class Motion {
-  static update(p, dt, wasGround, fallFrom) {
+const Motion = gg.my(new class Motion {
+  update(p, dt, wasGround, fallFrom) {
     const C = c_Motion, hs = Math.hypot(p.vx, p.vz), walking = (p.onGround || p.aj) && !p.flying;
     p.bobAmt = lerp(p.bobAmt, walking ? Math.min(1, hs / 4.3) : 0, 1 - Math.exp(-dt * 10));
     p.bob += hs * dt * C.bobFreq;
@@ -1410,8 +1419,8 @@ const Motion = gg.my(class Motion {
     Player.fovTarget = Game.fovBase * (p.sprinting ? (p.flying ? C.flyFov : C.sprintFov) : 1) * (p.headInWater ? C.waterFov : 1);
   }
   // Eye height eases toward the pose target at MC's 50% per tick (frame-rate independent)
-  static eye(p, dt) { const t = p.dead ? c_Motion.deathEye : p.eyeHeight; p.camEye += (t - p.camEye) * (1 - Math.pow(1 - c_Motion.eyeEase, dt * TICK_RATE)); }
-  static camera(cam, p) {
+  eye(p, dt) { const t = p.dead ? c_Motion.deathEye : p.eyeHeight; p.camEye += (t - p.camEye) * (1 - Math.pow(1 - c_Motion.eyeEase, dt * TICK_RATE)); }
+  camera(cam, p) {
     const C = c_Motion, by = -Math.abs(Math.cos(p.bob)) * C.bobY * p.bobAmt, bx = Math.sin(p.bob) * C.bobX * p.bobAmt;
     cam.position.set(p.x + Math.cos(p.yaw) * bx, p.y + p.camEye + by - p.land * C.landDip, p.z - Math.sin(p.yaw) * bx);
     const f = clamp(p.hurtTimer / C.hurtDur, 0, 1);
@@ -1424,9 +1433,9 @@ const c_LiquidFx = {
   splashVy: -4, ms: 820, scale: 4, drops: 42,
   rgb: { water: ['40,95,225', '175,220,255'], lava: ['255,85,0', '255,215,70'] }
 };
-const LiquidFx = gg.my(class LiquidFx {
+const LiquidFx = gg.my(new class LiquidFx {
   // kind: water|lava, dir: in (surface sweeps down over the view) | out (droplets slide off)
-  static play(kind, dir) {
+  play(kind, dir) {
     const C = c_LiquidFx, cv = $('overlay'), w = cv.width = Math.max(1, innerWidth / C.scale | 0), h = cv.height = Math.max(1, innerHeight / C.scale | 0);
     const g = cv.getContext('2d'), [c1, c2] = C.rgb[kind], ph = Math.random() * 6.3;
     g.clearRect(0, 0, w, h);
@@ -1450,7 +1459,7 @@ const LiquidFx = gg.my(class LiquidFx {
     cv.className = ''; void cv.offsetWidth; cv.className = 'lq-' + dir;
     clearTimeout(this._t); this._t = setTimeout(() => cv.className = '', C.ms);
   }
-  static transition(was, p) {
+  transition(was, p) {
     const a = gg.res_vam.a;
     if (p.inWater && !was.w) { if (p.vy < c_LiquidFx.splashVy) { a.splash(); Particles.splash?.(p.x, p.y + 0.5, p.z, 12); } }
     if (p.inLava && !was.l) a.sizzle();
@@ -1547,6 +1556,7 @@ const Player = {
     }
     p.stepHeight = 0.6; // MC step (slabs); full blocks are cleared by auto-jump below
     const prevOnGround = p.onGround, prevY = p.y, prevFall = p.fallStart;
+    if (p.noclip !== p._nc) { p._nc = p.noclip; if (Physics.unstuck(p)) HUD.message('Unstuck → y ' + floor(p.y)); }
     if (p.noclip && p.flying) { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.onGround = p.hitX = p.hitZ = false; }
     else Physics.move(p, p.vx * dt, p.vy * dt, p.vz * dt);
     p.ajLand = false;
@@ -1576,7 +1586,7 @@ const Player = {
     if (probe.y - p.y > 1.05 || Physics.intersects(probe) || Physics.intersects({ x: p.x, y: probe.y, z: p.z, w: p.w, h: p.h })) return;
     // Sprinting: same apex, 50% faster (v·k, g·k²)
     const k = p.sprinting ? c_Motion.autoJumpSprint : 1;
-    p.vy = Physics.JUMP_VEL * k; p.aj = k * k; p.onGround = false; p.exhaustion += p.sprinting ? 0.2 : 0.05;
+    p.vy = Physics.JUMP_VEL * k; p.aj = k * k; p.onGround = false; if (p === player) p.exhaustion += p.sprinting ? 0.2 : 0.05;
   },
 
   // 20 Hz survival bookkeeping
@@ -1764,7 +1774,7 @@ const Interaction = {
 
   mine(dt) {
     const t = this.target, def = world.getDef(t.x, t.y, t.z);
-    if (def.id === AIR) { this.breaking = null; return; }
+    if (def.id === AIR || def.hardness < 0) { this.breaking = null; return; } // bedrock: unbreakable even in creative
     if (Player.isCreative()) { if (this.useCooldown <= -0.15 || !this.breaking) { this.breakBlock(t.x, t.y, t.z, false); this.breaking = { x: t.x, y: t.y, z: t.z, progress: 0 }; this.useCooldown = 0; } return; }
     if (!this.breaking || this.breaking.x !== t.x || this.breaking.y !== t.y || this.breaking.z !== t.z) this.breaking = { x: t.x, y: t.y, z: t.z, progress: 0 };
     const time = breakTime(def, Player.held());
@@ -2426,526 +2436,6 @@ const Entities = {
     for (const e of this.list) if (e.kind === 'tnt' && !e.dead && dist2(e.x, e.y, e.z, x, y, z) < R * R) e.fuse = Math.min(e.fuse, 10);
   }
 };
-const TICK_FLUID = 0, TICK_FALL = 1, TICK_FIRE = 3;
-
-const Mobs = {
-  list: [], scene: null, faceTex: new Map(),
-  init(scene) { this.scene = scene; },
-  clear() { for (const m of this.list) this.scene.remove(m.mesh); this.list.length = 0; },
-
-  // ---- Model construction ----
-  faceTexture(type, base) {
-    const key = type + base;
-    if (this.faceTex.has(key)) return this.faceTex.get(key);
-    const p = new Pix('face' + key, 8).fill(C(base));
-    const eyes = (c1, c2) => { p.set(1, 3, C(c1)); p.set(2, 3, C(c2)); p.set(5, 3, C(c2)); p.set(6, 3, C(c1)); };
-    if (type === 'zombie') { eyes('#000000', '#000000'); p.rect(2, 6, 4, 1, C('#1a1a1a')); }
-    else if (type === 'skeleton') { eyes('#000000', '#1a1a1a'); p.rect(1, 6, 6, 1, C('#5a5a5a')); }
-    else if (type === 'creeper') { p.rect(1, 2, 2, 2, C('#000')); p.rect(5, 2, 2, 2, C('#000')); p.rect(3, 4, 2, 3, C('#000')); p.rect(2, 5, 1, 2, C('#000')); p.rect(5, 5, 1, 2, C('#000')); }
-    else if (type === 'pig') { eyes('#ffffff', '#000000'); p.rect(2, 5, 4, 3, C('#e08a8a')); p.set(3, 6, C('#a05050')); p.set(4, 6, C('#a05050')); }
-    else if (type === 'cow') { eyes('#ffffff', '#000000'); p.rect(2, 5, 4, 3, C('#c8b8a8')); }
-    else if (type === 'sheep') { eyes('#ffffff', '#000000'); p.rect(2, 6, 4, 2, C('#a89888')); }
-    else if (type === 'chicken') { eyes('#000000', '#000000'); p.rect(3, 4, 2, 2, C('#f0c020')); p.rect(3, 6, 2, 1, C('#d02020')); }
-    const cv = document.createElement('canvas'); cv.width = cv.height = 8;
-    cv.getContext('2d').drawImage(p.toCanvas(), 0, 0);
-    const tex = new THREE.CanvasTexture(cv); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
-    this.faceTex.set(key, tex);
-    return tex;
-  },
-  box(parent, w, h, d, x, y, z, color, opts = {}) {
-    // sizes/positions in 1/16 block units; (x,y,z) is the box centre unless opts.pivotTop (then it is the top-centre)
-    const geo = new THREE.BoxGeometry(w / 16, h / 16, d / 16);
-    let mat;
-    if (opts.face) { const m = new THREE.MeshLambertMaterial({ color }); mat = [m, m, m, m, m, new THREE.MeshLambertMaterial({ map: opts.face })]; }
-    else mat = new THREE.MeshLambertMaterial({ color });
-    const mesh = new THREE.Mesh(geo, mat);
-    const pivot = new THREE.Group();
-    pivot.position.set(x / 16, y / 16, z / 16);
-    if (opts.pivotTop) mesh.position.y = -h / 32; else if (opts.pivotBottom) mesh.position.y = h / 32;
-    pivot.add(mesh); parent.add(pivot);
-    pivot.userData.mesh = mesh;
-    return pivot;
-  },
-  buildModel(m) {
-    const g = new THREE.Group(), t = m.type, parts = { legs: [], arms: [] };
-    const face = (base) => this.faceTexture(t, base);
-    if (t === 'pig' || t === 'cow' || t === 'sheep') {
-      const legH = t === 'pig' ? 6 : 12, body = t === 'pig' ? '#f0a5a5' : t === 'cow' ? '#4a2f1f' : (m.sheared ? '#e2c8b8' : WOOL_COLORS[m.color]);
-      const skin = t === 'pig' ? '#f0a5a5' : t === 'cow' ? '#4a2f1f' : '#c8b8a8';
-      parts.body = this.box(g, 10, 8, 16, 0, legH + 4, 0, body);
-      parts.head = this.box(g, 8, 8, 8, 0, legH + 6, -10, t === 'sheep' ? WOOL_COLORS[m.color] : skin, { face: face(skin) });
-      for (const [lx, lz] of [[-3, -5], [3, -5], [-3, 5], [3, 5]]) parts.legs.push(this.box(g, 4, legH, 4, lx, legH, lz, skin, { pivotTop: true }));
-      if (t === 'cow') { this.box(g, 1, 3, 1, -4, legH + 10, -10, '#e8e8e8'); this.box(g, 1, 3, 1, 4, legH + 10, -10, '#e8e8e8'); }
-    } else if (t === 'chicken') {
-      parts.body = this.box(g, 6, 6, 8, 0, 8, 0, '#f4f4f4');
-      parts.head = this.box(g, 4, 6, 3, 0, 13, -4, '#f4f4f4', { face: face('#f4f4f4') });
-      for (const lx of [-1.5, 1.5]) parts.legs.push(this.box(g, 1, 5, 1, lx, 5, 0, '#f0c020', { pivotTop: true }));
-      for (const lx of [-3.5, 3.5]) parts.arms.push(this.box(g, 1, 4, 6, lx, 10, 0, '#e8e8e8', { pivotTop: true }));
-    } else if (t === 'creeper') {
-      parts.body = this.box(g, 8, 12, 4, 0, 12, 0, '#4aa64a');
-      parts.head = this.box(g, 8, 8, 8, 0, 22, 0, '#4aa64a', { face: face('#4aa64a') });
-      for (const [lx, lz] of [[-2, -2], [2, -2], [-2, 2], [2, 2]]) parts.legs.push(this.box(g, 4, 6, 4, lx, 6, lz, '#3f8f3f', { pivotTop: true }));
-    } else {
-      const skin = t === 'zombie' ? '#3f7a3f' : '#c8c8c8', shirt = t === 'zombie' ? '#2c6a8c' : '#c8c8c8', pants = t === 'zombie' ? '#3a2f8a' : '#c8c8c8';
-      const lw = t === 'skeleton' ? 2 : 4;
-      parts.body = this.box(g, 8, 12, lw, 0, 18, 0, shirt);
-      parts.head = this.box(g, 8, 8, 8, 0, 28, 0, skin, { face: face(skin) });
-      for (const lx of [-2, 2]) parts.legs.push(this.box(g, lw, 12, lw, lx, 24, 0, pants, { pivotTop: true }));
-      for (const lx of [-6, 6]) parts.arms.push(this.box(g, lw, 12, lw, lx, 22, 0, skin, { pivotTop: true }));
-      if (t === 'zombie') for (const a of parts.arms) a.rotation.x = -Math.PI / 2;
-      if (t === 'skeleton') { const bow = this.box(parts.arms[1], 1, 10, 2, 0, -8, -4, '#8a6a3a'); bow.rotation.x = 0.4; parts.arms[1].rotation.x = -Math.PI / 2 + 0.3; }
-    }
-    // Health bar sprite
-    const cv = document.createElement('canvas'); cv.width = 32; cv.height = 4;
-    const tex = new THREE.CanvasTexture(cv); tex.magFilter = tex.minFilter = THREE.NearestFilter;
-    const hp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-    hp.scale.set(0.8, 0.1, 1); hp.position.y = m.h + 0.35; hp.visible = false; g.add(hp);
-    parts.hp = hp; parts.hpCanvas = cv;
-    g.traverse(o => { if (o.isMesh) { o.userData.baseColors = (Array.isArray(o.material) ? o.material : [o.material]).map(mt => mt.color.clone()); } });
-    m.mesh = g; m.parts = parts;
-  },
-  updateHealthBar(m) {
-    const ctx = m.parts.hpCanvas.getContext('2d');
-    ctx.fillStyle = '#222'; ctx.fillRect(0, 0, 32, 4); ctx.fillStyle = '#e33'; ctx.fillRect(0, 0, Math.round(32 * clamp(m.health / m.maxHealth, 0, 1)), 4);
-    m.parts.hp.material.map.needsUpdate = true; m.parts.hp.visible = true; m.hpTimer = 3;
-  },
-
-  // ---- Spawning ----
-  spawnMob(type, x, y, z) {
-    const def = MOB_TYPES[type]; if (!def) return null;
-    const m = { type, def, x, y, z, vx: 0, vy: 0, vz: 0, w: def.w, h: def.h, yaw: rng.next() * Math.PI * 2, health: def.health, maxHealth: def.health, onGround: false, stepHeight: 1,
-      dead: false, deathTimer: 0, hurtTimer: 0, state: 'idle', stateTimer: rng.range(1, 3), moveX: 0, moveZ: 0, attackCooldown: 0, fire: 0, walkPhase: 0, hpTimer: 0, fuse: -1, age: 0, mesh: null, parts: null, sheared: false, regrow: 0, color: 'white', lightTimer: 0, fleeFrom: null };
-    if (type === 'sheep') { let r = rng.int(100), pick = 'white'; for (const [c, w] of SHEEP_COLOR_WEIGHTS) { if (r < w) { pick = c; break; } r -= w; } m.color = pick; }
-    m.hurt = (amount, source, kb) => this.hurt(m, amount, source, kb);
-    this.buildModel(m);
-    this.scene.add(m.mesh);
-    this.list.push(m);
-    return m;
-  },
-  canStand(x, y, z, def) {
-    const h = Math.ceil(def.h);
-    for (let i = 0; i < h; i++) if (world.isSolid(x, y + i, z) || world.getDef(x, y + i, z).liquid) return false;
-    return world.isSolid(x, y - 1, z);
-  },
-  spawnTick() {
-    const p = player; if (!Game.running) return;
-    let passive = 0, hostile = 0;
-    for (const m of this.list) if (!m.dead) { if (m.def.passive) passive++; else hostile++; }
-    const rd = ChunkManager.renderDistance;
-    // Initial passive population of newly meshed chunks
-    if (passive < 14 && Scheduler.tick % 4 === 0) {
-      const cx = ChunkManager.pcx + rng.irange(-rd + 1, rd - 1), cz = ChunkManager.pcz + rng.irange(-rd + 1, rd - 1);
-      const c = world.getChunk(cx, cz);
-      if (c && c.meshed && !c.spawnedPassive) {
-        c.spawnedPassive = true;
-        if (rng.chance(0.3)) {
-          const lx = rng.int(16), lz = rng.int(16), x = cx * 16 + lx, z = cz * 16 + lz, y = c.height[lx * 16 + lz];
-          if (world.getBlock(x, y - 1, z) === B.grass_block) {
-            const type = rng.pick(['pig', 'cow', 'sheep', 'chicken', 'sheep', 'cow']);
-            const n = rng.irange(2, 4);
-            for (let i = 0; i < n; i++) { const sx = x + rng.irange(-3, 3), sz = z + rng.irange(-3, 3), sy = world.getHeight(sx, sz); if (this.canStand(sx, sy, sz, MOB_TYPES[type])) this.spawnMob(type, sx + 0.5, sy, sz + 0.5); }
-          }
-        }
-      }
-    }
-    // Hostile spawning in darkness
-    if (hostile < 26 && Scheduler.tick % 2 === 0) {
-      const x = floor(p.x) + rng.irange(-48, 48), z = floor(p.z) + rng.irange(-48, 48);
-      const c = world.chunkAt(x, z);
-      if (c && c.state >= CH_LIT) {
-        const surface = c.height[(x & 15) * 16 + (z & 15)];
-        const y = rng.chance(0.5) ? surface : rng.irange(5, Math.max(6, surface));
-        const d = Math.sqrt(dist2(x, y, z, p.x, p.y, p.z));
-        if (d > 24 && d < 70) {
-          const type = rng.pick(['zombie', 'zombie', 'skeleton', 'creeper']);
-          if (this.canStand(x, y, z, MOB_TYPES[type]) && world.getLightLevel(x, y, z, Sky.dayFactor) < 8 && !world.getDef(x, y - 1, z).liquid) {
-            const n = rng.irange(1, 3);
-            for (let i = 0; i < n; i++) { const sx = x + rng.irange(-2, 2), sz = z + rng.irange(-2, 2); if (this.canStand(sx, y, sz, MOB_TYPES[type])) this.spawnMob(type, sx + 0.5, y, sz + 0.5); }
-          }
-        }
-      }
-    }
-    // Monster spawners
-    for (const c of world.chunks.values()) {
-      if (!c.tiles.size || Math.abs(c.cx - ChunkManager.pcx) > 2 || Math.abs(c.cz - ChunkManager.pcz) > 2) continue;
-      for (const [i, t] of c.tiles) if (t.type === 'spawner') {
-        const x = c.cx * 16 + (i >> 11), y = i & 127, z = c.cz * 16 + ((i >> 7) & 15);
-        if (dist2(x, y, z, p.x, p.y, p.z) > 256) continue;
-        if (--t.cooldown > 0) continue;
-        t.cooldown = 200 + rng.int(600);
-        if (hostile > 30) continue;
-        for (let k = 0; k < 4; k++) { const sx = x + rng.irange(-4, 4), sz = z + rng.irange(-4, 4), sy = y + rng.irange(-1, 1); if (this.canStand(sx, sy, sz, MOB_TYPES[t.mob])) { this.spawnMob(t.mob, sx + 0.5, sy, sz + 0.5); Particles.burst(sx + 0.5, sy + 1, sz + 0.5, 10, [0.9, 0.9, 0.9]); if (rng.chance(0.5)) break; } }
-      }
-    }
-  },
-
-  // ---- Per-tick AI (20 Hz) ----
-  tick() {
-    const p = player, day = Sky.dayFactor;
-    for (const m of this.list) {
-      if (m.dead) continue;
-      const d = m.def;
-      m.age++;
-      const dist = Math.sqrt(dist2(m.x, m.y, m.z, p.x, p.y, p.z));
-      if (dist > 110 || (d.hostile && dist > 40 && rng.chance(1 / 1200))) { this.remove(m); continue; }
-      if (m.attackCooldown > 0) m.attackCooldown--;
-      if (m.stateTimer > 0) m.stateTimer -= TICK_DT;
-      // Burn in daylight
-      if (d.burns && day > 0.6 && world.getSky(floor(m.x), floor(m.y + m.h), floor(m.z)) === 15 && world.getBlock(floor(m.x), floor(m.y), floor(m.z)) !== B.water) m.fire = Math.max(m.fire, 30);
-      const feet = world.getDef(floor(m.x), floor(m.y), floor(m.z));
-      if (feet.id === B.lava || feet.id === B.fire) m.fire = 100;
-      if (feet.id === B.water) m.fire = 0;
-      if (m.fire > 0) { m.fire--; if (m.age % 20 === 0) this.hurt(m, 1, 'fire'); if (rng.chance(0.3)) Particles.burst(m.x, m.y + m.h * 0.5, m.z, 1, [1, 0.5, 0.1], 1); }
-      if (feet.id === B.cactus && m.age % 10 === 0) this.hurt(m, 1, 'cactus');
-      if (dist < 20 && rng.chance(1 / 300)) gg.res_vam.a.mob(m.type, [m.x, m.y + m.h * 0.8, m.z]);
-      // Behaviour
-      const canSeePlayer = !p.dead && !Player.isCreative() && dist < 24;
-      if (d.hostile && canSeePlayer) {
-        m.state = 'chase';
-        const dx = p.x - m.x, dz = p.z - m.z, hd = Math.hypot(dx, dz) || 1;
-        m.yaw = Math.atan2(-dx, -dz);
-        if (d.ranged) {
-          if (hd < 5) { m.moveX = -dx / hd; m.moveZ = -dz / hd; } else if (hd > 9) { m.moveX = dx / hd; m.moveZ = dz / hd; } else { m.moveX = -dz / hd * 0.6; m.moveZ = dx / hd * 0.6; }
-          if (m.attackCooldown <= 0 && hd < 16 && this.lineOfSight(m)) { m.attackCooldown = 40; const ex = m.x, ey = m.y + m.h - 0.3, ez = m.z; const tx = p.x - ex, ty = p.y + 1.2 - ey + hd * 0.05, tz = p.z - ez; const l = Math.hypot(tx, ty, tz); Entities.spawnArrow(ex, ey, ez, tx / l * 24, ty / l * 24, tz / l * 24, 'skeleton', 2 + rng.int(3)); }
-        } else if (d.explodes) {
-          m.moveX = dx / hd; m.moveZ = dz / hd;
-          if (hd < 3) { if (m.fuse < 0) m.fuse = 30; } else if (hd > 6) m.fuse = -1;
-          if (m.fuse >= 0) { m.fuse--; if (m.fuse <= 0) { this.remove(m); Entities.explode(m.x, m.y + 0.5, m.z, 3); continue; } }
-        } else {
-          m.moveX = dx / hd; m.moveZ = dz / hd;
-          if (hd < 1.8 && Math.abs(p.y - m.y) < 2 && m.attackCooldown <= 0) { m.attackCooldown = 20; Player.damage(d.damage, 'was slain by a ' + d.name, [dx / hd * 6, 3, dz / hd * 6]); }
-        }
-      } else if (m.state === 'flee' && m.stateTimer > 0) {
-        const dx = m.x - m.fleeFrom[0], dz = m.z - m.fleeFrom[2], hd = Math.hypot(dx, dz) || 1;
-        m.moveX = dx / hd; m.moveZ = dz / hd; m.yaw = Math.atan2(-m.moveX, -m.moveZ);
-      } else if (m.stateTimer <= 0) {
-        if (m.state === 'wander' || m.state === 'chase' || m.state === 'flee') { m.state = 'idle'; m.stateTimer = rng.range(1, 4); m.moveX = m.moveZ = 0; }
-        else { m.state = 'wander'; m.stateTimer = rng.range(2, 5); const a = rng.next() * Math.PI * 2; m.moveX = Math.sin(a); m.moveZ = Math.cos(a); m.yaw = Math.atan2(-m.moveX, -m.moveZ); }
-      }
-      // Avoid walking into water / off cliffs while wandering
-      if (m.state === 'wander') {
-        const ax = floor(m.x + m.moveX * 1.2), az = floor(m.z + m.moveZ * 1.2), ay = floor(m.y);
-        const ahead = world.getDef(ax, ay, az), below = world.getDef(ax, ay - 1, az), below2 = world.getDef(ax, ay - 2, az);
-        if (ahead.liquid || below.liquid || (!below.solid && !below2.solid)) { m.moveX = -m.moveX; m.moveZ = -m.moveZ; m.yaw += Math.PI; }
-      }
-      // Sheep regrow wool by "eating grass"
-      if (m.type === 'sheep' && m.sheared && --m.regrow <= 0) { m.sheared = false; this.rebuild(m); }
-      // Passive mobs look at nearby player
-      if (d.passive && dist < 6 && m.state === 'idle') m.yaw = Math.atan2(-(p.x - m.x), -(p.z - m.z));
-    }
-  },
-  lineOfSight(m) { const ox = m.x, oy = m.y + m.h - 0.3, oz = m.z, dx = player.x - ox, dy = player.y + 1 - oy, dz = player.z - oz, l = Math.hypot(dx, dy, dz); return !Interaction.raycast(ox, oy, oz, dx / l, dy / l, dz / l, l); },
-  rebuild(m) { this.scene.remove(m.mesh); this.buildModel(m); this.scene.add(m.mesh); },
-
-  // ---- Per-frame movement + animation ----
-  update(dt) {
-    for (const m of this.list) {
-      if (m.dead) {
-        m.deathTimer += dt;
-        m.mesh.rotation.z = Math.min(Math.PI / 2, m.deathTimer * 4);
-        if (m.deathTimer > 0.7) { this.scene.remove(m.mesh); m.removed = true; }
-        continue;
-      }
-      const d = m.def, speed = d.speed * (m.state === 'flee' ? 1.5 : 1) * (m.fuse >= 0 ? 0 : 1);
-      const inWater = world.getBlock(floor(m.x), floor(m.y + 0.2), floor(m.z)) === B.water;
-      const k = 1 - Math.exp(-(m.onGround ? 10 : 2) * dt);
-      m.vx += (m.moveX * speed - m.vx) * k; m.vz += (m.moveZ * speed - m.vz) * k;
-      if (inWater) { m.vy = Math.min(m.vy + 25 * dt, 2.5); }
-      else m.vy = Math.max(m.vy - Physics.GRAVITY * dt, -Physics.TERMINAL);
-      const prevOnGround = m.onGround;
-      Physics.move(m, m.vx * dt, m.vy * dt, m.vz * dt);
-      if ((m.hitX || m.hitZ) && m.onGround && !inWater) m.vy = Physics.JUMP_VEL * 0.95;
-      if (!prevOnGround && m.onGround && m.fallStart !== undefined) { const fd = m.fallStart - m.y; if (fd > 3) this.hurt(m, floor(fd - 3), 'fall'); }
-      if (m.onGround || inWater) m.fallStart = m.y; else if (m.fallStart === undefined || m.y > m.fallStart) m.fallStart = m.y;
-      // Animation
-      const hs = Math.hypot(m.vx, m.vz);
-      m.walkPhase += hs * dt * 4;
-      const swing = Math.sin(m.walkPhase) * Math.min(1, hs) * 0.7;
-      m.parts.legs.forEach((l, i) => { l.rotation.x = swing * (i % 2 ? -1 : 1) * (i >= 2 ? -1 : 1); });
-      if (m.type === 'skeleton') { /* arms hold the bow */ } else m.parts.arms.forEach((a, i) => { if (m.type !== 'zombie') a.rotation.x = swing * (i % 2 ? 1 : -1) * 0.8; });
-      m.mesh.position.set(m.x, m.y, m.z);
-      m.mesh.rotation.y = m.yaw;
-      if (m.fuse >= 0) { const s = 1 + (30 - m.fuse) / 30 * 0.25; m.mesh.scale.set(s, s, s); }
-      // Hurt flash & lighting
-      if (m.hurtTimer > 0) m.hurtTimer -= dt;
-      if (m.hpTimer > 0) { m.hpTimer -= dt; if (m.hpTimer <= 0) m.parts.hp.visible = false; }
-      m.lightTimer -= dt;
-      if (m.lightTimer <= 0 || m.hurtTimer > 0) {
-        m.lightTimer = 0.25;
-        const l = clamp(world.getLightLevel(floor(m.x), floor(m.y + 0.5), floor(m.z), Sky.dayFactor) / 15, 0.12, 1);
-        const br = 0.15 + 0.85 * l, red = m.hurtTimer > 0 ? 1 : 0;
-        m.mesh.traverse(o => { if (o.isMesh) { const mats = Array.isArray(o.material) ? o.material : [o.material]; mats.forEach((mt, i) => { const b = o.userData.baseColors[i]; mt.color.setRGB(Math.min(1, b.r * br + red * 0.6), b.g * br * (1 - red * 0.6), b.b * br * (1 - red * 0.6)); }); } });
-      }
-    }
-    if (this.list.some(m => m.removed)) this.list = this.list.filter(m => !m.removed);
-  },
-
-  hurt(m, amount, source, kb) {
-    if (m.dead) return;
-    m.health -= amount; m.hurtTimer = 0.35; gg.res_vam.a.mob(m.type, [m.x, m.y + 1, m.z], true);
-    if (kb) { m.vx += kb[0]; m.vy += kb[1]; m.vz += kb[2]; }
-    this.updateHealthBar(m);
-    if (m.def.passive) { m.state = 'flee'; m.stateTimer = 4; m.fleeFrom = [player.x, player.y, player.z]; }
-    if (m.health <= 0) this.kill(m);
-  },
-  kill(m) {
-    m.dead = true; m.deathTimer = 0; m.parts.hp.visible = false;
-    Particles.burst(m.x, m.y + m.h / 2, m.z, 12, [0.6, 0.6, 0.6], 2);
-    for (const [item, a, b] of m.def.drops) { const n = rng.irange(a, b); if (n > 0) Entities.spawnItem(m.x, m.y + 0.5, m.z, { name: item, count: n }); }
-    if (m.type === 'sheep' && !m.sheared) Entities.spawnItem(m.x, m.y + 0.5, m.z, { name: m.color + '_wool', count: 1 });
-  },
-  remove(m) { this.scene.remove(m.mesh); m.removed = true; m.dead = true; },
-  shear(m) {
-    if (m.sheared) return false;
-    m.sheared = true; m.regrow = 1200 + rng.int(1200);
-    const n = rng.irange(1, 3);
-    Entities.spawnItem(m.x, m.y + 0.6, m.z, { name: m.color + '_wool', count: n });
-    this.rebuild(m);
-    return true;
-  },
-  // Ray vs mob AABBs; returns the nearest mob within maxDist or null
-  raycast(o, d, maxDist) {
-    let best = null, bd = maxDist;
-    for (const m of this.list) {
-      if (m.dead) continue;
-      const r = rayBox(o[0], o[1], o[2], d[0], d[1], d[2], m.x - m.w, m.y, m.z - m.w, m.x + m.w, m.y + m.h, m.z + m.w);
-      if (r && r[0] < bd) { bd = r[0]; best = m; }
-    }
-    return best;
-  }
-};
-Object.values(Mobs).length; // (namespace ready)
-Events.on('tick', () => { Mobs.tick(); Mobs.spawnTick(); });
-/* ============================================================================
-   16. SIMULATION — fluids, gravity blocks, fire, random ticks (farming, grass,
-       saplings, leaves), redstone
-   ========================================================================== */
-/* ---- Fluids: Minecraft-style cellular flow -----------------------------------
-   meta 0 = source, 1..7 = flowing (7 = thinnest), 8 = falling column.
-   Strength = 8 for source/falling, 8-meta for flowing; water loses 1 per block,
-   lava 2. A cell that can flow down ONLY flows down (no sideways sheet in mid-air)
-   unless it is a source with >=3 source neighbours. Cells that can't fall spread
-   sideways to every open side (or, with seek>0, toward the nearest drop like MC), so a
-   source on a 1x1 pillar makes a cross that wraps the pillar and pours down;
-   landing columns spread again with decay. Liquid over the same liquid (a pool)
-   does not spread. Water + lava -> obsidian (source) / cobblestone (flowing). */
-// Fluid kinds (declarative). seek: MC slope search radius (water 4 / lava 2) = only flow toward the nearest drop; 0 = spread to every open side
-const FLUID = {
-  water: { delay: 5,  drop: 1, seek: 0 },
-  lava:  { delay: 25, drop: 2, seek: 0 },
-};
-const c_Flow = { hardenDirs: [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]], NONE: 1000 };
-const Fluids = gg.my(class Fluids {
-  static schedule(x, y, z, delay) { Scheduler.add(x, y, z, delay, TICK_FLUID); }
-  static kind(id) { return id === B.water ? 'water' : 'lava'; }
-  static strength(id, meta) { return meta === 0 || meta >= 8 ? 8 : 8 - meta; }
-  static delay(id) { return FLUID[this.kind(id)].delay; }
-  static isSource(id, x, y, z) { return world.getBlock(x, y, z) === id && world.getMeta(x, y, z) === 0; }
-  // MC "water hole": the cell below accepts fluid or already holds this fluid -> don't spread sideways
-  static hole(id, x, y, z) { if (y < 0) return false; const b = world.getBlock(x, y, z); return b === id || this.canFlowInto(id, b, x, y, z); }
-  static passable(id, x, y, z) { const n = world.getBlock(x, y, z); return this.canFlowInto(id, n, x, y, z); }
-  static tick(x, y, z) {
-    const id = world.getBlock(x, y, z);
-    if (!isLiquidId(id)) return;
-    const K = this.kind(id), drop = FLUID[K].drop, meta = world.getMeta(x, y, z);
-    if (id === B.lava && c_Flow.hardenDirs.some(d => world.getBlock(x + d[0], y + d[1], z + d[2]) === B.water)) {
-      world.setBlock(x, y, z, meta === 0 ? B.obsidian : B.cobblestone); Particles.burst(x + 0.5, y + 1, z + 0.5, 10, [0.4, 0.4, 0.4]); return;
-    }
-    // 1. Re-evaluate supply of non-source cells
-    let m = meta;
-    if (meta !== 0) {
-      const side = HDIRS.map(d => [x + d[0], z + d[2]]).filter(([nx, nz]) => world.getBlock(nx, y, nz) === id).map(([nx, nz]) => world.getMeta(nx, y, nz));
-      const srcN = side.filter(v => v === 0).length, best = side.reduce((b, v) => Math.max(b, this.strength(id, v)), 0) - drop;
-      const bd = world.getDef(x, y - 1, z);
-      m = (K === 'water' && srcN >= 2 && (bd.solid || this.isSource(id, x, y - 1, z))) ? 0
-        : world.getBlock(x, y + 1, z) === id ? 8 : best > 0 ? 8 - best : -1;
-      if (m < 0) { world.setBlock(x, y, z, AIR, 0); return; }
-      if (m !== meta) world.setBlock(x, y, z, id, m); // notifies neighbours + reschedules
-    }
-    // 2. Fall: only straight down (mid-air sources need 3 source neighbours to also spread)
-    const below = world.getBlock(x, y - 1, z);
-    if (y > 0 && this.canFlowInto(id, below, x, y - 1, z)) {
-      if (!this.interact(id, x, y - 1, z) && !(below === id && world.getMeta(x, y - 1, z) >= 8)) { this.wash(x, y - 1, z); world.setBlock(x, y - 1, z, id, 8); }
-      if (m === 0 && HDIRS.filter(d => this.isSource(id, x + d[0], y, z + d[2])).length >= 3) this.spread(id, x, y, z, m, drop, K);
-      return;
-    }
-    // 3. Resting on something: sources always spread, flowing only if not sitting on a pool/hole
-    if (m === 0 || !this.hole(id, x, y - 1, z)) this.spread(id, x, y, z, m, drop, K);
-  }
-  static spread(id, x, y, z, m, drop, K) {
-    const next = this.strength(id, m) - drop;
-    if (next < 1) return;
-    for (const i of this.flowDirs(id, x, y, z, FLUID[K].seek)) {
-      const d = HDIRS[i], nx = x + d[0], nz = z + d[2], nid = world.getBlock(nx, y, nz);
-      if (this.interact(id, nx, y, nz)) continue;
-      if (nid === id) { if (this.strength(id, world.getMeta(nx, y, nz)) >= next) continue; }
-      else this.wash(nx, y, nz);
-      world.setBlock(nx, y, nz, id, 8 - next);
-    }
-  }
-  // Directions with minimal distance to a drop (all passable dirs when no drop is in reach)
-  static flowDirs(id, x, y, z, max) {
-    const open = [0, 1, 2, 3].filter(i => this.passable(id, x + HDIRS[i][0], y, z + HDIRS[i][2]));
-    if (max <= 0) return open;
-    const cand = open.map(i => [i, this.hole(id, x + HDIRS[i][0], y - 1, z + HDIRS[i][2]) ? 0 : this.slope(id, x + HDIRS[i][0], y, z + HDIRS[i][2], i ^ 1, 1, max)]);
-    const min = cand.reduce((a, c) => Math.min(a, c[1]), c_Flow.NONE);
-    return cand.filter(c => c[1] === min).map(c => c[0]);
-  }
-  static slope(id, x, y, z, from, depth, max) {
-    let best = c_Flow.NONE;
-    for (let i = 0; i < 4; i++) {
-      if (i === from) continue;
-      const nx = x + HDIRS[i][0], nz = z + HDIRS[i][2];
-      if (!this.passable(id, nx, y, nz)) continue;
-      if (this.hole(id, nx, y - 1, nz)) return depth;
-      if (depth < max) best = Math.min(best, this.slope(id, nx, y, nz, i ^ 1, depth + 1, max));
-    }
-    return best;
-  }
-  // Washable = non-solid attached blocks (torches, plants, crops, snow layers): fluids pop them as items.
-  static washable(nd) { return !nd.solid && !nd.liquid && (nd.replaceable || !!nd.needsSupport); }
-  static canFlowInto(id, nid, x, y, z) {
-    if (nid === AIR) return true;
-    const nd = Blocks.byId[nid];
-    if (nd.liquid) return nid === id ? world.getMeta(x, y, z) !== 0 : true;
-    return this.washable(nd);
-  }
-  static wash(x, y, z) {
-    const nid = world.getBlock(x, y, z); if (nid === AIR) return;
-    const nd = Blocks.byId[nid]; if (nd.liquid || nd.replaceable && nid !== B.snow) return;
-    for (const dr of blockDrops(nd, world.getMeta(x, y, z), null)) Entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, { name: dr.item, count: dr.count });
-  }
-  // Water/lava interaction at the destination block. Returns true if handled.
-  static interact(id, x, y, z) {
-    const nid = world.getBlock(x, y, z);
-    if (nid === B.lava && id === B.water) { world.setBlock(x, y, z, world.getMeta(x, y, z) === 0 ? B.obsidian : B.cobblestone); Particles.burst(x + 0.5, y + 1, z + 0.5, 10, [0.4, 0.4, 0.4]); return true; }
-    if (nid === B.water && id === B.lava) { world.setBlock(x, y, z, B.cobblestone); Particles.burst(x + 0.5, y + 1, z + 0.5, 10, [0.4, 0.4, 0.4]); return true; }
-    return false;
-  }
-});
-
-/* ---- Fire ------------------------------------------------------------------ */
-const Fire = {
-  flammableNeighbor(x, y, z) { for (const d of DIRS) if (Blocks.byId[world.getBlock(x + d[0], y + d[1], z + d[2])].flammable) return true; return false; },
-  tick(x, y, z) {
-    if (world.getBlock(x, y, z) !== B.fire) return;
-    if (Weather.raining && world.getSky(x, y, z) === 15) { world.setBlock(x, y, z, AIR); return; }
-    const age = world.getMeta(x, y, z);
-    const flam = this.flammableNeighbor(x, y, z);
-    if (!flam && (!world.isSolid(x, y - 1, z) || age > 3)) { world.setBlock(x, y, z, AIR); return; }
-    if (age > 15 + rng.int(10)) { world.setBlock(x, y, z, AIR); return; }
-    world.setMeta(x, y, z, Math.min(15, age + 1));
-    // Burn / spread
-    for (const d of DIRS) {
-      const nx = x + d[0], ny = y + d[1], nz = z + d[2], nd = world.getDef(nx, ny, nz);
-      if (nd.flammable && rng.chance(nd.flammable / 300)) world.setBlock(nx, ny, nz, rng.chance(0.5) ? B.fire : AIR, 0);
-    }
-    if (rng.chance(0.25)) {
-      const nx = x + rng.irange(-1, 1), ny = y + rng.irange(-1, 2), nz = z + rng.irange(-1, 1);
-      if (world.getBlock(nx, ny, nz) === AIR && this.flammableNeighbor(nx, ny, nz)) world.setBlock(nx, ny, nz, B.fire, 0);
-    }
-    Scheduler.add(x, y, z, 10 + rng.int(20), TICK_FIRE);
-  }
-};
-
-/* ---- Scheduled tick dispatcher --------------------------------------------- */
-function runScheduledTick(x, y, z, type) {
-  if (type === TICK_FLUID) Fluids.tick(x, y, z);
-  else if (type === TICK_FALL) {
-    const id = world.getBlock(x, y, z); const def = Blocks.byId[id];
-    if (!def.gravity) return;
-    const bdef = world.getDef(x, y - 1, z);
-    if (y > 0 && !bdef.solid) {
-      if (bdef.id !== AIR && !bdef.liquid) Interaction.breakBlock(x, y - 1, z, true, null);
-      world.setBlock(x, y, z, AIR, 0);
-      world.setBlock(x, y - 1, z, id, 0);
-      Scheduler.add(x, y - 1, z, 2, TICK_FALL);
-    }
-  }
-  else if (type === TICK_FIRE) Fire.tick(x, y, z);
-}
-
-// React to block changes: fluids flow, gravity blocks fall, fire starts, redstone updates
-Events.on('blockChanged', (x, y, z, oldId, newId) => {
-  const nd = Blocks.byId[newId];
-  if (nd.liquid) Fluids.schedule(x, y, z, Fluids.delay(newId));
-  if (nd.gravity) Scheduler.add(x, y, z, 2, TICK_FALL);
-  if (newId === B.fire) Scheduler.add(x, y, z, 10, TICK_FIRE);
-  for (const d of DIRS) {
-    const nx = x + d[0], ny = y + d[1], nz = z + d[2], nid = world.getBlock(nx, ny, nz);
-    if (nid === AIR) continue;
-    const ndef = Blocks.byId[nid];
-    if (ndef.liquid) Fluids.schedule(nx, ny, nz, Fluids.delay(nid));
-    if (ndef.gravity && d[1] === 1) Scheduler.add(nx, ny, nz, 2, TICK_FALL);
-  }
-  if (newId === B.wheat || oldId === B.wheat) { /* crops handled by random ticks */ }
-});
-
-/* ---- Random ticks ------------------------------------------------------------ */
-const RandomTicks = {
-  lightAbove(x, y, z) { return world.getLightLevel(x, y + 1, z, Sky.dayFactor); },
-  tick() {
-    const pcx = ChunkManager.pcx, pcz = ChunkManager.pcz;
-    for (let cx = pcx - 4; cx <= pcx + 4; cx++) for (let cz = pcz - 4; cz <= pcz + 4; cz++) {
-      const c = world.getChunk(cx, cz); if (!c || c.state < CH_LIT) continue;
-      for (let n = 0; n < 24; n++) {
-        const lx = rng.int(16), lz = rng.int(16), y = rng.int(CHUNK_H);
-        const id = c.blocks[bidx(lx, y, lz)]; if (id === AIR) continue;
-        const def = Blocks.byId[id]; if (!def.onRandomTick) continue;
-        def.onRandomTick(cx * 16 + lx, y, cz * 16 + lz, c.meta[bidx(lx, y, lz)]);
-      }
-    }
-  }
-};
-(function defineRandomTickBehaviour() {
-  const bn = Blocks.byName;
-  bn.grass_block.onRandomTick = (x, y, z, meta) => {
-    const above = world.getDef(x, y + 1, z);
-    if (above.opaque || above.liquid) { world.setBlock(x, y, z, B.dirt, 0); return; }
-    if (RandomTicks.lightAbove(x, y, z) < 9) return;
-    for (let i = 0; i < 4; i++) {
-      const nx = x + rng.irange(-1, 1), ny = y + rng.irange(-3, 1), nz = z + rng.irange(-1, 1);
-      if (world.getBlock(nx, ny, nz) === B.dirt && !world.getDef(nx, ny + 1, nz).opaque && RandomTicks.lightAbove(nx, ny, nz) >= 4) world.setBlock(nx, ny, nz, B.grass_block, meta);
-    }
-  };
-  bn.farmland.onRandomTick = (x, y, z, meta) => {
-    let wet = false;
-    for (let dx = -4; dx <= 4 && !wet; dx++) for (let dz = -4; dz <= 4 && !wet; dz++) for (let dy = 0; dy <= 1; dy++) if (world.getBlock(x + dx, y + dy, z + dz) === B.water) { wet = true; break; }
-    if (wet) { if (meta !== 7) world.setMeta(x, y, z, 7); }
-    else if (meta > 0) world.setMeta(x, y, z, meta - 1);
-    else if (world.getBlock(x, y + 1, z) !== B.wheat) world.setBlock(x, y, z, B.dirt, 0);
-  };
-  bn.wheat.onRandomTick = (x, y, z, meta) => {
-    if (meta >= 7 || RandomTicks.lightAbove(x, y - 1, z) < 9) return;
-    const moist = world.getMeta(x, y - 1, z) > 0;
-    if (rng.chance(moist ? 0.3 : 0.12)) world.setMeta(x, y, z, meta + 1);
-  };
-  for (const w of ['oak', 'birch', 'spruce']) bn[w + '_sapling'].onRandomTick = (x, y, z) => {
-    if (RandomTicks.lightAbove(x, y - 1, z) < 9 || !rng.chance(0.15)) return;
-    world.setBlock(x, y, z, AIR, 0);
-    Terrain.placeTree(x, y, z, w === 'spruce' ? BIO_TAIGA : w === 'birch' ? BIO_BIRCH : BIO_FOREST, rng);
-  };
-  for (const w of ['oak', 'birch', 'spruce']) bn[w + '_leaves'].onRandomTick = (x, y, z) => {
-    if (!rng.chance(0.3)) return;
-    for (let dx = -4; dx <= 4; dx++) for (let dy = -4; dy <= 4; dy++) for (let dz = -4; dz <= 4; dz++) if (isLog(world.getBlock(x + dx, y + dy, z + dz))) return;
-    Interaction.breakBlock(x, y, z, true, null);
-  };
-  bn.lava.onRandomTick = (x, y, z) => {
-    if (!rng.chance(0.1)) return;
-    const nx = x + rng.irange(-1, 1), ny = y + rng.irange(0, 1), nz = z + rng.irange(-1, 1);
-    if (world.getBlock(nx, ny, nz) === AIR && Fire.flammableNeighbor(nx, ny, nz)) world.setBlock(nx, ny, nz, B.fire, 0);
-  };
-  bn.cactus.onRandomTick = (x, y, z) => {
-    if (world.getBlock(x, y + 1, z) !== AIR || !rng.chance(0.05)) return;
-    let h = 1; while (world.getBlock(x, y - h, z) === B.cactus) h++;
-    if (h < 3) world.setBlock(x, y + 1, z, B.cactus, 0);
-  };
-  bn.snow.onRandomTick = (x, y, z) => { if (world.getBlockLight(x, y, z) >= 12) world.setBlock(x, y, z, AIR, 0); };
-  bn.ice.onRandomTick = (x, y, z) => { if (world.getBlockLight(x, y, z) >= 11) world.setBlock(x, y, z, B.water, 0); };
-  bn.fire.onRandomTick = (x, y, z) => Scheduler.add(x, y, z, 1, TICK_FIRE);
-  // Crops are washed away by flowing water: handled because wheat is replaceable? No — keep crops solid to fluids:
-  bn.water.onRandomTick = null;
-})();
 /* ============================================================================
    18. HUD, MESSAGES, PERSISTENCE, MENUS
    ========================================================================== */
@@ -2962,14 +2452,14 @@ const HUD = {
     const ri = Game.renderer.info.render, st = ChunkManager.stats, t = Interaction.target, m = Interaction.targetMob, S = Scheduler;
     const lq = world.getDef(bx, by, bz), lqs = lq.liquid ? `${lq.name} L${world.getMeta(bx, by, bz)}` : '—';
     // groups separated by blank lines: perf · position · environment · world · fluids/target
-    return [`VoxelCraft ${this.fps} fps · sim ${(Game.frameMs || 0).toFixed(1)} ms`, `Seed ${Game.seed}`, '', `Draw calls ${ri.calls} · Tris ${(ri.triangles / 1000).toFixed(0)}k`,
-      `Liq +${S.pending.size} rm ${S.parked.length} ${lqs}`, '',`Chunk (${bx >> 4},${bz >> 4})`,
-      `Biome ${bio.name}`, `${Sky.clockString()} · ${Weather.state}`, '',
-      `Chunks ${st.loaded} · gen ${st.generated} · meshed ${st.meshed}`,
-      `Ents ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}`, `Sun ${world.getSky(bx, by, bz)} · torch ${world.getBlockLight(bx, by, bz)}`, '',
-      `p1 ${v3(bx, by, bz)}  ${face} ${v3(p.x, p.y, p.z, 2)}`,
+    return [`Seed ${Game.seed}`, '', `Draw calls ${ri.calls} · Tris ${(ri.triangles / 1000).toFixed(0)}k`,
+      `Liq +${S.pending.size} rm ${S.parked.length} ${lqs}`, `Sun ${world.getSky(bx, by, bz)} · torch ${world.getBlockLight(bx, by, bz)}`, '',`Chunk (${bx >> 4},${bz >> 4})`,
+      `Biome ${bio.name}`, `${Sky.clockString()} is ${Weather.state}`, '',
+      `Chunks ${st.loaded} · XZP ${st.generated} · X2V ${st.meshed}`,
+      `Ents ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}`,
       m ? `Mob ${m.type}.${m.state} ♥  ${Math.ceil(m.health)}/${m.maxHealth} ${v3(m.x, m.y, m.z, 1)}` : 'Mob —',
-      t ? `XYZB ${Blocks.byId[world.getBlock(t.x, t.y, t.z)].displayName} ${v3(t.x, t.y, t.z)}` : 'XYZB —'].join('\n');
+      t ? `XYZB ${Blocks.byId[world.getBlock(t.x, t.y, t.z)].displayName} ${v3(t.x, t.y, t.z)}` : 'XYZB —', '',
+      `VoxelCraft ${this.fps} fps · sim ${(Game.frameMs || 0).toFixed(1)} ms`, `p1 ${v3(bx, by, bz)}  ${face} ${v3(p.x, p.y, p.z, 2)}`].join('\n');
   },
   // F3: debug pane (top-left) + noclip
   toggleDebug() {
@@ -3239,22 +2729,33 @@ const menu = gg.menu = {
       ['breakMul', () => c_Particles, { label: '破坏粒子倍数', ...R(0, 4, 0.25) }],
       ['opacity', () => Interaction.crackMat, { label: '裂纹不透明', ...R(0, 1, 0.05) }],
     ]],
-    ['调色板', [
-      ...Object.keys(Sky.colors).map(k => ['v', rgbArr(Sky.colors[k]), { label: k, color: { type: 'float' } }]),
-      ...Object.keys(rndr.palette).map(k => [k, () => rndr.palette, { label: k }]),
-    ]],
-    ['镜头运动', [
-      ['stepLen', '步长', 0.5, 4, 0.05], ['bobFreq', '晃动频率', 0, 4, 0.05], ['bobY', '上下晃动', 0, 0.3, 0.005], ['bobX', '左右晃动', 0, 0.2, 0.005],
-      ['landDip', '落地下沉', 0, 1, 0.01], ['landDecay', '落地回弹', 0.5, 20, 0.5], ['sprintFov', '疾跑 FoV×', 1, 1.5, 0.01], ['waterFov', '水下 FoV×', 0.6, 1.2, 0.01],
-      ['flyFov', '飞行 FoV×', 1, 1.5, 0.01], ['hurtDur', '受伤时长 s', 0, 2, 0.05], ['hurtRoll', '受伤侧倾 rad', 0, 0.6, 0.01], ['deathEye', '死亡视高', 0, 1.6, 0.05],
-      ['eyeEase', '视高缓动', 0, 2, 0.05], ['autoJumpReach', '自动跳探距', 0.1, 1, 0.05], ['autoJumpSprint', '疾跑跳速×', 1, 2.5, 0.05],
-    ].map(([k, label, min, max, step]) => [k, () => c_Motion, { label, ...R(min, max, step) }])],
     ['声明库', [
       lib('伤害 HURT', HURT, 'id', { every: { label: '间隔 tick', ...R(1, 100, 1) }, amount: { label: '伤害 ♥/2', ...R(0, 20, 1) }, first: { label: '首次延迟', ...R(0, 99, 1) }, ignite: { label: '点燃 tick', ...R(0, 300, 10) } }),
       lib('流体 FLUID', FLUID, null, { delay: { label: '流速 tick', ...R(1, 60, 1) }, drop: { label: '衰减', ...R(1, 4, 1) }, seek: { label: '坡度搜索', ...R(0, 6, 1) } }),
+      lib('生物群系 BIOMES', BIOMES, 'name', { grass: { label: '草' }, foliage: { label: '树叶' }, water: { label: '水' }, trees: { label: '树密度', ...R(0, 0.1, 0.001) } }, biomeChanged),
+    ]],
+    // Fine-tuning of individual systems; nested [title, rows] entries are sub-folders
+    ['系统精调', [
+      ['调色板', [
+        ...Object.keys(Sky.colors).map(k => ['v', rgbArr(Sky.colors[k]), { label: k, color: { type: 'float' } }]),
+        ...Object.keys(rndr.palette).map(k => [k, () => rndr.palette, { label: k }]),
+      ]],
+      ['镜头运动', [
+        ['stepLen', '步长', 0.5, 4, 0.05], ['bobFreq', '晃动频率', 0, 4, 0.05], ['bobY', '上下晃动', 0, 0.3, 0.005], ['bobX', '左右晃动', 0, 0.2, 0.005],
+        ['landDip', '落地下沉', 0, 1, 0.01], ['landDecay', '落地回弹', 0.5, 20, 0.5], ['sprintFov', '疾跑 FoV×', 1, 1.5, 0.01], ['waterFov', '水下 FoV×', 0.6, 1.2, 0.01],
+        ['flyFov', '飞行 FoV×', 1, 1.5, 0.01], ['hurtDur', '受伤时长 s', 0, 2, 0.05], ['hurtRoll', '受伤侧倾 rad', 0, 0.6, 0.01], ['deathEye', '死亡视高', 0, 1.6, 0.05],
+        ['eyeEase', '视高缓动', 0, 2, 0.05], ['autoJumpReach', '自动跳探距', 0.1, 1, 0.05], ['autoJumpSprint', '疾跑跳速×', 1, 2.5, 0.05],
+      ].map(([k, label, min, max, step]) => [k, () => c_Motion, { label, ...R(min, max, step) }])],
+      ['生物', [
+        ['移动', [
+          ['maxDrop', '可下落格', 0, 6, 1], ['steerTries', '转向候选', 2, 16, 1], ['steerCd', '转向冷却 tick', 0, 40, 1], ['shoreScan', '寻岸半径', 1, 16, 1],
+          ['float', '浮深 ×h', 0, 1, 0.01], ['buoy', '浮力刚度', 1, 40, 0.5], ['buoyDamp', '浮力阻尼', 0, 20, 0.5], ['climbVy', '上岸速度', 0, 10, 0.1], ['yawEase', '转身缓动', 0.02, 1, 0.01],
+        ].map(([k, label, min, max, step]) => [k, () => c_MobAI, { label, ...R(min, max, step) }])],
+        lib('生物皮肤 MOB_SKIN', gg.c_MobSkin, null, { amp: { label: '噪声深度', ...R(0, 1, 0.01) }, cells: { label: '格数', ...R(1, 16, 1) }, oct: { label: '倍频', ...R(1, 4, 1) },
+          grain: { label: '颗粒', ...R(0, 0.6, 0.01) }, levels: { label: '色阶', ...R(0, 8, 1) } }, () => { gg.MobSkin.reset(); Mobs.faceTex.clear(); for (const m of Mobs.list) if (!m.dead) Mobs.rebuild(m); }),
+      ]],
       lib('工具 TOOL_TIERS', TOOL_TIERS, null, { level: { label: '挖掘等级', ...R(0, 5, 1) }, speed: { label: '速度', ...R(0.5, 20, 0.5) }, durability: { label: '耐久', ...R(1, 3000, 1) } },
         (t, k) => { const tier = Object.keys(TOOL_TIERS).find(n => TOOL_TIERS[n] === t); for (const kind of ['pickaxe', 'axe', 'shovel', 'hoe', 'sword']) { const it = Items.get(tier + '_' + kind); if (it) it.tool[k] = t[k]; } }),
-      lib('生物群系 BIOMES', BIOMES, 'name', { grass: { label: '草' }, foliage: { label: '树叶' }, water: { label: '水' }, trees: { label: '树密度', ...R(0, 0.1, 0.001) } }, biomeChanged),
       (f) => { HUD.heldLib = pickLib('手持 BLOCK_DEFS', hotbarPick, { hardness: { label: '硬度', ...R(-1, 50, 0.1) }, tier: { label: '需求等级', ...R(0, 5, 1) },
         light: { label: '发光', ...R(0, 15, 1) }, opacity: { label: '透光衰减', ...R(0, 15, 1) }, flammable: { label: '可燃', ...R(0, 100, 1) },
         damage: { label: '伤害', ...R(0, 20, 0.5) }, stack: { label: '堆叠', ...R(1, 64, 1) } }, (row) => { if (row.id != null) remeshAll(); })(f); },
@@ -3276,6 +2777,7 @@ const buildPane = (pane, decl) => {
     const f = pane.addFolder({ title, expanded: !!expanded });
     for (const row of rows) {
       if (typeof row === 'function') { row(f); continue; }
+      if (Array.isArray(row[1])) { buildPane(f, [row]); continue; }
       const [key, target, opts, onChange] = row, b = f.addBinding(target(), key, opts);
       if (onChange) b.on('change', (ev) => onChange(ev.value));
     }
@@ -3285,9 +2787,9 @@ const buildPane = (pane, decl) => {
 /* Screensaver: while paused, every sim.screensaver seconds jump to a random sky viewpoint with a wide FoV
    (mobs are already frozen while paused). The real position comes back on resume / save. */
 const c_Saver = { spread: 160, height: [24, 64], pitch: [-0.6, -0.15], fov: [95, 125] };
-const Screensaver = gg.my(class Screensaver {
-  static t = 0; static saved = null; static fov = 0;
-  static update(dt) {
+const Screensaver = gg.my(new class Screensaver {
+  t = 0; saved = null; fov = 0;
+  update(dt) {
     if (!sim.screensaver || !Game.ready) return;
     if ((this.t += dt) < sim.screensaver) return; this.t = 0;
     const p = player, C = c_Saver;
@@ -3297,7 +2799,7 @@ const Screensaver = gg.my(class Screensaver {
     Object.assign(p, { x, z, y: Math.max(h, SEA_LEVEL) + rng.range(...C.height), yaw: rng.range(0, Math.PI * 2), pitch: rng.range(...C.pitch) });
     this.fov = rng.range(...C.fov);
   }
-  static restore() { this.t = 0; this.fov = 0; if (this.saved) { Object.assign(player, this.saved); this.saved = null; } }
+  restore() { this.t = 0; this.fov = 0; if (this.saved) { Object.assign(player, this.saved); this.saved = null; } }
 });
 const Title = gg.my(new class Title {
   bootId = 0; pane = null; rt = null; userRd = null; want = null; shown = null; shownSeed = null; base = null; peekT = 0; fxRun = false; pt = null;
@@ -3614,7 +3116,7 @@ gg.ev(window, {
   },
   beforeunload: unloadSave, pagehide: unloadSave,
 });
-Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORATED, CH_LIT, Chunk, World, world, ChunkManager, Physics, Input, player, Player, Interaction, rayBox, Inventory, Furnace, Screens, Particles, Entities, TICK_FLUID, TICK_FALL, TICK_FIRE, Mobs, Fluids, Fire, runScheduledTick, RandomTicks, HUD, Save, Title, Menus, Game });
+Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORATED, CH_LIT, Chunk, World, world, ChunkManager, Physics, Input, player, Player, Interaction, rayBox, Inventory, Furnace, Screens, Particles, Entities, c_Motion, Motion, HUD, Save, Title, Menus, Game });
 
 </script>
 </body>

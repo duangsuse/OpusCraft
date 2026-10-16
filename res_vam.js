@@ -389,15 +389,72 @@ function blobToImage(blob) {
    STUB: entity textures from resource packs (entity/pig/pig.png ...) are not
    mapped onto the box UV layout yet — mobs always use procedural colours.
    ========================================================================== */
+/* food: what a mob lives on — the only behaviour switch.
+   'darkness'  = night monster, burns in daylight · 'gunpowder' = creeper (fuse + explode)
+   item name   = animal: flees when hurt, follows a player holding that item */
 const MOB_TYPES = {
-  pig:      { w: 0.45, h: 0.9,  health: 10, speed: 1.6, passive: true,  drops: [['porkchop', 1, 3]], name: 'Pig' },
-  cow:      { w: 0.45, h: 1.4,  health: 10, speed: 1.5, passive: true,  drops: [['beef', 1, 3], ['leather', 0, 2]], name: 'Cow' },
-  sheep:    { w: 0.45, h: 1.3,  health: 8,  speed: 1.5, passive: true,  drops: [['mutton', 1, 2]], name: 'Sheep' },
-  chicken:  { w: 0.2,  h: 0.7,  health: 4,  speed: 1.7, passive: true,  drops: [['chicken', 1, 1], ['feather', 0, 2]], name: 'Chicken' },
-  zombie:   { w: 0.3,  h: 1.95, health: 20, speed: 2.4, hostile: true,  damage: 3, drops: [['rotten_flesh', 0, 2]], burns: true, name: 'Zombie' },
-  skeleton: { w: 0.3,  h: 1.99, health: 20, speed: 2.6, hostile: true,  ranged: true, drops: [['bone', 0, 2], ['arrow', 0, 2]], burns: true, name: 'Skeleton' },
-  creeper:  { w: 0.3,  h: 1.7,  health: 20, speed: 2.6, hostile: true,  explodes: true, drops: [['gunpowder', 0, 2]], name: 'Creeper' }
+  pig:      { w: 0.45, h: 0.9,  health: 10, speed: 1.6, food: 'carrot',      drops: [['porkchop', 1, 3]], name: 'Pig' },
+  cow:      { w: 0.45, h: 1.4,  health: 10, speed: 1.5, food: 'wheat',       drops: [['beef', 1, 3], ['leather', 0, 2]], name: 'Cow' },
+  sheep:    { w: 0.45, h: 1.3,  health: 8,  speed: 1.5, food: 'wheat',       drops: [['mutton', 1, 2]], name: 'Sheep' },
+  chicken:  { w: 0.2,  h: 0.7,  health: 4,  speed: 1.7, food: 'wheat_seeds', drops: [['chicken', 1, 1], ['feather', 0, 2]], name: 'Chicken' },
+  zombie:   { w: 0.3,  h: 1.95, health: 20, speed: 2.4, food: 'darkness',    damage: 3, drops: [['rotten_flesh', 0, 2]], name: 'Zombie' },
+  skeleton: { w: 0.3,  h: 1.99, health: 20, speed: 2.6, food: 'darkness',    ranged: true, drops: [['bone', 0, 2], ['arrow', 0, 2]], name: 'Skeleton' },
+  creeper:  { w: 0.3,  h: 1.7,  health: 20, speed: 2.6, food: 'gunpowder',   drops: [['gunpowder', 0, 2]], name: 'Creeper' }
 };
+/* ---- Mob skins: tileable Perlin noise (16x16 texels = 1 block, RepeatWrapping) ----
+   amp: darkening depth · cells: lattice cells per tile (octave 0) · oct: octaves
+   grain: per-texel jitter · levels: quantise to N steps (0 = smooth; creeper = blotchy) */
+const c_MobSkin = {
+  _:        { amp: 0.16, cells: 4, oct: 2, grain: 0.08, levels: 0 },
+  creeper:  { amp: 0.62, cells: 4, oct: 3, grain: 0.30, levels: 5 },
+  zombie:   { amp: 0.26, cells: 4, oct: 2, grain: 0.12, levels: 0 },
+  skeleton: { amp: 0.18, cells: 8, oct: 2, grain: 0.14, levels: 0 },
+  cow:      { amp: 0.30, cells: 2, oct: 2, grain: 0.06, levels: 3 },
+  sheep:    { amp: 0.28, cells: 8, oct: 2, grain: 0.16, levels: 0 },
+  pig:      { amp: 0.12, cells: 4, oct: 2, grain: 0.05, levels: 0 },
+  chicken:  { amp: 0.12, cells: 8, oct: 1, grain: 0.10, levels: 0 },
+};
+const MobSkin = gg.my(new class MobSkin {
+  fields = new Map(); texs = new Map();
+  spec(type) { return { ...c_MobSkin._, ...c_MobSkin[type] }; }
+  // Periodic gradient (Perlin) noise on an n x n lattice; x,y in lattice units; ~[-1,1]
+  perlin(G, n, x, y) {
+    const xi = floor(x), yi = floor(y), fx = x - xi, fy = y - yi, fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+    const g = (i, j, dx, dy) => { const a = G[(((i % n) + n) % n) * n + (((j % n) + n) % n)]; return Math.cos(a) * dx + Math.sin(a) * dy; };
+    const u = fade(fx), v = fade(fy), L = (a, b, t) => a + (b - a) * t;
+    return 1.41 * L(L(g(xi, yi, fx, fy), g(xi + 1, yi, fx - 1, fy), u), L(g(xi, yi + 1, fx, fy - 1), g(xi + 1, yi + 1, fx - 1, fy - 1), u), v);
+  }
+  // 16x16 multiplier field in [1-amp, 1]
+  field(type) {
+    if (this.fields.has(type)) return this.fields.get(type);
+    const S = this.spec(type), r = new Rand(hashString('skin:' + type)), f = new Float32Array(256);
+    const octs = [...Array(S.oct).keys()].map(o => { const n = S.cells << o; return { n, a: 0.5 ** o, G: Float32Array.from({ length: n * n }, () => r.next() * Math.PI * 2) }; });
+    const norm = octs.reduce((s, o) => s + o.a, 0);
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      let v = octs.reduce((s, o) => s + o.a * this.perlin(o.G, o.n, x * o.n / 16, y * o.n / 16), 0) / norm;
+      v = clamp(0.5 + 0.5 * v + S.grain * (r.next() - 0.5) * 2, 0, 1);
+      if (S.levels > 1) v = Math.round(v * (S.levels - 1)) / (S.levels - 1);
+      f[y * 16 + x] = 1 - S.amp * (1 - v);
+    }
+    this.fields.set(type, f);
+    return f;
+  }
+  mul(type, x, y) { return this.field(type)[(y & 15) * 16 + (x & 15)]; }
+  // Base colour gain so the noise darkens around (not below) the declared colour
+  gain(type) { return 1 + this.spec(type).amp * 0.5; }
+  texture(type) {
+    if (this.texs.has(type)) return this.texs.get(type);
+    const f = this.field(type), cv = document.createElement('canvas'); cv.width = cv.height = 16;
+    const ctx = cv.getContext('2d'), img = ctx.createImageData(16, 16);
+    f.forEach((v, i) => { img.data.set([v * 255, v * 255, v * 255, 255], i * 4); });
+    ctx.putImageData(img, 0, 0);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    this.texs.set(type, tex);
+    return tex;
+  }
+  reset() { this.fields.clear(); for (const t of this.texs.values()) t.dispose(); this.texs.clear(); }
+});
 const SHEEP_COLOR_WEIGHTS = [['white', 81], ['black', 5], ['gray', 5], ['light_gray', 5], ['brown', 3], ['pink', 1]];
 
 /* ============================================================================
@@ -470,7 +527,7 @@ const sndBlock = (def, pos, kind) => {
   })[kind]();
 };
 const MOB_VOICE = {
-  pig: [430, 330, 'square', 1200], cow: [180, 120, 'sawtooth', 600], sheep: [520, 480, 'sawtooth', 1400], chicken: [1400, 1100, 'square', 2500],
+  pig: [430, 330, 'square', 1200], cow: [180, 120, 'sawtooth', 600], red_cow: [140, 80, 'sawtooth', 450], sheep: [520, 480, 'sawtooth', 1400], chicken: [1400, 1100, 'square', 2500],
   zombie: [105, 72, 'sawtooth', 500], skeleton: [900, 700, 'triangle', 2000], creeper: [300, 200, 'sawtooth', 800],
 };
 const SND = {
@@ -482,7 +539,7 @@ const SND = {
     sndTone(v[0] * k, v[1] * k, hurt ? 0.2 : 0.35, { type: v[2], vol: 0.08, pos, lp: v[3] }); },
   fuse: pos => sndNoise(1.4, 5000, { vol: 0.25, type: 'highpass', q: 0.5, pos }),
   explode: pos => { sndNoise(1.6, 900, { vol: 1.0, type: 'lowpass', q: 0.6, pos, freqEnd: 60 }); sndTone(70, 28, 1.2, { type: 'sine', vol: 0.8, pos }); },
-  eat: () => { for (let i = 0; i < 3; i++) sndNoise(0.07, 1100, { vol: 0.22, q: 1, delay: i * 0.13 }); },
+  eat: (pos = null) => { for (let i = 0; i < 3; i++) sndNoise(0.07, 1100, { vol: 0.22, q: 1, delay: i * 0.13, pos }); },
   burp: () => sndTone(200, 120, 0.25, { type: 'sawtooth', vol: 0.08, lp: 600, delay: 0.45 }),
   splash: () => sndNoise(0.45, 1200, { vol: 0.35, type: 'lowpass', q: 0.4 }),
   sizzle: () => sndNoise(0.6, 4000, { vol: 0.25, type: 'highpass', q: 0.7 }),
@@ -502,8 +559,8 @@ const SPLASHES = [
 gg.res_vam = {
   t: { splash: SPLASHES },
   v: new Proxy(G, { get: (t, k) => typeof k === 'string' ? ProcTex.get(k) : undefined, has: (t, k) => k in t }), // canvas per texture name
-  m: MOB_TYPES, a: SND, c_Audio, SOUND_MAT, SOUND_RULES, MOB_VOICE, ProcTex, Atlas, TINTS,
+  m: MOB_TYPES, skin: c_MobSkin, a: SND, c_Audio, SOUND_MAT, SOUND_RULES, MOB_VOICE, ProcTex, Atlas, TINTS,
 };
-Object.assign(gg, { C, mulc, Pix, planks, cobble, logSide, logTop, leaves, pile, gem, ingot, meat, bucket, drawMap, TOOL_MAPS, TOOL_MAT_COLORS, G, M, sapling, ORE, MB, chest, torch, flower, ProcTex, TINTS, Atlas, tintColor, TEX_ALIASES, ResourcePack, blobToImage, MOB_TYPES, SHEEP_COLOR_WEIGHTS });
+Object.assign(gg, { C, mulc, Pix, planks, cobble, logSide, logTop, leaves, pile, gem, ingot, meat, bucket, drawMap, TOOL_MAPS, TOOL_MAT_COLORS, G, M, sapling, ORE, MB, chest, torch, flower, ProcTex, TINTS, Atlas, tintColor, TEX_ALIASES, ResourcePack, blobToImage, MOB_TYPES, SHEEP_COLOR_WEIGHTS, c_MobSkin, MobSkin });
 
 })();
