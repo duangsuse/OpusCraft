@@ -429,23 +429,68 @@ const Mesher = {
     };
     q(a, a, c, c); q(a, c, c, a);
   },
+  // Liquid surface height of one cell (MC: (8-level)/9, source/falling 8/9, covered = 1)
+  liquidH(x, y, z, id) {
+    const p = pidx(x, y, z);
+    if (this.pb[p] !== id) return -1;
+    const m = this.pm[p];
+    return m === 0 || m >= 8 ? 8 / 9 : (8 - m) / 9;
+  },
+  // Corner height shared by the 4 cells around corner (x,z) — every cell computes the same value for a
+  // shared corner, so neighbouring surfaces always meet (no seams). MC rules: same liquid above any of
+  // the 4 cells -> 1; sources/high cells weigh 10; open non-solid cells pull it to 0; solids are ignored.
+  liquidCorner(x, y, z, id) {
+    let sum = 0, w = 0;
+    for (let k = 0; k < 4; k++) {
+      const cx = x - 1 + (k & 1), cz = z - 1 + (k >> 1);
+      if (this.pb[pidx(cx, y + 1, cz)] === id) return 1;
+      const h = this.liquidH(cx, y, cz, id);
+      if (h >= 0) { const wt = h >= 0.8 ? 10 : 1; sum += h * wt; w += wt; }
+      else if (!Blocks.byId[this.pb[pidx(cx, y, cz)]].solid) w += 1;
+    }
+    return w ? sum / w : 8 / 9;
+  },
+  // Smooth corner light: mean over the non-opaque cells around the corner of max(cell, cell above)
+  liquidCornerLight(x, y, z) {
+    let s = 0, bl = 0, n = 0;
+    for (let k = 0; k < 4; k++) {
+      const cx = x - 1 + (k & 1), cz = z - 1 + (k >> 1), p = pidx(cx, y, cz), q = pidx(cx, y + 1, cz);
+      if (this.opaqueById[this.pb[p]] && this.opaqueById[this.pb[q]]) continue;
+      s += Math.max(this.ps[p], this.ps[q]); bl += Math.max(this.pl[p], this.pl[q]); n++;
+    }
+    return n ? [s / n, bl / n] : [this.ps[pidx(x, y, z)], this.pl[pidx(x, y, z)]];
+  },
+  // Quad with per-vertex positions and per-vertex light Ls[k] = [sky, blk]
+  liquidQuad(b, P, uv, tile, Ls, tint, shade, both) {
+    const r = tint[0] * shade, g = tint[1] * shade, bb = tint[2] * shade;
+    const v = [0, 1, 2, 3].map(k => b.vertex(P[k * 3], P[k * 3 + 1], P[k * 3 + 2], uv[k * 2], uv[k * 2 + 1], tile, Ls[k][0] / 15, Ls[k][1] / 15, r, g, bb));
+    b.quad(v[0], v[1], v[2], v[3], false);
+    if (both) b.quad(v[3], v[2], v[1], v[0], false);
+  },
   emitLiquid(b, x, y, z, def, meta, bio) {
-    const pb = this.pb, id = def.id;
-    const same = (dx, dy, dz) => pb[pidx(x + dx, y + dy, z + dz)] === id;
-    const above = same(0, 1, 0);
-    let h = 1;
-    if (!above) h = meta === 0 ? 0.875 : (meta >= 8 ? 0.875 : (8 - meta) / 9);
-    const cl = this.lightAt(x, y, z), tile = def.tiles[0];
+    const pb = this.pb, id = def.id, op = this.opaqueById;
+    const covered = pb[pidx(x, y + 1, z)] === id;
+    const H = (cx, cz) => covered ? 1 : this.liquidCorner(cx, y, cz, id);
+    const h00 = H(x, z), h10 = H(x + 1, z), h01 = H(x, z + 1), h11 = H(x + 1, z + 1);
+    const p = pidx(x, y, z), L = [this.ps[p], this.pl[p]], L4 = [L, L, L, L], tile = def.tiles[0];
     const tint = def.tint === 'water' ? bio.waterRGB : WHITE_RGB;
-    if (!above) this.emitFace(b, FACE_PY, x, y, z, x + 1, y + h, z + 1, tile, cl, tint, 1.0, null, true);
-    if (!same(0, -1, 0) && !this.opaqueById[pb[pidx(x, y - 1, z)]]) this.emitFace(b, FACE_NY, x, y, z, x + 1, y + h, z + 1, tile, cl, tint, 0.5, null, false);
-    for (let f = 0; f < 6; f++) {
-      if (f === FACE_PY || f === FACE_NY) continue;
-      const d = DIRS[f];
-      if (same(d[0], 0, d[2])) continue;
-      const nid = pb[pidx(x + d[0], y, z + d[2])];
-      if (this.opaqueById[nid]) continue;
-      this.emitFace(b, f, x, y, z, x + 1, y + h, z + 1, tile, cl, tint, FACE_SHADE[f], null, false);
+    const X0 = x, X1 = x + 1, Z0 = z, Z1 = z + 1, Y = y;
+    if (!covered) {
+      const CL = (cx, cz) => this.liquidCornerLight(cx, y, cz);
+      this.liquidQuad(b, [X0, Y + h01, Z1, X1, Y + h11, Z1, X1, Y + h10, Z0, X0, Y + h00, Z0], [0, 1, 1, 1, 1, 0, 0, 0], tile,
+        [CL(X0, Z1), CL(X1, Z1), CL(X1, Z0), CL(X0, Z0)], tint, 1.0, true);
+    }
+    if (pb[pidx(x, y - 1, z)] !== id && !op[pb[pidx(x, y - 1, z)]])
+      this.liquidQuad(b, [X1, Y, Z1, X0, Y, Z1, X0, Y, Z0, X1, Y, Z0], [0, 1, 1, 1, 1, 0, 0, 0], tile, L4, tint, 0.5, false);
+    // sides: [face, a(x,z), b(x,z), ha, hb] wound CCW from outside; skip same-liquid and opaque neighbours
+    const sides = [
+      [FACE_PX, X1, Z1, X1, Z0, h11, h10], [FACE_NX, X0, Z0, X0, Z1, h00, h01],
+      [FACE_PZ, X0, Z1, X1, Z1, h01, h11], [FACE_NZ, X1, Z0, X0, Z0, h10, h00]];
+    for (const [f, ax, az, bx, bz, ha, hb] of sides) {
+      const d = DIRS[f], q = pidx(x + d[0], y, z + d[2]), nid = pb[q];
+      if (nid === id || op[nid]) continue;
+      const Ln = [Math.max(L[0], this.ps[q]), Math.max(L[1], this.pl[q])], L4n = [Ln, Ln, Ln, Ln];
+      this.liquidQuad(b, [ax, Y, az, bx, Y, bz, bx, Y + hb, bz, ax, Y + ha, az], [0, 1, 1, 1, 1, 1 - hb, 0, 1 - ha], tile, L4n, tint, FACE_SHADE[f], false);
     }
   },
   emitModel(b, x, y, z, def, meta, bio) {

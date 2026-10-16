@@ -78,15 +78,12 @@
   #damage-flash { position: absolute; inset: 0; background: rgba(255,0,0,0); pointer-events: none; transition: background .15s; }
   #water-tint { position: absolute; inset: 0; background: rgba(20,60,160,0); pointer-events: none; }
   #fire-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(255,120,0,0.55), rgba(255,60,0,0)); pointer-events: none; }
-  #liquid-fx { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
-  #liquid-fx.water-in { animation: lqIn .65s ease-out; --lq: rgba(40,90,220,.85); --lq2: rgba(160,210,255,.9); }
-  #liquid-fx.water-out { animation: lqOut .65s ease-in; --lq: rgba(40,90,220,.6); --lq2: rgba(200,230,255,.5); }
-  #liquid-fx.lava-in { animation: lqIn .65s ease-out; --lq: rgba(255,90,0,.95); --lq2: rgba(255,220,60,.95); }
-  #liquid-fx.lava-out { animation: lqOut .65s ease-in; --lq: rgba(255,90,0,.7); --lq2: rgba(255,200,60,.6); }
-  @keyframes lqIn { 0% { opacity: 1; background: linear-gradient(to bottom, var(--lq2) 0%, var(--lq) 8%, transparent 9%); background-size: 100% 300%; background-position: 0 100%; }
-    55% { opacity: 1; background-position: 0 0; } 100% { opacity: 0; background-position: 0 0; } }
-  @keyframes lqOut { 0% { opacity: 1; backdrop-filter: blur(6px); background: repeating-linear-gradient(90deg, var(--lq) 0 6px, transparent 6px 23px), linear-gradient(transparent, var(--lq2)); background-position: 0 0; }
-    100% { opacity: 0; backdrop-filter: blur(0); background-position: 0 70vh; } }
+  /* liquid enter/leave: painted once per transition on canvas#overlay, motion is pure CSS (no gradients stripes -> no seams) */
+  #overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; will-change: transform, opacity; }
+  #overlay.lq-in { animation: lqIn .7s cubic-bezier(.2,.7,.3,1); }
+  #overlay.lq-out { animation: lqOut .8s ease-in; }
+  @keyframes lqIn { 0% { opacity: 1; transform: translateY(-100%); } 45% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(0); } }
+  @keyframes lqOut { 0% { opacity: 1; transform: translateY(0); filter: blur(1.5px); } 100% { opacity: 0; transform: translateY(18%); filter: blur(0); } }
   #mode { position: absolute; right: 8px; top: 8px; font-size: 12px; color: #fff; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.25); padding: 4px 6px; text-align: right; white-space: pre; }
   #breakhint { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); width: 120px; height: 6px; background: rgba(0,0,0,0.5); display: none; }
   #breakhint i { display: block; height: 100%; background: #fff; width: 0; }
@@ -149,7 +146,7 @@
     <div id="water-tint"></div>
     <div id="fire-overlay" class="hidden"></div>
     <div id="damage-flash"></div>
-    <div id="liquid-fx"></div>
+    <canvas id="overlay"></canvas>
     <div id="crosshair"></div>
     <div id="debug"></div>
     <div id="mode"></div>
@@ -427,10 +424,15 @@ class GrowBuf {
 
 // ---- Tick scheduler: run callbacks N game ticks in the future ---------------
 // Used by fluids, falling blocks, redstone torches, fire, spawners.
+// Fluid ticks are throttled: per game tick at most `fluidBudget` run, nearest to the player first
+// (so a flooding ocean never starves nearby updates or hitches the frame), and fluid cells below sea
+// level outside the camera frustum are parked and re-checked every `parkEvery` ticks.
+const c_SCHED = { fluidBudget: 320, parkEvery: 10, parkMargin: 2, underSeaFovOnly: true };
 const Scheduler = {
   tick: 0,
   buckets: new Map(), // tick -> array of {x,y,z,type}
   pending: new Set(), // dedupe key posKey*8+type
+  fluidQ: [], parked: [], _fr: null, _m: null, _sp: null,
   add(x, y, z, delay, type = 0) {
     const t = this.tick + Math.max(1, delay | 0);
     const dk = posKey(x, y, z) * 8 + type;
@@ -443,11 +445,34 @@ const Scheduler = {
   run(handler) {
     this.tick++;
     const b = this.buckets.get(this.tick);
-    if (!b) return;
-    this.buckets.delete(this.tick);
-    for (const e of b) { this.pending.delete(e.dk); handler(e.x, e.y, e.z, e.type); }
+    if (b) {
+      this.buckets.delete(this.tick);
+      for (const e of b) { if (e.type === gg.TICK_FLUID) { this.fluidQ.push(e); continue; } this.pending.delete(e.dk); handler(e.x, e.y, e.z, e.type); }
+    }
+    this.runFluids(handler);
   },
-  clear() { this.buckets.clear(); this.pending.clear(); this.tick = 0; }
+  frustum(cam) {
+    if (!this._fr) { this._fr = new THREE.Frustum(); this._m = new THREE.Matrix4(); this._sp = new THREE.Sphere(new THREE.Vector3(), 1); }
+    cam.updateMatrixWorld(); this._fr.setFromProjectionMatrix(this._m.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+  },
+  inView(e) {
+    this._sp.center.set(e.x + 0.5, e.y + 0.5, e.z + 0.5); this._sp.radius = c_SCHED.parkMargin;
+    return this._fr.intersectsSphere(this._sp);
+  },
+  runFluids(handler) {
+    const cam = gg.Game?.camera, p = gg.player;
+    if (this.tick % c_SCHED.parkEvery === 0 && this.parked.length) { this.fluidQ.push(...this.parked); this.parked = []; }
+    const q = this.fluidQ; if (!q.length) return;
+    const fov = c_SCHED.underSeaFovOnly && cam;
+    if (fov) this.frustum(cam);
+    if (q.length > c_SCHED.fluidBudget && p) { for (const e of q) e.d = (e.x - p.x) ** 2 + (e.y - p.y) ** 2 + (e.z - p.z) ** 2; q.sort((a, c) => a.d - c.d); }
+    const run = q.splice(0, c_SCHED.fluidBudget);
+    for (const e of run) {
+      if (fov && e.y < SEA_LEVEL && !this.inView(e)) { this.parked.push(e); continue; }
+      this.pending.delete(e.dk); handler(e.x, e.y, e.z, e.type);
+    }
+  },
+  clear() { this.buckets.clear(); this.pending.clear(); this.fluidQ = []; this.parked = []; this.tick = 0; }
 };
 
 // Tiny event bus so systems can react to world changes without hard coupling.
@@ -1375,15 +1400,42 @@ const Motion = gg.my(class Motion {
   }
 });
 /* ---- Full-screen liquid enter/leave animation + splash/sizzle ---- */
-const c_LiquidFx = { splashVy: -4, ms: 650 };
+const c_LiquidFx = {
+  splashVy: -4, ms: 820, scale: 4, drops: 42,
+  rgb: { water: ['40,95,225', '175,220,255'], lava: ['255,85,0', '255,215,70'] }
+};
 const LiquidFx = gg.my(class LiquidFx {
-  static play(cls) { const el = $('liquid-fx'); el.className = ''; void el.offsetWidth; el.className = cls; clearTimeout(this._t); this._t = setTimeout(() => el.className = '', c_LiquidFx.ms); }
+  // kind: water|lava, dir: in (surface sweeps down over the view) | out (droplets slide off)
+  static play(kind, dir) {
+    const C = c_LiquidFx, cv = $('overlay'), w = cv.width = Math.max(1, innerWidth / C.scale | 0), h = cv.height = Math.max(1, innerHeight / C.scale | 0);
+    const g = cv.getContext('2d'), [c1, c2] = C.rgb[kind], ph = Math.random() * 6.3;
+    g.clearRect(0, 0, w, h);
+    if (dir === 'in') {
+      const wave = (x) => h * 0.9 + Math.sin(x * 0.09 + ph) * h * 0.025 + Math.sin(x * 0.23 + ph * 2) * h * 0.01;
+      const body = g.createLinearGradient(0, 0, 0, h); body.addColorStop(0, `rgba(${c1},.9)`); body.addColorStop(1, `rgba(${c1},.6)`);
+      g.beginPath(); g.moveTo(0, 0); for (let x = 0; x <= w; x++) g.lineTo(x, wave(x)); g.lineTo(w, 0); g.closePath(); g.fillStyle = body; g.fill();
+      g.beginPath(); for (let x = 0; x <= w; x++) g.lineTo(x, wave(x)); g.lineWidth = Math.max(2, h * 0.012); g.strokeStyle = `rgba(${c2},.95)`; g.stroke();
+    } else {
+      const fog = g.createLinearGradient(0, 0, 0, h); fog.addColorStop(0, `rgba(${c1},.35)`); fog.addColorStop(1, `rgba(${c1},0)`);
+      g.fillStyle = fog; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < C.drops; i++) {
+        const x = Math.random() * w, y = Math.random() * h, r = (0.6 + Math.random() * 1.6) * w / 160, tail = r * (3 + Math.random() * 8);
+        const tr = g.createLinearGradient(0, y - tail, 0, y); tr.addColorStop(0, `rgba(${c2},0)`); tr.addColorStop(1, `rgba(${c2},.35)`);
+        g.fillStyle = tr; g.fillRect(x - r * 0.45, y - tail, r * 0.9, tail);
+        const d = g.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.3);
+        d.addColorStop(0, `rgba(${c2},.85)`); d.addColorStop(0.6, `rgba(${c1},.45)`); d.addColorStop(1, `rgba(${c1},0)`);
+        g.fillStyle = d; g.beginPath(); g.ellipse(x, y, r, r * 1.35, 0, 0, Math.PI * 2); g.fill();
+      }
+    }
+    cv.className = ''; void cv.offsetWidth; cv.className = 'lq-' + dir;
+    clearTimeout(this._t); this._t = setTimeout(() => cv.className = '', C.ms);
+  }
   static transition(was, p) {
     const a = gg.res_vam.a;
     if (p.inWater && !was.w) { if (p.vy < c_LiquidFx.splashVy) { a.splash(); Particles.splash?.(p.x, p.y + 0.5, p.z, 12); } }
     if (p.inLava && !was.l) a.sizzle();
-    if (p.headInWater !== was.hw) { this.play(p.headInWater ? 'water-in' : 'water-out'); if (!p.headInWater) a.splash(); }
-    if (p.headInLava !== was.hl) this.play(p.headInLava ? 'lava-in' : 'lava-out');
+    if (p.headInWater !== was.hw) { this.play('water', p.headInWater ? 'in' : 'out'); if (!p.headInWater) a.splash(); }
+    if (p.headInLava !== was.hl) this.play('lava', p.headInLava ? 'in' : 'out');
   }
 });
 const Player = {
@@ -2607,76 +2659,108 @@ Events.on('tick', () => { Mobs.tick(); Mobs.spawnTick(); });
    16. SIMULATION — fluids, gravity blocks, fire, random ticks (farming, grass,
        saplings, leaves), redstone
    ========================================================================== */
-/* ---- Fluids: cellular spread from sources ---------------------------------
+/* ---- Fluids: Minecraft-style cellular flow -----------------------------------
    meta 0 = source, 1..7 = flowing (7 = thinnest), 8 = falling column.
-   Strength = 8 for source/falling, 8-meta for flowing. Water loses 1 per
-   block, lava 2. Water + lava -> obsidian (source) / cobblestone (flowing). */
-const Fluids = {
-  schedule(x, y, z, delay) { Scheduler.add(x, y, z, delay, TICK_FLUID); },
-  strength(id, meta) { return meta === 0 || meta >= 8 ? 8 : 8 - meta; },
-  delay(id) { return id === B.water ? 5 : 25; },
-  tick(x, y, z) {
+   Strength = 8 for source/falling, 8-meta for flowing; water loses 1 per block,
+   lava 2. A cell that can flow down ONLY flows down (no sideways sheet in mid-air)
+   unless it is a source with >=3 source neighbours. Cells that can't fall spread
+   sideways to every open side (or, with seek>0, toward the nearest drop like MC), so a
+   source on a 1x1 pillar makes a cross that wraps the pillar and pours down;
+   landing columns spread again with decay. Liquid over the same liquid (a pool)
+   does not spread. Water + lava -> obsidian (source) / cobblestone (flowing). */
+const c_FLUID = {
+  // seek: MC slope search radius (water 4 / lava 2) = only flow toward the nearest drop; 0 = spread to every open side
+  delay: { water: 5, lava: 25 }, drop: { water: 1, lava: 2 }, seek: { water: 0, lava: 0 },
+  hardenDirs: [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]], NONE: 1000
+};
+const Fluids = gg.my(class Fluids {
+  static schedule(x, y, z, delay) { Scheduler.add(x, y, z, delay, TICK_FLUID); }
+  static kind(id) { return id === B.water ? 'water' : 'lava'; }
+  static strength(id, meta) { return meta === 0 || meta >= 8 ? 8 : 8 - meta; }
+  static delay(id) { return c_FLUID.delay[this.kind(id)]; }
+  static isSource(id, x, y, z) { return world.getBlock(x, y, z) === id && world.getMeta(x, y, z) === 0; }
+  // MC "water hole": the cell below accepts fluid or already holds this fluid -> don't spread sideways
+  static hole(id, x, y, z) { if (y < 0) return false; const b = world.getBlock(x, y, z); return b === id || this.canFlowInto(id, b, x, y, z); }
+  static passable(id, x, y, z) { const n = world.getBlock(x, y, z); return this.canFlowInto(id, n, x, y, z); }
+  static tick(x, y, z) {
     const id = world.getBlock(x, y, z);
     if (!isLiquidId(id)) return;
-    const meta = world.getMeta(x, y, z), drop = id === B.water ? 1 : 2, delay = this.delay(id);
-    // Lava touching water (sides/above) hardens: source -> obsidian, flowing -> cobblestone
-    if (id === B.lava && [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]].some(d => world.getBlock(x + d[0], y + d[1], z + d[2]) === B.water)) {
+    const K = this.kind(id), drop = c_FLUID.drop[K], meta = world.getMeta(x, y, z);
+    if (id === B.lava && c_FLUID.hardenDirs.some(d => world.getBlock(x + d[0], y + d[1], z + d[2]) === B.water)) {
       world.setBlock(x, y, z, meta === 0 ? B.obsidian : B.cobblestone); Particles.burst(x + 0.5, y + 1, z + 0.5, 10, [0.4, 0.4, 0.4]); return;
     }
-    let str = this.strength(id, meta);
-    // 1. Re-evaluate supply for non-source blocks
+    // 1. Re-evaluate supply of non-source cells
+    let m = meta;
     if (meta !== 0) {
-      let best = 0; const aboveSame = world.getBlock(x, y + 1, z) === id;
-      if (aboveSame) best = 8;
-      for (const d of HDIRS) { const nx = x + d[0], nz = z + d[2]; if (world.getBlock(nx, y, nz) === id) best = Math.max(best, this.strength(id, world.getMeta(nx, y, nz)) - drop); }
-      if (best <= 0) { world.setBlock(x, y, z, AIR, 0); return; }
-      const newMeta = aboveSame ? 8 : 8 - best;
-      // Infinite water: two adjacent sources on solid ground make a new source
-      if (id === B.water) { let src = 0; for (const d of HDIRS) if (world.getBlock(x + d[0], y, z + d[2]) === id && world.getMeta(x + d[0], y, z + d[2]) === 0) src++; const below = world.getDef(x, y - 1, z); if (src >= 2 && (below.solid || (below.id === id && world.getMeta(x, y - 1, z) === 0))) { world.setMeta(x, y, z, 0); str = 8; } }
-      if (newMeta !== world.getMeta(x, y, z) && world.getMeta(x, y, z) !== 0) { world.setMeta(x, y, z, newMeta); str = best; for (const d of HDIRS) if (world.getBlock(x + d[0], y, z + d[2]) === id) this.schedule(x + d[0], y, z + d[2], delay); if (world.getBlock(x, y - 1, z) === id) this.schedule(x, y - 1, z, delay); }
+      const side = HDIRS.map(d => [x + d[0], z + d[2]]).filter(([nx, nz]) => world.getBlock(nx, y, nz) === id).map(([nx, nz]) => world.getMeta(nx, y, nz));
+      const srcN = side.filter(v => v === 0).length, best = side.reduce((b, v) => Math.max(b, this.strength(id, v)), 0) - drop;
+      const bd = world.getDef(x, y - 1, z);
+      m = (K === 'water' && srcN >= 2 && (bd.solid || this.isSource(id, x, y - 1, z))) ? 0
+        : world.getBlock(x, y + 1, z) === id ? 8 : best > 0 ? 8 - best : -1;
+      if (m < 0) { world.setBlock(x, y, z, AIR, 0); return; }
+      if (m !== meta) world.setBlock(x, y, z, id, m); // notifies neighbours + reschedules
     }
-    // 2. Flow down
-    const below = world.getBlock(x, y - 1, z), bdef = Blocks.byId[below];
+    // 2. Fall: only straight down (mid-air sources need 3 source neighbours to also spread)
+    const below = world.getBlock(x, y - 1, z);
     if (y > 0 && this.canFlowInto(id, below, x, y - 1, z)) {
-      if (this.interact(id, x, y - 1, z)) return;
-      if (!(below === id && world.getMeta(x, y - 1, z) === 0)) { this.wash(x, y - 1, z); world.setBlock(x, y - 1, z, id, 8); this.schedule(x, y - 1, z, delay); }
-      if (meta >= 8) return; // falling columns only spread once they land
+      if (!this.interact(id, x, y - 1, z) && !(below === id && world.getMeta(x, y - 1, z) >= 8)) { this.wash(x, y - 1, z); world.setBlock(x, y - 1, z, id, 8); }
+      if (m === 0 && HDIRS.filter(d => this.isSource(id, x + d[0], y, z + d[2])).length >= 3) this.spread(id, x, y, z, m, drop, K);
+      return;
     }
-    // 3. Spread sideways
-    const next = str - drop;
+    // 3. Resting on something: sources always spread, flowing only if not sitting on a pool/hole
+    if (m === 0 || !this.hole(id, x, y - 1, z)) this.spread(id, x, y, z, m, drop, K);
+  }
+  static spread(id, x, y, z, m, drop, K) {
+    const next = this.strength(id, m) - drop;
     if (next < 1) return;
-    if (y > 0 && !bdef.solid && !(below === id) && this.washable(bdef)) return; // still falling
-    for (const d of HDIRS) {
-      const nx = x + d[0], nz = z + d[2], nid = world.getBlock(nx, y, nz);
-      if (!this.canFlowInto(id, nid, nx, y, nz)) continue;
+    for (const i of this.flowDirs(id, x, y, z, c_FLUID.seek[K])) {
+      const d = HDIRS[i], nx = x + d[0], nz = z + d[2], nid = world.getBlock(nx, y, nz);
       if (this.interact(id, nx, y, nz)) continue;
       if (nid === id) { if (this.strength(id, world.getMeta(nx, y, nz)) >= next) continue; }
       else this.wash(nx, y, nz);
       world.setBlock(nx, y, nz, id, 8 - next);
-      this.schedule(nx, y, nz, delay);
     }
-  },
+  }
+  // Directions with minimal distance to a drop (all passable dirs when no drop is in reach)
+  static flowDirs(id, x, y, z, max) {
+    const open = [0, 1, 2, 3].filter(i => this.passable(id, x + HDIRS[i][0], y, z + HDIRS[i][2]));
+    if (max <= 0) return open;
+    const cand = open.map(i => [i, this.hole(id, x + HDIRS[i][0], y - 1, z + HDIRS[i][2]) ? 0 : this.slope(id, x + HDIRS[i][0], y, z + HDIRS[i][2], i ^ 1, 1, max)]);
+    const min = cand.reduce((a, c) => Math.min(a, c[1]), c_FLUID.NONE);
+    return cand.filter(c => c[1] === min).map(c => c[0]);
+  }
+  static slope(id, x, y, z, from, depth, max) {
+    let best = c_FLUID.NONE;
+    for (let i = 0; i < 4; i++) {
+      if (i === from) continue;
+      const nx = x + HDIRS[i][0], nz = z + HDIRS[i][2];
+      if (!this.passable(id, nx, y, nz)) continue;
+      if (this.hole(id, nx, y - 1, nz)) return depth;
+      if (depth < max) best = Math.min(best, this.slope(id, nx, y, nz, i ^ 1, depth + 1, max));
+    }
+    return best;
+  }
   // Washable = non-solid attached blocks (torches, plants, crops, snow layers): fluids pop them as items.
-  washable: (nd) => !nd.solid && !nd.liquid && (nd.replaceable || !!nd.needsSupport),
-  canFlowInto(id, nid, x, y, z) {
+  static washable(nd) { return !nd.solid && !nd.liquid && (nd.replaceable || !!nd.needsSupport); }
+  static canFlowInto(id, nid, x, y, z) {
     if (nid === AIR) return true;
     const nd = Blocks.byId[nid];
-    if (nd.liquid) { if (nid === id) return world.getMeta(x, y, z) !== 0; return true; }
+    if (nd.liquid) return nid === id ? world.getMeta(x, y, z) !== 0 : true;
     return this.washable(nd);
-  },
-  wash(x, y, z) {
+  }
+  static wash(x, y, z) {
     const nid = world.getBlock(x, y, z); if (nid === AIR) return;
     const nd = Blocks.byId[nid]; if (nd.liquid || nd.replaceable && nid !== B.snow) return;
     for (const dr of blockDrops(nd, world.getMeta(x, y, z), null)) Entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, { name: dr.item, count: dr.count });
-  },
+  }
   // Water/lava interaction at the destination block. Returns true if handled.
-  interact(id, x, y, z) {
+  static interact(id, x, y, z) {
     const nid = world.getBlock(x, y, z);
     if (nid === B.lava && id === B.water) { world.setBlock(x, y, z, world.getMeta(x, y, z) === 0 ? B.obsidian : B.cobblestone); Particles.burst(x + 0.5, y + 1, z + 0.5, 10, [0.4, 0.4, 0.4]); return true; }
     if (nid === B.water && id === B.lava) { world.setBlock(x, y, z, B.cobblestone); Particles.burst(x + 0.5, y + 1, z + 0.5, 10, [0.4, 0.4, 0.4]); return true; }
     return false;
   }
-};
+});
 
 /* ---- Fire ------------------------------------------------------------------ */
 const Fire = {
