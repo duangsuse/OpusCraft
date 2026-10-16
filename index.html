@@ -62,7 +62,6 @@
   #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #fff; }
   #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
   #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
-  #debug { position: absolute; left: 8px; top: 8px; font-size: 12px; line-height: 16px; color: #fff; text-shadow: 1px 1px #000; white-space: pre; background: rgba(0,0,0,0.25); padding: 4px 6px; }
   #msgs { position: absolute; left: 8px; bottom: 120px; font-size: 13px; text-shadow: 1px 1px #000; max-width: 45%; }
   #msgs div { background: rgba(0,0,0,0.35); padding: 2px 6px; margin-top: 2px; animation: fadeout 6s forwards; }
   @keyframes fadeout { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
@@ -85,7 +84,7 @@
   #overlay.lq-out { animation: lqOut .8s ease-in; }
   @keyframes lqIn { 0% { opacity: 1; transform: translateY(-100%); } 45% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(0); } }
   @keyframes lqOut { 0% { opacity: 1; transform: translateY(0); filter: blur(1.5px); } 100% { opacity: 0; transform: translateY(18%); filter: blur(0); } }
-  #mode { position: absolute; right: 8px; top: 40px; font-size: 12px; color: #fff; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.25); padding: 4px 6px; text-align: right; white-space: pre; }
+  #mode { position: absolute; left: 8px; top: 8px; font-size: 12px; color: #fff; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.25); padding: 4px 6px; white-space: pre; }
   #breakhint { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); width: 120px; height: 6px; background: rgba(0,0,0,0.5); display: none; }
   #breakhint i { display: block; height: 100%; background: #fff; width: 0; }
 
@@ -156,11 +155,16 @@
   .save-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 8px; font-size: 26px; cursor: pointer; }
   .save-row:hover { background: rgba(126,143,204,.45); color: #ffffa0; } .save-row.cur { color: #9f9; }
   .save-row b { flex: 1; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .save-row small { color: #aaa; font-size: 17px; }
+  /* Save screenshot preview: the shot fills the screen behind a half-transparent title UI */
+  #shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; display: none; pointer-events: none; }
+  #start.peek { background: none; } #start.peek #shot { display: block; } #start.peek > :not(#shot, #save-list) { opacity: .45; } #start.peek #save-list { background: rgba(0,0,0,.25); }
   .save-row.empty { color: #666; cursor: default; } .save-row.empty:hover { background: none; color: #666; }
   .save-row .del { color: #c88; padding: 0 4px; } .save-row .del:hover { color: #f44; }
   #rt-pane { position: fixed; top: 8px; right: 8px; width: 300px; z-index: 40; }
   #dbg-pane { position: absolute; left: 8px; top: 8px; width: 330px; z-index: 6; pointer-events: auto; }
   #dbg-pane textarea { font: 11px/1.35 monospace !important; }
+  /* F3 pane: no property-name column, values take the full width */
+  #dbg-pane .tp-lblv_l { display: none; } #dbg-pane .tp-lblv_v { width: 100%; flex: 1; }
   #menu-pane { width: 580px; max-width: 92vw; --tp-base-background-color: rgba(0,0,0,.55); }
   #help { margin-top: 8px; display: grid; grid-template-columns: auto auto; gap: 1px 18px; font-size: 21px; color: #ddd; background: rgba(0,0,0,.5); padding: 10px 18px; border: 2px solid #000; }
   #help b { color: #ffe68a; font-weight: normal; } #help .wide { grid-column: span 2; color: #bbb; }
@@ -190,7 +194,6 @@
     <div id="damage-flash"></div>
     <canvas id="overlay"></canvas>
     <div id="crosshair"></div>
-    <div id="debug"></div>
     <div id="dbg-pane" class="hidden"></div>
     <div id="mode"></div>
     <div id="msgs"></div>
@@ -215,11 +218,12 @@
 
   <!-- Title = pause screen (VoxelCraft layout). Esc / click on the backdrop = Continue -->
   <div id="start" class="screen">
+    <img id="shot" alt="">
     <div id="title">VOXELCRAFT<span id="splash"></span></div>
     <div id="sub">a tiny block game</div>
     <button class="btn" id="btn-play"></button>
     <div class="mrow">
-      <form id="new-form" class="btn"><button type="submit">New World</button><input id="seed-input" name="seed" size="5" placeholder="seed.." pattern="z1-[A-Za-z0-9_\-]+" title="z1-xxxx (empty = random)" spellcheck="false" autocomplete="off"><small id="new-mode">G</small></form>
+      <form id="new-form" class="btn"><button type="submit">New World</button><input id="seed-input" name="seed" size="5" placeholder="seed.." pattern="z1-[A-Za-z0-9_\-]+" title="z1-xxxx (empty = random)" spellcheck="false" autocomplete="off"><small id="new-mode">G:modes</small></form>
       <button class="btn" id="btn-save">Share <input id="io" size="2" placeholder="⇅" title="paste JSON here to import"></button>
     </div>
     <div id="save-list"></div>
@@ -250,8 +254,10 @@ import * as THREE from 'three';
 import { Pane } from 'tweakpane';
 import JSZip from 'jszip';
 const gg = window.gg = { THREE, Pane, JSZip };
-// gg.my(class Topic{ static ... }) — registers a long-function topic class as gg.Topic and returns it
-gg.my = (cls) => (gg[cls.name] = cls);
+// gg.my(class Topic{ static ... }) or gg.my(new class Topic{ ... }) (singleton) — registers it as gg.Topic and returns it
+gg.my = (x) => (gg[typeof x === 'function' ? x.name : x.constructor.name] = x);
+// gg.ev(target, { type(e) {…}, … }, opts) — attach a map of listeners (handlers keep the native this = target); returns target
+gg.ev = (t, map, opts) => (Object.entries(map).forEach(([k, f]) => t.addEventListener(k, f, opts)), t);
 // CSS.fx(op): run a DOM/canvas update as a View Transition (old frame cross-fades to new). Firefox: stub with the same shape.
 CSS.fx = (op) => document.startViewTransition ? document.startViewTransition(op)
   : ((done) => ({ updateCallbackDone: done, ready: done, finished: done, skipTransition() {} }))(Promise.resolve().then(op));
@@ -1255,6 +1261,7 @@ const ChunkManager = {
    Entities are AABBs {x,y,z (feet centre), w (half width), h}. Movement is
    axis-separated sweeps against block collision boxes with 1-block step-up.
    ========================================================================== */
+const isSolidWater = (id) => id === B.water && !!Game.modeDef.solidWater;
 const Physics = {
   GRAVITY: 32, TERMINAL: 78, JUMP_VEL: 8.4,
   _boxes: [],
@@ -1270,6 +1277,7 @@ const Physics = {
         const id = c.blocks[bidx(x & 15, y, z & 15)];
         if (id === AIR) continue;
         const def = Blocks.byId[id];
+        if (isSolidWater(id)) { out.push(x, y, z, x + 1, y + 1, z + 1); continue; }
         if (!def.solid) continue;
         const bx = blockBoxes(def, c.meta[bidx(x & 15, y, z & 15)]);
         if (bx === null) out.push(x, y, z, x + 1, y + 1, z + 1);
@@ -1339,26 +1347,31 @@ const Input = {
   keys: {}, buttons: [false, false, false], dx: 0, dy: 0, locked: false, wheel: 0, canvas: null,
   init(canvas) {
     this.canvas = canvas;
-    window.addEventListener('keydown', (e) => {
-      if (e.target && e.target.tagName === 'INPUT') return;
-      if (!this.keys[e.code]) Events.emit('keypress', e.code, e);
-      this.keys[e.code] = true;
-      if (['Space', 'Tab', 'F3', 'F1'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
+    const I = this;
+    gg.ev(window, {
+      keydown(e) {
+        if (e.target && e.target.tagName === 'INPUT') return;
+        if (!I.keys[e.code]) Events.emit('keypress', e.code, e);
+        I.keys[e.code] = true;
+        if (['Space', 'Tab', 'F3', 'F1'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
+      },
+      keyup(e) { I.keys[e.code] = false; },
+      blur() { I.keys = {}; I.buttons = [false, false, false]; },
     });
-    window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
-    window.addEventListener('blur', () => { this.keys = {}; this.buttons = [false, false, false]; });
-    document.addEventListener('mousemove', (e) => { if (this.locked) { this.dx += e.movementX; this.dy += e.movementY; } });
-    canvas.addEventListener('mousedown', (e) => {
-      if (!this.locked) { if (Game.running && !Screens.isOpen() && !Game.paused) this.lock(); return; }
-      this.buttons[e.button] = true; Events.emit('mousedown', e.button);
+    gg.ev(canvas, { mousedown(e) {
+      if (!I.locked) { if (Game.running && !Screens.isOpen() && !Game.paused) I.lock(); return; }
+      I.buttons[e.button] = true; Events.emit('mousedown', e.button);
+    } });
+    gg.ev(document, {
+      mousemove(e) { if (I.locked) { I.dx += e.movementX; I.dy += e.movementY; } },
+      mouseup(e) { I.buttons[e.button] = false; },
+      contextmenu(e) { e.preventDefault(); },
+      pointerlockchange() {
+        I.locked = document.pointerLockElement === canvas;
+        if (!I.locked) { I.buttons = [false, false, false]; I.keys = {}; Events.emit('unlock'); }
+      },
     });
-    document.addEventListener('mouseup', (e) => { this.buttons[e.button] = false; });
-    document.addEventListener('wheel', (e) => { if (this.locked) this.wheel += Math.sign(e.deltaY); }, { passive: true });
-    document.addEventListener('contextmenu', (e) => e.preventDefault());
-    document.addEventListener('pointerlockchange', () => {
-      this.locked = document.pointerLockElement === canvas;
-      if (!this.locked) { this.buttons = [false, false, false]; this.keys = {}; Events.emit('unlock'); }
-    });
+    gg.ev(document, { wheel(e) { if (I.locked) I.wheel += Math.sign(e.deltaY); } }, { passive: true });
   },
   lock() { if (this.locked || !this.canvas) return; try { const r = this.canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* not allowed outside a user gesture */ } },
   unlock() { if (this.locked) document.exitPointerLock(); },
@@ -1378,8 +1391,8 @@ const player = {
 /* ---- Motion feel (VoxelCraft port): footsteps, view bob, landing dip, sprint FOV ---- */
 /* MC camera: eye height eases 50%/tick (sneak, dying pose 0.2), hurt tilt -sin(f^4·π)·14° over 10 ticks,
    death roll 40 - 8000/(t+200) degrees (t = death ticks, max 20) */
-const c_Motion = { stepLen: 1.7, bobFreq: 1.9, bobY: 0.07, bobX: 0.04, landDip: 0.28, landDecay: 5, sprintFov: 1.1, waterFov: 0.92, flyFov: 1.15,
-  hurtDur: 0.5, hurtRoll: 14 * Math.PI / 180, deathEye: 0.2, eyeEase: 0.5, deathRoll: (t) => (40 - 8000 / (Math.min(t, 20) + 200)) * Math.PI / 180, autoJumpReach: 0.45, autoJumpSprint: 1.5 };
+const c_Motion = { stepLen: 3.20, bobFreq: 1.65, bobY: 0.10, bobX: 0.035, landDip: 0.40, landDecay: 7.0, sprintFov: 1.13, waterFov: 0.92, flyFov: 1.99,
+  hurtDur: 0.15, hurtRoll: 0.46, deathEye: 1.60, eyeEase: 0.50, deathRoll: (t) => (40 - 8000 / (Math.min(t, 20) + 200)) * Math.PI / 180, autoJumpReach: 0.25, autoJumpSprint: 1.65 };
 const Motion = gg.my(class Motion {
   static update(p, dt, wasGround, fallFrom) {
     const C = c_Motion, hs = Math.hypot(p.vx, p.vz), walking = (p.onGround || p.aj) && !p.flying;
@@ -1443,19 +1456,25 @@ const LiquidFx = gg.my(class LiquidFx {
     if (p.headInLava !== was.hl) this.play('lava', p.headInLava ? 'in' : 'out');
   }
 });
-/* ---- Status damage table (survival only). first = tick offset of the first hit (0 = immediately on contact).
-   Lava: 2♥/0.5 s + 5 s afterburn (gentler than vanilla's 4 + 15 s). Edited live in the menu pane (伤害). */
-const c_Burn = { lava: 100, fireBlock: 80 };
-const hurtRow = (id, cause, every, amount, first, when, onTick) => ({ id, cause, every, amount, first, when, onTick });
-const c_Hurt = [
-  ['lava',    'tried to swim in lava', 10, 2, 0,  (p) => p.inLava, (p) => { p.fire = Math.max(p.fire, c_Burn.lava); }],
-  ['burn',    'burned to death',       20, 1, 19, (p) => p.fire > 0 && !p.inLava],
-  ['drown',   'drowned',               20, 2, 0,  (p) => p.headInWater && p.air <= 0],
-  ['cactus',  'was pricked to death',  10, 1, 0,  (p, t) => t.has(B.cactus)],
-  ['fire',    'went up in flames',     10, 1, 0,  (p, t) => t.has(B.fire), (p) => { p.fire = Math.max(p.fire, c_Burn.fireBlock); }],
-  ['starve',  'starved to death',      80, 1, 79, (p) => p.hunger <= 0 && p.health > 1],
-  ['void',    'fell out of the world', 10, 4, 0,  (p) => p.y < -64],
-].map(r => hurtRow(...r));
+/* ---- Game modes (declarative), G cycles in order. Saves store the key; old saves ('survival'/'creative') stay valid. */
+const MODES = {
+  'survival':       { label: '生存' },
+  'creative':       { label: '创造', creative: true },
+  'creative+water': { label: '创造+实心水', creative: true, solidWater: true },  // water collides and is mined like dirt
+  'creative+look':  { label: '创造+视线飞行', creative: true, lookFly: true },    // fly along the camera, never auto-land
+};
+/* ---- Status damage table (declarative, survival only): [id, cause, every, amount, first, ignite, when(p, touching)]
+   first = tick offset of the first hit (0 = on contact); ignite = afterburn ticks set while the condition holds.
+   Lava: 2♥/0.5 s + 5 s afterburn (gentler than vanilla's 4 + 15 s). Live-edited in menu.RT › 声明库. */
+const HURT = [
+  ['lava',   'tried to swim in lava', 10, 2, 0,  100, (p) => p.inLava],
+  ['burn',   'burned to death',       20, 1, 19, 0,   (p) => p.fire > 0 && !p.inLava],
+  ['drown',  'drowned',               20, 2, 0,  0,   (p) => p.headInWater && p.air <= 0],
+  ['cactus', 'was pricked to death',  10, 1, 0,  0,   (p, t) => t.has(B.cactus)],
+  ['fire',   'went up in flames',     10, 1, 0,  80,  (p, t) => t.has(B.fire)],
+  ['starve', 'starved to death',      80, 1, 79, 0,   (p) => p.hunger <= 0 && p.health > 1],
+  ['void',   'fell out of the world', 10, 4, 0,  0,   (p) => p.y < -64],
+].map(([id, cause, every, amount, first, ignite, when]) => ({ id, cause, every, amount, first, ignite, when }));
 const Player = {
   SENS: 0.0022, fovTarget: 70, flySpeed: 10.9,
   reset(spawn) {
@@ -1463,7 +1482,7 @@ const Player = {
     player.spawn = spawn.slice();
   },
   held() { return player.inventory[player.hotbar]; },
-  isCreative() { return Game.mode === 'creative'; },
+  isCreative() { return !!Game.modeDef.creative; },
   forward() { return [-Math.sin(player.yaw), 0, -Math.cos(player.yaw)]; },
   lookDir() { const cp = Math.cos(player.pitch); return [-Math.sin(player.yaw) * cp, Math.sin(player.pitch), -Math.cos(player.yaw) * cp]; },
   eye() { return [player.x, player.y + player.eyeHeight, player.z]; },
@@ -1496,7 +1515,7 @@ const Player = {
     } else { p.sneaking = false; p.sprinting = false; }
     p.eyeHeight = p.sneaking && !p.flying ? 1.27 : 1.62;
     const len = Math.hypot(mx, mz); if (len > 0) { mx /= len; mz /= len; }
-    const f = this.forward(), r = [Math.cos(p.yaw), 0, -Math.sin(p.yaw)];
+    const lookFly = p.flying && Game.modeDef.lookFly, f = lookFly ? this.lookDir() : this.forward(), r = [Math.cos(p.yaw), 0, -Math.sin(p.yaw)];
     const wx = f[0] * mz + r[0] * mx, wz = f[2] * mz + r[2] * mx;
     let speed = 4.317;
     if (p.sprinting) speed = 5.612; if (p.sneaking) speed = 1.31;
@@ -1510,9 +1529,9 @@ const Player = {
     // Vertical
     const jump = controls && !!k.Space;
     if (p.flying) {
-      const vy = (jump ? 1 : 0) - (p.sneaking ? 1 : 0);
-      p.vy += (vy * (p.sprinting ? 16 : 8) - p.vy) * (1 - Math.exp(-10 * dt));
-      if (p.onGround && vy < 0) p.flying = false;
+      const vy = (jump ? 1 : 0) - (p.sneaking ? 1 : 0), look = lookFly ? f[1] * mz * speed : 0;
+      p.vy += (vy * (p.sprinting ? 16 : 8) + look - p.vy) * (1 - Math.exp(-10 * dt));
+      if (p.onGround && vy < 0 && !lookFly) p.flying = false;
     } else if (p.inWater || p.inLava) {
       if (jump) p.vy = Math.min(p.vy + 30 * dt, 4);
       else p.vy = Math.max(p.vy - 10 * dt, p.inLava ? -1.5 : -3);
@@ -1526,7 +1545,7 @@ const Player = {
     }
     p.stepHeight = 0.6; // MC step (slabs); full blocks are cleared by auto-jump below
     const prevOnGround = p.onGround, prevY = p.y, prevFall = p.fallStart;
-    if (p.noclip) { p.flying = true; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.onGround = p.hitX = p.hitZ = false; }
+    if (p.noclip && p.flying) { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.onGround = p.hitX = p.hitZ = false; }
     else Physics.move(p, p.vx * dt, p.vy * dt, p.vz * dt);
     p.ajLand = false;
     if (p.aj && (p.onGround || p.flying || p.inWater || p.inLava || p.onLadder)) { p.ajLand = p.onGround; p.aj = 0; }
@@ -1576,14 +1595,14 @@ const Player = {
       if (p.ticksAlive % 1200 === 0) p.exhaustion += 0.5; // slow baseline drain
     } else { p.health = p.maxHealth; p.hunger = 20; }
   },
-  // Declarative status damage (c_Hurt): each row ticks its own counter while its condition holds
+  // Status damage (HURT): each row ticks its own counter while its condition holds
   statusDamage(p) {
     const touch = new Set();
     for (let x = floor(p.x - p.w - 0.05); x <= floor(p.x + p.w + 0.05); x++) for (let z = floor(p.z - p.w - 0.05); z <= floor(p.z + p.w + 0.05); z++) for (let y = floor(p.y); y <= floor(p.y + p.h); y++) touch.add(world.getBlock(x, y, z));
-    for (const h of c_Hurt) {
+    for (const h of HURT) {
       if (!h.when(p, touch)) { p.hurt[h.id] = 0; continue; }
       const n = p.hurt[h.id] = (p.hurt[h.id] || 0) + 1;
-      if (h.onTick) h.onTick(p);
+      if (h.ignite) p.fire = Math.max(p.fire, h.ignite);
       if ((n - 1) % h.every === h.first) this.damage(h.amount, h.cause);
     }
   },
@@ -1592,6 +1611,7 @@ const Player = {
     if (p.dead || amount <= 0 || this.isCreative()) return;
     if (p.damageTimer > 0) return; // brief invulnerability (like vanilla's 10 ticks)
     p.damageTimer = 0.5;
+    if (HUD.hurtMsg) HUD.message(`−${amount} · ${cause}`);
     p.health -= amount; p.hurtTimer = c_Motion.hurtDur; p.hurtDir = rng.chance(0.5) ? 1 : -1; p.exhaustion += 0.1; p.lastHurtBy = cause;
     if (knock) { p.vx += knock[0]; p.vy += knock[1]; p.vz += knock[2]; }
     HUD.flashDamage(); gg.res_vam.a.hurt();
@@ -1620,7 +1640,7 @@ const Player = {
     p.hunger = Math.min(20, p.hunger + item.food.hunger);
     p.saturation = Math.min(p.hunger, p.saturation + item.food.saturation);
   },
-  toggleFly() { if (!this.isCreative()) return; player.flying = !player.flying; player.vy = 0; HUD.message(player.flying ? 'Flying enabled' : 'Flying disabled'); },
+  toggleFly() { if (!this.isCreative() && !player.noclip) return; player.flying = !player.flying; player.vy = 0; HUD.message(player.flying ? 'Flying enabled' : 'Flying disabled'); },
   handleKey(code) {
     const p = player;
     if (Screens.isOpen() || Game.paused || p.dead) return;
@@ -1677,7 +1697,7 @@ const Interaction = {
       const id = world.getBlock(x, y, z);
       if (id !== AIR) {
         const def = Blocks.byId[id];
-        if (def.liquid ? hitLiquid : true) {
+        if (def.liquid ? hitLiquid || isSolidWater(id) : true) {
           // Non-cube blocks: test against their boxes (or a thin slab for plants)
           let hit = true;
           const boxes = blockBoxes(def, world.getMeta(x, y, z));
@@ -2106,12 +2126,13 @@ const Screens = {
     }
     P.innerHTML = html;
     P.onclick = null;
-    P.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => { this.tab = b.dataset.tab; this.render(); }));
-    P.querySelectorAll('.slot').forEach(el => {
-      el.addEventListener('mousedown', (e) => { e.preventDefault(); this.onSlot(el.dataset.c, +el.dataset.i, e.button, e.shiftKey); });
-      el.addEventListener('mouseenter', () => this.showTooltip(el));
-      el.addEventListener('mouseleave', () => { $('tooltip').style.display = 'none'; });
-    });
+    const S = this;
+    P.querySelectorAll('[data-tab]').forEach(b => gg.ev(b, { click() { S.tab = this.dataset.tab; S.render(); } }));
+    P.querySelectorAll('.slot').forEach(el => gg.ev(el, {
+      mousedown(e) { e.preventDefault(); S.onSlot(this.dataset.c, +this.dataset.i, e.button, e.shiftKey); },
+      mouseenter() { S.showTooltip(this); },
+      mouseleave() { $('tooltip').style.display = 'none'; },
+    }));
     this.refresh();
   },
   refresh() {
@@ -2205,8 +2226,8 @@ const Screens = {
     this.refresh();
   },
   init() {
-    document.addEventListener('mousemove', (e) => { const el = $('cursor-stack'); if (el.style.display !== 'none') { el.style.left = (e.clientX - 18) + 'px'; el.style.top = (e.clientY - 18) + 'px'; } });
-    $('screen').addEventListener('mousedown', (e) => { if (e.target === $('screen')) this.close(); });
+    gg.ev(document, { mousemove(e) { const el = $('cursor-stack'); if (el.style.display !== 'none') { el.style.left = (e.clientX - 18) + 'px'; el.style.top = (e.clientY - 18) + 'px'; } } });
+    gg.ev($('screen'), { mousedown(e) { if (e.target === this) Screens.close(); } });
     Events.on('keypress', (code) => {
       if (code === 'KeyE') { if (this.isOpen()) this.close(); else if (Game.running && !Game.paused && !player.dead) this.open('inventory'); }
       else if (code === 'Escape' && this.isOpen()) this.close(true);
@@ -2706,16 +2727,17 @@ Events.on('tick', () => { Mobs.tick(); Mobs.spawnTick(); });
    source on a 1x1 pillar makes a cross that wraps the pillar and pours down;
    landing columns spread again with decay. Liquid over the same liquid (a pool)
    does not spread. Water + lava -> obsidian (source) / cobblestone (flowing). */
-const c_FLUID = {
-  // seek: MC slope search radius (water 4 / lava 2) = only flow toward the nearest drop; 0 = spread to every open side
-  delay: { water: 5, lava: 25 }, drop: { water: 1, lava: 2 }, seek: { water: 0, lava: 0 },
-  hardenDirs: [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]], NONE: 1000
+// Fluid kinds (declarative). seek: MC slope search radius (water 4 / lava 2) = only flow toward the nearest drop; 0 = spread to every open side
+const FLUID = {
+  water: { delay: 5,  drop: 1, seek: 0 },
+  lava:  { delay: 25, drop: 2, seek: 0 },
 };
+const c_Flow = { hardenDirs: [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]], NONE: 1000 };
 const Fluids = gg.my(class Fluids {
   static schedule(x, y, z, delay) { Scheduler.add(x, y, z, delay, TICK_FLUID); }
   static kind(id) { return id === B.water ? 'water' : 'lava'; }
   static strength(id, meta) { return meta === 0 || meta >= 8 ? 8 : 8 - meta; }
-  static delay(id) { return c_FLUID.delay[this.kind(id)]; }
+  static delay(id) { return FLUID[this.kind(id)].delay; }
   static isSource(id, x, y, z) { return world.getBlock(x, y, z) === id && world.getMeta(x, y, z) === 0; }
   // MC "water hole": the cell below accepts fluid or already holds this fluid -> don't spread sideways
   static hole(id, x, y, z) { if (y < 0) return false; const b = world.getBlock(x, y, z); return b === id || this.canFlowInto(id, b, x, y, z); }
@@ -2723,8 +2745,8 @@ const Fluids = gg.my(class Fluids {
   static tick(x, y, z) {
     const id = world.getBlock(x, y, z);
     if (!isLiquidId(id)) return;
-    const K = this.kind(id), drop = c_FLUID.drop[K], meta = world.getMeta(x, y, z);
-    if (id === B.lava && c_FLUID.hardenDirs.some(d => world.getBlock(x + d[0], y + d[1], z + d[2]) === B.water)) {
+    const K = this.kind(id), drop = FLUID[K].drop, meta = world.getMeta(x, y, z);
+    if (id === B.lava && c_Flow.hardenDirs.some(d => world.getBlock(x + d[0], y + d[1], z + d[2]) === B.water)) {
       world.setBlock(x, y, z, meta === 0 ? B.obsidian : B.cobblestone); Particles.burst(x + 0.5, y + 1, z + 0.5, 10, [0.4, 0.4, 0.4]); return;
     }
     // 1. Re-evaluate supply of non-source cells
@@ -2751,7 +2773,7 @@ const Fluids = gg.my(class Fluids {
   static spread(id, x, y, z, m, drop, K) {
     const next = this.strength(id, m) - drop;
     if (next < 1) return;
-    for (const i of this.flowDirs(id, x, y, z, c_FLUID.seek[K])) {
+    for (const i of this.flowDirs(id, x, y, z, FLUID[K].seek)) {
       const d = HDIRS[i], nx = x + d[0], nz = z + d[2], nid = world.getBlock(nx, y, nz);
       if (this.interact(id, nx, y, nz)) continue;
       if (nid === id) { if (this.strength(id, world.getMeta(nx, y, nz)) >= next) continue; }
@@ -2764,11 +2786,11 @@ const Fluids = gg.my(class Fluids {
     const open = [0, 1, 2, 3].filter(i => this.passable(id, x + HDIRS[i][0], y, z + HDIRS[i][2]));
     if (max <= 0) return open;
     const cand = open.map(i => [i, this.hole(id, x + HDIRS[i][0], y - 1, z + HDIRS[i][2]) ? 0 : this.slope(id, x + HDIRS[i][0], y, z + HDIRS[i][2], i ^ 1, 1, max)]);
-    const min = cand.reduce((a, c) => Math.min(a, c[1]), c_FLUID.NONE);
+    const min = cand.reduce((a, c) => Math.min(a, c[1]), c_Flow.NONE);
     return cand.filter(c => c[1] === min).map(c => c[0]);
   }
   static slope(id, x, y, z, from, depth, max) {
-    let best = c_FLUID.NONE;
+    let best = c_Flow.NONE;
     for (let i = 0; i < 4; i++) {
       if (i === from) continue;
       const nx = x + HDIRS[i][0], nz = z + HDIRS[i][2];
@@ -2925,28 +2947,33 @@ const RandomTicks = {
 /* ============================================================================
    18. HUD, MESSAGES, PERSISTENCE, MENUS
    ========================================================================== */
+const c_Dbg = { facing: ['↑ N', '↖ NW', '← W', '↙ SW', '↓ S', '↘ SE', '→ E', '↗ NE'] };
 const HUD = {
-  debug: false, dbg: { text: '' }, fps: 0, frames: 0, fpsTimer: 0, uiTimer: 0, nameTimer: 0, flashTimer: 0,
+  debug: false, hurtMsg: false, dbg: { text: '' }, fps: 0, frames: 0, fpsTimer: 0, uiTimer: 0, nameTimer: 0, flashTimer: 0,
   HEART: ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'],
   FOOD: ['..XXX..', '.XXXXX.', '.XXXXX.', '..XXX..', '...XX..', '..XX...'],
   BUBBLE: ['..XXX..', '.X...X.', 'X.....X', 'X.....X', '.X...X.', '..XXX..'],
   // Merged debug info (bridge-mind + VoxelCraft F3 screen)
   debugText(p, bx, by, bz, bio) {
-    const face = ['north (-Z)', 'west (-X)', 'south (+Z)', 'east (+X)'][((Math.round(p.yaw / (Math.PI / 2)) % 4) + 4) % 4];
-    const ri = Game.renderer.info.render, st = ChunkManager.stats, t = Interaction.target;
-    return [`VoxelCraft ${this.fps} fps · ${(Game.frameMs || 0).toFixed(1)} ms`,
-      `XYZ ${p.x.toFixed(2)} / ${p.y.toFixed(2)} / ${p.z.toFixed(2)}`, `Block ${bx} ${by} ${bz}  Chunk ${bx >> 4}, ${bz >> 4}`, `Facing ${face}`,
-      `Light sky ${world.getSky(bx, by, bz)} block ${world.getBlockLight(bx, by, bz)}`, `Biome ${bio.name}`,
-      `${Sky.clockString()} · ${Weather.state}`, `Chunks ${st.loaded} · gen ${st.generated} · meshed ${st.meshed} · rd ${ChunkManager.renderDistance}`,
-      `Entities ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}`, `Draw calls ${ri.calls} · Tris ${(ri.triangles / 1000).toFixed(0)}k`,
-      `Mode ${Game.mode}${p.flying ? ' · fly' : ''}${p.noclip ? ' · noclip' : ''}`, `Seed ${Game.seed}`,
-      t ? `Target ${Blocks.byId[world.getBlock(t.x, t.y, t.z)].displayName} @ ${t.x} ${t.y} ${t.z} meta ${world.getMeta(t.x, t.y, t.z)}` : 'Target —'].join('\n');
+    const v3 = (x, y, z, d = 0) => `#(${x.toFixed(d)},${y.toFixed(d)},${z.toFixed(d)})`;
+    const face = c_Dbg.facing[((Math.round(p.yaw / (Math.PI / 4)) % 8) + 8) % 8];
+    const ri = Game.renderer.info.render, st = ChunkManager.stats, t = Interaction.target, m = Interaction.targetMob, S = Scheduler;
+    const lq = world.getDef(bx, by, bz), lqs = lq.liquid ? `${lq.name} L${world.getMeta(bx, by, bz)}` : '—';
+    // groups separated by blank lines: perf · position · environment · world · fluids/target
+    return [`VoxelCraft ${this.fps} fps · sim ${(Game.frameMs || 0).toFixed(1)} ms`, `Seed ${Game.seed}`, '', `Draw calls ${ri.calls} · Tris ${(ri.triangles / 1000).toFixed(0)}k`,
+      `Liq +${S.pending.size} rm ${S.parked.length} ${lqs}`, '',`Chunk (${bx >> 4},${bz >> 4})`,
+      `Biome ${bio.name}`, `${Sky.clockString()} · ${Weather.state}`, '',
+      `Chunks ${st.loaded} · gen ${st.generated} · meshed ${st.meshed}`,
+      `Ents ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}`, `Sun ${world.getSky(bx, by, bz)} · torch ${world.getBlockLight(bx, by, bz)}`, '',
+      `p1 ${v3(bx, by, bz)}  ${face} ${v3(p.x, p.y, p.z, 2)}`,
+      m ? `Mob ${m.type}.${m.state} ♥  ${Math.ceil(m.health)}/${m.maxHealth} ${v3(m.x, m.y, m.z, 1)}` : 'Mob —',
+      t ? `XYZB ${Blocks.byId[world.getBlock(t.x, t.y, t.z)].displayName} ${v3(t.x, t.y, t.z)}` : 'XYZB —'].join('\n');
   },
   // F3: debug pane (top-left) + noclip
   toggleDebug() {
-    this.debug = !this.debug; player.noclip = this.debug; if (this.debug) player.flying = true;
+    this.debug = !this.debug; player.noclip = this.debug; player.flying = this.debug || (player.flying && Player.isCreative());
     if (!this.dbgPane) this.dbgPane = buildPane(new gg.Pane({ container: $('dbg-pane') }), menu.DBG);
-    $('dbg-pane').classList.toggle('hidden', !this.debug); $('debug').classList.toggle('hidden', this.debug);
+    this.syncs?.forEach(f => f()); $('dbg-pane').classList.toggle('hidden', !this.debug); $('mode').classList.toggle('hidden', this.debug);
   },
   init() {
     const hb = $('hotbar'); hb.innerHTML = '';
@@ -2960,6 +2987,7 @@ const HUD = {
     if (s && s.name !== this.lastName) { const it = Items.get(s.name); $('itemname').textContent = it ? it.displayName : s.name; $('itemname').style.opacity = 1; this.nameTimer = 1.5; }
     else if (!s) $('itemname').style.opacity = 0;
     this.lastName = s ? s.name : null;
+    this.heldLib?.sync();
   },
   message(text) {
     const box = $('msgs'); const d = document.createElement('div'); d.textContent = text; box.appendChild(d);
@@ -3001,15 +3029,15 @@ const HUD = {
     const p = player;
     const bx = floor(p.x), by = floor(p.y), bz = floor(p.z);
     const bio = BIOMES[world.getBiome(bx, bz)];
-    $('mode').textContent = `${Game.mode === 'creative' ? 'Creative' : 'Survival'}${p.flying ? ' · Flying' : ''}${p.sprinting ? ' · Sprinting' : ''}\n${bio.name} · ${Sky.clockString()}${Weather.amount > 0.5 ? (Weather.snowMode ? ' · Snow' : ' · Rain') : ''}`;
+    $('mode').textContent = `${Game.modeDef.label}${p.flying ? ' · Flying' : ''}${p.sprinting ? ' · Sprinting' : ''}\n${bio.name} · ${Sky.clockString()}${Weather.amount > 0.5 ? (Weather.snowMode ? ' · Snow' : ' · Rain') : ''}`;
     if (this.debug) this.dbg.text = this.debugText(p, bx, by, bz, bio);
-    $('debug').textContent = `FPS ${this.fps}`;
   }
 };
 
 /* ---- Persistence: one localStorage slot per seed + an index for the title list ---- */
 const c_Save = {
   prefix: 'vc_w_', index: 'vc_saves', last: 'lastSeed', legacy: 'voxelcraft_save_v1', autosave: 60,
+  shotW: 640, shotQ: 0.7, shotHotbarAlpha: 0.5,   // save screenshot: max width, JPEG quality, hotbar opacity
   lastNames: ['Smith', 'Notch', 'Herobrine', 'Tanaka', 'Garcia', 'Ivanov', 'Kim', 'Müller', 'Rossi', 'Dubois', 'Silva', 'Nakamura', 'Okafor', 'Larsen', 'Novak']
 };
 Object.defineProperty(gg, 'lastSeed', { get: () => localStorage.getItem(c_Save.last), set: (v) => localStorage.setItem(c_Save.last, v), configurable: true });
@@ -3033,14 +3061,50 @@ const Save = {
     const p = { ...player, ...Screensaver.saved };   // never persist a screensaver viewpoint
     return { version: 1, seed: Game.seed, time: Sky.time, day: Sky.day, mode: Game.mode, raining: Weather.raining, thunder: Weather.thunder,
       player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying },
-      chunks };
+      chunks, shot: this.shot };
+  },
+  /* Screenshot appended to the save: { w, h (window CSS px at capture), url (JPEG data URL) }. Taken from live gameplay only
+     (pause, autosave); the hotbar is drawn over it half-transparent. The GL buffer isn't preserved, so render + copy in one task. */
+  shot: null, shots: new Map(),
+  capture() {
+    if (!Game.running || !Game.ready || Game.hold || Game.atTitle || Screensaver.saved) return;
+    const W = innerWidth, H = innerHeight, k = Math.min(1, c_Save.shotW / W), src = Game.renderer.domElement;
+    const c = Object.assign(document.createElement('canvas'), { width: Math.round(W * k), height: Math.round(H * k) }), g = c.getContext('2d');
+    Game.renderer.render(Game.scene, Game.camera); g.drawImage(src, 0, 0, c.width, c.height);
+    g.scale(k, k); g.globalAlpha = c_Save.shotHotbarAlpha; g.imageSmoothingEnabled = false;
+    const hb = $('hotbar').getBoundingClientRect(); g.fillStyle = '#000'; g.fillRect(hb.x, hb.y, hb.width, hb.height);
+    for (const el of $('hotbar').children) {
+      const r = el.getBoundingClientRect(), img = el.querySelector('img');
+      g.fillStyle = '#8b8b8b'; g.fillRect(r.x + 2, r.y + 2, r.width - 4, r.height - 4);
+      if (el.classList.contains('sel')) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(r.x + 1, r.y + 1, r.width - 2, r.height - 2); }
+      if (img.style.display !== 'none' && img.naturalWidth) g.drawImage(img, r.x + 6, r.y + 6, r.width - 12, r.height - 12);
+    }
+    this.shot = { w: W, h: H, url: c.toDataURL('image/jpeg', c_Save.shotQ) };
+    this.shots.set(Game.seed, this.shot);
+  },
+  // Zip entries: world.json (without the image) + shot.json {w,h} + shot.jpg (stored, JPEG doesn't deflate)
+  zipShot(zip, shot) { if (shot) { zip.file('shot.json', JSON.stringify({ w: shot.w, h: shot.h })); zip.file('shot.jpg', shot.url.split(',')[1], { base64: true, compression: 'STORE' }); } },
+  async unzipShot(zip) {
+    const m = zip.file('shot.json'), f = zip.file('shot.jpg');
+    return m && f ? { ...JSON.parse(await m.async('string')), url: 'data:image/jpeg;base64,' + await f.async('base64') } : null;
+  },
+  // Title preview: only the shot is read (cached; a zip inflates just the entry asked for)
+  async shotOf(seed) {
+    if (!this.shots.has(seed)) {
+      let shot = null;
+      try { const raw = localStorage.getItem(this.key(seed)); shot = !raw ? null : raw[0] === '{' ? JSON.parse(raw).shot || null : await this.unzipShot(await JSZip.loadAsync(raw, { base64: true })); }
+      catch (e) { /* unreadable save: no preview */ }
+      this.shots.set(seed, shot);
+    }
+    return this.shots.get(seed);
   },
   // localStorage copy is deflated with JSZip (base64) so many chunks fit in the ~5 MB quota.
   async save(silent) {
     if (!Game.running || !Game.ready) return false;
     try {
-      const data = this.serialize(), json = JSON.stringify(data);
-      const zip = new JSZip(); zip.file('world.json', json);
+      if (!Game.paused) this.capture();
+      const { shot, ...data } = this.serialize(), zip = new JSZip();
+      zip.file('world.json', JSON.stringify(data)); this.zipShot(zip, shot);
       const b64 = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE', compressionOptions: { level: 6 } });
       localStorage.setItem(this.key(data.seed), b64); this.touch(data.seed, b64.length >> 10);
       if (!silent) HUD.message(`World saved (${(b64.length / 1024).toFixed(0)} KB compressed, ${data.chunks.length} modified chunks)`);
@@ -3053,7 +3117,7 @@ const Save = {
   async decode(raw) {
     if (raw.charAt(0) === '{') return JSON.parse(raw);
     const zip = await JSZip.loadAsync(raw, { base64: true });
-    return JSON.parse(await zip.file('world.json').async('string'));
+    return { ...JSON.parse(await zip.file('world.json').async('string')), shot: await this.unzipShot(zip) };
   },
   async loadData(seed = Game.seed) {
     try { const raw = localStorage.getItem(this.key(seed)); return raw ? await this.decode(raw) : null; }
@@ -3083,7 +3147,7 @@ const Save = {
 };
 
 /* ---- Title = pause screen: Continue · New World <seed> (G: mode) · Save <io> · save list · settings pane ---- */
-const c_Title = { modes: ['survival', 'creative'], previewFov: 90, previewRd: 16, minRows: 4, lookSpeed: 1.6, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } };
+const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, previewFov: 90, previewRd: 16, minRows: 4, lookSpeed: 1.6, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } };
 /* ---- Tunables. gg.rndr = render pipeline, gg.sim = simulation/environment/controls. Ranges follow old.htm (VOX/P).
    Values the current mesher doesn't consume yet are stored for the DDA pipeline refactor. ---- */
 const rndr = gg.rndr = {
@@ -3105,19 +3169,40 @@ const c_Particles = { gravity: 18, breakMul: 1 };
 /* Binding combinators: every pane row is [key, target(), tweakpane opts, onChange?] or a (folder) => void builder */
 const vec2 = (o, a, b) => () => ({ v: { get x() { return o[a]; }, set x(v) { o[a] = v; }, get y() { return o[b]; }, set y(v) { o[b] = v; } } });
 const rgbArr = (arr) => () => ({ v: { get r() { return arr[0]; }, set r(x) { arr[0] = x; }, get g() { return arr[1]; }, set g(x) { arr[1] = x; }, get b() { return arr[2]; }, set b(x) { arr[2] = x; } } });
-const V2 = (label, x, y) => ({ label, x, y }), R = (min, max, step) => ({ min, max, ...(step ? { step } : {}) });
-// SoA view: c_FLUID.delay.water … → rows [{ id: 'water', delay, drop, seek }] with live accessors
-const soaRows = (obj, keys, fields) => keys.map(id => Object.defineProperties({ id }, Object.fromEntries(fields.map(f => [f, { enumerable: true, get: () => obj[f][id], set: (v) => { obj[f][id] = v; } }]))));
-// Declaration-library editor: single-select a row by key, then live-edit its fields
-const lib = (rows, key, fields, onChange) => (f) => {
-  const list = typeof rows === 'function' ? rows() : rows, sel = { k: list[0][key] }, binds = [];
-  const bindRow = () => {
-    const row = list.find(r => r[key] === sel.k); binds.splice(0).forEach(b => b.dispose());
-    for (const [k, o] of Object.entries(fields)) { const b = f.addBinding(row, k, o); if (onChange) b.on('change', () => onChange(row, k)); binds.push(b); }
-  };
-  f.addBinding(sel, 'k', { label: '条目', options: Object.fromEntries(list.map(r => [r[key], r[key]])) }).on('change', bindRow);
-  bindRow();
+// Label-less boolean: a button whose title shows the state (F3 pane hides labels)
+const toggle = (o, k, title) => (f) => {
+  const b = f.addButton({ title }), show = () => { b.title = `${o[k] ? '☑' : '☐'} ${title}`; };
+  b.on('click', () => { o[k] = !o[k]; show(); }); (HUD.syncs ??= []).push(show); show();
 };
+const V2 = (label, x, y) => ({ label, x, y }), R = (min, max, step) => ({ min, max, ...(step ? { step } : {}) });
+/* Declaration-library editor: single-select an entry, then live-edit its fields (rows without a field skip it).
+   pick = { obj, key, options() → {label: value}, row(value) → object|null, onSelect? }. Returns { sync } to follow outside changes. */
+const pickLib = (title, pick, fields, onChange) => (parent) => {
+  const f = parent.addFolder({ title, expanded: false }), binds = [];
+  let sel = null, sig = '';
+  const bindRow = () => {
+    binds.splice(0).forEach(b => b.dispose());
+    const row = pick.row(pick.obj[pick.key]); if (!row) return;
+    for (const [k, o] of Object.entries(fields)) if (k in row) binds.push(f.addBinding(row, k, o).on('change', () => onChange?.(row, k)));
+  };
+  const sync = () => {
+    const opts = pick.options(), s = JSON.stringify(opts);
+    if (s !== sig) { sig = s; sel?.dispose(); sel = f.addBinding(pick.obj, pick.key, { label: '条目', options: opts, index: 0 }).on('change', () => { pick.onSelect?.(); bindRow(); }); }
+    else sel.refresh();
+    bindRow();
+  };
+  sync();
+  return { sync };
+};
+// Table form: array of rows keyed by `key`, or a { name: row } dict (TOOL_TIERS / FLUID style)
+const lib = (title, table, key, fields, onChange) => {
+  const rows = Array.isArray(table) ? Object.fromEntries(table.map(r => [r[key], r])) : table, s = { k: Object.keys(rows)[0] };
+  return pickLib(title, { obj: s, key: 'k', options: () => Object.fromEntries(Object.keys(rows).map(k => [k, k])), row: (k) => rows[k] }, fields, onChange);
+};
+// Block/item panel follows the held hotbar slot (selecting a slot also switches the hand)
+const heldDef = (i) => { const st = player.inventory[i], it = st && Items.get(st.name); return it && it.block != null ? Blocks.byId[it.block] : it; };
+const hotbarPick = { obj: player, key: 'hotbar', row: heldDef, onSelect: () => HUD.refreshHotbar(),
+  options: () => Object.fromEntries(player.inventory.slice(0, 9).map((st, i) => [`${i + 1} ${st ? Items.get(st.name)?.displayName ?? st.name : '—'}`, i])) };
 const remeshAll = () => { for (const c of world.chunks.values()) if (c.meshed) c.dirty = true; };
 const biomeChanged = (b) => { b.grassRGB = hexToRgb(b.grass); b.foliageRGB = hexToRgb(b.foliage); b.waterRGB = hexToRgb(b.water); remeshAll(); };
 const menu = gg.menu = {
@@ -3139,7 +3224,7 @@ const menu = gg.menu = {
       ['weather', () => sim, { label: '天气', options: { '晴': 'clear', '雨/雪': 'rain', '雷暴': 'thunder' } }],
     ]],
     ['操控', [
-      ['mode', () => Game, { label: '模式', options: Object.fromEntries(c_Title.modes.map(m => [m, m])) }, (v) => Game.setMode(v)],
+      ['mode', () => Game, { label: '模式', options: Object.fromEntries(Object.entries(MODES).map(([m, d]) => [d.label, m])) }, (v) => Game.setMode(v)],
       ['fov', () => sim, { label: 'FoV', ...R(30, 120, 1) }],
       ['mouse', () => sim, { label: '鼠标速度', ...R(0.0005, 0.008, 0.0001) }],
       ['flySpeed', () => sim, { label: '航速', ...R(2, 80, 0.5) }],
@@ -3155,28 +3240,40 @@ const menu = gg.menu = {
       ['v', vec2(rndr, 'waterA2', 'waterA1'), V2('水体向量 深/浅', R(0, 1), R(0, 1))],
       ['v', vec2(rndr, 'waveStrength', 'foamWidth'), V2('水面向量', R(0, 0.2), R(0, 2))],
     ]],
-    ['调色板', [
-      ...Object.keys(Sky.colors).map(k => ['v', rgbArr(Sky.colors[k]), { label: k, color: { type: 'float' } }]),
-      ...Object.keys(rndr.palette).map(k => [k, () => rndr.palette, { label: k }]),
-    ]],
     ['粒子与覆盖', [
       ['size', () => Particles.points.material, { label: '粒子大小', ...R(0.02, 0.5, 0.01) }],
       ['gravity', () => c_Particles, { label: '粒子重力', ...R(0, 40, 0.5) }],
       ['breakMul', () => c_Particles, { label: '破坏粒子倍数', ...R(0, 4, 0.25) }],
       ['opacity', () => Interaction.crackMat, { label: '裂纹不透明', ...R(0, 1, 0.05) }],
     ]],
+    ['调色板', [
+      ...Object.keys(Sky.colors).map(k => ['v', rgbArr(Sky.colors[k]), { label: k, color: { type: 'float' } }]),
+      ...Object.keys(rndr.palette).map(k => [k, () => rndr.palette, { label: k }]),
+    ]],
+    ['镜头运动', [
+      ['stepLen', '步长', 0.5, 4, 0.05], ['bobFreq', '晃动频率', 0, 4, 0.05], ['bobY', '上下晃动', 0, 0.3, 0.005], ['bobX', '左右晃动', 0, 0.2, 0.005],
+      ['landDip', '落地下沉', 0, 1, 0.01], ['landDecay', '落地回弹', 0.5, 20, 0.5], ['sprintFov', '疾跑 FoV×', 1, 1.5, 0.01], ['waterFov', '水下 FoV×', 0.6, 1.2, 0.01],
+      ['flyFov', '飞行 FoV×', 1, 1.5, 0.01], ['hurtDur', '受伤时长 s', 0, 2, 0.05], ['hurtRoll', '受伤侧倾 rad', 0, 0.6, 0.01], ['deathEye', '死亡视高', 0, 1.6, 0.05],
+      ['eyeEase', '视高缓动', 0, 2, 0.05], ['autoJumpReach', '自动跳探距', 0.1, 1, 0.05], ['autoJumpSprint', '疾跑跳速×', 1, 2.5, 0.05],
+    ].map(([k, label, min, max, step]) => [k, () => c_Motion, { label, ...R(min, max, step) }])],
     ['声明库', [
-      (f) => lib(c_Hurt, 'id', { every: { label: '间隔 tick', ...R(1, 100, 1) }, amount: { label: '伤害 ♥/2', ...R(0, 20, 1) }, first: { label: '首次延迟', ...R(0, 99, 1) } })(f.addFolder({ title: '伤害 c_Hurt', expanded: false })),
-      (f) => lib(BIOMES, 'name', { grass: { label: '草' }, foliage: { label: '树叶' }, water: { label: '水' }, trees: { label: '树密度', ...R(0, 0.1, 0.001) } }, biomeChanged)(f.addFolder({ title: '生物群系 BIOMES', expanded: false })),
-      (f) => lib(() => soaRows(c_FLUID, ['water', 'lava'], ['delay', 'drop', 'seek']), 'id', { delay: { label: '流速 tick', ...R(1, 60, 1) }, drop: { label: '衰减', ...R(1, 4, 1) }, seek: { label: '坡度搜索', ...R(0, 6, 1) } })(f.addFolder({ title: '流体 c_FLUID', expanded: false })),
+      lib('伤害 HURT', HURT, 'id', { every: { label: '间隔 tick', ...R(1, 100, 1) }, amount: { label: '伤害 ♥/2', ...R(0, 20, 1) }, first: { label: '首次延迟', ...R(0, 99, 1) }, ignite: { label: '点燃 tick', ...R(0, 300, 10) } }),
+      lib('流体 FLUID', FLUID, null, { delay: { label: '流速 tick', ...R(1, 60, 1) }, drop: { label: '衰减', ...R(1, 4, 1) }, seek: { label: '坡度搜索', ...R(0, 6, 1) } }),
+      lib('工具 TOOL_TIERS', TOOL_TIERS, null, { level: { label: '挖掘等级', ...R(0, 5, 1) }, speed: { label: '速度', ...R(0.5, 20, 0.5) }, durability: { label: '耐久', ...R(1, 3000, 1) } },
+        (t, k) => { const tier = Object.keys(TOOL_TIERS).find(n => TOOL_TIERS[n] === t); for (const kind of ['pickaxe', 'axe', 'shovel', 'hoe', 'sword']) { const it = Items.get(tier + '_' + kind); if (it) it.tool[k] = t[k]; } }),
+      lib('生物群系 BIOMES', BIOMES, 'name', { grass: { label: '草' }, foliage: { label: '树叶' }, water: { label: '水' }, trees: { label: '树密度', ...R(0, 0.1, 0.001) } }, biomeChanged),
+      (f) => { HUD.heldLib = pickLib('手持 BLOCK_DEFS', hotbarPick, { hardness: { label: '硬度', ...R(-1, 50, 0.1) }, tier: { label: '需求等级', ...R(0, 5, 1) },
+        light: { label: '发光', ...R(0, 15, 1) }, opacity: { label: '透光衰减', ...R(0, 15, 1) }, flammable: { label: '可燃', ...R(0, 100, 1) },
+        damage: { label: '伤害', ...R(0, 20, 0.5) }, stack: { label: '堆叠', ...R(1, 64, 1) } }, (row) => { if (row.id != null) remeshAll(); })(f); },
     ]],
   ],
   // F3 debug pane (top-left): merged debug text + fps graph + noclip
   DBG: [
     ['调试', [
-      ['text', () => HUD.dbg, { label: '', readonly: true, multiline: true, rows: 15, interval: 250 }],
-      ['fps', () => HUD, { label: 'FPS', readonly: true, view: 'graph', min: 0, max: 150, interval: 250 }],
-      ['noclip', () => player, { label: 'noclip' }],
+      ['text', () => HUD.dbg, { readonly: true, multiline: true, rows: 18, interval: 250 }],
+      ['fps', () => HUD, { readonly: true, view: 'graph', min: 0, max: 150, interval: 250 }],
+      toggle(player, 'noclip', '穿墙 noclip'),
+      toggle(HUD, 'hurtMsg', '伤害→消息'),
     ], true],
   ],
 };
@@ -3209,10 +3306,10 @@ const Screensaver = gg.my(class Screensaver {
   }
   static restore() { this.t = 0; this.fov = 0; if (this.saved) { Object.assign(player, this.saved); this.saved = null; } }
 });
-const Title = gg.my(class Title {
-  static modeIdx = 0; static bootId = 0; static pane = null;
-  static get visible() { return !$('start').classList.contains('hidden'); }
-  static async boot() {
+const Title = gg.my(new class Title {
+  bootId = 0; pane = null; rt = null; userRd = null; peeking = null;
+  get visible() { return !$('start').classList.contains('hidden'); }
+  async boot() {
     const id = ++this.bootId;
     this.open();
     await Save.migrate();
@@ -3222,7 +3319,7 @@ const Title = gg.my(class Title {
     this.render();
   }
   // Two states share this screen: 'title' (page just opened, world idles behind) and 'paused' (in-game Esc)
-  static open(state = Game.running && Game.ready && !Game.atTitle ? 'paused' : 'title') {
+  open(state = Game.running && Game.ready && !Game.atTitle ? 'paused' : 'title') {
     $('start').classList.toggle('title', state === 'title'); $('start').classList.toggle('paused', state === 'paused');
     Game.atTitle = state === 'title'; Game.paused = true; Input.unlock(); Screens.close();
     $('death').classList.add('hidden'); $('loading').classList.toggle('hidden', !Game.running || Game.ready);
@@ -3230,40 +3327,58 @@ const Title = gg.my(class Title {
     const sp = gg.res_vam.t.splash; $('splash').textContent = sp[Math.floor(Math.random() * sp.length)];
     $('start').classList.remove('hidden'); this.render(); this.pane?.refresh();
   }
-  static row(e) {
+  row(e) {
     const el = document.createElement('div');
     if (!e) { el.className = 'save-row empty'; el.textContent = '— empty —'; return el; }
     const cur = Game.running && e.seed === Game.seed, when = new Date(e.t || 0).toLocaleString(undefined, c_Title.dateFmt);
-    el.className = 'save-row' + (cur ? ' cur' : '');
+    el.className = 'save-row' + (cur ? ' cur' : ''); el.dataset.seed = e.seed;
     el.innerHTML = '<b></b><small></small><span class="del" title="Delete">✕</span>';
     el.querySelector('b').textContent = (cur ? '▶ ' : '') + (e.name || Save.defaultName(e.seed));
-    el.querySelector('small').textContent = `${e.seed} · ${e.mode || 'survival'} · ${when}${e.kb ? ' · ' + e.kb + 'KB' : ''}`;
-    el.onclick = (ev) => ev.target.classList.contains('del') ? this.del(e) : this.pick(e.seed);
-    return el;
+    el.querySelector('small').textContent = `${e.seed} · ${MODES[e.mode]?.label ?? e.mode ?? 'survival'} · ${when}${e.kb ? ' · ' + e.kb + 'KB' : ''}`;
+    const T = this;
+    return gg.ev(el, { click(ev) { ev.target.classList.contains('del') ? T.del(e) : T.pick(e.seed); } });
   }
-  static render() {
+  render() {
     const list = Save.list();
     $('save-list').replaceChildren(...[...list, ...Array(Math.max(0, c_Title.minRows - list.length)).fill(null)].map(e => this.row(e)));
-    $('new-mode').textContent = 'G:' + c_Title.modes[this.modeIdx];
+    $('new-mode').textContent = 'G:' + Game.modeDef.label;
     $('btn-play').textContent = Game.running ? 'Continue' : list.length ? 'Enter: ' + (list[0].name || list[0].seed) : 'Play (new seed)';
   }
-  static del(e) {
+  del(e) {
     if (!confirm(`Delete "${e.name}" (${e.seed})?`)) return;
-    Save.remove(e.seed); this.render();
+    Save.remove(e.seed); Save.shots.delete(e.seed); this.peek(null); this.render();
   }
+  // Save screenshot under the hovered / touch-slid row, cross-faded with CSS.fx; only when the shot's WxH fits this window
+  fits(shot) {
+    const C = c_Title.peekFit, r = shot.w / innerWidth;
+    return Math.abs(shot.w / shot.h - innerWidth / innerHeight) < C.aspect && r > C.scale[0] && r < C.scale[1];
+  }
+  async peek(seed) {
+    if (seed === this.peeking) return;
+    this.peeking = seed;
+    const shot = seed ? await Save.shotOf(seed) : null;
+    if (seed !== this.peeking) return;                        // pointer moved on while the shot was decoding
+    const show = !!shot && this.fits(shot), img = $('shot');
+    if (!show && !$('start').classList.contains('peek')) return;
+    CSS.fx(async () => {
+      if (show) { img.src = shot.url; await img.decode().catch(() => {}); }
+      $('start').classList.toggle('peek', show);
+    });
+  }
+  unpeek() { this.peeking = null; $('start').classList.remove('peek'); }
   // Title preview uses a fixed wide view (FoV 90, 16 chunks); the user's view distance comes back on enter
-  static preview(on) {
+  preview(on) {
     if (on && this.userRd == null) { this.userRd = ChunkManager.renderDistance; ChunkManager.setRenderDistance(c_Title.previewRd); }
     else if (!on && this.userRd != null) { ChunkManager.setRenderDistance(this.userRd); this.userRd = null; }
   }
   // Leave the menu right away and show the bottom spinner while the old world is saved / the new one decoded
-  static async leave(text) {
-    Screensaver.restore(); $('start').classList.add('hidden'); Game.atTitle = false; this.preview(false);
+  async leave(text) {
+    Screensaver.restore(); this.unpeek(); $('start').classList.add('hidden'); Game.atTitle = false; this.preview(false);
     $('loadtext').textContent = text; $('loadbar').firstElementChild.style.width = '0'; $('loading').classList.remove('hidden');
     await new Promise(r => requestAnimationFrame(() => setTimeout(r)));
     if (Game.running && Game.ready) await Save.save(true);
   }
-  static async pick(seed) {
+  async pick(seed) {
     this.bootId++;
     if (Game.running && seed === Game.seed) return this.enter();
     await this.leave('Loading world…');
@@ -3272,58 +3387,65 @@ const Title = gg.my(class Title {
     Game.start(seed, data, false); Save.touch(seed); this.enter();
   }
   // lock=false for Esc: Esc never counts as a user gesture, so pointer lock waits for the next click
-  static enter(lock = true) {
+  enter(lock = true) {
     if (!Game.running) return;
-    Screensaver.restore(); Game.atTitle = false; Game.paused = false; this.preview(false); $('start').classList.add('hidden');
+    Screensaver.restore(); this.unpeek(); Game.atTitle = false; Game.paused = false; this.preview(false); $('start').classList.add('hidden');
     if (!Game.ready) $('loading').classList.remove('hidden');
     else if (!player.dead) { if (lock) Input.lock(); else HUD.message('Click to capture the mouse'); }
   }
-  static play() {
+  play() {
     if (Game.running) return this.enter();
     const list = Save.list();
     return list.length ? this.pick(list[0].seed) : this.newWorld('');
   }
   // Seed format is validated by the HTML layer (<input pattern> inside a submit form)
-  static async newWorld(v) {
+  async newWorld(v) {
     this.bootId++;
     await this.leave('Generating world…');
     const seed = v || Save.randomSeed();
-    Game.mode = c_Title.modes[this.modeIdx]; $('seed-input').value = '';
+    $('seed-input').value = '';
     Game.start(seed, null, false); Save.touch(seed); this.enter();
   }
   // Look around while the menu is up: arrow keys (both states) + slow drift on the title
-  static look(dt) {
+  look(dt) {
     const k = Input.keys, p = player, r = c_Title.lookSpeed * dt;
     p.yaw += ((k.ArrowLeft ? 1 : 0) - (k.ArrowRight ? 1 : 0)) * r + (Game.atTitle ? c_Title.drift * dt : 0);
     p.pitch = clamp(p.pitch + ((k.ArrowUp ? 1 : 0) - (k.ArrowDown ? 1 : 0)) * r, -1.5, 1.5);
   }
-  static cycleMode() { this.modeIdx = (this.modeIdx + 1) % c_Title.modes.length; this.render(); }
-  static io() {
-    const io = $('io');
-    io.addEventListener('click', (e) => e.stopPropagation());
-    io.addEventListener('paste', (e) => {
-      e.preventDefault(); e.stopPropagation();
-      try { const d = JSON.parse(e.clipboardData.getData('text')); if (Save.apply(d)) { Save.touch(String(d.seed)); this.enter(); } }
-      catch (err) { HUD.message('Import failed: ' + err.message); }
-    });
-    io.addEventListener('keydown', (e) => e.stopPropagation());
-  }
-  static buildPane() {
+  buildPane() {
     this.pane = buildPane(new gg.Pane({ container: $('menu-pane') }), menu.ESC);
     this.rt = buildPane(new gg.Pane({ container: $('rt-pane'), title: '菜单', expanded: false }), menu.RT);
   }
-  static init() {
-    $('btn-play').addEventListener('click', () => this.play());
-    $('new-form').addEventListener('submit', (e) => { e.preventDefault(); this.newWorld($('seed-input').value.trim()); });
-    $('new-form').addEventListener('click', (e) => { if (e.target === $('new-form') || e.target.id === 'new-mode') $('new-form').requestSubmit(); });
-    $('seed-input').addEventListener('keydown', (e) => e.stopPropagation());
-    $('btn-save').addEventListener('click', async (e) => { if (e.target.id === 'io') return; if (await Save.toClipboard()) this.render(); });
-    $('start').addEventListener('mousedown', (e) => { if (e.target === $('start') && Game.running) this.enter(); });
+  init() {
+    const T = this, stop = (e) => e.stopPropagation();
+    const rowAt = (e) => { const t = e.touches[0]; return t && document.elementFromPoint(t.clientX, t.clientY)?.closest('.save-row')?.dataset.seed; };
+    gg.ev($('btn-play'), { click() { T.play(); } });
+    gg.ev($('new-form'), {
+      submit(e) { e.preventDefault(); T.newWorld($('seed-input').value.trim()); },
+      click(e) { if (e.target === this || e.target.id === 'new-mode') this.requestSubmit(); },
+    });
+    gg.ev($('seed-input'), { keydown: stop });
+    gg.ev($('btn-save'), { async click(e) { if (e.target.id === 'io') return; if (await Save.toClipboard()) T.render(); } });
+    gg.ev($('io'), {
+      click: stop, keydown: stop,
+      paste(e) {
+        e.preventDefault(); e.stopPropagation();
+        try { const d = JSON.parse(e.clipboardData.getData('text')); if (Save.apply(d)) { Save.touch(String(d.seed)); T.enter(); } }
+        catch (err) { HUD.message('Import failed: ' + err.message); }
+      },
+    });
+    gg.ev($('start'), { mousedown(e) { if (e.target === this && Game.running) T.enter(); } });
+    gg.ev($('save-list'), {
+      mouseover(e) { T.peek(e.target.closest('.save-row')?.dataset.seed ?? null); },
+      mouseleave() { T.peek(null); },
+      touchend() { T.peek(null); },
+    });
+    gg.ev($('save-list'), { touchstart(e) { T.peek(rowAt(e) ?? null); }, touchmove(e) { T.peek(rowAt(e) ?? null); } }, { passive: true });
     Events.on('keypress', (code) => {
       if (!this.visible) return;
-      if (code === 'KeyG') this.cycleMode(); else if (code === 'Escape' && Game.running) this.enter(false);
+      if (code === 'KeyG') Game.toggleMode(); else if (code === 'Escape' && Game.running) this.enter(false);
     });
-    this.io(); this.buildPane();
+    this.buildPane();
   }
 });
 
@@ -3341,8 +3463,8 @@ const Menus = {
       fetch(packUrl).then(r => r.ok ? r.blob() : null).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop()))).catch(() => {});
     }
     Title.init();
-    $('btn-respawn').addEventListener('click', () => Player.respawn());
-    $('btn-death-title').addEventListener('click', () => { Player.respawn(); Title.open('title'); });
+    gg.ev($('btn-respawn'), { click() { Player.respawn(); } });
+    gg.ev($('btn-death-title'), { click() { Player.respawn(); Title.open('title'); } });
     Events.on('unlock', () => {
       if (Screens.suppressUnlock) { Screens.suppressUnlock = false; return; }
       if (Screens.isOpen() || performance.now() - (Screens.closedAt || 0) < 600) return; // E-window Esc never opens the pause menu
@@ -3364,7 +3486,7 @@ const Game = {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(70, 1, 0.05, 600);
     this.camera.rotation.order = 'YXZ';
-    this.resize(); window.addEventListener('resize', () => this.resize());
+    this.resize(); gg.ev(window, { resize() { Game.resize(); } });
     // Texture atlas: register every texture name, draw it, resolve block tiles
     for (const n of Blocks.textureNames) Atlas.register(n);
     Atlas.build();
@@ -3381,7 +3503,7 @@ const Game = {
   // Start a new (or loaded) world with the given seed
   // title=true: build the world behind the title screen (stays paused, no pointer lock)
   start(seed, data, title) {
-    this.seed = String(seed);
+    this.seed = String(seed); Save.shot = data?.shot || null;
     world.reset(this.seed); Terrain.init(this.seed); Scheduler.clear(); Entities.clear(); Mobs.clear(); Particles.n = 0;
     ChunkManager.needsScan = true; ChunkManager.pcx = 1e9; ChunkManager.stats = { generated: 0, meshed: 0, loaded: 0 };
     Sky.time = 1000; Sky.day = 0; Weather.raining = Weather.thunder = false; Weather.amount = Weather.storm = 0;
@@ -3390,14 +3512,14 @@ const Game = {
       Sky.time = data.time || 1000; Sky.day = data.day || 0; Weather.raining = !!data.raining; Weather.thunder = !!data.thunder; this.mode = data.mode || 'survival';
       const pl = data.player;
       Player.reset(pl.spawn || [pl.x, pl.y, pl.z]);
-      Object.assign(player, { x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw || 0, pitch: pl.pitch || 0, health: pl.health, hunger: pl.hunger, saturation: pl.saturation || 0, hotbar: pl.hotbar || 0, flying: !!pl.flying && this.mode === 'creative' });
+      Object.assign(player, { x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw || 0, pitch: pl.pitch || 0, health: pl.health, hunger: pl.hunger, saturation: pl.saturation || 0, hotbar: pl.hotbar || 0, flying: !!pl.flying && Player.isCreative() });
       this.freshSpawn = false;
       player.inventory = (pl.inventory || []).map(s => s ? { name: s.name, count: s.count, dur: s.dur } : null); while (player.inventory.length < 36) player.inventory.push(null);
     } else {
       const spawn = Terrain.findSpawn();
       Player.reset(spawn); this.freshSpawn = true; this.fov = this.fovBase;
       player.inventory.fill(null);
-      if (this.mode === 'creative') { player.inventory[0] = { name: 'stone', count: 64 }; player.inventory[1] = { name: 'oak_planks', count: 64 }; player.inventory[2] = { name: 'torch', count: 64 }; player.inventory[3] = { name: 'glass', count: 64 }; player.inventory[4] = { name: 'diamond_pickaxe', count: 1 }; }
+      if (Player.isCreative()) { player.inventory[0] = { name: 'stone', count: 64 }; player.inventory[1] = { name: 'oak_planks', count: 64 }; player.inventory[2] = { name: 'torch', count: 64 }; player.inventory[3] = { name: 'glass', count: 64 }; player.inventory[4] = { name: 'diamond_pickaxe', count: 1 }; }
     }
     HUD.refreshHotbar(); Motion.camera(this.camera, player);
     $('death').classList.add('hidden'); $('start').classList.toggle('hidden', !title);
@@ -3421,13 +3543,14 @@ const Game = {
     player.x = best[0]; player.y = best[1]; player.z = best[2]; player.vy = 0; player.fallStart = best[1];
     player.spawn = best.slice(); this.freshSpawn = false;
   },
-  pause() { if (this.running) Title.open(); },
+  pause() { if (this.running) { Save.capture(); Title.open(); } },
   resume() { Title.enter(); },
+  get modeDef() { return MODES[this.mode] || MODES.survival; },
   setMode(m) {
-    this.mode = m; if (m === 'survival') player.flying = false;
-    HUD.message('Game mode: ' + m); HUD.refreshHotbar(); Title.pane?.refresh();
+    this.mode = MODES[m] ? m : 'survival'; if (!this.modeDef.creative && !player.noclip) player.flying = false;
+    HUD.message('Game mode: ' + this.modeDef.label); HUD.refreshHotbar(); Title.pane?.refresh(); if (Title.visible) Title.render();
   },
-  toggleMode() { this.setMode(this.mode === 'creative' ? 'survival' : 'creative'); },
+  toggleMode() { const k = Object.keys(MODES); this.setMode(k[(k.indexOf(this.mode) + 1) % k.length]); },
   applyScale(v) { this.scale = v; this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5) * v); this.resize(); },
 
   // Fixed 20 Hz simulation step
@@ -3481,11 +3604,14 @@ const Game = {
     if (!this.hold) this.renderer.render(this.scene, this.camera);
   }
 };
-window.addEventListener('load', () => {
-  try { Game.init(); }
-  catch (e) { console.error(e); document.body.insertAdjacentHTML('beforeend', '<pre style="color:#f88;position:absolute;top:0;left:0;z-index:99;background:#000;padding:8px">Startup error: ' + e.message + '\n' + e.stack + '</pre>'); }
+const unloadSave = () => { if (Game.running && Game.ready) Save.saveSync(); };
+gg.ev(window, {
+  load() {
+    try { Game.init(); }
+    catch (e) { console.error(e); document.body.insertAdjacentHTML('beforeend', '<pre style="color:#f88;position:absolute;top:0;left:0;z-index:99;background:#000;padding:8px">Startup error: ' + e.message + '\n' + e.stack + '</pre>'); }
+  },
+  beforeunload: unloadSave, pagehide: unloadSave,
 });
-['beforeunload', 'pagehide'].forEach(ev => window.addEventListener(ev, () => { if (Game.running && Game.ready) Save.saveSync(); }));
 Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORATED, CH_LIT, Chunk, World, world, ChunkManager, Physics, Input, player, Player, Interaction, rayBox, Inventory, Furnace, Screens, Particles, Entities, TICK_FLUID, TICK_FALL, TICK_FIRE, Mobs, Fluids, Fire, runScheduledTick, RandomTicks, HUD, Save, Title, Menus, Game });
 
 </script>

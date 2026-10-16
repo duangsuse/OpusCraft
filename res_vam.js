@@ -491,12 +491,12 @@ const SND = {
   craft: () => { sndNoise(0.08, 900, { vol: 0.2, q: 2 }); sndTone(520, 780, 0.08, { type: 'sine', vol: 0.1, delay: 0.05 }); },
   walk: (def, pos) => sndBlock(def, pos, 'step'),
 };
-['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, audioInit, { passive: true }));
+gg.ev(window, { pointerdown: audioInit, keydown: audioInit, touchstart: audioInit }, { passive: true });
 
 // Title-screen splash slogans (one picked per title open)
 const SPLASHES = [
-  'Now with creepers!', 'Greedy meshed!', '100% procedural!', 'Water flows down now!', 'Punch the tree!',
-  'Not affiliated with Mojang!', 'Seeds start with z1-!', 'Also try old.htm!', 'DDA inside!', 'Lava is hot!'
+  'Now with creepers!', 'Happy farming!', '100% procedural cave!', 'Water flows down now!', 'Punch zombies!',
+  'Not affiliated with Mojang!', 'Ctrl+C Copy worlds!', 'DDA graphics inside!', 'Lava is hot!'
 ];
 // Resource namespaces: .v visuals (textures), .m models/mob specs, .a audio, .t texts
 gg.res_vam = {
