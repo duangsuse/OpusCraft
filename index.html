@@ -156,8 +156,10 @@
   .save-row:hover { background: rgba(126,143,204,.45); color: #ffffa0; } .save-row.cur { color: #9f9; }
   .save-row b { flex: 1; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .save-row small { color: #aaa; font-size: 17px; }
   /* Save screenshot preview: the shot fills the screen behind a half-transparent title UI */
-  #shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; display: none; pointer-events: none; }
-  #start.peek { background: none; } #start.peek #shot { display: block; } #start.peek > :not(#shot, #save-list) { opacity: .45; } #start.peek #save-list { background: rgba(0,0,0,.25); }
+  ::view-transition { pointer-events: none; cursor: pointer; }
+  /* Body-level so it outlives #start: a picked save keeps its shot up through loading until the world is ready */
+  #shot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 9; display: none; pointer-events: none; } #shot.on { display: block; }
+  #start.peek { background: none; } #start.peek > :not(#save-list) { opacity: .45; } #start.peek #save-list { background: rgba(0,0,0,.25); }
   .save-row.empty { color: #666; cursor: default; } .save-row.empty:hover { background: none; color: #666; }
   .save-row .del { color: #c88; padding: 0 4px; } .save-row .del:hover { color: #f44; }
   #rt-pane { position: fixed; top: 8px; right: 8px; width: 300px; z-index: 40; }
@@ -217,13 +219,13 @@
   </div>
 
   <!-- Title = pause screen (VoxelCraft layout). Esc / click on the backdrop = Continue -->
+  <img id="shot" alt="">
   <div id="start" class="screen">
-    <img id="shot" alt="">
     <div id="title">VOXELCRAFT<span id="splash"></span></div>
     <div id="sub">a tiny block game</div>
     <button class="btn" id="btn-play"></button>
     <div class="mrow">
-      <form id="new-form" class="btn"><button type="submit">New World</button><input id="seed-input" name="seed" size="5" placeholder="seed.." pattern="z1-[A-Za-z0-9_\-]+" title="z1-xxxx (empty = random)" spellcheck="false" autocomplete="off"><small id="new-mode">G:modes</small></form>
+      <form id="new-form" class="btn"><button type="submit">New World</button><input id="seed-input" name="seed" size="4" placeholder="⇆ ∞" pattern="z1-[A-Za-z0-9_\-]+" title="z1-xxxx (empty = random)" spellcheck="false" autocomplete="off"><small id="new-mode">G: Mode</small></form>
       <button class="btn" id="btn-save">Share <input id="io" size="2" placeholder="⇅" title="paste JSON here to import"></button>
     </div>
     <div id="save-list"></div>
@@ -1391,7 +1393,7 @@ const player = {
 /* ---- Motion feel (VoxelCraft port): footsteps, view bob, landing dip, sprint FOV ---- */
 /* MC camera: eye height eases 50%/tick (sneak, dying pose 0.2), hurt tilt -sin(f^4·π)·14° over 10 ticks,
    death roll 40 - 8000/(t+200) degrees (t = death ticks, max 20) */
-const c_Motion = { stepLen: 3.20, bobFreq: 1.65, bobY: 0.10, bobX: 0.035, landDip: 0.40, landDecay: 7.0, sprintFov: 1.13, waterFov: 0.92, flyFov: 1.99,
+const c_Motion = { stepLen: 3.20, bobFreq: 1.6, bobY: 0.11, bobX: 0.035, landDip: 0.40, landDecay: 7.0, sprintFov: 1.1, waterFov: 0.92, flyFov: 1.23,
   hurtDur: 0.15, hurtRoll: 0.46, deathEye: 1.60, eyeEase: 0.50, deathRoll: (t) => (40 - 8000 / (Math.min(t, 20) + 200)) * Math.PI / 180, autoJumpReach: 0.25, autoJumpSprint: 1.65 };
 const Motion = gg.my(class Motion {
   static update(p, dt, wasGround, fallFrom) {
@@ -3037,14 +3039,14 @@ const HUD = {
 /* ---- Persistence: one localStorage slot per seed + an index for the title list ---- */
 const c_Save = {
   prefix: 'vc_w_', index: 'vc_saves', last: 'lastSeed', legacy: 'voxelcraft_save_v1', autosave: 60,
-  shotW: 640, shotQ: 0.7, shotHotbarAlpha: 0.5,   // save screenshot: max width, JPEG quality, hotbar opacity
+  shotQ: 0.85, shotHotbarAlpha: 0.5,   // save screenshot (full GL resolution): JPEG quality, hotbar opacity (= the pause page's)
   lastNames: ['Smith', 'Notch', 'Herobrine', 'Tanaka', 'Garcia', 'Ivanov', 'Kim', 'Müller', 'Rossi', 'Dubois', 'Silva', 'Nakamura', 'Okafor', 'Larsen', 'Novak']
 };
 Object.defineProperty(gg, 'lastSeed', { get: () => localStorage.getItem(c_Save.last), set: (v) => localStorage.setItem(c_Save.last, v), configurable: true });
 const Save = {
   key: (seed) => c_Save.prefix + seed,
   randomSeed: () => 'z1-' + Math.random().toString(36).slice(2, 8),
-  defaultName: (seed) => `${c_Save.lastNames[(gg.hashString(seed) >>> 0) % c_Save.lastNames.length]} #${String(seed).replace(/^z1-/, '').slice(0, 4)}`,
+  defaultName: (seed) => `${c_Save.lastNames[(gg.hashString(seed) >>> 0) % c_Save.lastNames.length]} ${String(seed).replace(/^z1-/, '').slice(0, 4)}`,
   list() { try { return (JSON.parse(localStorage.getItem(c_Save.index)) || []).sort((a, b) => b.t - a.t); } catch (e) { return []; } },
   writeIndex(arr) { localStorage.setItem(c_Save.index, JSON.stringify(arr)); },
   // Upsert the index entry of a seed (keeps its name) and mark it as gg.lastSeed
@@ -3063,15 +3065,14 @@ const Save = {
       player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying },
       chunks, shot: this.shot };
   },
-  /* Screenshot appended to the save: { w, h (window CSS px at capture), url (JPEG data URL) }. Taken from live gameplay only
-     (pause, autosave); the hotbar is drawn over it half-transparent. The GL buffer isn't preserved, so render + copy in one task. */
+  /* Screenshot in the world JSON: shot = { w, h (window CSS px at capture), url (JPEG data URL, GL resolution) }. Taken from
+     live gameplay only (pause, autosave) with the hotbar as the pause page shows it. The GL buffer isn't preserved: render + copy in one task. */
   shot: null, shots: new Map(),
   capture() {
     if (!Game.running || !Game.ready || Game.hold || Game.atTitle || Screensaver.saved) return;
-    const W = innerWidth, H = innerHeight, k = Math.min(1, c_Save.shotW / W), src = Game.renderer.domElement;
-    const c = Object.assign(document.createElement('canvas'), { width: Math.round(W * k), height: Math.round(H * k) }), g = c.getContext('2d');
-    Game.renderer.render(Game.scene, Game.camera); g.drawImage(src, 0, 0, c.width, c.height);
-    g.scale(k, k); g.globalAlpha = c_Save.shotHotbarAlpha; g.imageSmoothingEnabled = false;
+    const src = Game.renderer.domElement, c = Object.assign(document.createElement('canvas'), { width: src.width, height: src.height }), g = c.getContext('2d');
+    Game.renderer.render(Game.scene, Game.camera); g.drawImage(src, 0, 0);
+    const k = c.width / innerWidth; g.scale(k, k); g.globalAlpha = c_Save.shotHotbarAlpha; g.imageSmoothingEnabled = false;
     const hb = $('hotbar').getBoundingClientRect(); g.fillStyle = '#000'; g.fillRect(hb.x, hb.y, hb.width, hb.height);
     for (const el of $('hotbar').children) {
       const r = el.getBoundingClientRect(), img = el.querySelector('img');
@@ -3079,22 +3080,14 @@ const Save = {
       if (el.classList.contains('sel')) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(r.x + 1, r.y + 1, r.width - 2, r.height - 2); }
       if (img.style.display !== 'none' && img.naturalWidth) g.drawImage(img, r.x + 6, r.y + 6, r.width - 12, r.height - 12);
     }
-    this.shot = { w: W, h: H, url: c.toDataURL('image/jpeg', c_Save.shotQ) };
+    this.shot = { w: innerWidth, h: innerHeight, url: c.toDataURL('image/jpeg', c_Save.shotQ) };
     this.shots.set(Game.seed, this.shot);
   },
-  // Zip entries: world.json (without the image) + shot.json {w,h} + shot.jpg (stored, JPEG doesn't deflate)
-  zipShot(zip, shot) { if (shot) { zip.file('shot.json', JSON.stringify({ w: shot.w, h: shot.h })); zip.file('shot.jpg', shot.url.split(',')[1], { base64: true, compression: 'STORE' }); } },
-  async unzipShot(zip) {
-    const m = zip.file('shot.json'), f = zip.file('shot.jpg');
-    return m && f ? { ...JSON.parse(await m.async('string')), url: 'data:image/jpeg;base64,' + await f.async('base64') } : null;
-  },
-  // Title preview: only the shot is read (cached; a zip inflates just the entry asked for)
+  // Title preview: decode the save once and keep only its shot
   async shotOf(seed) {
     if (!this.shots.has(seed)) {
-      let shot = null;
-      try { const raw = localStorage.getItem(this.key(seed)); shot = !raw ? null : raw[0] === '{' ? JSON.parse(raw).shot || null : await this.unzipShot(await JSZip.loadAsync(raw, { base64: true })); }
-      catch (e) { /* unreadable save: no preview */ }
-      this.shots.set(seed, shot);
+      const raw = localStorage.getItem(this.key(seed));
+      this.shots.set(seed, raw ? (await this.decode(raw).catch(() => null))?.shot || null : null);
     }
     return this.shots.get(seed);
   },
@@ -3103,8 +3096,8 @@ const Save = {
     if (!Game.running || !Game.ready) return false;
     try {
       if (!Game.paused) this.capture();
-      const { shot, ...data } = this.serialize(), zip = new JSZip();
-      zip.file('world.json', JSON.stringify(data)); this.zipShot(zip, shot);
+      const data = this.serialize(), zip = new JSZip();
+      zip.file('world.json', JSON.stringify(data));
       const b64 = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE', compressionOptions: { level: 6 } });
       localStorage.setItem(this.key(data.seed), b64); this.touch(data.seed, b64.length >> 10);
       if (!silent) HUD.message(`World saved (${(b64.length / 1024).toFixed(0)} KB compressed, ${data.chunks.length} modified chunks)`);
@@ -3117,7 +3110,7 @@ const Save = {
   async decode(raw) {
     if (raw.charAt(0) === '{') return JSON.parse(raw);
     const zip = await JSZip.loadAsync(raw, { base64: true });
-    return { ...JSON.parse(await zip.file('world.json').async('string')), shot: await this.unzipShot(zip) };
+    return JSON.parse(await zip.file('world.json').async('string'));
   },
   async loadData(seed = Game.seed) {
     try { const raw = localStorage.getItem(this.key(seed)); return raw ? await this.decode(raw) : null; }
@@ -3147,7 +3140,7 @@ const Save = {
 };
 
 /* ---- Title = pause screen: Continue · New World <seed> (G: mode) · Save <io> · save list · settings pane ---- */
-const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, previewFov: 90, previewRd: 16, minRows: 4, lookSpeed: 1.6, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } };
+const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, peekDelay: 90, hotbar: { paused: 0.5, title: 0 }, previewFov: 105, previewRd: 16, minRows: 4, lookSpeed: 1.9, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } };
 /* ---- Tunables. gg.rndr = render pipeline, gg.sim = simulation/environment/controls. Ranges follow old.htm (VOX/P).
    Values the current mesher doesn't consume yet are stored for the DDA pipeline refactor. ---- */
 const rndr = gg.rndr = {
@@ -3307,7 +3300,7 @@ const Screensaver = gg.my(class Screensaver {
   static restore() { this.t = 0; this.fov = 0; if (this.saved) { Object.assign(player, this.saved); this.saved = null; } }
 });
 const Title = gg.my(new class Title {
-  bootId = 0; pane = null; rt = null; userRd = null; peeking = null;
+  bootId = 0; pane = null; rt = null; userRd = null; want = null; shown = null; shownSeed = null; base = null; peekT = 0; fxRun = false; pt = null;
   get visible() { return !$('start').classList.contains('hidden'); }
   async boot() {
     const id = ++this.bootId;
@@ -3315,12 +3308,17 @@ const Title = gg.my(new class Title {
     await Save.migrate();
     const last = gg.lastSeed, data = last ? await Save.loadData(last) : null;
     if (id !== this.bootId || Game.running) return;          // user already picked/created a world meanwhile
-    if (last && (data || Save.list().some(e => e.seed === last))) { if (!data) Game.mode = Save.list().find(e => e.seed === last).mode || 'survival'; Game.start(last, data, true); }
+    if (last && (data || Save.list().some(e => e.seed === last))) {
+      if (!data) Game.mode = Save.list().find(e => e.seed === last).mode || 'survival';
+      if (data?.shot && this.fits(data.shot)) { this.base = data.shot.url; this.showShot(this.base, false); }   // stays until the world is generated
+      Game.start(last, data, true);
+    }
     this.render();
   }
   // Two states share this screen: 'title' (page just opened, world idles behind) and 'paused' (in-game Esc)
   open(state = Game.running && Game.ready && !Game.atTitle ? 'paused' : 'title') {
     $('start').classList.toggle('title', state === 'title'); $('start').classList.toggle('paused', state === 'paused');
+    $('hotbar').style.opacity = c_Title.hotbar[state];
     Game.atTitle = state === 'title'; Game.paused = true; Input.unlock(); Screens.close();
     $('death').classList.add('hidden'); $('loading').classList.toggle('hidden', !Game.running || Game.ready);
     this.preview(state === 'title');
@@ -3341,8 +3339,7 @@ const Title = gg.my(new class Title {
   render() {
     const list = Save.list();
     $('save-list').replaceChildren(...[...list, ...Array(Math.max(0, c_Title.minRows - list.length)).fill(null)].map(e => this.row(e)));
-    $('new-mode').textContent = 'G:' + Game.modeDef.label;
-    $('btn-play').textContent = Game.running ? 'Continue' : list.length ? 'Enter: ' + (list[0].name || list[0].seed) : 'Play (new seed)';
+    $('btn-play').textContent = Game.running ? (Game.atTitle ? 'Enter World' : 'Continue') : list.length ? 'Enter: ' + (list[0].name || list[0].seed) : 'Play (new seed)';
   }
   del(e) {
     if (!confirm(`Delete "${e.name}" (${e.seed})?`)) return;
@@ -3353,19 +3350,28 @@ const Title = gg.my(new class Title {
     const C = c_Title.peekFit, r = shot.w / innerWidth;
     return Math.abs(shot.w / shot.h - innerWidth / innerHeight) < C.aspect && r > C.scale[0] && r < C.scale[1];
   }
-  async peek(seed) {
-    if (seed === this.peeking) return;
-    this.peeking = seed;
-    const shot = seed ? await Save.shotOf(seed) : null;
-    if (seed !== this.peeking) return;                        // pointer moved on while the shot was decoding
-    const show = !!shot && this.fits(shot), img = $('shot');
-    if (!show && !$('start').classList.contains('peek')) return;
-    CSS.fx(async () => {
-      if (show) { img.src = shot.url; await img.decode().catch(() => {}); }
-      $('start').classList.toggle('peek', show);
-    });
+  /* Hover is hit-tested from the last pointer position, not mouseover/mouseleave: while a view transition runs the page
+     hit-tests as its root, which flipped .peek (and the cursor) on and off in a loop. Re-checked when each transition ends. */
+  hover() {
+    if (!this.visible || this.fxRun || !this.pt) return;
+    const el = document.elementFromPoint(...this.pt), row = el?.closest('#save-list .save-row');
+    if (row) this.peek(row.classList.contains('cur') ? null : row.dataset.seed ?? null);   // the running world needs no preview
+    else if (!el?.closest('#save-list')) this.peek(null);                                  // gaps between rows keep the shot
   }
-  unpeek() { this.peeking = null; $('start').classList.remove('peek'); }
+  // want = row under the pointer; settles after peekDelay so sliding across rows doesn't stack transitions
+  peek(seed) { if (seed === this.want) return; this.want = seed; clearTimeout(this.peekT); this.peekT = setTimeout(() => this.settlePeek(), c_Title.peekDelay); }
+  async settlePeek() {
+    const seed = this.want, shot = seed ? await Save.shotOf(seed) : null;
+    if (seed !== this.want) return;                           // pointer moved on while the save was decoding
+    const url = shot && this.fits(shot) ? shot.url : null;
+    if (url === this.shown) return;
+    if (url) { const im = new Image(); im.src = url; await im.decode().catch(() => {}); if (seed !== this.want) return; }
+    this.shown = url; this.shownSeed = url ? seed : null; this.fxRun = true;
+    CSS.fx(() => this.showShot(url ?? this.base, !!url)).finished.finally(() => { this.fxRun = false; this.hover(); });
+  }
+  // url = image to show; dim = hover preview (title UI half-transparent). base = lastSeed's shot shown while the boot world generates
+  showShot(url, dim = !!url) { if (url) $('shot').src = url; $('shot').classList.toggle('on', !!url); $('start').classList.toggle('peek', dim); }
+  unpeek() { this.want = this.shown = this.shownSeed = this.base = null; clearTimeout(this.peekT); this.showShot(null); }
   // Title preview uses a fixed wide view (FoV 90, 16 chunks); the user's view distance comes back on enter
   preview(on) {
     if (on && this.userRd == null) { this.userRd = ChunkManager.renderDistance; ChunkManager.setRenderDistance(c_Title.previewRd); }
@@ -3373,7 +3379,7 @@ const Title = gg.my(new class Title {
   }
   // Leave the menu right away and show the bottom spinner while the old world is saved / the new one decoded
   async leave(text) {
-    Screensaver.restore(); this.unpeek(); $('start').classList.add('hidden'); Game.atTitle = false; this.preview(false);
+    Screensaver.restore(); $('start').classList.add('hidden'); $('start').classList.remove('peek'); $('hotbar').style.opacity = ''; Game.atTitle = false; this.preview(false);
     $('loadtext').textContent = text; $('loadbar').firstElementChild.style.width = '0'; $('loading').classList.remove('hidden');
     await new Promise(r => requestAnimationFrame(() => setTimeout(r)));
     if (Game.running && Game.ready) await Save.save(true);
@@ -3381,6 +3387,7 @@ const Title = gg.my(new class Title {
   async pick(seed) {
     this.bootId++;
     if (Game.running && seed === Game.seed) return this.enter();
+    clearTimeout(this.peekT); if (this.shownSeed !== seed) this.unpeek();   // its own shot stays up until the world is ready
     await this.leave('Loading world…');
     const data = await Save.loadData(seed), e = Save.list().find(x => x.seed === seed);
     if (!data && e) Game.mode = e.mode || 'survival';
@@ -3389,7 +3396,7 @@ const Title = gg.my(new class Title {
   // lock=false for Esc: Esc never counts as a user gesture, so pointer lock waits for the next click
   enter(lock = true) {
     if (!Game.running) return;
-    Screensaver.restore(); this.unpeek(); Game.atTitle = false; Game.paused = false; this.preview(false); $('start').classList.add('hidden');
+    Screensaver.restore(); if (Game.ready) this.unpeek(); Game.atTitle = false; Game.paused = false; this.preview(false); $('start').classList.add('hidden'); $('hotbar').style.opacity = '';
     if (!Game.ready) $('loading').classList.remove('hidden');
     else if (!player.dead) { if (lock) Input.lock(); else HUD.message('Click to capture the mouse'); }
   }
@@ -3400,7 +3407,7 @@ const Title = gg.my(new class Title {
   }
   // Seed format is validated by the HTML layer (<input pattern> inside a submit form)
   async newWorld(v) {
-    this.bootId++;
+    this.bootId++; this.unpeek();
     await this.leave('Generating world…');
     const seed = v || Save.randomSeed();
     $('seed-input').value = '';
@@ -3418,7 +3425,6 @@ const Title = gg.my(new class Title {
   }
   init() {
     const T = this, stop = (e) => e.stopPropagation();
-    const rowAt = (e) => { const t = e.touches[0]; return t && document.elementFromPoint(t.clientX, t.clientY)?.closest('.save-row')?.dataset.seed; };
     gg.ev($('btn-play'), { click() { T.play(); } });
     gg.ev($('new-form'), {
       submit(e) { e.preventDefault(); T.newWorld($('seed-input').value.trim()); },
@@ -3435,12 +3441,8 @@ const Title = gg.my(new class Title {
       },
     });
     gg.ev($('start'), { mousedown(e) { if (e.target === this && Game.running) T.enter(); } });
-    gg.ev($('save-list'), {
-      mouseover(e) { T.peek(e.target.closest('.save-row')?.dataset.seed ?? null); },
-      mouseleave() { T.peek(null); },
-      touchend() { T.peek(null); },
-    });
-    gg.ev($('save-list'), { touchstart(e) { T.peek(rowAt(e) ?? null); }, touchmove(e) { T.peek(rowAt(e) ?? null); } }, { passive: true });
+    const at = (x, y) => { T.pt = [x, y]; T.hover(); };
+    gg.ev(document, { pointermove(e) { at(e.clientX, e.clientY); }, touchstart(e) { at(e.touches[0].clientX, e.touches[0].clientY); }, touchmove(e) { at(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: true });
     Events.on('keypress', (code) => {
       if (!this.visible) return;
       if (code === 'KeyG') Game.toggleMode(); else if (code === 'Escape' && Game.running) this.enter(false);
@@ -3459,8 +3461,8 @@ const Menus = {
     };
     // Resource pack only via URL: ?tex=pack.zip (legacy ?pack=), default resourcepack.zip next to index.html
     if (location.protocol.startsWith('http')) {
-      const q = new URLSearchParams(location.search), packUrl = q.get('tex') || q.get('pack') || 'resourcepack.zip';
-      fetch(packUrl).then(r => r.ok ? r.blob() : null).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop()))).catch(() => {});
+      const q = new URLSearchParams(location.search), packUrl = q.get('tex');
+      if(packUrl) fetch(packUrl).then(r => r.ok ? r.blob() : (location='?tex=survivalpack.zip')).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop())));
     }
     Title.init();
     gg.ev($('btn-respawn'), { click() { Player.respawn(); } });
@@ -3571,7 +3573,7 @@ const Game = {
         $('loadbar').firstElementChild.style.width = (ChunkManager.progress() * 100) + '%';
         if (ChunkManager.isReady(player.x, player.z)) {
           this.ready = true; $('loading').classList.add('hidden');
-          CSS.fx(() => { this.hold = false; this.renderer.render(this.scene, this.camera); });
+          CSS.fx(() => { this.hold = false; this.renderer.render(this.scene, this.camera); Title.unpeek(); });
           if (this.freshSpawn) this.settleSpawn(); else if (Physics.intersects(player)) player.y = world.getHeight(floor(player.x), floor(player.z)) + 1;
           if (this.atTitle) Title.render(); else { Input.lock(); HUD.message('Click to capture the mouse if it is not captured.'); }
         }
