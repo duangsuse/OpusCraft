@@ -39,6 +39,7 @@
   Every deliberately unfinished feature is marked with "// STUB:".
   ============================================================================
 -->
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
 <style>
   :root {
     --panel: #c6c6c6;
@@ -124,11 +125,42 @@
   .controls { font-size: 12px; columns: 2; column-gap: 24px; }
   .controls div { margin: 2px 0; }
   kbd { background: #444; color: #fff; padding: 1px 5px; border-radius: 3px; font-family: inherit; font-size: 11px; }
-  #dropzone { border: 3px dashed #666; padding: 14px; text-align: center; font-size: 12px; margin: 8px 0; background: rgba(255,255,255,0.25); }
-  #dropzone.over { border-color: var(--accent); background: rgba(63,185,80,0.25); }
-  #packstatus { font-size: 11px; color: #204020; min-height: 14px; }
-  #title-logo { font-size: 42px; font-weight: bold; letter-spacing: 2px; color: #fff; text-shadow: 3px 3px #3a3a3a, 0 0 18px rgba(255,255,255,0.35); margin: 0 0 4px 0; text-align: center; }
-  #title-sub { text-align: center; color: #ffe27a; font-size: 12px; margin-bottom: 12px; text-shadow: 1px 1px #000; }
+  /* ---- Title / pause screen (VoxelCraft) ---- */
+  .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; z-index: 10;
+    background: rgba(0,0,0,.42); font-family: 'VT323', ui-monospace, monospace; color: #e8e8e8; overflow-y: auto; }
+  #title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: clamp(28px, 6vw, 76px);
+    color: #e8e8e8;
+    letter-spacing: 4px;
+    position: relative;
+    text-shadow: 5px 5px 0 #3f3f3f, 0 0 30px rgba(0,0,0,.4);
+    margin-bottom: 4px;
+    }
+  #splash { position: absolute; right: -40px; bottom: -22px; font-family: 'VT323', monospace; font-size: 30px; color: #ff0; letter-spacing: 0;
+    text-shadow: 2px 2px 0 #3f3f00; transform: rotate(-16deg); animation: splashPulse .6s ease-in-out infinite alternate; white-space: nowrap; }
+  @keyframes splashPulse { from { transform: rotate(-16deg) scale(.95); } to { transform: rotate(-16deg) scale(1.06); } }
+  #sub {font-size: 32px;color: #cfcfcf;margin-bottom: 14px;text-shadow: 2px 2px 0 #222;}
+  #start.title {background: radial-gradient(ellipse at center, rgba(0, 0, 0, .35) 39%, rgb(69 34 34 / 85%) 97%);}
+  #start.title #menu-pane { display: none; }
+  .screen .btn { width: 580px; max-width: 92vw; height: 60px; margin: 0; padding: 0 20px; background: #717171; color: #e8e8e8; font-family: 'VT323', monospace; font-size: 36px;
+    border: 3px solid; border-color: #b0b0b0 #3a3a3a #3a3a3a #b0b0b0; box-shadow: 0 0 0 2px #000; text-shadow: 2px 2px 0 #383838; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .screen .btn:hover { background: #7e8fcc; color: #ffffa0; }
+  .mrow { display: flex; gap: 12px; } .mrow .btn { width: 284px; }
+  #new-form button { all: unset; cursor: pointer; }
+  .mrow input { width: auto; font: 28px 'VT323', monospace; padding: 0 4px; background: #222; color: #fff; border: 2px solid #555; outline: none; text-shadow: none; }
+  .mrow input:invalid { border-color: #e33; color: #f99; } .mrow input::placeholder { color: #888; }
+  #new-mode { font-size: 22px; color: #ffe27a; }
+  #save-list { width: 580px; max-width: 92vw; display: flex; flex-direction: column; gap: 2px; max-height: 22vh; overflow-y: auto; background: rgba(0,0,0,.45); border: 2px solid #000; padding: 3px; }
+  .save-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 8px; font-size: 26px; cursor: pointer; }
+  .save-row:hover { background: rgba(126,143,204,.45); color: #ffffa0; } .save-row.cur { color: #9f9; }
+  .save-row b { flex: 1; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .save-row small { color: #aaa; font-size: 17px; }
+  .save-row.empty { color: #666; cursor: default; } .save-row.empty:hover { background: none; color: #666; }
+  .save-row .del { color: #c88; padding: 0 4px; } .save-row .del:hover { color: #f44; }
+  #menu-pane { width: 580px; max-width: 92vw; --tp-base-background-color: rgba(0,0,0,.55); }
+  #help { margin-top: 8px; display: grid; grid-template-columns: auto auto; gap: 1px 18px; font-size: 21px; color: #ddd; background: rgba(0,0,0,.5); padding: 10px 18px; border: 2px solid #000; }
+  #help b { color: #ffe68a; font-weight: normal; } #help .wide { grid-column: span 2; color: #bbb; }
   #loading .panel { text-align: center; min-width: 320px; }
   #loadbar { width: 300px; height: 14px; background: #333; margin: 8px auto; border: 2px solid #fff; }
   #loadbar i { display: block; height: 100%; background: var(--accent); width: 0; }
@@ -162,48 +194,6 @@
   <div id="cursor-stack"><img alt=""><span class="cnt"></span></div>
   <div id="tooltip"></div>
 
-  <!-- Pause / help menu -->
-  <div id="pause" class="overlay hidden">
-    <div class="panel" style="min-width: 560px;">
-      <h1>Game Menu</h1>
-      <div class="row">
-        <button class="btn" id="btn-resume">Back to Game</button>
-        <button class="btn" id="btn-save">Save World</button>
-        <button class="btn" id="btn-load">Load World</button>
-        <button class="btn" id="btn-export">Export JSON</button>
-        <label class="btn" for="import-file">Import JSON</label>
-        <input type="file" id="import-file" accept=".json" class="hidden">
-      </div>
-      <div class="row">
-        <button class="btn" id="btn-mode">Toggle Creative/Survival</button>
-        <button class="btn" id="btn-newworld">New World (title screen)</button>
-        <label>Render distance <input type="range" id="rd-slider" min="2" max="12" value="6"> <span id="rd-val">6</span></label>
-      </div>
-      <div class="row">
-        <label>Resource pack (.zip): <input type="file" id="pack-file-2" accept=".zip"></label>
-        <button class="btn small" id="btn-unload-pack">Use procedural textures</button>
-        <span id="packstatus2" class="warn"></span>
-      </div>
-      <h2>Controls</h2>
-      <div class="controls">
-        <div><kbd>W A S D</kbd> move &nbsp; <kbd>Mouse</kbd> look</div>
-        <div><kbd>Space</kbd> jump / swim up &nbsp; <kbd>Shift</kbd> sneak / fly down</div>
-        <div><kbd>Ctrl</kbd> or double-tap <kbd>W</kbd> sprint</div>
-        <div>Double-tap <kbd>Space</kbd> toggle flying (creative)</div>
-        <div><kbd>Left click</kbd> mine / attack &nbsp; <kbd>Right click</kbd> place / use / eat</div>
-        <div><kbd>1-9</kbd> / <kbd>Scroll</kbd> select hotbar slot</div>
-        <div><kbd>E</kbd> inventory &nbsp; <kbd>Q</kbd> drop item &nbsp; <kbd>F</kbd> pick block (creative)</div>
-        <div><kbd>G</kbd> toggle creative/survival &nbsp; <kbd>F3</kbd> debug info</div>
-        <div><kbd>T</kbd> skip to morning &nbsp; <kbd>R</kbd> toggle weather</div>
-        <div><kbd>Esc</kbd> pause / release mouse</div>
-        <div>Right-click <b>crafting table</b>, <b>furnace</b>, <b>chest</b>, <b>door</b>, <b>lever</b> to use</div>
-        <div><b>Hoe</b> on dirt → farmland; <b>seeds</b> on farmland; <b>shears</b> on sheep</div>
-        <div><b>Flint &amp; steel</b> on TNT to ignite; <b>bucket</b> on water/lava</div>
-      </div>
-      <p class="warn">World auto-saves to localStorage every 60 s. Modified chunks only are stored; the rest regenerates from the seed.</p>
-    </div>
-  </div>
-
   <!-- Death screen -->
   <div id="death" class="overlay hidden">
     <div class="panel">
@@ -213,29 +203,26 @@
     </div>
   </div>
 
-  <!-- Title / start screen -->
-  <div id="start" class="overlay">
-    <div class="panel" style="min-width: 520px; background: rgba(40,40,40,0.9); color:#ddd;">
-      <div id="title-logo">VOXELCRAFT</div>
-      <div id="title-sub">A single-file Minecraft clone · Three.js · JSZip</div>
-      <div class="row">
-        <label>Seed: <input type="text" id="seed-input" placeholder="random" style="width:200px"></label>
-        <label>Mode:
-          <select id="mode-select"><option value="survival">Survival</option><option value="creative">Creative</option></select>
-        </label>
-        <label>Render: <input type="number" id="rd-input" min="2" max="12" value="6" style="width:60px"></label>
-      </div>
-      <div class="row">
-        <button class="btn" id="btn-play">Play New World</button>
-        <button class="btn" id="btn-continue">Continue Saved World</button>
-      </div>
-      <div id="dropzone">
-        Drop a Minecraft Java resource pack (.zip) here, or
-        <label class="btn small" for="pack-file">Choose .zip</label>
-        <input type="file" id="pack-file" accept=".zip" class="hidden">
-        <div id="packstatus">No pack loaded — using procedural textures.</div>
-      </div>
-      <p style="font-size:11px;color:#aaa">Packs can be loaded at any time from the pause menu. OptiFine/CTM/animation metadata is ignored. Works with 16x, 32x, 64x packs.</p>
+  <!-- Title = pause screen (VoxelCraft layout). Esc / click on the backdrop = Continue -->
+  <div id="start" class="screen">
+    <div id="title">VOXELCRAFT<span id="splash"></span></div>
+    <div id="sub">a tiny block game</div>
+    <button class="btn" id="btn-play">Continue</button>
+    <div class="mrow">
+      <form id="new-form" class="btn"><button type="submit">New World</button><input id="seed-input" name="seed" size="5" placeholder="seed.." pattern="z1-[A-Za-z0-9_\-]+" title="z1-xxxx (empty = random)" spellcheck="false" autocomplete="off"><small id="new-mode">G</small></form>
+      <button class="btn" id="btn-save">Save <input id="io" size="2" placeholder="⇅" title="paste JSON here to import"></button>
+    </div>
+    <div id="save-list"></div>
+    <div id="menu-pane"></div>
+    <div id="help">
+      <span><b>WASD</b> move</span><span><b>Space</b> jump / swim up</span>
+      <span><b>Shift</b> sprint (fly: descend)</span><span><b>Mouse</b> look</span>
+      <span><b>Left click</b> mine / attack</span><span><b>Right click</b> place / use / eat</span>
+      <span><b>1-9 / wheel</b> select slot</span><span><b>E</b> inventory &amp; crafting</span>
+      <span><b>Q</b> drop item</span><span><b>F</b> pick block (creative)</span>
+      <span><b>G</b> switch mode</span><span><b>F3</b> debug info</span>
+      <span><b>T</b> morning · <b>R</b> weather</span><span><b>Esc</b> pause / continue</span>
+      <span class="wide">Craft tools at a crafting table, smelt ore next to a furnace. Right-click TNT with flint &amp; steel to light it.</span>
     </div>
   </div>
 
@@ -1344,7 +1331,7 @@ const Input = {
       if (e.target && e.target.tagName === 'INPUT') return;
       if (!this.keys[e.code]) Events.emit('keypress', e.code, e);
       this.keys[e.code] = true;
-      if (['Space', 'Tab', 'F3', 'F1'].includes(e.code)) e.preventDefault();
+      if (['Space', 'Tab', 'F3', 'F1'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
     window.addEventListener('blur', () => { this.keys = {}; this.buttons = [false, false, false]; });
@@ -1439,7 +1426,7 @@ const LiquidFx = gg.my(class LiquidFx {
   }
 });
 const Player = {
-  SENS: 0.0022, fovTarget: 70,
+  SENS: 0.0022, fovTarget: 70, flySpeed: 10.9,
   reset(spawn) {
     Object.assign(player, { x: spawn[0], y: spawn[1], z: spawn[2], vx: 0, vy: 0, vz: 0, health: 20, hunger: 20, saturation: 5, exhaustion: 0, air: 300, fire: 0, dead: false, flying: false, sprinting: false, sneaking: false, fallStart: spawn[1], yaw: 0, pitch: 0 });
     player.spawn = spawn.slice();
@@ -1482,7 +1469,7 @@ const Player = {
     const wx = f[0] * mz + r[0] * mx, wz = f[2] * mz + r[2] * mx;
     let speed = 4.317;
     if (p.sprinting) speed = 5.612; if (p.sneaking) speed = 1.31;
-    if (p.flying) speed = p.sprinting ? 21 : 10.9;
+    if (p.flying) speed = Player.flySpeed * (p.sprinting ? 2 : 1);
     else if (p.inWater || p.inLava) speed = p.inLava ? 1.2 : 2.2;
     else if (p.onLadder) speed = 2;
     const rate = p.flying ? 8 : (p.onGround ? 18 : (p.inWater ? 6 : 3));
@@ -2953,9 +2940,25 @@ const HUD = {
   }
 };
 
-/* ---- Persistence ------------------------------------------------------------ */
+/* ---- Persistence: one localStorage slot per seed + an index for the title list ---- */
+const c_Save = {
+  prefix: 'vc_w_', index: 'vc_saves', last: 'lastSeed', legacy: 'voxelcraft_save_v1', autosave: 60,
+  lastNames: ['Smith', 'Notch', 'Herobrine', 'Tanaka', 'Garcia', 'Ivanov', 'Kim', 'Müller', 'Rossi', 'Dubois', 'Silva', 'Nakamura', 'Okafor', 'Larsen', 'Novak']
+};
+Object.defineProperty(gg, 'lastSeed', { get: () => localStorage.getItem(c_Save.last), set: (v) => localStorage.setItem(c_Save.last, v), configurable: true });
 const Save = {
-  KEY: 'voxelcraft_save_v1',
+  key: (seed) => c_Save.prefix + seed,
+  randomSeed: () => 'z1-' + Math.random().toString(36).slice(2, 8),
+  defaultName: (seed) => `${c_Save.lastNames[(gg.hashString(seed) >>> 0) % c_Save.lastNames.length]} #${String(seed).replace(/^z1-/, '').slice(0, 4)}`,
+  list() { try { return (JSON.parse(localStorage.getItem(c_Save.index)) || []).sort((a, b) => b.t - a.t); } catch (e) { return []; } },
+  writeIndex(arr) { localStorage.setItem(c_Save.index, JSON.stringify(arr)); },
+  // Upsert the index entry of a seed (keeps its name) and mark it as gg.lastSeed
+  touch(seed, kb) {
+    const arr = this.list(), e = arr.find(x => x.seed === seed) || (arr.push({ seed, name: this.defaultName(seed) }), arr[arr.length - 1]);
+    Object.assign(e, { mode: Game.mode, t: Date.now() }, kb != null ? { kb } : {});
+    try { this.writeIndex(arr); gg.lastSeed = seed; } catch (err) { /* quota */ }
+  },
+  remove(seed) { localStorage.removeItem(this.key(seed)); this.writeIndex(this.list().filter(x => x.seed !== seed)); if (gg.lastSeed === seed) localStorage.removeItem(c_Save.last); },
   serialize() {
     const chunks = [];
     for (const c of world.chunks.values()) if (c.modified) chunks.push(world.serializeChunk(c));
@@ -2967,90 +2970,190 @@ const Save = {
   },
   // localStorage copy is deflated with JSZip (base64) so many chunks fit in the ~5 MB quota.
   async save(silent) {
+    if (!Game.running || !Game.ready) return false;
     try {
       const data = this.serialize(), json = JSON.stringify(data);
       const zip = new JSZip(); zip.file('world.json', json);
       const b64 = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-      localStorage.setItem(this.KEY, b64);
+      localStorage.setItem(this.key(data.seed), b64); this.touch(data.seed, b64.length >> 10);
       if (!silent) HUD.message(`World saved (${(b64.length / 1024).toFixed(0)} KB compressed, ${data.chunks.length} modified chunks)`);
       return true;
     } catch (e) { HUD.message('Save failed: ' + (e.name === 'QuotaExceededError' ? 'localStorage full — use Export JSON' : e.message)); return false; }
   },
   // Synchronous fallback used on page unload (deflate is async); loadData accepts both formats.
-  saveSync() { try { localStorage.setItem(this.KEY, JSON.stringify(this.serialize())); } catch (e) { /* quota: keep the previous compressed save */ } },
-  hasSave() { try { return !!localStorage.getItem(this.KEY); } catch (e) { return false; } },
-  async loadData() {
-    try {
-      const raw = localStorage.getItem(this.KEY); if (!raw) return null;
-      if (raw.charAt(0) === '{') return JSON.parse(raw);
-      const zip = await JSZip.loadAsync(raw, { base64: true });
-      return JSON.parse(await zip.file('world.json').async('string'));
-    } catch (e) { HUD.message('Load failed: ' + e.message); return null; }
+  saveSync() { try { localStorage.setItem(this.key(Game.seed), JSON.stringify(this.serialize())); this.touch(Game.seed); } catch (e) { /* quota: keep the previous compressed save */ } },
+  hasSave() { return this.list().length > 0; },
+  async decode(raw) {
+    if (raw.charAt(0) === '{') return JSON.parse(raw);
+    const zip = await JSZip.loadAsync(raw, { base64: true });
+    return JSON.parse(await zip.file('world.json').async('string'));
+  },
+  async loadData(seed = Game.seed) {
+    try { const raw = localStorage.getItem(this.key(seed)); return raw ? await this.decode(raw) : null; }
+    catch (e) { HUD.message('Load failed: ' + e.message); return null; }
+  },
+  // One-time move of the old single-slot save into the per-seed layout
+  async migrate() {
+    const old = localStorage.getItem('vc_lastSeed'); if (old && !gg.lastSeed) gg.lastSeed = old; localStorage.removeItem('vc_lastSeed');
+    const raw = localStorage.getItem(c_Save.legacy); if (!raw) return;
+    try { const d = await this.decode(raw), seed = String(d.seed); localStorage.setItem(this.key(seed), raw); Game.mode = d.mode || 'survival'; this.touch(seed); localStorage.removeItem(c_Save.legacy); }
+    catch (e) { console.warn('legacy save migration failed', e); }
   },
   apply(data) {
     if (!data || data.version !== 1) { HUD.message('Save data invalid'); return false; }
     Game.start(String(data.seed), data);
     return true;
   },
-  exportFile() {
-    const json = JSON.stringify(this.serialize());
-    const blob = new Blob([json], { type: 'application/json' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `voxelcraft_${Game.seed}.json`; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    HUD.message('Exported ' + a.download);
-  },
-  importFile(file) {
-    const r = new FileReader();
-    r.onload = () => { try { this.apply(JSON.parse(r.result)); } catch (e) { HUD.message('Import failed: ' + e.message); } };
-    r.readAsText(file);
+  // Save button: store locally and put the world JSON on the clipboard (paste into the io box to import)
+  async toClipboard() {
+    if (!Game.running || !Game.ready) { HUD.message('No world to save'); return false; }
+    const ok = await this.save(true);
+    try { await navigator.clipboard.writeText(JSON.stringify(this.serialize())); HUD.message('World saved · JSON copied to clipboard'); }
+    catch (e) { HUD.message(ok ? 'World saved (clipboard blocked: ' + e.message + ')' : 'Clipboard blocked: ' + e.message); }
+    return ok;
   }
+
 };
+
+/* ---- Title = pause screen: Continue · New World <seed> (G: mode) · Save <io> · save list · settings pane ---- */
+const c_Title = { modes: ['survival', 'creative'], minRows: 4, lookSpeed: 1.6, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } };
+// Settings pane declaration: [folder, [[key, target(), tweakpane opts, onChange?]]]
+const c_MenuPane = [
+  ['性能', [
+    ['renderDistance', () => ChunkManager, { label: '视距', min: 2, max: 16, step: 1 }, (v) => ChunkManager.setRenderDistance(v)],
+    ['scale', () => Game, { label: '渲染缩放', min: 0.25, max: 2, step: 0.05 }, (v) => Game.applyScale(v)],
+  ]],
+  ['生态环境', [
+    ['time', () => Sky, { label: '时间', min: 0, max: 1000, step: 50 }],
+    ['raining', () => Weather, { label: '下雨' }],
+  ]],
+  ['操控', [
+    ['mode', () => Game, { label: '模式', options: Object.fromEntries(c_Title.modes.map(m => [m, m])) }, (v) => Game.setMode(v)],
+    ['fovBase', () => Game, { label: 'FoV', min: 30, max: 120, step: 1 }],
+    ['SENS', () => Player, { label: '鼠标速度', min: 0.0005, max: 0.008, step: 0.0001 }],
+    ['flySpeed', () => Player, { label: '飞行速度', min: 2, max: 40, step: 0.5 }],
+  ]],
+];
+const Title = gg.my(class Title {
+  static modeIdx = 0; static bootId = 0; static pane = null;
+  static get visible() { return !$('start').classList.contains('hidden'); }
+  static async boot() {
+    const id = ++this.bootId;
+    this.open();
+    await Save.migrate();
+    const last = gg.lastSeed, data = last ? await Save.loadData(last) : null;
+    if (id !== this.bootId || Game.running) return;          // user already picked/created a world meanwhile
+    if (last && (data || Save.list().some(e => e.seed === last))) { if (!data) Game.mode = Save.list().find(e => e.seed === last).mode || 'survival'; Game.start(last, data, true); }
+    this.render();
+  }
+  // Two states share this screen: 'title' (page just opened, world idles behind) and 'paused' (in-game Esc)
+  static open(state = Game.running && Game.ready && !Game.atTitle ? 'paused' : 'title') {
+    $('start').classList.toggle('title', state === 'title'); $('start').classList.toggle('paused', state === 'paused');
+    Game.atTitle = state === 'title'; Game.paused = true; Input.unlock(); Screens.close();
+    ['death', 'loading'].forEach(id => $(id).classList.add('hidden'));
+    const sp = gg.res_vam.t.splash; $('splash').textContent = sp[Math.floor(Math.random() * sp.length)];
+    $('start').classList.remove('hidden'); this.render(); this.pane?.refresh();
+  }
+  static row(e) {
+    const el = document.createElement('div');
+    if (!e) { el.className = 'save-row empty'; el.textContent = '— empty —'; return el; }
+    const cur = Game.running && e.seed === Game.seed, when = new Date(e.t || 0).toLocaleString(undefined, c_Title.dateFmt);
+    el.className = 'save-row' + (cur ? ' cur' : '');
+    el.innerHTML = '<b></b><small></small><span class="del" title="Delete">✕</span>';
+    el.querySelector('b').textContent = (cur ? '▶ ' : '') + (e.name || Save.defaultName(e.seed));
+    el.querySelector('small').textContent = `${e.seed} · ${e.mode || 'survival'} · ${when}${e.kb ? ' · ' + e.kb + 'KB' : ''}`;
+    el.onclick = (ev) => ev.target.classList.contains('del') ? this.del(e) : this.pick(e.seed);
+    return el;
+  }
+  static render() {
+    const list = Save.list();
+    $('save-list').replaceChildren(...[...list, ...Array(Math.max(0, c_Title.minRows - list.length)).fill(null)].map(e => this.row(e)));
+    $('new-mode').textContent = 'G:' + c_Title.modes[this.modeIdx];
+    $('btn-play').textContent = Game.running ? 'Continue' : list.length ? 'Continue: ' + (list[0].name || list[0].seed) : 'Play (random seed)';
+  }
+  static del(e) {
+    if (!confirm(`Delete "${e.name}" (${e.seed})?`)) return;
+    Save.remove(e.seed); this.render();
+  }
+  static async pick(seed) {
+    this.bootId++;
+    if (Game.running && seed === Game.seed) return this.enter();
+    if (Game.running && Game.ready) await Save.save(true);
+    const data = await Save.loadData(seed), e = Save.list().find(x => x.seed === seed);
+    if (!data && e) Game.mode = e.mode || 'survival';
+    Game.start(seed, data, false); Save.touch(seed); this.enter();
+  }
+  static enter() {
+    if (!Game.running) return;
+    Game.atTitle = false; Game.paused = false; $('start').classList.add('hidden');
+    if (Game.ready) { if (!player.dead) Input.lock(); } else $('loading').classList.remove('hidden');
+  }
+  static play() {
+    if (Game.running) return this.enter();
+    const list = Save.list();
+    return list.length ? this.pick(list[0].seed) : this.newWorld('');
+  }
+  // Seed format is validated by the HTML layer (<input pattern> inside a submit form)
+  static async newWorld(v) {
+    this.bootId++;
+    if (Game.running && Game.ready) await Save.save(true);
+    const seed = v || Save.randomSeed();
+    Game.mode = c_Title.modes[this.modeIdx]; $('seed-input').value = '';
+    Game.start(seed, null, false); Save.touch(seed); this.enter();
+  }
+  // Look around while the menu is up: arrow keys (both states) + slow drift on the title
+  static look(dt) {
+    const k = Input.keys, p = player, r = c_Title.lookSpeed * dt;
+    p.yaw += ((k.ArrowLeft ? 1 : 0) - (k.ArrowRight ? 1 : 0)) * r + (Game.atTitle ? c_Title.drift * dt : 0);
+    p.pitch = clamp(p.pitch + ((k.ArrowUp ? 1 : 0) - (k.ArrowDown ? 1 : 0)) * r, -1.5, 1.5);
+  }
+  static cycleMode() { this.modeIdx = (this.modeIdx + 1) % c_Title.modes.length; this.render(); }
+  static io() {
+    const io = $('io');
+    io.addEventListener('click', (e) => e.stopPropagation());
+    io.addEventListener('paste', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      try { const d = JSON.parse(e.clipboardData.getData('text')); if (Save.apply(d)) { Save.touch(String(d.seed)); this.enter(); } }
+      catch (err) { HUD.message('Import failed: ' + err.message); }
+    });
+    io.addEventListener('keydown', (e) => e.stopPropagation());
+  }
+  static buildPane() {
+    this.pane = new gg.Pane({ container: $('menu-pane') });
+    for (const [title, rows] of c_MenuPane) {
+      const f = this.pane.addFolder({ title, expanded: false });
+      for (const [key, target, opts, onChange] of rows) { const b = f.addBinding(target(), key, opts); if (onChange) b.on('change', (ev) => onChange(ev.value)); }
+    }
+  }
+  static init() {
+    $('btn-play').addEventListener('click', () => this.play());
+    $('new-form').addEventListener('submit', (e) => { e.preventDefault(); this.newWorld($('seed-input').value.trim()); });
+    $('new-form').addEventListener('click', (e) => { if (e.target === $('new-form') || e.target.id === 'new-mode') $('new-form').requestSubmit(); });
+    $('seed-input').addEventListener('keydown', (e) => e.stopPropagation());
+    $('btn-save').addEventListener('click', async (e) => { if (e.target.id === 'io') return; if (await Save.toClipboard()) this.render(); });
+    $('start').addEventListener('mousedown', (e) => { if (e.target === $('start') && Game.running) this.enter(); });
+    Events.on('keypress', (code) => {
+      if (!this.visible) return;
+      if (code === 'KeyG') this.cycleMode(); else if (code === 'Escape' && Game.running) this.enter();
+    });
+    this.io(); this.buildPane();
+  }
+});
 
 /* ---- Menus / DOM wiring ----------------------------------------------------- */
 const Menus = {
   init() {
-    const packStatus = (txt) => { $('packstatus').textContent = txt; $('packstatus2').textContent = txt; };
     const loadPack = async (file) => {
       if (!file) return;
-      packStatus('Loading ' + file.name + ' …');
-      try { const r = await ResourcePack.load(file); packStatus(`Loaded "${file.name}": ${r.count}/${r.total} textures matched, ${Atlas.tileRes}x resolution (missing ones use procedural art).`); HUD.message('Resource pack loaded: ' + file.name); }
-      catch (e) { console.error(e); packStatus('Failed to read pack: ' + e.message); }
+      try { const r = await ResourcePack.load(file); HUD.message(`Resource pack "${file.name}": ${r.count}/${r.total} textures, ${Atlas.tileRes}x`); }
+      catch (e) { console.error(e); HUD.message('Failed to read pack: ' + e.message); }
     };
-    $('pack-file').addEventListener('change', (e) => loadPack(e.target.files[0]));
-    $('pack-file-2').addEventListener('change', (e) => loadPack(e.target.files[0]));
-    $('btn-unload-pack').addEventListener('click', () => { ResourcePack.unload(); packStatus('No pack loaded — using procedural textures.'); });
-    const dz = $('dropzone');
-    ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('over'); }));
-    ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('over'); }));
-    dz.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f && f.name.toLowerCase().endsWith('.zip')) loadPack(f); else packStatus('Please drop a .zip resource pack'); });
-    // Whole-window drop also works while playing
-    window.addEventListener('dragover', (e) => e.preventDefault());
-    window.addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer && e.dataTransfer.files[0]; if (f && f.name.toLowerCase().endsWith('.zip')) loadPack(f); });
-
-    // Auto-load a pack served next to index.html (needs http://, not file://): ?pack=name.zip or resourcepack.zip
+    // Resource pack only via URL: ?tex=pack.zip (legacy ?pack=), default resourcepack.zip next to index.html
     if (location.protocol.startsWith('http')) {
-      const packUrl = new URLSearchParams(location.search).get('pack') || 'resourcepack.zip';
-      packStatus('Checking for ' + packUrl + ' …');
-      fetch(packUrl).then(r => r.ok ? r.blob() : null).then(blob => {
-        if (!blob || blob.size < 1024) { packStatus('No pack loaded — using procedural textures. Drop a .zip here to load one.'); return; }
-        return loadPack(new File([blob], packUrl.split('/').pop()));
-      }).catch(() => packStatus('No pack loaded — using procedural textures.'));
+      const q = new URLSearchParams(location.search), packUrl = q.get('tex') || q.get('pack') || 'resourcepack.zip';
+      fetch(packUrl).then(r => r.ok ? r.blob() : null).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop()))).catch(() => {});
     }
-    $('btn-play').addEventListener('click', () => {
-      const seed = $('seed-input').value.trim() || String(Math.floor(Math.random() * 1e9));
-      Game.mode = $('mode-select').value; ChunkManager.setRenderDistance(parseInt($('rd-input').value) || 6); $('rd-slider').value = ChunkManager.renderDistance; $('rd-val').textContent = ChunkManager.renderDistance;
-      Game.start(seed, null);
-    });
-    $('btn-continue').addEventListener('click', async () => { const d = await Save.loadData(); if (d) Save.apply(d); else HUD.message('No saved world found'); });
-    $('btn-continue').disabled = !Save.hasSave();
-    $('btn-resume').addEventListener('click', () => Game.resume());
-    $('btn-save').addEventListener('click', () => Save.save(false));
-    $('btn-load').addEventListener('click', async () => { const d = await Save.loadData(); if (d) Save.apply(d); else HUD.message('No saved world found'); });
-    $('btn-export').addEventListener('click', () => Save.exportFile());
-    $('import-file').addEventListener('change', (e) => { if (e.target.files[0]) Save.importFile(e.target.files[0]); e.target.value = ''; });
-    $('btn-mode').addEventListener('click', () => Game.toggleMode());
-    $('btn-newworld').addEventListener('click', () => { Save.save(true); Game.stop(); });
-    $('rd-slider').addEventListener('input', (e) => { ChunkManager.setRenderDistance(parseInt(e.target.value)); $('rd-val').textContent = e.target.value; });
+    Title.init();
     $('btn-respawn').addEventListener('click', () => Player.respawn());
     Events.on('unlock', () => {
       if (Screens.suppressUnlock) { Screens.suppressUnlock = false; return; }
@@ -3062,8 +3165,8 @@ const Menus = {
    19. GAME BOOTSTRAP + MAIN LOOP
    ========================================================================== */
 const Game = {
-  running: false, paused: false, ready: false, mode: 'survival', seed: '', scene: null, camera: null, renderer: null, canvas: null,
-  last: 0, tickAccum: 0, autosave: 0, fov: 70, fovBase: 70,
+  running: false, paused: false, ready: false, atTitle: false, mode: 'survival', seed: '', scene: null, camera: null, renderer: null, canvas: null,
+  last: 0, tickAccum: 0, autosave: 0, fov: 70, fovBase: 70, scale: 1,
   init() {
     this.canvas = $('gl');
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, powerPreference: 'high-performance' });
@@ -3080,14 +3183,15 @@ const Game = {
     Events.on('atlasRebuilt', () => Blocks.resolveTiles(Atlas));
     Mesher.init(); ChunkManager.init(this.scene); Entities.init(this.scene); Mobs.init(this.scene); Particles.init(this.scene);
     Sky.init(this.scene); Weather.init(this.scene); Interaction.init(this.scene); Screens.init(); HUD.init(); Input.init(this.canvas); Menus.init();
-    this.last = performance.now();
+    this.last = performance.now(); Title.boot();
     requestAnimationFrame((t) => this.loop(t));
     console.log('Voxelcraft ready. Blocks: ' + Blocks.byId.length + ', items: ' + Items.list.length + ', atlas ' + Atlas.size + 'px');
   },
   resize() { const w = window.innerWidth, h = window.innerHeight; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); },
 
   // Start a new (or loaded) world with the given seed
-  start(seed, data) {
+  // title=true: build the world behind the title screen (stays paused, no pointer lock)
+  start(seed, data, title) {
     this.seed = String(seed);
     world.reset(this.seed); Terrain.init(this.seed); Scheduler.clear(); Entities.clear(); Mobs.clear(); Particles.n = 0;
     ChunkManager.needsScan = true; ChunkManager.pcx = 1e9; ChunkManager.stats = { generated: 0, meshed: 0, loaded: 0 };
@@ -3102,20 +3206,15 @@ const Game = {
       player.inventory = (pl.inventory || []).map(s => s ? { name: s.name, count: s.count, dur: s.dur } : null); while (player.inventory.length < 36) player.inventory.push(null);
     } else {
       const spawn = Terrain.findSpawn();
-      Player.reset(spawn); this.freshSpawn = true;
+      Player.reset(spawn); this.freshSpawn = true; this.fov = this.fovBase;
       player.inventory.fill(null);
       if (this.mode === 'creative') { player.inventory[0] = { name: 'stone', count: 64 }; player.inventory[1] = { name: 'oak_planks', count: 64 }; player.inventory[2] = { name: 'torch', count: 64 }; player.inventory[3] = { name: 'glass', count: 64 }; player.inventory[4] = { name: 'diamond_pickaxe', count: 1 }; }
     }
-    HUD.refreshHotbar();
-    $('start').classList.add('hidden'); $('death').classList.add('hidden'); $('pause').classList.add('hidden');
-    $('loading').classList.remove('hidden'); $('loadtext').textContent = 'Generating world…';
-    this.running = true; this.paused = false; this.ready = false; this.autosave = 0;
+    HUD.refreshHotbar(); Motion.camera(this.camera, player);
+    $('death').classList.add('hidden'); $('start').classList.toggle('hidden', !title);
+    $('loadtext').textContent = 'Generating world…'; $('loading').classList.toggle('hidden', !!title);
+    this.running = true; this.ready = false; this.autosave = 0; this.atTitle = !!title; this.paused = !!title;
     HUD.message('Seed: ' + this.seed + ' · Press E for inventory, Esc for menu');
-  },
-  stop() {
-    this.running = false; this.ready = false; Input.unlock(); Screens.close();
-    $('pause').classList.add('hidden'); $('start').classList.remove('hidden'); $('btn-continue').disabled = !Save.hasSave();
-    world.reset(this.seed); Entities.clear(); Mobs.clear();
   },
   // New worlds: the noise height ignores caves/ravines, so pick a nearby column whose real
   // surface matches the sampled height and stand the player on it.
@@ -3132,13 +3231,14 @@ const Game = {
     player.x = best[0]; player.y = best[1]; player.z = best[2]; player.vy = 0; player.fallStart = best[1];
     player.spawn = best.slice(); this.freshSpawn = false;
   },
-  pause() { if (!this.running) return; this.paused = true; $('pause').classList.remove('hidden'); Input.unlock(); },
-  resume() { this.paused = false; $('pause').classList.add('hidden'); if (!player.dead) Input.lock(); },
-  toggleMode() {
-    this.mode = this.mode === 'creative' ? 'survival' : 'creative';
-    if (this.mode === 'survival') player.flying = false;
-    HUD.message('Game mode: ' + this.mode); HUD.refreshHotbar();
+  pause() { if (this.running) Title.open(); },
+  resume() { Title.enter(); },
+  setMode(m) {
+    this.mode = m; if (m === 'survival') player.flying = false;
+    HUD.message('Game mode: ' + m); HUD.refreshHotbar(); Title.pane?.refresh();
   },
+  toggleMode() { this.setMode(this.mode === 'creative' ? 'survival' : 'creative'); },
+  applyScale(v) { this.scale = v; this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5) * v); this.resize(); },
 
   // Fixed 20 Hz simulation step
   tick() {
@@ -3159,9 +3259,10 @@ const Game = {
         if (ChunkManager.isReady(player.x, player.z)) {
           this.ready = true; $('loading').classList.add('hidden');
           if (this.freshSpawn) this.settleSpawn(); else if (Physics.intersects(player)) player.y = world.getHeight(floor(player.x), floor(player.z)) + 1;
-          Input.lock(); HUD.message('Click to capture the mouse if it is not captured.');
+          if (this.atTitle) Title.render(); else { Input.lock(); HUD.message('Click to capture the mouse if it is not captured.'); }
         }
-      } else if (!this.paused) {
+      } else if (this.paused) Title.look(dt);
+      else {
         Player.update(dt);
         ChunkManager.update(player.x, player.z, 6);
         this.tickAccum += dt;
@@ -3172,7 +3273,7 @@ const Game = {
         Particles.update(dt);
         Weather.update(dt);
         this.autosave += dt;
-        if (this.autosave > 60) { this.autosave = 0; Save.save(true); }
+        if (this.autosave > c_Save.autosave) { this.autosave = 0; Save.save(true); }
       }
       // Camera
       const p = player;
@@ -3193,8 +3294,8 @@ window.addEventListener('load', () => {
   try { Game.init(); }
   catch (e) { console.error(e); document.body.insertAdjacentHTML('beforeend', '<pre style="color:#f88;position:absolute;top:0;left:0;z-index:99;background:#000;padding:8px">Startup error: ' + e.message + '\n' + e.stack + '</pre>'); }
 });
-window.addEventListener('beforeunload', () => { if (Game.running && Game.ready) Save.saveSync(); });
-Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORATED, CH_LIT, Chunk, World, world, ChunkManager, Physics, Input, player, Player, Interaction, rayBox, Inventory, Furnace, Screens, Particles, Entities, TICK_FLUID, TICK_FALL, TICK_FIRE, Mobs, Fluids, Fire, runScheduledTick, RandomTicks, HUD, Save, Menus, Game });
+['beforeunload', 'pagehide'].forEach(ev => window.addEventListener(ev, () => { if (Game.running && Game.ready) Save.saveSync(); }));
+Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORATED, CH_LIT, Chunk, World, world, ChunkManager, Physics, Input, player, Player, Interaction, rayBox, Inventory, Furnace, Screens, Particles, Entities, TICK_FLUID, TICK_FALL, TICK_FIRE, Mobs, Fluids, Fire, runScheduledTick, RandomTicks, HUD, Save, Title, Menus, Game });
 
 </script>
 </body>

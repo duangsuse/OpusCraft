@@ -493,8 +493,14 @@ const SND = {
 };
 ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, audioInit, { passive: true }));
 
-// Resource namespaces: .v visuals (textures), .m models/mob specs, .a audio
+// Title-screen splash slogans (one picked per title open)
+const SPLASHES = [
+  'Now with creepers!', 'Greedy meshed!', '100% procedural!', 'Water flows down now!', 'Punch the tree!',
+  'Not affiliated with Mojang!', 'Seeds start with z1-!', 'Also try old.htm!', 'DDA inside!', 'Lava is hot!'
+];
+// Resource namespaces: .v visuals (textures), .m models/mob specs, .a audio, .t texts
 gg.res_vam = {
+  t: { splash: SPLASHES },
   v: new Proxy(G, { get: (t, k) => typeof k === 'string' ? ProcTex.get(k) : undefined, has: (t, k) => k in t }), // canvas per texture name
   m: MOB_TYPES, a: SND, c_Audio, SOUND_MAT, SOUND_RULES, MOB_VOICE, ProcTex, Atlas, TINTS,
 };
