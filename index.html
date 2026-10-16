@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Voxelcraft — browser Minecraft clone</title>
+<title>OPUSCRAFT.js</title>
 <!--
   ============================================================================
-  VOXELCRAFT — a single-file Minecraft clone for the browser
+  OPUSCRAFT — a single-file Minecraft clone for the browser
   ----------------------------------------------------------------------------
   Dependencies (CDN only, no build step):
     * Three.js r128 (UMD build, exposes global THREE)
@@ -124,7 +124,7 @@
   .controls { font-size: 12px; columns: 2; column-gap: 24px; }
   .controls div { margin: 2px 0; }
   kbd { background: #444; color: #fff; padding: 1px 5px; border-radius: 3px; font-family: inherit; font-size: 11px; }
-  /* ---- Title / pause screen (VoxelCraft) ---- */
+  /* ---- Title / pause screen (OpusCraft) ---- */
   .screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; z-index: 10;
     background: rgba(0,0,0,.42); font-family: 'VT323', ui-monospace, monospace; color: #e8e8e8; overflow-y: auto; }
   #title {
@@ -154,7 +154,9 @@
   #save-list { width: 580px; max-width: 92vw; display: flex; flex-direction: column; gap: 2px; max-height: 22vh; overflow-y: auto; background: rgba(0,0,0,.45); border: 2px solid #000; padding: 3px; }
   .save-row { display: flex; align-items: baseline; gap: 8px; padding: 3px 8px; font-size: 26px; cursor: pointer; }
   .save-row:hover { background: rgba(126,143,204,.45); color: #ffffa0; } .save-row.cur { color: #9f9; }
-  .save-row b { flex: 1; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .save-row small { color: #aaa; font-size: 17px; }
+  .save-row b { flex: 1; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .save-row abbr { color: #aaa; font-size: 17px; text-decoration: none; cursor: help; white-space: nowrap; }
+  .save-row:hover b { animation: shake .45s ease-in-out; animation-delay: .1s; }
+  @keyframes shake { 0%, 100% { transform: none; } 20% { transform: translateX(-3px) rotate(-1deg); } 40% { transform: translateX(3px) rotate(1deg); } 60% { transform: translateX(-2px); } 80% { transform: translateX(2px); } }
   /* Save screenshot preview: the shot fills the screen behind a half-transparent title UI */
   ::view-transition { pointer-events: none; cursor: pointer; }
   /* Body-level so it outlives #start: a picked save keeps its shot up through loading until the world is ready */
@@ -170,6 +172,9 @@
   #menu-pane { width: 580px; max-width: 92vw; --tp-base-background-color: rgba(0,0,0,.55); }
   #help { margin-top: 8px; display: grid; grid-template-columns: auto auto; gap: 1px 18px; font-size: 21px; color: #ddd; background: rgba(0,0,0,.5); padding: 10px 18px; border: 2px solid #000; }
   #help b { color: #ffe68a; font-weight: normal; } #help .wide { grid-column: span 2; color: #bbb; }
+  #help .hl { color: #fff; background: rgba(255,230,138,.12); padding: 0 4px; } #help .dim b { color: inherit; }
+  #help .try img { width: 1.5em; height: 1.5em; vertical-align: middle; image-rendering: pixelated; cursor: pointer; } #help .try img:hover { transform: scale(1.2); }
+  #help .try i { font-style: normal; color: #777; margin: 0 2px; } #help .try i.sep { margin: 0 8px; }
   /* non-blocking loader: bottom text + spinner + thin progress */
   #loading { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 12; pointer-events: none; display: flex; align-items: center; gap: 10px;
     padding: 6px 14px 8px; background: rgba(0,0,0,.55); border: 2px solid #000; font: 22px 'VT323', monospace; color: #eee; text-shadow: 2px 2px 0 #222; }
@@ -218,10 +223,10 @@
     <button class="btn" id="btn-death-title">Title Screen</button>
   </div>
 
-  <!-- Title = pause screen (VoxelCraft layout). Esc / click on the backdrop = Continue -->
+  <!-- Title = pause screen (OpusCraft layout). Esc / click on the backdrop = Continue -->
   <img id="shot" alt="">
   <div id="start" class="screen">
-    <div id="title">VOXELCRAFT<span id="splash"></span></div>
+    <div id="title">OoPUSCRA<span style="font-size: .55em;">F</span>T<span id="splash"></span></div>
     <div id="sub">a tiny block game</div>
     <button class="btn" id="btn-play"></button>
     <div class="mrow">
@@ -231,14 +236,14 @@
     <div id="save-list"></div>
     <div id="menu-pane"></div>
     <div id="help">
-      <span><b>WASD</b> move</span><span><b>Space</b> jump / swim up</span>
-      <span><b>Shift</b> sprint (fly: descend)</span><span><b>Mouse</b> look</span>
-      <span><b>Left click</b> mine / attack</span><span><b>Right click</b> place / use / eat</span>
-      <span><b>1-9 / wheel</b> select slot</span><span><b>E</b> inventory &amp; crafting</span>
-      <span><b>Q</b> drop item</span><span><b>F</b> pick block (creative)</span>
-      <span><b>G</b> switch mode</span><span><b>F3</b> debug info</span>
-      <span><b>T</b> morning · <b>R</b> weather</span><span><b>Esc</b> pause / continue</span>
-      <span class="wide">Craft tools at a crafting table, smelt ore next to a furnace. Right-click TNT with flint &amp; steel to light it.</span>
+      <span><b>WASD</b> move</span><span><b>Mouse</b> look (Touch: dig)</span>
+      <span><b>Q</b> drop item</span><span><b>E</b> inventory &amp; crafting</span>
+      <span><b>Space</b> jump (SPC SPC fly)</span><span><b>Shift / <b>W W</b></b> sprint</span>
+      <span><b>Alt</b>sneak</span><span><b>wheel(1-9)</b> select slot</span>
+      <span><b>MouseL</b> dig</span><span><b>MouseR</b> put / use / eat</span>
+      <span class="wide hl"><b>F</b> pick block (creative) · <b>R</b> weather</span>
+      <span class="wide dim"><b>G</b> cycle 4 modes · <b>T</b> morning · <b>F3</b> debug · <b>F11</b> fullscr</span>
+      <span class="wide try" id="try">Give a try: </span>
     </div>
   </div>
 
@@ -1364,7 +1369,7 @@ const Input = {
         if (e.target && e.target.tagName === 'INPUT') return;
         if (!I.keys[e.code]) Events.emit('keypress', e.code, e);
         I.keys[e.code] = true;
-        if (['Space', 'Tab', 'F3', 'F1'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
+        if (['Space', 'Tab', 'F3', 'F1', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
       },
       keyup(e) { I.keys[e.code] = false; },
       blur() { I.keys = {}; I.buttons = [false, false, false]; },
@@ -1384,8 +1389,9 @@ const Input = {
     });
     gg.ev(document, { wheel(e) { if (I.locked) I.wheel += Math.sign(e.deltaY); } }, { passive: true });
   },
-  lock() { if (this.locked || !this.canvas) return; try { const r = this.canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* not allowed outside a user gesture */ } },
-  unlock() { if (this.locked) document.exitPointerLock(); },
+  touch: false,   // touch devices have no pointer lock: lock/unlock only flip the flag (no 'unlock' event, no auto-pause)
+  lock() { if (this.touch) { this.locked = true; return; } if (this.locked || !this.canvas) return; try { const r = this.canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (e) { /* not allowed outside a user gesture */ } },
+  unlock() { if (this.touch) { this.locked = false; this.buttons = [false, false, false]; return; } if (this.locked) document.exitPointerLock(); },
   consumeMouse() { const r = [this.dx, this.dy]; this.dx = this.dy = 0; return r; }
 };
 
@@ -1399,7 +1405,7 @@ const player = {
   lastSpaceTap: 0, lastWTap: 0, damageTimer: 0, spawn: [0, 80, 0], ticksAlive: 0, lastHurtBy: '',
   headInLava: false, noclip: false, aj: 0, bob: 0, bobAmt: 0, stepDist: 0, land: 0, camEye: 1.62, deathTime: 0, hurtDir: 1, hurt: {}
 };
-/* ---- Motion feel (VoxelCraft port): footsteps, view bob, landing dip, sprint FOV ---- */
+/* ---- Motion feel (OpusCraft port): footsteps, view bob, landing dip, sprint FOV ---- */
 /* MC camera: eye height eases 50%/tick (sneak, dying pose 0.2), hurt tilt -sin(f^4·π)·14° over 10 ticks,
    death roll 40 - 8000/(t+200) degrees (t = death ticks, max 20) */
 const c_Motion = { stepLen: 3.20, bobFreq: 1.6, bobY: 0.11, bobX: 0.035, landDip: 0.40, landDecay: 7.0, sprintFov: 1.1, waterFov: 0.92, flyFov: 1.23,
@@ -1469,10 +1475,10 @@ const LiquidFx = gg.my(new class LiquidFx {
 });
 /* ---- Game modes (declarative), G cycles in order. Saves store the key; old saves ('survival'/'creative') stay valid. */
 const MODES = {
-  'survival':       { label: '生存' },
-  'creative':       { label: '创造', creative: true },
-  'creative+water': { label: '创造+实心水', creative: true, solidWater: true },  // water collides and is mined like dirt
-  'creative+look':  { label: '创造+视线飞行', creative: true, lookFly: true },    // fly along the camera, never auto-land
+  'survival':       { label: '生存', abbr: '生存' },
+  'creative':       { label: '创造', abbr: '创造', creative: true },
+  'creative+water': { label: '创造+实心水', abbr: '创造W', creative: true, solidWater: true },  // W = walk on water: water collides and is mined like dirt
+  'creative+look':  { label: '创造+视线飞行', abbr: '创造V', creative: true, lookFly: true },    // V = view: fly along the camera, never auto-land
 };
 /* ---- Status damage table (declarative, survival only): [id, cause, every, amount, first, ignite, when(p, touching)]
    first = tick offset of the first hit (0 = on contact); ignite = afterburn ticks set while the condition holds.
@@ -1520,9 +1526,10 @@ const Player = {
     let mx = 0, mz = 0;
     if (controls) {
       if (k.KeyW) mz += 1; if (k.KeyS) mz -= 1; if (k.KeyA) mx -= 1; if (k.KeyD) mx += 1;
-      p.sneaking = !!k.ShiftLeft || !!k.ShiftRight;
-      if ((k.ControlLeft || k.ControlRight) && mz > 0 && p.hunger > 6) p.sprinting = true;
-      if (mz <= 0 || p.sneaking || p.hunger <= 6) p.sprinting = false;
+      const shift = k.ShiftLeft || k.ShiftRight, alt = k.AltLeft || k.AltRight, ctrl = k.ControlLeft || k.ControlRight;
+      if (!k.KeyW) p.sprintLatch = false;   // double-tap W latches sprint until W is released
+      p.sneaking = !!alt;
+      p.sprinting = !!(shift || (p.flying && ctrl) || (p.sprintLatch && mz > 0)) && !p.sneaking && p.hunger > 6;
     } else { p.sneaking = false; p.sprinting = false; }
     p.eyeHeight = p.sneaking && !p.flying ? 1.27 : 1.62;
     const len = Math.hypot(mx, mz); if (len > 0) { mx /= len; mz /= len; }
@@ -1658,7 +1665,7 @@ const Player = {
     if (Screens.isOpen() || Game.paused || p.dead) return;
     if (code.startsWith('Digit')) { const n = parseInt(code.slice(5)); if (n >= 1 && n <= 9) { p.hotbar = n - 1; HUD.refreshHotbar(); } }
     else if (code === 'Space') { const now = performance.now(); if (now - p.lastSpaceTap < 300) { this.toggleFly(); p.lastSpaceTap = 0; } else p.lastSpaceTap = now; }
-    else if (code === 'KeyW') { const now = performance.now(); if (now - p.lastWTap < 300 && p.hunger > 6) p.sprinting = true; p.lastWTap = now; }
+    else if (code === 'KeyW') { const now = performance.now(); if (now - p.lastWTap < 300) p.sprintLatch = true; p.lastWTap = now; }
     else if (code === 'KeyQ') Interaction.dropHeld(Input.keys.ControlLeft);
     else if (code === 'KeyF') Interaction.pickBlock();
     else if (code === 'KeyG') Game.toggleMode();
@@ -2445,7 +2452,7 @@ const HUD = {
   HEART: ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'],
   FOOD: ['..XXX..', '.XXXXX.', '.XXXXX.', '..XXX..', '...XX..', '..XX...'],
   BUBBLE: ['..XXX..', '.X...X.', 'X.....X', 'X.....X', '.X...X.', '..XXX..'],
-  // Merged debug info (bridge-mind + VoxelCraft F3 screen)
+  // Merged debug info (bridge-mind + OpusCraft F3 screen)
   debugText(p, bx, by, bz, bio) {
     const v3 = (x, y, z, d = 0) => `#(${x.toFixed(d)},${y.toFixed(d)},${z.toFixed(d)})`;
     const face = c_Dbg.facing[((Math.round(p.yaw / (Math.PI / 4)) % 8) + 8) % 8];
@@ -2459,7 +2466,7 @@ const HUD = {
       `Ents ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}`,
       m ? `Mob ${m.type}.${m.state} ♥  ${Math.ceil(m.health)}/${m.maxHealth} ${v3(m.x, m.y, m.z, 1)}` : 'Mob —',
       t ? `XYZB ${Blocks.byId[world.getBlock(t.x, t.y, t.z)].displayName} ${v3(t.x, t.y, t.z)}` : 'XYZB —', '',
-      `VoxelCraft ${this.fps} fps · sim ${(Game.frameMs || 0).toFixed(1)} ms`, `p1 ${v3(bx, by, bz)}  ${face} ${v3(p.x, p.y, p.z, 2)}`].join('\n');
+      `OpusCraft ${this.fps} fps · sim ${(Game.frameMs || 0).toFixed(1)} ms`, `p1 ${v3(bx, by, bz)}  ${face} ${v3(p.x, p.y, p.z, 2)}`].join('\n');
   },
   // F3: debug pane (top-left) + noclip
   toggleDebug() {
@@ -2542,7 +2549,8 @@ const Save = {
   // Upsert the index entry of a seed (keeps its name) and mark it as gg.lastSeed
   touch(seed, kb) {
     const arr = this.list(), e = arr.find(x => x.seed === seed) || (arr.push({ seed, name: this.defaultName(seed) }), arr[arr.length - 1]);
-    Object.assign(e, { mode: Game.mode, t: Date.now() }, kb != null ? { kb } : {});
+    Object.assign(e, { mode: Game.mode, t: Date.now() }, kb != null ? { kb } : {}, seed === Game.seed ? { day: Sky.day, time: Sky.time } : {});
+    e.born ??= e.t;
     try { this.writeIndex(arr); gg.lastSeed = seed; } catch (err) { /* quota */ }
   },
   remove(seed) { localStorage.removeItem(this.key(seed)); this.writeIndex(this.list().filter(x => x.seed !== seed)); if (gg.lastSeed === seed) localStorage.removeItem(c_Save.last); },
@@ -2630,7 +2638,8 @@ const Save = {
 };
 
 /* ---- Title = pause screen: Continue · New World <seed> (G: mode) · Save <io> · save list · settings pane ---- */
-const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, peekDelay: 90, hotbar: { paused: 0.5, title: 0 }, previewFov: 105, previewRd: 16, minRows: 4, lookSpeed: 1.9, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' } };
+const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, peekDelay: 90, hotbar: { paused: 0.5, title: 0 }, previewFov: 105, previewRd: 16, minRows: 4, lookSpeed: 1.9, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' },
+  tryItems: [['water_bucket', 'lava_bucket'], ['torch', 'glass'], ['crafting_table', 'furnace', 'chest'], ['tnt', 'flint_and_steel', 'bow'], ['diamond_hoe', 'wheat_seeds', 'ladder', 'oak_door']] };
 /* ---- Tunables. gg.rndr = render pipeline, gg.sim = simulation/environment/controls. Ranges follow old.htm (VOX/P).
    Values the current mesher doesn't consume yet are stored for the DDA pipeline refactor. ---- */
 const rndr = gg.rndr = {
@@ -2733,6 +2742,9 @@ const menu = gg.menu = {
       lib('伤害 HURT', HURT, 'id', { every: { label: '间隔 tick', ...R(1, 100, 1) }, amount: { label: '伤害 ♥/2', ...R(0, 20, 1) }, first: { label: '首次延迟', ...R(0, 99, 1) }, ignite: { label: '点燃 tick', ...R(0, 300, 10) } }),
       lib('流体 FLUID', FLUID, null, { delay: { label: '流速 tick', ...R(1, 60, 1) }, drop: { label: '衰减', ...R(1, 4, 1) }, seek: { label: '坡度搜索', ...R(0, 6, 1) } }),
       lib('生物群系 BIOMES', BIOMES, 'name', { grass: { label: '草' }, foliage: { label: '树叶' }, water: { label: '水' }, trees: { label: '树密度', ...R(0, 0.1, 0.001) } }, biomeChanged),
+      (f) => { HUD.heldLib = pickLib('手持 BLOCK_DEFS', hotbarPick, { hardness: { label: '硬度', ...R(-1, 50, 0.1) }, tier: { label: '需求等级', ...R(0, 5, 1) },
+        light: { label: '发光', ...R(0, 15, 1) }, opacity: { label: '透光衰减', ...R(0, 15, 1) }, flammable: { label: '可燃', ...R(0, 100, 1) },
+        damage: { label: '伤害', ...R(0, 20, 0.5) }, stack: { label: '堆叠', ...R(1, 64, 1) } }, (row) => { if (row.id != null) remeshAll(); })(f); },
     ]],
     // Fine-tuning of individual systems; nested [title, rows] entries are sub-folders
     ['系统精调', [
@@ -2756,9 +2768,6 @@ const menu = gg.menu = {
       ]],
       lib('工具 TOOL_TIERS', TOOL_TIERS, null, { level: { label: '挖掘等级', ...R(0, 5, 1) }, speed: { label: '速度', ...R(0.5, 20, 0.5) }, durability: { label: '耐久', ...R(1, 3000, 1) } },
         (t, k) => { const tier = Object.keys(TOOL_TIERS).find(n => TOOL_TIERS[n] === t); for (const kind of ['pickaxe', 'axe', 'shovel', 'hoe', 'sword']) { const it = Items.get(tier + '_' + kind); if (it) it.tool[k] = t[k]; } }),
-      (f) => { HUD.heldLib = pickLib('手持 BLOCK_DEFS', hotbarPick, { hardness: { label: '硬度', ...R(-1, 50, 0.1) }, tier: { label: '需求等级', ...R(0, 5, 1) },
-        light: { label: '发光', ...R(0, 15, 1) }, opacity: { label: '透光衰减', ...R(0, 15, 1) }, flammable: { label: '可燃', ...R(0, 100, 1) },
-        damage: { label: '伤害', ...R(0, 20, 0.5) }, stack: { label: '堆叠', ...R(1, 64, 1) } }, (row) => { if (row.id != null) remeshAll(); })(f); },
     ]],
   ],
   // F3 debug pane (top-left): merged debug text + fps graph + noclip
@@ -2830,15 +2839,35 @@ const Title = gg.my(new class Title {
   row(e) {
     const el = document.createElement('div');
     if (!e) { el.className = 'save-row empty'; el.textContent = '— empty —'; return el; }
-    const cur = Game.running && e.seed === Game.seed, when = new Date(e.t || 0).toLocaleString(undefined, c_Title.dateFmt);
+    const cur = Game.running && e.seed === Game.seed, born = new Date(e.born ?? e.t ?? 0).toLocaleString(undefined, c_Title.dateFmt);
+    // In-game age: whole days + hours since tick 0 ("0d3h")
+    const ticks = (e.day ?? 0) * gg.DAY_LENGTH + (e.time ?? 0), age = e.time == null ? '—' : `${floor(ticks / gg.DAY_LENGTH)}d${floor(ticks % gg.DAY_LENGTH / 1000)}h`;
     el.className = 'save-row' + (cur ? ' cur' : ''); el.dataset.seed = e.seed;
-    el.innerHTML = '<b></b><small></small><span class="del" title="Delete">✕</span>';
+    el.innerHTML = '<b></b><abbr></abbr><span class="del" title="Delete">✕</span>';
     el.querySelector('b').textContent = (cur ? '▶ ' : '') + (e.name || Save.defaultName(e.seed));
-    el.querySelector('small').textContent = `${e.seed} · ${MODES[e.mode]?.label ?? e.mode ?? 'survival'} · ${when}${e.kb ? ' · ' + e.kb + 'KB' : ''}`;
+    const ab = el.querySelector('abbr');
+    ab.textContent = `${MODES[e.mode]?.abbr ?? e.mode ?? '生存'} · ${age} ${e.kb} KB`;
+    ab.title = `${e.seed}\n创建于 ${born}${e.kb ? '\n' + e.kb + ' KB' : ''}`;
     const T = this;
     return gg.ev(el, { click(ev) { ev.target.classList.contains('del') ? T.del(e) : T.pick(e.seed); } });
   }
+  // "Give a try" strip on the help card: groups of items; in creative a click puts it in the held slot and resumes
+  tryIcons() {
+    const box = $('try'); if (box.dataset.ok || !Atlas.getIcon) return; box.dataset.ok = 1;
+    c_Title.tryItems.forEach((g, gi) => {
+      if (gi) box.append(Object.assign(document.createElement('i'), { className: 'sep', textContent: '·' }));
+      g.forEach((name, i) => {
+        const img = Object.assign(document.createElement('img'), { src: Atlas.getIcon(name), alt: name, title: Items.get(name)?.displayName ?? name });
+        gg.ev(img, { click: () => this.tryItem(name) }); box.append(img);
+      });
+    });
+  }
+  tryItem(name) {
+    if (!Game.running || !Player.isCreative()) { HUD.message('Give a try: creative mode only (G)'); return; }
+    player.inventory[player.hotbar] = { name, count: 1 }; HUD.refreshHotbar(); this.play();
+  }
   render() {
+    this.tryIcons();
     const list = Save.list();
     $('save-list').replaceChildren(...[...list, ...Array(Math.max(0, c_Title.minRows - list.length)).fill(null)].map(e => this.row(e)));
     $('btn-play').textContent = Game.running ? (Game.atTitle ? 'Enter World' : 'Continue') : list.length ? 'Enter: ' + (list[0].name || list[0].seed) : 'Play (new seed)';
@@ -2923,7 +2952,7 @@ const Title = gg.my(new class Title {
   }
   buildPane() {
     this.pane = buildPane(new gg.Pane({ container: $('menu-pane') }), menu.ESC);
-    this.rt = buildPane(new gg.Pane({ container: $('rt-pane'), title: '菜单', expanded: false }), menu.RT);
+    this.rt = buildPane(new gg.Pane({ container: $('rt-pane'), title: '体素引擎-F12', expanded: false }), menu.RT);
   }
   init() {
     const T = this, stop = (e) => e.stopPropagation();
@@ -3118,6 +3147,228 @@ gg.ev(window, {
 });
 Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORATED, CH_LIT, Chunk, World, world, ChunkManager, Physics, Input, player, Player, Interaction, rayBox, Inventory, Furnace, Screens, Particles, Entities, c_Motion, Motion, HUD, Save, Title, Menus, Game });
 
+</script>
+<style>
+  /* Touch UI (handover/mobile.webp): bottom-left PAD (WASD stick + state label), right-thumb round buttons; under every screen (z 10) */
+  #tui { display: none; position: absolute; inset: 0; z-index: 5; pointer-events: none; } body.touch #tui { display: block; }
+  #tui, #tui * { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  #tpad { position: absolute; pointer-events: auto; left: calc(9px + env(safe-area-inset-left)); bottom: calc(7px + env(safe-area-inset-bottom)); width: var(--padW, 26vw); height: var(--padH, 60vh);
+    border-radius: 16px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.18)); }
+  #tpad > b { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; display: grid; place-content: center; border-radius: 16px; background: rgba(24,24,24,.82);
+    font: 600 40px/1 system-ui, sans-serif; color: #fff; letter-spacing: 1px; }
+  #tpad > i { position: absolute; display: none; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; border: 2px solid rgba(255,255,255,.55); background: rgba(255,255,255,.12); }
+  #tpad > i.knob { width: 34px; height: 34px; margin: -17px 0 0 -17px; background: rgba(255,255,255,.45); border: 0; } #tpad.on > i { display: block; }
+  .tb { position: absolute; pointer-events: auto; border-radius: 50%; display: grid; place-content: center; text-align: center; background: rgba(24,44,110,.55); border: 2px solid rgba(255,255,255,.35);
+    color: #fff; font: 30px/1 system-ui, sans-serif; transition: transform .08s, background .08s; }
+  .tb small { font: 14px 'VT323', monospace; opacity: .8; margin-top: 4px; } .tb.on, .tb.down { background: rgba(255,255,255,.32); } .tb.down { transform: scale(.93); }
+  .tb.break { width: 76px; height: 76px; right: calc(5px + env(safe-area-inset-right)); bottom: calc(133px + env(safe-area-inset-bottom)); }
+  .tb.place { width: 67px; height: 67px; right: calc(99px + env(safe-area-inset-right)); bottom: calc(71px + env(safe-area-inset-bottom)); }
+  .tb.pause { width: 47px; height: 47px; right: calc(113px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); font-weight: 900; }
+  .tb.sprint { width: 56px; height: 56px; right: calc(15px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); filter: grayscale(1) brightness(1.8); }
+  /* Touch: screens (pause/title, death, inventory) shrink to fit phones; #help folds into a tap-to-open line */
+  body.touch .screen { justify-content: safe center; overflow-y: auto; }
+  @media (max-height: 760px) { body.touch .screen > *, body.touch #screen .panel { zoom: .75; } }
+  @media (max-height: 520px) { body.touch .screen > *, body.touch #screen .panel { zoom: .55; } body.touch .screen { gap: 4px; } }
+  body.touch #help { cursor: pointer; } body.touch #help:not(.open) { display: block; padding: 2px 14px; }
+  body.touch #help:not(.open) > * { display: none; } body.touch #help:not(.open)::before { content: '? Help'; color: #ffe68a; }
+</style>
+<script type="module">
+/* ---- Touch (standalone module) -------------------------------------------------------------------------------
+   An input *aspect*: touches are woven into the existing keyboard/mouse pipeline as synthetic KeyboardEvents
+   (window keydown/keyup -> Input.keys / Events 'keypress') plus Input.buttons / Events 'mousedown', so no game
+   system knows about touch. Layout follows handover/mobile.webp:
+     · bottom-left PAD (60% high): WASD stick around the finger's start point; the bar shows WALK/SPRINT/SNEAK/FLY/SWIM
+     · canvas drag = look · hold still = Space (jump / swim; creative starts flying) · double-tap = land
+     · ⛏ break: hold = mine/attack, ×2 = Q · ▣ place: tap = use/place, hold = E · Ⅱ pause
+     · 🏃 sprint: tap toggles sprint (Shift while pushing forward), long-press = Alt+W (sneak forward) while held
+   The first touch-end goes fullscreen (+ landscape lock where allowed). */
+const { $, Input, Events, Player, Game, Screens } = gg;
+const c_Touch = {
+  look: 1.6, dead: 14, slop: 5, hold: 200, dbl: 300, long: 450, padH: 0.6, padW: 0.26, fullscreen: true,
+  // [class, icon, hint, { hold: mouse button, dbl: tap-twice action, long: long-press action, tap: short-tap action }]
+  btns: [
+    ['break', '⛏', '×2 Q', { hold: 0, dbl: 'KeyQ' }],
+    ['place', '▣', 'hold E', { hold: 2, long: 'KeyE' }],
+    ['pause', 'Ⅱ', '', { tap: 'pause' }],
+    ['sprint', '🏃', '', { tap: 'sprint', long: 'sneakW' }],
+  ],
+  state: (p) => p.flying ? 'FLY' : p.inWater || p.inLava ? 'SWIM' : p.sneaking ? 'SNEAK' : p.sprinting ? 'SPRINT' : 'WALK',
+};
+const Touch = gg.my(new class Touch {
+  look = null; pad = null; timer = 0; tap = 0; sprint = false; wasd = [0, 0, 0, 0]; K = ['KeyW', 'KeyS', 'KeyA', 'KeyD']; fs = c_Touch.fullscreen;
+  key(type, code) { window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true })); }
+  press(code) { this.key('keydown', code); this.key('keyup', code); }
+  hold(code, on) { if (!!Input.keys[code] !== on) this.key(on ? 'keydown' : 'keyup', code); }
+  mouse(b, down) { Input.buttons[b] = down; if (down) Events.emit('mousedown', b); }
+  // WASD from the pad; Shift follows (sprint latch && pushing forward) so standing still never looks like sprinting
+  stick(...v) { v.forEach((b, i) => { if (b !== this.wasd[i]) this.key((this.wasd[i] = b) ? 'keydown' : 'keyup', this.K[i]); }); this.hold('ShiftLeft', this.sprint && !!this.wasd[0]); }
+  // Long-press / tap actions: a long action may return its release
+  act = {
+    KeyQ: () => this.press('KeyQ'), KeyE: () => this.press('KeyE'),
+    pause: () => Game.pause(),
+    sprint: () => { this.sprint = !this.sprint; this.stick(...this.wasd); },
+    sneakW: () => { this.hold('AltLeft', true); this.hold('KeyW', true); return () => { this.hold('AltLeft', false); this.hold('KeyW', !!this.wasd[0]); }; },
+  };
+  // Any touch shows the touch UI; control is grabbed only while the game is live
+  engage() {
+    Input.touch = true; document.body.classList.add('touch');
+    if (!Input.locked && Game.running && !Game.paused && !Screens.isOpen()) Input.locked = true;
+    return Input.locked;
+  }
+  fullscreen() {
+    if (!this.fs || document.fullscreenElement) return;
+    const el = document.documentElement, r = el.requestFullscreen?.({ navigationUI: 'hide' });
+    if (r?.then) r.then(() => { this.fs = false; screen.orientation?.lock?.('landscape').catch(() => {}); }, () => {});
+  }
+  init() {
+    const T = this, C = c_Touch, ui = Object.assign(document.createElement('div'), { id: 'tui' });
+    ui.style.setProperty('--padH', C.padH * 100 + 'vh'); ui.style.setProperty('--padW', C.padW * 100 + 'vw');
+    ui.innerHTML = '<div id="tpad"><i></i><i class="knob"></i><b>WALK</b></div>' + C.btns.map(([c, icon, hint]) => `<div class="tb ${c}">${icon}${hint ? `<small>${hint}</small>` : ''}</div>`).join('');
+    $('app').append(ui);
+    gg.ev(document, { touchstart() { T.engage(); }, touchend() { T.fullscreen(); } }, { passive: true });
+    if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch'); // phone layout before the first touch
+    gg.ev($('help'), { click(e) { if (document.body.classList.contains('touch') && e.target.tagName !== 'IMG') this.classList.toggle('open'); } });
+    this.lookOn($('gl')); this.padOn($('tpad')); C.btns.forEach(([c, , , spec]) => this.button(ui.querySelector('.tb.' + c), spec));
+    this.hud = { label: ui.querySelector('#tpad b'), sprintEl: ui.querySelector('.tb.sprint'), last: '' };
+    const loop = () => { requestAnimationFrame(loop); if (Input.touch) this.frame(); }; loop();
+  }
+  /* Canvas fingers. Every finger has a screen point; scr2world casts the camera ray through it:
+       air   -> Space held (jump / swim / fly up; double-tap Space = native fly toggle)
+       block or mob -> mouse 0 held at that point (mine / attack follows the finger; a tap is a short hit)
+     The 1st finger looks while it drags and only acts after holding still c_Touch.hold ms;
+     any further finger acts immediately (e.g. look with one thumb, fly up with the other). */
+  fingers = new Map(); aim = null; spaceN = 0;
+  scr2world(x, y) {
+    const { THREE, Game, Interaction, Mobs } = gg, cam = Game.camera, r = Game.canvas.getBoundingClientRect();
+    const d = new THREE.Vector3((x - r.left) / r.width * 2 - 1, -((y - r.top) / r.height) * 2 + 1, 0.5).unproject(cam).sub(cam.position).normalize();
+    const e = Player.eye(), reach = Interaction.reach(), hit = Interaction.raycast(e[0], e[1], e[2], d.x, d.y, d.z, reach);
+    const mob = Mobs?.raycast(e, [d.x, d.y, d.z], hit ? hit.dist : reach);
+    return { dir: [d.x, d.y, d.z], solid: !!(hit || mob) };
+  }
+  action(f) {
+    f.acting = 1;
+    const w = this.scr2world(f.x, f.y);
+    if (w.solid) { f.mine = 1; this.aim = f; this.mouse(0, true); }
+    else { f.space = 1; if (this.spaceN++ === 0) this.key('keydown', 'Space'); }
+  }
+  release(f) {
+    if (f.space && --this.spaceN === 0) this.key('keyup', 'Space');
+    // keep a tap alive for a few frames, then hand the aim to another mining finger (if any)
+    if (f.mine) setTimeout(() => { if (this.aim !== f) return; const g = [...this.fingers.values()].find(g => g.mine); this.aim = g || null; if (!g) this.mouse(0, false); }, 80);
+  }
+  // AOP: while a finger mines, Interaction.update aims along that finger's ray instead of the crosshair
+  adviseAim() {
+    const I = gg.Interaction, T = this, upd = I.update;
+    I.update = function (dt) {
+      if (!T.aim) return upd.call(this, dt);
+      const ld = Player.lookDir, dir = T.scr2world(T.aim.x, T.aim.y).dir;
+      Player.lookDir = () => dir;
+      try { return upd.call(this, dt); } finally { Player.lookDir = ld; }
+    };
+  }
+  lookOn(canvas) {
+    const T = this, C = c_Touch;
+    canvas.style.touchAction = 'none';
+    this.adviseAim();
+    gg.ev(canvas, {
+      touchstart(ev) {
+        ev.preventDefault(); if (!T.engage()) return;
+        for (const t of ev.changedTouches) {
+          const f = { id: t.identifier, x: t.clientX, y: t.clientY, sx: t.clientX, sy: t.clientY, look: !T.look, moved: 0, acting: 0 };
+          T.fingers.set(t.identifier, f);
+          if (f.look) { T.look = f; f.timer = setTimeout(() => { if (!f.moved && T.fingers.has(f.id)) T.action(f); }, C.hold); }
+          else T.action(f);
+        }
+      },
+      touchmove(ev) {
+        ev.preventDefault();
+        for (const t of ev.changedTouches) {
+          const f = T.fingers.get(t.identifier); if (!f) continue;
+          const dx = t.clientX - f.x, dy = t.clientY - f.y;
+          if (!f.moved && Math.hypot(t.clientX - f.sx, t.clientY - f.sy) > C.slop) { f.moved = 1; clearTimeout(f.timer); }
+          f.x = t.clientX; f.y = t.clientY;
+          if (f.look && !f.acting && Input.locked) { Input.dx -= C.look * dx; Input.dy -= C.look * dy; }
+        }
+      },
+      touchend(ev) { T.lookEnd(ev); }, touchcancel(ev) { T.lookEnd(ev); },
+    }, { passive: false });
+  }
+  lookEnd(ev) {
+    for (const t of ev.changedTouches) {
+      const f = this.fingers.get(t.identifier); if (!f) continue;
+      clearTimeout(f.timer); this.fingers.delete(f.id);
+      if (f.look) {
+        this.look = null;
+        // quick tap: hit what's under the finger; on air while flying, a double-tap lands
+        if (!f.acting && !f.moved) {
+          if (this.scr2world(f.x, f.y).solid) { this.action(f); }
+          else { const n = performance.now(); if (n - this.tap < c_Touch.dbl && gg.player.flying) Player.toggleFly(); this.tap = n; }
+        }
+      }
+      this.release(f);
+    }
+  }
+  // Pad: stick centred on the finger's start point
+  padOn(pad) {
+    const T = this, C = c_Touch, [ring, knob] = pad.querySelectorAll('i');
+    const at = (el, x, y) => { const r = pad.getBoundingClientRect(); el.style.left = x - r.left + 'px'; el.style.top = y - r.top + 'px'; };
+    const end = (ev) => { for (const t of ev.changedTouches) if (T.pad?.id === t.identifier) { T.pad = null; pad.classList.remove('on'); T.stick(0, 0, 0, 0); } };
+    gg.ev(pad, {
+      touchstart(ev) {
+        ev.preventDefault(); ev.stopPropagation(); T.engage();
+        const t = ev.changedTouches[0]; if (T.pad || !t) return;
+        T.pad = { id: t.identifier, x: t.clientX, y: t.clientY }; pad.classList.add('on'); at(ring, t.clientX, t.clientY); at(knob, t.clientX, t.clientY);
+      },
+      touchmove(ev) {
+        ev.preventDefault();
+        for (const t of ev.changedTouches) if (T.pad?.id === t.identifier) {
+          const dx = t.clientX - T.pad.x, dy = t.clientY - T.pad.y, l = Math.hypot(dx, dy), k = Math.min(1, 40 / (l || 1));
+          at(knob, T.pad.x + dx * k, T.pad.y + dy * k);
+          if (Input.locked) T.stick(dy < -C.dead, dy > C.dead, dx < -C.dead, dx > C.dead);
+        }
+      },
+      touchend: end, touchcancel: end,
+    }, { passive: false });
+  }
+  // Round button: hold -> mouse button; dbl -> 2nd quick tap fires instead; long -> fires after c_Touch.long (may hold until release); tap -> short press
+  button(el, spec) {
+    const T = this, C = c_Touch; let last = 0, timer = 0, fired = false, release = null;
+    const up = () => {
+      clearTimeout(timer); el.classList.remove('down');
+      if (spec.hold != null) T.mouse(spec.hold, false);
+      if (release) { release(); release = null; } else if (!fired && spec.tap && el.classList.contains('armed')) T.act[spec.tap]();
+      el.classList.remove('armed');
+    };
+    gg.ev(el, {
+      pointerdown(e) {
+        e.preventDefault(); e.stopPropagation(); el.setPointerCapture(e.pointerId); el.classList.add('down'); fired = false;
+        if (spec.tap === 'pause') { el.classList.add('armed'); return; }
+        if (!T.engage()) return;
+        el.classList.add('armed');
+        if (spec.dbl) { const n = performance.now(); if (n - last < C.dbl) { last = 0; fired = true; T.act[spec.dbl](); return; } last = n; }
+        if (spec.hold != null) T.mouse(spec.hold, true);
+        if (spec.long) timer = setTimeout(() => { fired = true; if (spec.hold != null) T.mouse(spec.hold, false); release = T.act[spec.long]() || null; }, C.long);
+      },
+      pointerup: up, pointercancel: up, contextmenu(e) { e.preventDefault(); },
+    });
+  }
+  // Per frame: state label, sprint lamp, re-assert latched keys (window blur clears Input.keys)
+  frame() {
+    const p = gg.player, C = c_Touch, s = C.state(p), h = this.hud, ui = $('tui');
+    if (s !== h.last) h.label.textContent = h.last = s;
+    if (C.padH !== h.padH || C.padW !== h.padW) { h.padH = C.padH; h.padW = C.padW; ui.style.setProperty('--padH', C.padH * 100 + 'vh'); ui.style.setProperty('--padW', C.padW * 100 + 'vw'); }
+    h.sprintEl.classList.toggle('on', this.sprint);
+    if (this.sprint && this.wasd[0] && !Input.keys.ShiftLeft) this.hold('ShiftLeft', true);
+    if (!Input.locked && (this.pad || this.wasd.some(Boolean))) { this.stick(0, 0, 0, 0); }
+    if (!Input.locked && this.fingers.size) { for (const f of this.fingers.values()) { clearTimeout(f.timer); this.release(f); } this.fingers.clear(); this.look = null; }
+  }
+});
+// Tweakpane: 触屏 folder in the top-right menu (built on window load, after this module ran)
+gg.menu.RT.push(['触屏', [
+  ['padH', '摇杆区高度', 0.2, 1, 0.01], ['padW', '摇杆区宽度', 0.1, 0.6, 0.01], ['look', '视角灵敏度', 0.2, 5, 0.05], ['dead', '摇杆死区 px', 2, 60, 1],
+  ['hold', '长按跳跃 ms', 50, 800, 10], ['long', '长按按钮 ms', 150, 1500, 10], ['dbl', '双击间隔 ms', 100, 800, 10],
+].map(([k, label, min, max, step]) => [k, () => c_Touch, { label, min, max, step }])]);
+Touch.init();
 </script>
 </body>
 </html>
