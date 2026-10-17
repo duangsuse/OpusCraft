@@ -231,7 +231,7 @@
     <button class="btn" id="btn-play"></button>
     <div class="mrow">
       <form id="new-form" class="btn"><button type="submit">New World</button><input id="seed-input" name="seed" size="4" placeholder="⇆ ∞" pattern="z1-[A-Za-z0-9_\-]+" title="z1-xxxx (empty = random)" spellcheck="false" autocomplete="off"><small id="new-mode">G: Mode</small></form>
-      <button class="btn" id="btn-save">Share <input id="io" size="2" placeholder="⇅" title="paste JSON here to import"></button>
+      <button class="btn" id="btn-save">Share <input id="io" size="2" placeholder="⇅" title="paste a world image (from Share) here to import"></button>
     </div>
     <div id="save-list"></div>
     <div id="menu-pane"></div>
@@ -239,7 +239,7 @@
       <span><b>WASD</b> move</span><span><b>Mouse</b> look (Touch: dig)</span>
       <span><b>Q</b> drop item</span><span><b>E</b> inventory &amp; crafting</span>
       <span><b>Space</b> jump (SPC SPC fly)</span><span><b>Shift / <b>W W</b></b> sprint</span>
-      <span><b>Alt</b>sneak</span><span><b>wheel(1-9)</b> select slot</span>
+      <span><b>Alt</b> sneak</span><span><b>wheel(1-9)</b> select slot</span>
       <span><b>MouseL</b> dig</span><span><b>MouseR</b> put / use / eat</span>
       <span class="wide hl"><b>F</b> pick block (creative) · <b>R</b> weather</span>
       <span class="wide dim"><b>G</b> cycle 4 modes · <b>T</b> morning · <b>F3</b> debug · <b>F11</b> fullscr</span>
@@ -947,11 +947,13 @@ Object.assign(gg, { ITEM_DEFS, FOODS, MATERIALS, BLOCK_DEFS, SHAPED, SHAPELESS, 
 <script defer src="res_vam.js"></script>
 <script defer src="gen.js"></script>
 <script defer src="gls.js"></script>
+<script defer src="bwebp.js"></script>
 <script defer src="mobsim.js"></script>
 <script type="module">
 const { THREE, JSZip } = gg;
 const { $, lerp, AIR, Atlas, B, BIOMES, BIO_BIRCH, BIO_FOREST, BIO_TAIGA, Blocks, C, CHUNK_H, CHUNK_VOL, CHUNK_W, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, FACE_SHADE, HDIRS, Items, Lighting, MOB_TYPES, MeshBuilder, Mesher, Pix, Recipes, ResourcePack, SEA_LEVEL, SHEEP_COLOR_WEIGHTS, Scheduler, Sky, TICK_DT, TICK_RATE, TOOL_TIERS, Terrain, WHITE_RGB, WOOL_COLORS, Weather, bidx, blockBoxes, blockDrops, breakTime, chunkKey, clamp, dist2, floor, isLeaves, isLiquidId, isLog, posKey, prettify, rng, texFaces } = gg;
 const { TICK_FLUID, TICK_FALL, TICK_FIRE, c_MobAI, Mobs, FLUID, Fluids, Fire, runScheduledTick, RandomTicks } = gg; // mobsim.js
+const { bwebp } = gg; // bwebp.js: save file = cover image + SoA payload
 
 /* ============================================================================
    6. WORLD STORAGE — chunks, tile entities, the block-change pipeline
@@ -2554,18 +2556,16 @@ const Save = {
     try { this.writeIndex(arr); gg.lastSeed = seed; } catch (err) { /* quota */ }
   },
   remove(seed) { localStorage.removeItem(this.key(seed)); this.writeIndex(this.list().filter(x => x.seed !== seed)); if (gg.lastSeed === seed) localStorage.removeItem(c_Save.last); },
-  serialize() {
-    const chunks = [];
-    for (const c of world.chunks.values()) if (c.modified) chunks.push(world.serializeChunk(c));
-    for (const c of world.stored.values()) chunks.push(world.serializeChunk(c));
+  // Everything but the chunks (those are bwebp's SoA columns)
+  head() {
     const p = { ...player, ...Screensaver.saved };   // never persist a screensaver viewpoint
-    return { version: 1, seed: Game.seed, time: Sky.time, day: Sky.day, mode: Game.mode, raining: Weather.raining, thunder: Weather.thunder,
-      player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying },
-      chunks, shot: this.shot };
+    return { seed: Game.seed, time: Sky.time, day: Sky.day, mode: Game.mode, raining: Weather.raining, thunder: Weather.thunder,
+      player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying } };
   },
-  /* Screenshot in the world JSON: shot = { w, h (window CSS px at capture), url (JPEG data URL, GL resolution) }. Taken from
-     live gameplay only (pause, autosave) with the hotbar as the pause page shows it. The GL buffer isn't preserved: render + copy in one task. */
-  shot: null, shots: new Map(),
+  /* Cover = the save file's image (bwebp): shot = { w, h (window CSS px at capture), url (object URL) }; coverP resolves to the
+     webp Blob, coverU8 its bytes (for the synchronous unload save). Taken from live gameplay only (pause, autosave) with the
+     hotbar as the pause page shows it. The GL buffer isn't preserved: render + copy in one task. */
+  shot: null, shots: new Map(), coverP: null, coverU8: null,
   capture() {
     if (!Game.running || !Game.ready || Game.hold || Game.atTitle || Screensaver.saved) return;
     const src = Game.renderer.domElement, c = Object.assign(document.createElement('canvas'), { width: src.width, height: src.height }), g = c.getContext('2d');
@@ -2578,34 +2578,44 @@ const Save = {
       if (el.classList.contains('sel')) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(r.x + 1, r.y + 1, r.width - 2, r.height - 2); }
       if (img.style.display !== 'none' && img.naturalWidth) g.drawImage(img, r.x + 6, r.y + 6, r.width - 12, r.height - 12);
     }
-    this.shot = { w: innerWidth, h: innerHeight, url: c.toDataURL('image/jpeg', c_Save.shotQ) };
-    this.shots.set(Game.seed, this.shot);
+    const wh = { w: innerWidth, h: innerHeight }, seed = Game.seed;
+    this.coverP = new Promise(res => c.toBlob(res, 'image/webp', c_Save.shotQ)).then(async (blob) => {
+      if (Game.seed !== seed) return blob;
+      this.coverU8 = new Uint8Array(await blob.arrayBuffer());
+      this.shot = { ...wh, url: URL.createObjectURL(blob) }; this.shots.set(seed, this.shot);
+      return blob;
+    });
   },
-  // Title preview: decode the save once and keep only its shot
+  // Title preview: only the cover of the save (bwebp: no inflate; legacy JSON/zip: decode)
   async shotOf(seed) {
     if (!this.shots.has(seed)) {
       const raw = localStorage.getItem(this.key(seed));
-      this.shots.set(seed, raw ? (await this.decode(raw).catch(() => null))?.shot || null : null);
+      let shot = null;
+      try { shot = !raw ? null : this.legacy(raw) ? (await this.decode(raw))?.shot || null : bwebp.cover(bwebp.unb64(raw)); } catch (e) { /* broken save */ }
+      this.shots.set(seed, shot);
     }
     return this.shots.get(seed);
   },
-  // localStorage copy is deflated with JSZip (base64) so many chunks fit in the ~5 MB quota.
+  coverWH() { return this.shot ? { w: this.shot.w, h: this.shot.h } : null; },
+  // localStorage slot = base64 of the bwebp file (cover webp + deflated SoA). Returns { blob, name } for sharing.
   async save(silent) {
-    if (!Game.running || !Game.ready) return false;
+    if (!Game.running || !Game.ready) return null;
     try {
       if (!Game.paused) this.capture();
-      const data = this.serialize(), zip = new JSZip();
-      zip.file('world.json', JSON.stringify(data));
-      const b64 = await zip.generateAsync({ type: 'base64', compression: 'DEFLATE', compressionOptions: { level: 6 } });
-      localStorage.setItem(this.key(data.seed), b64); this.touch(data.seed, b64.length >> 10);
-      if (!silent) HUD.message(`World saved (${(b64.length / 1024).toFixed(0)} KB compressed, ${data.chunks.length} modified chunks)`);
-      return true;
-    } catch (e) { HUD.message('Save failed: ' + (e.name === 'QuotaExceededError' ? 'localStorage full — use Export JSON' : e.message)); return false; }
+      const head = this.head(), cover = this.coverP ? await this.coverP : null;
+      const blob = await bwebp.dump(world, head, cover, this.coverWH()), b64 = bwebp.b64(new Uint8Array(await blob.arrayBuffer()));
+      localStorage.setItem(this.key(head.seed), b64); this.touch(head.seed, b64.length >> 10);
+      if (!silent) HUD.message(`World saved (${(b64.length / 1024).toFixed(0)} KB)`);
+      const e = this.list().find(x => x.seed === head.seed);
+      return { blob, name: (e?.name || this.defaultName(head.seed)).replace(/[\\/:*?"<>|#]+/g, '').trim().replace(/\s+/g, '_') };
+    } catch (e) { HUD.message('Save failed: ' + (e.name === 'QuotaExceededError' ? 'localStorage full — Share the world image instead' : e.message)); return null; }
   },
-  // Synchronous fallback used on page unload (deflate is async); loadData accepts both formats.
-  saveSync() { try { localStorage.setItem(this.key(Game.seed), JSON.stringify(this.serialize())); this.touch(Game.seed); } catch (e) { /* quota: keep the previous compressed save */ } },
+  // Synchronous fallback used on page unload (deflate is async): uncompressed bwebp
+  saveSync() { try { localStorage.setItem(this.key(Game.seed), bwebp.b64(bwebp.dumpSync(world, this.head(), this.coverU8, this.coverWH()))); this.touch(Game.seed); } catch (e) { /* quota: keep the previous save */ } },
   hasSave() { return this.list().length > 0; },
+  legacy: (raw) => raw.charAt(0) === '{' || raw.startsWith('UEsD'),   // v1: plain JSON / JSZip base64
   async decode(raw) {
+    if (!this.legacy(raw)) return bwebp.load(bwebp.unb64(raw));
     if (raw.charAt(0) === '{') return JSON.parse(raw);
     const zip = await JSZip.loadAsync(raw, { base64: true });
     return JSON.parse(await zip.file('world.json').async('string'));
@@ -2622,19 +2632,10 @@ const Save = {
     catch (e) { console.warn('legacy save migration failed', e); }
   },
   apply(data) {
-    if (!data || data.version !== 1) { HUD.message('Save data invalid'); return false; }
+    if (!data || !(data.version === 1 || data.v === 2)) { HUD.message('Save data invalid'); return false; }
     Game.start(String(data.seed), data);
     return true;
   },
-  // Save button: store locally and put the world JSON on the clipboard (paste into the io box to import)
-  async toClipboard() {
-    if (!Game.running || !Game.ready) { HUD.message('No world to save'); return false; }
-    const ok = await this.save(true);
-    try { await navigator.clipboard.writeText(JSON.stringify(this.serialize())); HUD.message('World saved · JSON copied to clipboard'); }
-    catch (e) { HUD.message(ok ? 'World saved (clipboard blocked: ' + e.message + ')' : 'Clipboard blocked: ' + e.message); }
-    return ok;
-  }
-
 };
 
 /* ---- Title = pause screen: Continue · New World <seed> (G: mode) · Save <io> · save list · settings pane ---- */
@@ -2962,14 +2963,10 @@ const Title = gg.my(new class Title {
       click(e) { if (e.target === this || e.target.id === 'new-mode') this.requestSubmit(); },
     });
     gg.ev($('seed-input'), { keydown: stop });
-    gg.ev($('btn-save'), { async click(e) { if (e.target.id === 'io') return; if (await Save.toClipboard()) T.render(); } });
-    gg.ev($('io'), {
-      click: stop, keydown: stop,
-      paste(e) {
-        e.preventDefault(); e.stopPropagation();
-        try { const d = JSON.parse(e.clipboardData.getData('text')); if (Save.apply(d)) { Save.touch(String(d.seed)); T.enter(); } }
-        catch (err) { HUD.message('Import failed: ' + err.message); }
-      },
+    bwebp.onUI({
+      dump: () => Game.running && Game.ready ? Save.save(true) : (HUD.message('No world to save'), Promise.resolve(null)),
+      load: (d) => { if (!Save.apply(d)) return false; Save.touch(String(d.seed)); T.enter(); return true; },
+      msg: (t) => HUD.message(t), done: () => T.render(),
     });
     gg.ev($('start'), { mousedown(e) { if (e.target === this && Game.running) T.enter(); } });
     const at = (x, y) => { T.pt = [x, y]; T.hover(); };
@@ -3037,11 +3034,13 @@ const Game = {
   // title=true: build the world behind the title screen (stays paused, no pointer lock)
   start(seed, data, title) {
     this.seed = String(seed); Save.shot = data?.shot || null;
+    Save.coverU8 = data?.coverU8 || null; Save.coverP = data?.coverBlob ? Promise.resolve(data.coverBlob) : null;   // a loaded world keeps its cover until the next capture
     world.reset(this.seed); Terrain.init(this.seed); Scheduler.clear(); Entities.clear(); Mobs.clear(); Particles.n = 0;
     ChunkManager.needsScan = true; ChunkManager.pcx = 1e9; ChunkManager.stats = { generated: 0, meshed: 0, loaded: 0 };
     Sky.time = 1000; Sky.day = 0; Weather.raining = Weather.thunder = false; Weather.amount = Weather.storm = 0;
     if (data) {
-      for (const cd of data.chunks || []) { const c = world.deserializeChunk(cd); world.stored.set(c.key, c); }
+      if (data.fill) data.fill(world);   // bwebp v2
+      else for (const cd of data.chunks || []) { const c = world.deserializeChunk(cd); world.stored.set(c.key, c); }   // legacy v1
       Sky.time = data.time || 1000; Sky.day = data.day || 0; Weather.raining = !!data.raining; Weather.thunder = !!data.thunder; this.mode = data.mode || 'survival';
       const pl = data.player;
       Player.reset(pl.spawn || [pl.x, pl.y, pl.z]);
