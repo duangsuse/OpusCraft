@@ -156,6 +156,7 @@
   .save-row:hover { background: rgba(126,143,204,.45); color: #ffffa0; } .save-row.cur { color: #9f9; }
   .save-row b { flex: 1; font-weight: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .save-row abbr { color: #aaa; font-size: 17px; text-decoration: none; cursor: help; white-space: nowrap; }
   .save-row:hover b { animation: shake .45s ease-in-out; animation-delay: .1s; }
+  .shake { animation: shake .45s ease-in-out; }
   @keyframes shake { 0%, 100% { transform: none; } 20% { transform: translateX(-3px) rotate(-1deg); } 40% { transform: translateX(3px) rotate(1deg); } 60% { transform: translateX(-2px); } 80% { transform: translateX(2px); } }
   /* Save screenshot preview: the shot fills the screen behind a half-transparent title UI */
   ::view-transition { pointer-events: none; cursor: pointer; }
@@ -255,12 +256,14 @@
 <script type="importmap">{"imports":{
  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
  "tweakpane":"https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js",
- "jszip":"https://esm.sh/jszip@3.10.1"}}</script>
+ "jszip":"https://esm.sh/jszip@3.10.1",
+ "idb-keyval":"https://cdn.jsdelivr.net/npm/idb-keyval@6.2.1/+esm"}}</script>
 <script type="module">
 import * as THREE from 'three';
 import { Pane } from 'tweakpane';
 import JSZip from 'jszip';
-const gg = window.gg = { THREE, Pane, JSZip };
+import * as idb from 'idb-keyval';
+const gg = window.gg = { THREE, Pane, JSZip, idb };
 // Must gg.my(new class Topic{ ... }) (singleton) — registers it as gg.Topic and returns it
 gg.my = (x) => (gg[typeof x === 'function' ? x.name : x.constructor.name] = x);
 // gg.ev(target, { type(e) {…}, … }, opts) — attach a map of listeners (handlers keep the native this = target); returns target
@@ -950,7 +953,7 @@ Object.assign(gg, { ITEM_DEFS, FOODS, MATERIALS, BLOCK_DEFS, SHAPED, SHAPELESS, 
 <script defer src="bwebp.js"></script>
 <script defer src="mobsim.js"></script>
 <script type="module">
-const { THREE, JSZip } = gg;
+const { THREE, JSZip, idb } = gg;
 const { $, lerp, AIR, Atlas, B, BIOMES, BIO_BIRCH, BIO_FOREST, BIO_TAIGA, Blocks, C, CHUNK_H, CHUNK_VOL, CHUNK_W, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, FACE_SHADE, HDIRS, Items, Lighting, MOB_TYPES, MeshBuilder, Mesher, Pix, Recipes, ResourcePack, SEA_LEVEL, SHEEP_COLOR_WEIGHTS, Scheduler, Sky, TICK_DT, TICK_RATE, TOOL_TIERS, Terrain, WHITE_RGB, WOOL_COLORS, Weather, bidx, blockBoxes, blockDrops, breakTime, chunkKey, clamp, dist2, floor, isLeaves, isLiquidId, isLog, posKey, prettify, rng, texFaces } = gg;
 const { TICK_FLUID, TICK_FALL, TICK_FIRE, c_MobAI, Mobs, FLUID, Fluids, Fire, runScheduledTick, RandomTicks } = gg; // mobsim.js
 const { bwebp } = gg; // bwebp.js: save file = cover image + SoA payload
@@ -1135,23 +1138,6 @@ class World {
     chunk.recomputeHeights();
   }
 
-  // ---- Serialisation (RLE for the block/meta arrays) ----
-  static rle(arr) { const out = []; let cur = arr[0], run = 0; for (let i = 0; i < arr.length; i++) { if (arr[i] === cur && run < 65535) run++; else { out.push(cur, run); cur = arr[i]; run = 1; } } out.push(cur, run); return out; }
-  static unrle(list, arr) { let p = 0; for (let i = 0; i < list.length; i += 2) { const v = list[i], n = list[i + 1]; arr.fill(v, p, p + n); p += n; } }
-  serializeChunk(c) {
-    const tiles = [];
-    for (const [i, t] of c.tiles) tiles.push([i, t]);
-    return { cx: c.cx, cz: c.cz, b: World.rle(c.blocks), m: World.rle(c.meta), t: tiles, bio: Array.from(c.biomes) };
-  }
-  deserializeChunk(d) {
-    const c = new Chunk(d.cx, d.cz);
-    World.unrle(d.b, c.blocks); World.unrle(d.m, c.meta);
-    if (d.bio) c.biomes.set(d.bio);
-    for (const [i, t] of d.t || []) c.tiles.set(i, t);
-    c.recomputeHeights();
-    c.state = CH_DECORATED; c.modified = true;
-    return c;
-  }
 }
 const world = new World();
 /* ============================================================================
@@ -2535,37 +2521,60 @@ const HUD = {
   }
 };
 
-/* ---- Persistence: one localStorage slot per seed + an index for the title list ---- */
+/* ---- Persistence (idb-keyval) ----
+   IDB: c_Save.prefix+seed -> bwebp file Blob · c_Save.index -> [{seed, name, mode, t, born, kb, day, time}] · c_Save.last -> seed
+   index/last are mirrored in memory (list() stays synchronous); every write goes through to IDB.
+   Data flow:  world --save()/saveSync()--> bwebp file --put()--> slot
+               slot/URL/paste --import()/loadData()--> bwebp.load --> data --Game.start--> world */
 const c_Save = {
-  prefix: 'vc_w_', index: 'vc_saves', last: 'lastSeed', legacy: 'voxelcraft_save_v1', autosave: 60,
-  shotQ: 0.85, shotHotbarAlpha: 0.5,   // save screenshot (full GL resolution): JPEG quality, hotbar opacity (= the pause page's)
+  prefix: 'vc_w_', index: 'vc_saves', last: 'lastSeed', autosave: 60, type: 'image/webp',
+  shotQ: 0.85, shotHotbarAlpha: 0.5,   // save screenshot (full GL resolution): quality, hotbar opacity (= the pause page's)
   lastNames: ['Smith', 'Notch', 'Herobrine', 'Tanaka', 'Garcia', 'Ivanov', 'Kim', 'Müller', 'Rossi', 'Dubois', 'Silva', 'Nakamura', 'Okafor', 'Larsen', 'Novak']
 };
-Object.defineProperty(gg, 'lastSeed', { get: () => localStorage.getItem(c_Save.last), set: (v) => localStorage.setItem(c_Save.last, v), configurable: true });
-const Save = {
-  key: (seed) => c_Save.prefix + seed,
-  randomSeed: () => 'z1-' + Math.random().toString(36).slice(2, 8),
-  defaultName: (seed) => `${c_Save.lastNames[(gg.hashString(seed) >>> 0) % c_Save.lastNames.length]} ${String(seed).replace(/^z1-/, '').slice(0, 4)}`,
-  list() { try { return (JSON.parse(localStorage.getItem(c_Save.index)) || []).sort((a, b) => b.t - a.t); } catch (e) { return []; } },
-  writeIndex(arr) { localStorage.setItem(c_Save.index, JSON.stringify(arr)); },
-  // Upsert the index entry of a seed (keeps its name) and mark it as gg.lastSeed
+const Save = gg.my(new class Save {
+  idx = []; last = null; ready = this.open();       // IDB mirror
+  shot = null; shots = new Map(); coverP = null; coverU8 = null;   // cover of the running world; title previews by seed
+
+  // ---- names ----
+  key(seed) { return c_Save.prefix + seed; }
+  randomSeed() { return 'z1-' + Math.random().toString(36).slice(2, 8); }
+  defaultName(seed) { return `${c_Save.lastNames[(gg.hashString(seed) >>> 0) % c_Save.lastNames.length]} ${String(seed).replace(/^z1-/, '').slice(0, 4)}`; }
+  fileName(seed) { return (this.entry(seed)?.name || this.defaultName(seed)).replace(/[\\/:*?"<>|#]+/g, '').trim().replace(/\s+/g, '_'); }
+
+  // ---- index ----
+  async open() { const [idx, last] = await idb.getMany([c_Save.index, c_Save.last]); this.idx = idx || []; this.last = last ?? null; }
+  list() { return [...this.idx].sort((a, b) => b.t - a.t); }
+  entry(seed) { return this.idx.find(e => e.seed === seed); }
+  writeIndex(idx) { this.idx = idx; return idb.set(c_Save.index, idx); }
+  setLast(seed) { this.last = seed; return seed == null ? idb.del(c_Save.last) : idb.set(c_Save.last, seed); }
+  // Upsert the seed's entry (name kept), stamp it, make it the last world
   touch(seed, kb) {
-    const arr = this.list(), e = arr.find(x => x.seed === seed) || (arr.push({ seed, name: this.defaultName(seed) }), arr[arr.length - 1]);
-    Object.assign(e, { mode: Game.mode, t: Date.now() }, kb != null ? { kb } : {}, seed === Game.seed ? { day: Sky.day, time: Sky.time } : {});
-    e.born ??= e.t;
-    try { this.writeIndex(arr); gg.lastSeed = seed; } catch (err) { /* quota */ }
-  },
-  remove(seed) { localStorage.removeItem(this.key(seed)); this.writeIndex(this.list().filter(x => x.seed !== seed)); if (gg.lastSeed === seed) localStorage.removeItem(c_Save.last); },
-  // Everything but the chunks (those are bwebp's SoA columns)
+    const e = this.entry(seed) ?? { seed, name: this.defaultName(seed) }, now = Date.now();
+    Object.assign(e, { mode: Game.mode, t: now, born: e.born ?? now }, kb != null && { kb }, seed === Game.seed && { day: Sky.day, time: Sky.time });
+    return Promise.all([this.writeIndex([...this.idx.filter(x => x !== e), e]), this.setLast(seed)]);
+  }
+  remove(seed) {
+    this.shots.delete(seed);
+    return Promise.all([idb.del(this.key(seed)), this.writeIndex(this.idx.filter(e => e.seed !== seed)), this.last === seed && this.setLast(null)]);
+  }
+
+  // ---- slots: one bwebp file per seed ----
+  async put(seed, file) {
+    const blob = file instanceof Blob ? file : new Blob([file], { type: c_Save.type });
+    await idb.set(this.key(seed), blob); await this.touch(seed, blob.size >> 10);
+    return blob;
+  }
+  async read(seed) { const blob = await idb.get(this.key(seed)); return blob ? bwebp.load(await blob.arrayBuffer()) : null; }
+
+  // ---- running world -> file ----
   head() {
     const p = { ...player, ...Screensaver.saved };   // never persist a screensaver viewpoint
     return { seed: Game.seed, time: Sky.time, day: Sky.day, mode: Game.mode, raining: Weather.raining, thunder: Weather.thunder,
       player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying } };
-  },
-  /* Cover = the save file's image (bwebp): shot = { w, h (window CSS px at capture), url (object URL) }; coverP resolves to the
-     webp Blob, coverU8 its bytes (for the synchronous unload save). Taken from live gameplay only (pause, autosave) with the
-     hotbar as the pause page shows it. The GL buffer isn't preserved: render + copy in one task. */
-  shot: null, shots: new Map(), coverP: null, coverU8: null,
+  }
+  /* Cover = the save file's image: shot = { w, h (window CSS px at capture), url }; coverP resolves to the Blob, coverU8 its
+     bytes (for the synchronous unload save). From live gameplay only, hotbar drawn as the pause page shows it.
+     The GL buffer isn't preserved: render + copy in one task. */
   capture() {
     if (!Game.running || !Game.ready || Game.hold || Game.atTitle || Screensaver.saved) return;
     const src = Game.renderer.domElement, c = Object.assign(document.createElement('canvas'), { width: src.width, height: src.height }), g = c.getContext('2d');
@@ -2579,64 +2588,41 @@ const Save = {
       if (img.style.display !== 'none' && img.naturalWidth) g.drawImage(img, r.x + 6, r.y + 6, r.width - 12, r.height - 12);
     }
     const wh = { w: innerWidth, h: innerHeight }, seed = Game.seed;
-    this.coverP = new Promise(res => c.toBlob(res, 'image/webp', c_Save.shotQ)).then(async (blob) => {
+    this.coverP = new Promise(res => c.toBlob(res, c_Save.type, c_Save.shotQ)).then(async (blob) => {
       if (Game.seed !== seed) return blob;
       this.coverU8 = new Uint8Array(await blob.arrayBuffer());
       this.shot = { ...wh, url: URL.createObjectURL(blob) }; this.shots.set(seed, this.shot);
       return blob;
     });
-  },
-  // Title preview: only the cover of the save (bwebp: no inflate; legacy JSON/zip: decode)
-  async shotOf(seed) {
-    if (!this.shots.has(seed)) {
-      const raw = localStorage.getItem(this.key(seed));
-      let shot = null;
-      try { shot = !raw ? null : this.legacy(raw) ? (await this.decode(raw))?.shot || null : bwebp.cover(bwebp.unb64(raw)); } catch (e) { /* broken save */ }
-      this.shots.set(seed, shot);
-    }
-    return this.shots.get(seed);
-  },
-  coverWH() { return this.shot ? { w: this.shot.w, h: this.shot.h } : null; },
-  // localStorage slot = base64 of the bwebp file (cover webp + deflated SoA). Returns { blob, name } for sharing.
+  }
+  coverWH() { return this.shot && { w: this.shot.w, h: this.shot.h }; }
+  // -> { blob, name } (for sharing) or null
   async save(silent) {
     if (!Game.running || !Game.ready) return null;
     try {
       if (!Game.paused) this.capture();
-      const head = this.head(), cover = this.coverP ? await this.coverP : null;
-      const blob = await bwebp.dump(world, head, cover, this.coverWH()), b64 = bwebp.b64(new Uint8Array(await blob.arrayBuffer()));
-      localStorage.setItem(this.key(head.seed), b64); this.touch(head.seed, b64.length >> 10);
-      if (!silent) HUD.message(`World saved (${(b64.length / 1024).toFixed(0)} KB)`);
-      const e = this.list().find(x => x.seed === head.seed);
-      return { blob, name: (e?.name || this.defaultName(head.seed)).replace(/[\\/:*?"<>|#]+/g, '').trim().replace(/\s+/g, '_') };
-    } catch (e) { HUD.message('Save failed: ' + (e.name === 'QuotaExceededError' ? 'localStorage full — Share the world image instead' : e.message)); return null; }
-  },
-  // Synchronous fallback used on page unload (deflate is async): uncompressed bwebp
-  saveSync() { try { localStorage.setItem(this.key(Game.seed), bwebp.b64(bwebp.dumpSync(world, this.head(), this.coverU8, this.coverWH()))); this.touch(Game.seed); } catch (e) { /* quota: keep the previous save */ } },
-  hasSave() { return this.list().length > 0; },
-  legacy: (raw) => raw.charAt(0) === '{' || raw.startsWith('UEsD'),   // v1: plain JSON / JSZip base64
-  async decode(raw) {
-    if (!this.legacy(raw)) return bwebp.load(bwebp.unb64(raw));
-    if (raw.charAt(0) === '{') return JSON.parse(raw);
-    const zip = await JSZip.loadAsync(raw, { base64: true });
-    return JSON.parse(await zip.file('world.json').async('string'));
-  },
-  async loadData(seed = Game.seed) {
-    try { const raw = localStorage.getItem(this.key(seed)); return raw ? await this.decode(raw) : null; }
-    catch (e) { HUD.message('Load failed: ' + e.message); return null; }
-  },
-  // One-time move of the old single-slot save into the per-seed layout
-  async migrate() {
-    const old = localStorage.getItem('vc_lastSeed'); if (old && !gg.lastSeed) gg.lastSeed = old; localStorage.removeItem('vc_lastSeed');
-    const raw = localStorage.getItem(c_Save.legacy); if (!raw) return;
-    try { const d = await this.decode(raw), seed = String(d.seed); localStorage.setItem(this.key(seed), raw); Game.mode = d.mode || 'survival'; this.touch(seed); localStorage.removeItem(c_Save.legacy); }
-    catch (e) { console.warn('legacy save migration failed', e); }
-  },
-  apply(data) {
-    if (!data || !(data.version === 1 || data.v === 2)) { HUD.message('Save data invalid'); return false; }
-    Game.start(String(data.seed), data);
-    return true;
-  },
-};
+      const seed = Game.seed, blob = await this.put(seed, await bwebp.dump(await this.coverP, this.coverWH()));
+      if (!silent) HUD.message(`World saved (${(blob.size / 1024).toFixed(0)} KB)`);
+      return { blob, name: this.fileName(seed) };
+    } catch (e) { HUD.message('Save failed: ' + e.message); return null; }
+  }
+  // Page unload: gzip is async, so columns go palette/bit-packed uncompressed; the IDB write is best effort
+  saveSync() { if (Game.running && Game.ready) this.put(Game.seed, bwebp.dumpSync(this.coverU8, this.coverWH())).catch(() => {}); }
+
+  // ---- file -> data (Game.start input) ----
+  async loadData(seed) { try { return await this.read(seed); } catch (e) { HUD.message('Load failed: ' + e.message); return null; } }
+  // Imported data (paste / picker / &xyzb=) overwrites the slot of its seed with the file byte-for-byte
+  import(data) { return this.put(String(data.seed), data.file); }
+  // Title preview: only the cover (no inflate)
+  async shotOf(seed) {
+    if (!this.shots.has(seed)) {
+      const blob = await idb.get(this.key(seed)).catch(() => null);
+      let shot = null; try { shot = blob && bwebp.cover(await blob.arrayBuffer()); } catch (e) { /* broken save */ }
+      this.shots.set(seed, shot);
+    }
+    return this.shots.get(seed);
+  }
+});
 
 /* ---- Title = pause screen: Continue · New World <seed> (G: mode) · Save <io> · save list · settings pane ---- */
 const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, peekDelay: 90, hotbar: { paused: 0.5, title: 0 }, previewFov: 105, previewRd: 16, minRows: 4, lookSpeed: 1.9, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' },
@@ -2812,18 +2798,22 @@ const Screensaver = gg.my(new class Screensaver {
   restore() { this.t = 0; this.fov = 0; if (this.saved) { Object.assign(player, this.saved); this.saved = null; } }
 });
 const Title = gg.my(new class Title {
-  bootId = 0; pane = null; rt = null; userRd = null; want = null; shown = null; shownSeed = null; base = null; peekT = 0; fxRun = false; pt = null;
+  bootId = 0; bootFile = null; pane = null; rt = null; userRd = null; want = null; shown = null; shownSeed = null; base = null; peekT = 0; fxRun = false; pt = null;
   get visible() { return !$('start').classList.contains('hidden'); }
+  // Boot world, idling behind the title: the &xyzb= file (overwrites its seed's slot) or else the last world
   async boot() {
     const id = ++this.bootId;
     this.open();
-    await Save.migrate();
-    const last = gg.lastSeed, data = last ? await Save.loadData(last) : null;
+    await Save.ready;
+    let data = this.bootFile && await this.bootFile.then(buf => bwebp.load(buf)).catch(e => (HUD.message('xyzb: ' + e.message), null));
+    if (data) await Save.import(data);
+    const seed = data ? String(data.seed) : Save.last, e = seed && Save.entry(seed);
+    data ??= e ? await Save.loadData(seed) : null;
     if (id !== this.bootId || Game.running) return;          // user already picked/created a world meanwhile
-    if (last && (data || Save.list().some(e => e.seed === last))) {
-      if (!data) Game.mode = Save.list().find(e => e.seed === last).mode || 'survival';
+    if (e) {
+      if (!data) Game.mode = e.mode || 'survival';
       if (data?.shot && this.fits(data.shot)) { this.base = data.shot.url; this.showShot(this.base, false); }   // stays until the world is generated
-      Game.start(last, data, true);
+      Game.start(seed, data, true);
     }
     this.render();
   }
@@ -2875,7 +2865,7 @@ const Title = gg.my(new class Title {
   }
   del(e) {
     if (!confirm(`Delete "${e.name}" (${e.seed})?`)) return;
-    Save.remove(e.seed); Save.shots.delete(e.seed); this.peek(null); this.render();
+    this.peek(null); Save.remove(e.seed).finally(() => this.render());
   }
   // Save screenshot under the hovered / touch-slid row, cross-faded with CSS.fx; only when the shot's WxH fits this window
   fits(shot) {
@@ -2921,9 +2911,17 @@ const Title = gg.my(new class Title {
     if (Game.running && seed === Game.seed) return this.enter();
     clearTimeout(this.peekT); if (this.shownSeed !== seed) this.unpeek();   // its own shot stays up until the world is ready
     await this.leave('Loading world…');
-    const data = await Save.loadData(seed), e = Save.list().find(x => x.seed === seed);
+    const data = await Save.loadData(seed), e = Save.entry(seed);
     if (!data && e) Game.mode = e.mode || 'survival';
     Game.start(seed, data, false); Save.touch(seed); this.enter();
+  }
+  // Pasted / picked world file: parsed first (a bad file leaves the menu as is), then it overwrites its seed's slot
+  async importFile(buf) {
+    let data; try { data = await bwebp.load(buf); } catch (err) { return HUD.message('Import failed: ' + err.message); }
+    this.bootId++; this.unpeek();
+    await this.leave('Loading world…');
+    await Save.import(data);
+    Game.start(String(data.seed), data, false); Save.touch(String(data.seed)); this.enter();
   }
   // lock=false for Esc: Esc never counts as a user gesture, so pointer lock waits for the next click
   enter(lock = true) {
@@ -2965,7 +2963,7 @@ const Title = gg.my(new class Title {
     gg.ev($('seed-input'), { keydown: stop });
     bwebp.onUI({
       dump: () => Game.running && Game.ready ? Save.save(true) : (HUD.message('No world to save'), Promise.resolve(null)),
-      load: (d) => { if (!Save.apply(d)) return false; Save.touch(String(d.seed)); T.enter(); return true; },
+      import: (buf) => T.importFile(buf),
       msg: (t) => HUD.message(t), done: () => T.render(),
     });
     gg.ev($('start'), { mousedown(e) { if (e.target === this && Game.running) T.enter(); } });
@@ -2987,10 +2985,13 @@ const Menus = {
       try { const r = await ResourcePack.load(file); HUD.message(`Resource pack "${file.name}": ${r.count}/${r.total} textures, ${Atlas.tileRes}x`); }
       catch (e) { console.error(e); HUD.message('Failed to read pack: ' + e.message); }
     };
-    // Resource pack only via URL: ?tex=pack.zip (legacy ?pack=), default resourcepack.zip next to index.html
+    // Resource pack only via URL: ?tex=pack.zip
     if (location.protocol.startsWith('http')) {
       const q = new URLSearchParams(location.search), packUrl = q.get('tex');
       if(packUrl) fetch(packUrl).then(r => r.ok ? r.blob() : (location='?tex=survivalpack.zip')).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop())));
+      // World via URL: &xyzb=world.webp (a bwebp file from Share) — Title.boot imports it over the slot of its seed
+      const worldUrl = q.get('xyzb');
+      if (worldUrl) Title.bootFile = fetch(worldUrl).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('HTTP ' + r.status)));
     }
     Title.init();
     gg.ev($('btn-respawn'), { click() { Player.respawn(); } });
@@ -3039,8 +3040,7 @@ const Game = {
     ChunkManager.needsScan = true; ChunkManager.pcx = 1e9; ChunkManager.stats = { generated: 0, meshed: 0, loaded: 0 };
     Sky.time = 1000; Sky.day = 0; Weather.raining = Weather.thunder = false; Weather.amount = Weather.storm = 0;
     if (data) {
-      if (data.fill) data.fill(world);   // bwebp v2
-      else for (const cd of data.chunks || []) { const c = world.deserializeChunk(cd); world.stored.set(c.key, c); }   // legacy v1
+      data.fill();   // bwebp: chunks -> world.stored
       Sky.time = data.time || 1000; Sky.day = data.day || 0; Weather.raining = !!data.raining; Weather.thunder = !!data.thunder; this.mode = data.mode || 'survival';
       const pl = data.player;
       Player.reset(pl.spawn || [pl.x, pl.y, pl.z]);
@@ -3136,7 +3136,7 @@ const Game = {
     if (!this.hold) this.renderer.render(this.scene, this.camera);
   }
 };
-const unloadSave = () => { if (Game.running && Game.ready) Save.saveSync(); };
+const unloadSave = () => Save.saveSync();
 gg.ev(window, {
   load() {
     try { Game.init(); }
