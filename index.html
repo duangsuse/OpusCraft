@@ -39,7 +39,7 @@
   Every deliberately unfinished feature is marked with "// STUB:".
   ============================================================================
 -->
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>
   :root {
     --panel: #c6c6c6;
@@ -53,6 +53,7 @@
   html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
   body { font-family: "Lucida Console", Monaco, Consolas, monospace; color: var(--text); user-select: none; -webkit-user-select: none; }
   #app { position: relative; width: 100%; height: 100%; }
+  #sky1 { position: absolute; inset: 0; pointer-events: none; transition: opacity .5s; } #sky1.off { opacity: 0; }
   #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
   .hidden { display: none !important; }
 
@@ -64,6 +65,7 @@
   #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
   #msgs { position: absolute; left: 8px; bottom: 120px; font-size: 13px; text-shadow: 1px 1px #000; max-width: 45%; }
   #msgs div { background: rgba(0,0,0,0.35); padding: 2px 6px; margin-top: 2px; animation: fadeout 6s forwards; }
+  #msgs div.err { color: #f99; background: rgba(60,0,0,0.6); animation-duration: 15s; white-space: pre-wrap; word-break: break-all; }
   @keyframes fadeout { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
   #itemname { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); font-size: 15px; color: #fff; text-shadow: 2px 2px #000; opacity: 0; transition: opacity .4s; }
   #bars { position: absolute; left: 50%; bottom: 66px; transform: translateX(-50%); width: 364px; height: 40px; image-rendering: pixelated; }
@@ -113,6 +115,8 @@
   .section .title { font-size: 11px; color: #404040; margin-bottom: 2px; }
   #cursor-stack { position: absolute; width: 40px; height: 40px; pointer-events: none; z-index: 100; display: none; }
   #cursor-stack img { width: 36px; height: 36px; image-rendering: pixelated; }
+  .hslot .cnt.gm, .slot .cnt.gm, #cursor-stack .cnt.gm { font-size: 9px; line-height: 9px; white-space: pre; text-align: right; font-weight: normal; }
+  .slot.gmgen { background: #b8c8a8; }
   #cursor-stack .cnt { position: absolute; right: 0; bottom: -2px; font-size: 13px; color: #fff; text-shadow: 1px 1px #000; font-weight: bold; }
   #tooltip { position: absolute; background: rgba(16,0,16,0.92); color: #fff; border: 2px solid #28007f; padding: 4px 8px; font-size: 12px; pointer-events: none; z-index: 101; display: none; white-space: pre; }
   .arrow { width: 44px; height: 16px; background: #555; position: relative; margin: 0 8px; }
@@ -173,6 +177,7 @@
   #menu-pane { width: 580px; max-width: 92vw; --tp-base-background-color: rgba(0,0,0,.55); }
   #help { margin-top: 8px; display: grid; grid-template-columns: auto auto; gap: 1px 18px; font-size: 21px; color: #ddd; background: rgba(0,0,0,.5); padding: 10px 18px; border: 2px solid #000; }
   #help b { color: #ffe68a; font-weight: normal; } #help .wide { grid-column: span 2; color: #bbb; }
+  #help b.k { cursor: pointer; } #help b.k:hover { text-decoration: underline; } #help b.k:active { color: #fff; }
   #help .hl { color: #fff; background: rgba(255,230,138,.12); padding: 0 4px; } #help .dim b { color: inherit; }
   #help .try img { width: 1.5em; height: 1.5em; vertical-align: middle; image-rendering: pixelated; cursor: pointer; } #help .try img:hover { transform: scale(1.2); }
   #help .try i { font-style: normal; color: #777; margin: 0 2px; } #help .try i.sep { margin: 0 8px; }
@@ -193,6 +198,7 @@
 <body>
 <div id="app">
   <canvas id="gl"></canvas>
+  <div id="sky1"></div>
 
   <!-- Heads-up display (all pointer-events: none) -->
   <div id="hud">
@@ -242,12 +248,41 @@
       <span><b>Space</b> jump (SPC SPC fly)</span><span><b>Shift / <b>W W</b></b> sprint</span>
       <span><b>Alt</b> sneak</span><span><b>wheel(1-9)</b> select slot</span>
       <span><b>MouseL</b> dig</span><span><b>MouseR</b> put / use / eat</span>
-      <span class="wide hl"><b>F</b> pick block (creative) · <b>R</b> weather</span>
-      <span class="wide dim"><b>G</b> cycle 4 modes · <b>T</b> morning · <b>F3</b> debug · <b>F11</b> fullscr</span>
+      <span class="wide hl"><b>F3</b> debug · <b>R</b> weather</span>
+      <span class="wide hl">CreatW: <b>1</b> line · <b>0</b> plane from here · <b>2</b>-<b>5</b>-<b>9</b> reach · <b>Ctrl+Z</b> undo</span>
+      <span class="wide dim"><b>G</b> cycle 5 modes · <b>T</b> morning · <b>F</b> pick block (creative) · <b>F11</b> fullscr</span>
       <span class="wide try" id="try">Give a try: </span>
     </div>
   </div>
 
+<script>
+/* ---- 1scr: TTFP first screen (runs while parsing, before fonts / three / modules) -------------------------------
+   localStorage._1scr = { v, bg, html } written by Title.save1scr() on unload: bg = CSS gradient of the last sky dome
+   (pure skybox, no terrain) painted on #sky1; html = last #save-list rows, used only when v (hash of this page's
+   pristine #start markup) still matches, so a new page version never gets stale markup. #sky1 fades out once
+   the world is ready (Game.loop) or right away when there is no world to boot (Title.boot). */
+(() => {
+  const st = document.getElementById('start'), h = (t) => { let x = 5381; for (let i = 0; i < t.length; i++) x = (x * 33 ^ t.charCodeAt(i)) >>> 0; return x.toString(36); };
+  const v = window._1scrV = h(st.innerHTML);
+  try {
+    const s = JSON.parse(localStorage._1scr || 'null'); if (!s) return;
+    if (s.bg) document.getElementById('sky1').style.background = s.bg;
+    if (s.html && s.v === v) document.getElementById('save-list').innerHTML = s.html;
+  } catch (e) { localStorage.removeItem('_1scr'); }
+
+  const c_Err = { keep: 15000, max: 8 };
+  const put = (msg) => {
+    const box = document.getElementById('msgs'); if (!box) return;
+    const d = Object.assign(document.createElement('div'), { className: 'err', textContent: '⚠ ' + msg });
+    box.appendChild(d); while (box.children.length > c_Err.max) box.firstChild.remove();
+    setTimeout(() => d.remove(), c_Err.keep);
+  };
+  addEventListener('error', (e) => put(`${e.message} @${(e.filename || '').split('/').pop()}:${e.lineno}:${e.colno}`));
+  addEventListener('unhandledrejection', (e) => put('Promise: ' + (e.reason?.stack?.split('\n').slice(0, 2).join(' ') ?? e.reason)));
+  (window.gg ??= {}).err = put;
+
+})();
+</script>
   <div id="rt-pane"></div>
   <!-- Loading overlay -->
   <div id="loading" class="hidden"><i class="spin"></i><span id="loadtext">Generating world…</span><div id="loadbar"><i></i></div></div>
@@ -263,7 +298,7 @@ import * as THREE from 'three';
 import { Pane } from 'tweakpane';
 import JSZip from 'jszip';
 import * as idb from 'idb-keyval';
-const gg = window.gg = { THREE, Pane, JSZip, idb };
+const gg = window.gg = Object.assign(window.gg ?? {}, { THREE, Pane, JSZip, idb });   // window.gg.err pre-set by the error hook
 // Must gg.my(new class Topic{ ... }) (singleton) — registers it as gg.Topic and returns it
 gg.my = (x) => (gg[typeof x === 'function' ? x.name : x.constructor.name] = x);
 // gg.ev(target, { type(e) {…}, … }, opts) — attach a map of listeners (handlers keep the native this = target); returns target
@@ -779,6 +814,12 @@ const ITEM_DEFS = [
   ['lava_bucket', { type: 'tool', stack: 1, creativeTab: 'tools' }],
   ['bow', { type: 'weapon', stack: 1, tool: { kind: 'bow', tier: 'wooden', level: 0, speed: 1, durability: 384 }, creativeTab: 'tools' }],
   ['arrow', { type: 'material', creativeTab: 'tools' }],
+  ['air', { type: 'tool', stack: 1, tex: 'bucket', displayName: 'Air', creativeTab: 'tools' }],
+  // gm value items (see gm below): carry a captured value in stack.v; generated from the Food tab, right-click to use
+  ['gm_time', { type: 'gm', stack: 1, tex: 'clock', displayName: 'Time', creativeTab: 'gm' }],
+  ['gm_xyz', { type: 'gm', stack: 1, tex: 'compass', displayName: 'Position', creativeTab: 'gm' }],
+  ['gm_mob', { type: 'gm', stack: 1, tex: 'egg', displayName: 'Mob', creativeTab: 'gm' }],
+  ['gm_bbat', { type: 'gm', stack: 1, tex: 'oak_door', displayName: 'BBat', creativeTab: 'gm' }],   // eraser: "places" air into the targeted block (works with Build lines/planes)
 ];
 ITEM_DEFS.forEach(([n, o]) => Items.define(n, o));
 
@@ -954,7 +995,7 @@ Object.assign(gg, { ITEM_DEFS, FOODS, MATERIALS, BLOCK_DEFS, SHAPED, SHAPELESS, 
 <script defer src="mobsim.js"></script>
 <script type="module">
 const { THREE, JSZip, idb } = gg;
-const { $, lerp, AIR, Atlas, B, BIOMES, BIO_BIRCH, BIO_FOREST, BIO_TAIGA, Blocks, C, CHUNK_H, CHUNK_VOL, CHUNK_W, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, FACE_SHADE, HDIRS, Items, Lighting, MOB_TYPES, MeshBuilder, Mesher, Pix, Recipes, ResourcePack, SEA_LEVEL, SHEEP_COLOR_WEIGHTS, Scheduler, Sky, TICK_DT, TICK_RATE, TOOL_TIERS, Terrain, WHITE_RGB, WOOL_COLORS, Weather, bidx, blockBoxes, blockDrops, breakTime, chunkKey, clamp, dist2, floor, isLeaves, isLiquidId, isLog, posKey, prettify, rng, texFaces } = gg;
+const { $, lerp, AIR, Atlas, B, BIOMES, BIO_BIRCH, BIO_FOREST, BIO_TAIGA, Blocks, C, CHUNK_H, CHUNK_VOL, CHUNK_W, DAY_LENGTH, DIRS, Events, FACE_NX, FACE_NY, FACE_NZ, FACE_PX, FACE_PY, FACE_PZ, FACE_SHADE, HDIRS, Items, Lighting, MOB_TYPES, MeshBuilder, Mesher, Pix, Recipes, ResourcePack, SEA_LEVEL, SHEEP_COLOR_WEIGHTS, Scheduler, Sky, TICK_DT, TICK_RATE, TOOL_TIERS, Terrain, WHITE_RGB, WOOL_COLORS, Weather, bidx, blockBoxes, blockDrops, breakTime, chunkKey, clamp, dist2, floor, isLeaves, isLiquidId, isLog, posKey, prettify, rng, texFaces } = gg;
 const { TICK_FLUID, TICK_FALL, TICK_FIRE, c_MobAI, Mobs, FLUID, Fluids, Fire, runScheduledTick, RandomTicks } = gg; // mobsim.js
 const { bwebp } = gg; // bwebp.js: save file = cover image + SoA payload
 
@@ -982,7 +1023,7 @@ class Chunk {
     this.state = CH_EMPTY;
     this.dirty = false;        // mesh out of date
     this.modified = false;     // contains non-generated changes (persisted in saves)
-    this.mesh = null; this.waterMesh = null; this.meshed = false;
+    this.mesh = null; this.waterMesh = null; this.ghostMesh = null; this.meshed = false;
     this.tiles = new Map();    // local block index -> tile entity (chest/furnace/spawner data)
     this.spawnedPassive = false;
   }
@@ -1006,7 +1047,7 @@ class World {
   }
   reset(seed) {
     for (const c of this.chunks.values()) if (typeof ChunkManager !== 'undefined') ChunkManager.disposeMesh(c);
-    this.chunks.clear(); this.stored.clear(); this.pendingFeatures.clear(); this.lastChunk = null; this.seed = seed;
+    this.chunks.clear(); this.stored.clear(); this.pendingFeatures.clear(); this.lastChunk = null; this.seed = seed; gg.XRay?.box.clear(); gg.XRay?.pending?.clear();
   }
   getChunk(cx, cz) {
     const k = chunkKey(cx, cz);
@@ -1155,6 +1196,7 @@ const ChunkManager = {
   disposeMesh(c) {
     if (c.mesh) { this.scene.remove(c.mesh); c.mesh.geometry.dispose(); c.mesh = null; }
     if (c.waterMesh) { this.scene.remove(c.waterMesh); c.waterMesh.geometry.dispose(); c.waterMesh = null; }
+    if (c.ghostMesh) { this.scene.remove(c.ghostMesh); c.ghostMesh.geometry.dispose(); c.ghostMesh = null; }
     c.meshed = false;
   },
   // Flag the chunk containing (x,y,z) — and neighbours if on a border — for remeshing.
@@ -1199,16 +1241,25 @@ const ChunkManager = {
       }
       if (c.state === CH_EMPTY) this.genQueue.push(c);
     }
-    this.genQueue.sort((a, b) => (dist2(a.cx, 0, a.cz, pcx, 0, pcz) - dist2(b.cx, 0, b.cz, pcx, 0, pcz)));
+    // ring by ring (Chebyshev), nearest first inside a ring — matches the wavefront gate in update()
+    this.genQueue.sort((a, b) => this.ring(a) - this.ring(b) || dist2(a.cx, 0, a.cz, pcx, 0, pcz) - dist2(b.cx, 0, b.cz, pcx, 0, pcz));
     this.needsScan = false;
+  },
+  ring(c) { return Math.max(Math.abs(c.cx - this.pcx), Math.abs(c.cz - this.pcz)); },
+  /* Wavefront: meshing ring f needs ring f+1 lit and ring f+2 generated — nothing farther. Without this gate a wide view
+     distance (title preview: 16) generated all ~1400 chunks before the first mesh. f = nearest ring with an unmeshed chunk. */
+  frontier() {
+    let f = this.renderDistance + 1;
+    for (const c of world.chunks.values()) if (!c.meshed) { const d = this.ring(c); if (d < f) f = d; }
+    return f;
   },
   update(px, pz, budgetMs) {
     const pcx = floor(px) >> 4, pcz = floor(pz) >> 4;
     if (pcx !== this.pcx || pcz !== this.pcz || this.needsScan) { this.pcx = pcx; this.pcz = pcz; this.scan(); }
     const t0 = performance.now();
-    const rd = this.renderDistance;
-    // 1. generation (nearest first)
-    while (this.genQueue.length && performance.now() - t0 < budgetMs) {
+    const rd = this.renderDistance, f = this.frontier();
+    // 1. generation (ring order, up to the wavefront)
+    while (this.genQueue.length && performance.now() - t0 < budgetMs && this.ring(this.genQueue[0]) <= f + 2) {
       const c = this.genQueue.shift();
       if (c.state !== CH_EMPTY || !world.chunks.has(c.key)) continue;
       Terrain.generateChunk(c);
@@ -1219,7 +1270,7 @@ const ChunkManager = {
       const light = [], mesh = [];
       for (const c of world.chunks.values()) {
         const d = Math.max(Math.abs(c.cx - pcx), Math.abs(c.cz - pcz));
-        if (c.state >= CH_GENERATED && c.state < CH_LIT && d <= rd + 1) light.push(c);
+        if (c.state >= CH_GENERATED && c.state < CH_LIT && d <= Math.min(rd, f) + 1) light.push(c);
         else if (c.state === CH_LIT && d <= rd && (c.dirty || !c.meshed)) mesh.push(c);
       }
       const byDist = (a, b) => dist2(a.cx, 0, a.cz, pcx, 0, pcz) - dist2(b.cx, 0, b.cz, pcx, 0, pcz);
@@ -1258,7 +1309,92 @@ const ChunkManager = {
    Entities are AABBs {x,y,z (feet centre), w (half width), h}. Movement is
    axis-separated sweeps against block collision boxes with 1-block step-up.
    ========================================================================== */
-const isSolidWater = (id) => id === B.water && !!Game.modeDef.solidWater;
+/* Debug x-ray (F3 pane): every cell that still equals world generation renders through Mesher.ghostMaterial
+   (opacity c_Fluid.ghostAlpha); player-made (non-generated) blocks stay opaque, removed generated blocks show as a red volume.
+   Active only while the F3 pane is open (on && HUD.debug). "Generated" = a sandbox regeneration of the same seed: chunks are
+   generated once into this.box (world.chunks / pendingFeatures swapped out meanwhile), and a chunk's snapshot is read only
+   after its 8 neighbours exist there, so border trees spill in just like in the real world.
+   filter: space-separated block names / ids / globs; '!x' ignores x, plain tokens keep only those (default ignores leaves,
+   whose generation is not idempotent). A cell pair (generated g, current b) is ignored when skip[g] || skip[b]. */
+const c_XRay = { filter: '!*_leaves !dirt  !wood', far: 160 /* screen-quad clamp, horizontal blocks */, lift: 30 /* jump: above the changes */, pitch: -1.2 };
+const XRay = gg.my(new class XRay {
+  on = false; box = new Map(); filter = c_XRay.filter; skip = new Uint8Array(256);
+  get active() { return this.on && HUD.debug; }
+  set(v) { this.on = v; if (!v) { this.box.clear(); this.pending?.clear(); for (const c of [...world.chunks.values(), ...world.stored.values()]) { delete c.gen; delete c.genMeta; } } remeshAll(); }
+  parse(text = this.filter) {
+    this.filter = text; const toks = text.split(/[\s,]+/).filter(Boolean), sk = this.skip;
+    const rx = (t) => /^\d+$/.test(t) ? (d) => d.id === +t : ((r) => (d) => r.test(d.name))(new RegExp('^' + t.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$'));
+    const inc = toks.filter(t => t[0] !== '!').map(rx), exc = toks.filter(t => t[0] === '!').map(t => rx(t.slice(1)));
+    sk.fill(0);
+    for (const d of Blocks.byId) if (d.id !== AIR && ((inc.length && !inc.some(f => f(d))) || exc.some(f => f(d)))) sk[d.id] = 1;
+    if (this.active) remeshAll();
+  }
+  same(g, b) { return g === b || this.skip[g] || this.skip[b]; }
+  gen(c) {
+    if (c.gen) return c.gen;
+    const w = world, keep = [w.chunks, w.pendingFeatures, w.lastChunk];
+    w.chunks = this.box; w.pendingFeatures = this.pending ??= new Map(); w.lastChunk = null;
+    try {
+      const at = (cx, cz) => { const k = chunkKey(cx, cz); let t = this.box.get(k); if (!t) this.box.set(k, t = new Chunk(cx, cz)); return t; };
+      const mid = at(c.cx, c.cz);
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) at(c.cx + dx, c.cz + dz);
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const t = at(c.cx + dx, c.cz + dz); if (t.state === CH_EMPTY) Terrain.generateChunk(t); }
+      c.gen = mid.blocks; c.genMeta = mid.meta;
+    } finally { [w.chunks, w.pendingFeatures, w.lastChunk] = keep; }
+    return c.gen;
+  }
+  // changed cells of a chunk vs generation (filter applied): count, centroid column (local) and the highest changed y
+  diff(c) {
+    const g = this.gen(c), b = c.blocks; let n = 0, sx = 0, sz = 0, my = 0;
+    for (let i = 0; i < b.length; i++) if (!this.same(g[i], b[i])) { n++; sx += i >> 11; sz += (i >> 7) & 15; my = Math.max(my, i & 127); }
+    return n ? { n, x: sx / n, z: sz / n, y: my } : null;
+  }
+  // prev/next: step through modified chunks (loaded + stored, sorted by cx, cz), skip ones without block changes, teleport above the changes
+  jump(dir) {
+    const all = [...new Set([...world.chunks.values(), ...world.stored.values()])].filter(c => c.modified && c.state >= CH_GENERATED).sort((a, b) => a.cx - b.cx || a.cz - b.cz);
+    let i = all.findIndex(c => c.key === this.cursor); if (i < 0) i = dir > 0 ? -1 : all.length;
+    for (let k = 0; k < all.length; k++) {
+      i = (i + dir + all.length) % all.length; const c = all[i], d = this.diff(c); if (!d) continue;
+      this.cursor = c.key;
+      const x = c.cx * 16 + d.x + 0.5, y = d.y + c_XRay.lift, z = c.cz * 16 + d.z + 0.5;
+      Object.assign(player, { x, y, z, vx: 0, vy: 0, vz: 0, fallStart: y, pitch: c_XRay.pitch }); if (Player.isCreative()) player.flying = true;
+      this.anchor = [x, z, d.y];   // revertScreen projects onto the changes, not onto the (lifted) feet
+      return HUD.message(`X-ray: chunk ${c.cx},${c.cz} (${i + 1}/${all.length}) · ${d.n} changed cells`);
+    }
+    HUD.message('X-ray: no chunk with player changes');
+  }
+  // The 4 canvas corners through gg.Touch.scr2world, cast onto the plane y = top of the last jumped-to changes (while still near that jump,
+  // else the terrain under the player — NOT the feet: from +90 that plane is tiny, which narrowed the selection).
+  // Rays that miss the plane / land farther than c_XRay.far keep their heading and are clamped to c_XRay.far horizontally.
+  screenQuad() {
+    const r = Game.canvas.getBoundingClientRect(), e = Player.eye(), far = c_XRay.far;
+    const a = this.anchor, gy = a && Math.hypot(player.x - a[0], player.z - a[1]) < 8 ? a[2] : world.getHeight(floor(player.x), floor(player.z));
+    return [[r.left, r.bottom], [r.right, r.bottom], [r.right, r.top], [r.left, r.top]].map(([sx, sy]) => {
+      const [dx, dy, dz] = gg.Touch.scr2world(sx, sy).dir, hl = Math.hypot(dx, dz) || 1e-6;
+      const tp = dy < -1e-4 ? (gy - e[1]) / dy : -1, t = tp > 0 ? Math.min(tp, far / hl) : far / hl;
+      return [e[0] + dx * t, e[2] + dz * t];
+    });
+  }
+  // Revert every (filtered) change in loaded chunks whose column centre lies inside the screen quad, any Y; bottom-up so gravity blocks rest.
+  // One Build record → Ctrl+Z (Build.undo) restores the player's blocks.
+  revertScreen() {
+    const q = this.screenQuad(), xs = q.map(p => p[0]), zs = q.map(p => p[1]);
+    const inside = (x, z) => { let s = 0; for (let k = 0; k < 4; k++) { const [ax, az] = q[k], [bx, bz] = q[(k + 1) % 4], c = Math.sign((bx - ax) * (z - az) - (bz - az) * (x - ax)); if (c) { if (s && c !== s) return false; s = c; } } return true; };
+    const rec = Build.begin();
+    for (let cx = floor(Math.min(...xs)) >> 4; cx <= floor(Math.max(...xs)) >> 4; cx++) for (let cz = floor(Math.min(...zs)) >> 4; cz <= floor(Math.max(...zs)) >> 4; cz++) {
+      const c = world.getChunk(cx, cz); if (!c || c.state < CH_GENERATED) continue;
+      const g = this.gen(c), gm = c.genMeta, b = c.blocks;
+      for (let lx = 0; lx < 16; lx++) for (let lz = 0; lz < 16; lz++) {
+        const wx = cx * 16 + lx, wz = cz * 16 + lz; if (!inside(wx + 0.5, wz + 0.5)) continue;
+        for (let y = 0; y < CHUNK_H; y++) { const i = bidx(lx, y, lz); if (!this.same(g[i], b[i])) Build.set(rec, wx, y, wz, g[i], gm[i]); }
+      }
+    }
+    Build.commit(rec); HUD.message(`X-ray: reverted ${rec.cells.length} cells in view${rec.cells.length ? ' (Ctrl+Z 撤回)' : ''}`);
+  }
+});
+XRay.parse();
+const c_Fluid = { ghostAlpha: 0.4 };   // solid-fluid mode: opacity of inflow cells (non-source fluid that dries up once its feed is dug)
+const isSolidFluid = (id) => isLiquidId(id) && !!Game.modeDef.solidWater;   // solid-fluid mode: water AND lava collide / are mined like dirt
 const Physics = {
   GRAVITY: 32, TERMINAL: 78, JUMP_VEL: 8.4,
   _boxes: [],
@@ -1274,7 +1410,7 @@ const Physics = {
         const id = c.blocks[bidx(x & 15, y, z & 15)];
         if (id === AIR) continue;
         const def = Blocks.byId[id];
-        if (isSolidWater(id)) { out.push(x, y, z, x + 1, y + 1, z + 1); continue; }
+        if (isSolidFluid(id)) { out.push(x, y, z, x + 1, y + 1, z + 1); continue; }
         if (!def.solid) continue;
         const bx = blockBoxes(def, c.meta[bidx(x & 15, y, z & 15)]);
         if (bx === null) out.push(x, y, z, x + 1, y + 1, z + 1);
@@ -1357,7 +1493,7 @@ const Input = {
         if (e.target && e.target.tagName === 'INPUT') return;
         if (!I.keys[e.code]) Events.emit('keypress', e.code, e);
         I.keys[e.code] = true;
-        if (['Space', 'Tab', 'F3', 'F1', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
+        if (['Space', 'Tab', 'F3', 'F1', 'F2', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
       },
       keyup(e) { I.keys[e.code] = false; },
       blur() { I.keys = {}; I.buttons = [false, false, false]; },
@@ -1465,8 +1601,9 @@ const LiquidFx = gg.my(new class LiquidFx {
 const MODES = {
   'survival':       { label: '生存', abbr: '生存' },
   'creative':       { label: '创造', abbr: '创造', creative: true },
-  'creative+water': { label: '创造+实心水', abbr: '创造W', creative: true, solidWater: true },  // W = walk on water: water collides and is mined like dirt
-  'creative+look':  { label: '创造+视线飞行', abbr: '创造V', creative: true, lookFly: true },    // V = view: fly along the camera, never auto-land
+  'creative+water': { label: '创造+实心水', abbr: '创造W', creative: true, solidWater: true, depthPlace: true },  // W = walk on fluids: water/lava collide, render translucent, are mined like dirt (reflow debounced); see Build for depth/line/plane placing
+  'survival+peace': { label: '生存+和平', abbr: '生存P', peaceful: true },                        // P = peaceful: no hostile mobs
+  'survival+puzzle': { label: '生存+解谜', abbr: '生存T', toolOnly: true },                        // T = tool: bare hands (no tool held) mine nothing
 };
 /* ---- Status damage table (declarative, survival only): [id, cause, every, amount, first, ignite, when(p, touching)]
    first = tick offset of the first hit (0 = on contact); ignite = afterburn ticks set while the condition holds.
@@ -1521,7 +1658,7 @@ const Player = {
     } else { p.sneaking = false; p.sprinting = false; }
     p.eyeHeight = p.sneaking && !p.flying ? 1.27 : 1.62;
     const len = Math.hypot(mx, mz); if (len > 0) { mx /= len; mz /= len; }
-    const lookFly = p.flying && Game.modeDef.lookFly, f = lookFly ? this.lookDir() : this.forward(), r = [Math.cos(p.yaw), 0, -Math.sin(p.yaw)];
+    const lookFly = p.flying && sim.lookFly, f = lookFly ? this.lookDir() : this.forward(), r = [Math.cos(p.yaw), 0, -Math.sin(p.yaw)];
     const wx = f[0] * mz + r[0] * mx, wz = f[2] * mz + r[2] * mx;
     let speed = 4.317;
     if (p.sprinting) speed = 5.612; if (p.sneaking) speed = 1.31;
@@ -1647,22 +1784,109 @@ const Player = {
     p.hunger = Math.min(20, p.hunger + item.food.hunger);
     p.saturation = Math.min(p.hunger, p.saturation + item.food.saturation);
   },
+  // Creative default: take off and rise one block (only when the two cells above the head are free)
+  startFly() {
+    const p = player; if (p.flying) return;
+    p.flying = true; p.vy = 0;
+    const x = floor(p.x), z = floor(p.z), top = floor(p.y + 1.8);
+    if (!world.isSolid(x, top, z) && !world.isSolid(x, top + 1, z)) { p.y += 1; p.fallStart = p.y; }
+  },
   toggleFly() { if (!this.isCreative() && !player.noclip) return; player.flying = !player.flying; player.vy = 0; HUD.message(player.flying ? 'Flying enabled' : 'Flying disabled'); },
   handleKey(code) {
     const p = player;
     if (Screens.isOpen() || Game.paused || p.dead) return;
+    if (code.startsWith('Digit') && Build.key(+code.slice(5))) return;
     if (code.startsWith('Digit')) { const n = parseInt(code.slice(5)); if (n >= 1 && n <= 9) { p.hotbar = n - 1; HUD.refreshHotbar(); } }
     else if (code === 'Space') { const now = performance.now(); if (now - p.lastSpaceTap < 300) { this.toggleFly(); p.lastSpaceTap = 0; } else p.lastSpaceTap = now; }
     else if (code === 'KeyW') { const now = performance.now(); if (now - p.lastWTap < 300) p.sprintLatch = true; p.lastWTap = now; }
+    else if (code === 'KeyZ' && (Input.keys.ControlLeft || Input.keys.ControlRight)) Build.undo();
     else if (code === 'KeyQ') Interaction.dropHeld(Input.keys.ControlLeft);
     else if (code === 'KeyF') Interaction.pickBlock();
     else if (code === 'KeyG') Game.toggleMode();
     else if (code === 'KeyT') { Sky.time = 1000; HUD.message('Time set to morning'); }
     else if (code === 'KeyR') Weather.toggle();
     else if (code === 'F3') HUD.toggleDebug();
+    else if (code === 'F1' && XRay.active) XRay.jump(1);          // x-ray pane open: next change
+    else if (code === 'F2' && XRay.active) XRay.revertScreen();   // revert the on-screen selection
   }
 };
 Events.on('keypress', (code) => Player.handleKey(code));
+/* ---- Build (depthPlace modes): 2-9 = placing distance, 1 = anchor a line, 0 = anchor a plane.
+   The anchor (blue wool ghost) is the cell the next block would go into; the next placed block
+   fills the straight line (1) or the diagonal-spanned plane (0) from the anchor to itself. */
+const c_Build = { depth: 4, minDepth: 2, maxDepth: 9, ghost: 'blue_wool', ghostOpacity: 0.5, max: 4096, undo: 3 };
+const Build = gg.my(new class Build {
+  depth = c_Build.depth;
+  anchor = null;   // {x, y, z, kind: 'line'|'plane'}
+  ghost = null;
+  history = [];    // Ctrl+Z: [{anchor, cells: [[x, y, z, oldId, oldMeta]...]}], newest last
+  key(n) {
+    if (!Game.modeDef.depthPlace) return false;
+    if (n >= c_Build.minDepth && n <= c_Build.maxDepth) { this.depth = n; HUD.message(`放置距离 ${n}`); return true; }
+    if (n !== 1 && n !== 0) return false;
+    const t = Interaction.target, erase = Player.held()?.name === 'air';   // air eraser anchors on the targeted block itself
+    const c = !t ? [floor(player.x), floor(player.y), floor(player.z)] : erase ? [t.x, t.y, t.z] : Interaction.placeCell(t);
+    this.anchor = { x: c[0], y: c[1], z: c[2], kind: n === 1 ? 'line' : 'plane' };
+    this.showGhost(c);
+    HUD.message(`${n === 1 ? '直线' : '斜面'}起点 ${c.join(', ')} — 下次放置方块时连接`);
+    return true;
+  }
+  showGhost(c) {
+    if (!this.ghost) {
+      const cv = document.createElement('canvas'); cv.width = cv.height = Atlas.tileRes;
+      Atlas.drawTile(cv.getContext('2d'), Atlas.index(c_Build.ghost), 0, 0, Atlas.tileRes, Atlas.tileRes, null);
+      const tex = new THREE.CanvasTexture(cv); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+      this.ghost = new THREE.Mesh(new THREE.BoxGeometry(1.01, 1.01, 1.01), new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: c_Build.ghostOpacity, depthWrite: false }));
+      ChunkManager.scene.add(this.ghost);
+    }
+    this.ghost.position.set(c[0] + 0.5, c[1] + 0.5, c[2] + 0.5); this.ghost.visible = true;
+  }
+  clear() { this.anchor = null; if (this.ghost) this.ghost.visible = false; }
+  // Cells of the straight line a->b (3D DDA by rounding along the longest axis)
+  line(a, b) {
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], n = Math.max(...d.map(Math.abs));
+    return Array.from({ length: n + 1 }, (_, i) => d.map((v, k) => a[k] + Math.round(n ? v * i / n : 0)));
+  }
+  // Plane spanned by diagonal a->b: a rectangle when one axis is flat, else a ramp sloping (y) along the longer horizontal axis
+  plane(a, b) {
+    const rng = (p, q) => Array.from({ length: Math.abs(q - p) + 1 }, (_, i) => p + i * Math.sign(q - p || 1));
+    const [xs, ys, zs] = [0, 1, 2].map(k => rng(a[k], b[k]));
+    if (xs.length === 1 || ys.length === 1 || zs.length === 1) return xs.flatMap(x => ys.flatMap(y => zs.map(z => [x, y, z])));
+    const alongX = xs.length >= zs.length, major = alongX ? xs : zs, minor = alongX ? zs : xs, n = major.length - 1;
+    return major.flatMap((u, i) => { const y = a[1] + Math.round((b[1] - a[1]) * i / n); return minor.map(v => alongX ? [u, y, v] : [v, y, u]); });
+  }
+  // Fill from the anchor to the just-placed cell. prev = [id, meta] the placed cell held before. def AIR = erase.
+  onPlaced(x, y, z, def, meta, prev) {
+    const A = this.anchor; if (!A) return;
+    this.clear();
+    const erase = def.id === AIR, rec = this.begin(A);
+    rec.cells.push([x, y, z, prev[0], prev[1]]);   // the placed cell itself was already written by Interaction
+    const cells = (A.kind === 'line' ? this.line : this.plane).call(this, [A.x, A.y, A.z], [x, y, z]).slice(0, c_Build.max);
+    for (const [cx, cy, cz] of cells) {
+      if (cy < 0 || cy >= CHUNK_H || (cx === x && cy === y && cz === z)) continue;
+      const cd = world.getDef(cx, cy, cz);
+      if (erase ? cd.id === AIR || cd.hardness < 0 : !cd.replaceable) continue;
+      if (def.solid && Physics.blockIntersects(player, cx, cy, cz)) continue;
+      this.set(rec, cx, cy, cz, def.id, meta);
+    }
+    this.commit(rec);
+    HUD.message(`${A.kind === 'line' ? '直线' : '斜面'}：${erase ? '清除' : '放置'} ${rec.cells.length} 格（Ctrl+Z 撤回）`);
+  }
+  /* Undoable edit record, shared by line/plane fills, BBat placement and XRay.revertScreen:
+     rec = begin(anchor?); set(rec, ...) remembers the old cell then writes; commit(rec) pushes it (empty records are dropped). */
+  begin(anchor = null) { return { anchor, cells: [] }; }
+  set(rec, x, y, z, id, meta) { rec.cells.push([x, y, z, world.getBlock(x, y, z), world.getMeta(x, y, z)]); world.setBlock(x, y, z, id, meta); }
+  commit(rec) { if (rec.cells.length) { this.history.push(rec); if (this.history.length > c_Build.undo) this.history.shift(); } return rec; }
+  // Ctrl+Z: restore the cells of the last fill and re-arm its anchor (blue wool) so the next placement refills
+  undo() {
+    const rec = this.history.pop(); if (!rec) { HUD.message('没有可撤回的填充'); return; }
+    for (let i = rec.cells.length - 1; i >= 0; i--) { const [x, y, z, id, m] = rec.cells[i]; world.setBlock(x, y, z, id, m); }
+    if (!rec.anchor) { HUD.message(`已撤回 ${rec.cells.length} 格`); return; }   // BBat placement: no anchor to re-arm
+    this.anchor = rec.anchor; this.showGhost([rec.anchor.x, rec.anchor.y, rec.anchor.z]);
+    HUD.message(`已撤回 ${rec.cells.length} 格，回到${rec.anchor.kind === 'line' ? '直线' : '斜面'}起点`);
+  }
+});
+
 /* ============================================================================
    12. INTERACTION — raycasting, mining, placing, using blocks and items
    ========================================================================== */
@@ -1691,7 +1915,10 @@ const Interaction = {
       this.crackTextures.push(tex);
     }
   },
-  reach() { return Player.isCreative() ? 6 : 4.5; },
+  // Solid-water digging: fluid removals are applied silently and reflow is deferred until digging pauses for `ms`.
+  fluidDig: { ms: 800, left: 0, cells: [] },
+  reachS: 3, reachC: 1.5,   // survival reach; creative adds reachC (MC 4.5 / 6)
+  reach() { return this.reachS + (Player.isCreative() ? this.reachC : 0); },
 
   // Voxel DDA raycast. Returns {x,y,z,face,px,py,pz,dist} or null.
   raycast(ox, oy, oz, dx, dy, dz, maxDist, hitLiquid = false) {
@@ -1704,7 +1931,7 @@ const Interaction = {
       const id = world.getBlock(x, y, z);
       if (id !== AIR) {
         const def = Blocks.byId[id];
-        if (def.liquid ? hitLiquid || isSolidWater(id) : true) {
+        if (def.liquid ? hitLiquid || isSolidFluid(id) : true) {
           // Non-cube blocks: test against their boxes (or a thin slab for plants)
           let hit = true;
           const boxes = blockBoxes(def, world.getMeta(x, y, z));
@@ -1727,22 +1954,24 @@ const Interaction = {
   },
 
   update(dt) {
-    const p = player;
+    const p = player, cf = sim.crossFx;
+    if (cf !== this.crossShown) sim.paintCross(this.crossShown = cf);
     this.useCooldown -= dt; this.attackCooldown -= dt; p.damageTimer -= dt;
     const active = Input.locked && !Screens.isOpen() && !Game.paused && !p.dead;
     const eye = Player.eye(), dir = Player.lookDir();
     const held = Player.held(), heldItem = held ? Items.get(held.name) : null;
     const wantsLiquid = heldItem && (heldItem.name === 'bucket');
     this.target = active ? this.raycast(eye[0], eye[1], eye[2], dir[0], dir[1], dir[2], this.reach(), wantsLiquid) : null;
+    if (active && Game.modeDef.depthPlace) this.target = this.depthTarget(eye, dir, heldItem) || this.target;
     this.targetMob = active ? Mobs.raycast(eye, dir, Math.min(this.reach(), this.target ? this.target.dist : this.reach())) : null;
     if (this.targetMob) this.target = null;
     // Highlight
     if (this.target) {
       const t = this.target, def = world.getDef(t.x, t.y, t.z), boxes = blockBoxes(def, world.getMeta(t.x, t.y, t.z));
-      const b = boxes && boxes.length ? boxes[0] : (boxes ? [0.1, 0, 0.1, 0.9, def.model === 'wire' ? 0.15 : 1, 0.9] : [0, 0, 0, 1, 1, 1]);
+      const b = t.depth ? [0, 0, 0, 1, 1, 1] : boxes && boxes.length ? boxes[0] : (boxes ? [0.1, 0, 0.1, 0.9, def.model === 'wire' ? 0.15 : 1, 0.9] : [0, 0, 0, 1, 1, 1]);
       this.highlight.position.set(t.x + (b[0] + b[3]) / 2, t.y + (b[1] + b[4]) / 2, t.z + (b[2] + b[5]) / 2);
       this.highlight.scale.set(b[3] - b[0], b[4] - b[1], b[5] - b[2]);
-      this.highlight.visible = true;
+      this.highlight.visible = sim.crossFx > 0; this.highlight.material.linewidth = 4 * sim.crossFx;
     } else this.highlight.visible = false;
     // Left button: attack or mine
     if (active && Input.buttons[0]) {
@@ -1765,12 +1994,28 @@ const Interaction = {
         if (this.eatTimer >= 1.6) { this.eatTimer = 0; Player.eat(heldItem); Inventory.consumeHeld(); gg.res_vam.a.burp(); } else if (Math.random() < dt * 2) gg.res_vam.a.eat();
       } else if (this.useCooldown <= 0) { this.eatTimer = 0; this.use(); this.useCooldown = 0.25; }
     } else this.eatTimer = 0;
+    this.flushFluidDig(dt);
+  },
+  // depthPlace: with a block in hand and nothing hit closer, select the air cell Build.depth blocks ahead of the eye
+  depthTarget(eye, dir, heldItem) {
+    if (heldItem?.type !== 'block' && heldItem?.name !== 'air' && heldItem?.name !== 'gm_bbat') return null;
+    const N = Build.depth;
+    if (this.target && this.target.dist <= N) return null;
+    const x = floor(eye[0] + dir[0] * N), y = floor(eye[1] + dir[1] * N), z = floor(eye[2] + dir[2] * N);
+    if (y < 0 || y >= CHUNK_H || world.getBlock(x, y, z) !== AIR) return null;
+    return { x, y, z, face: FACE_PY, dist: N, px: x + 0.5, py: y + 0.5, pz: z + 0.5, depth: true };
+  },
+  flushFluidDig(dt) {
+    const D = this.fluidDig; if (!D.cells.length || (D.left -= dt) > 0) return;
+    const cells = D.cells; D.cells = [];
+    for (const [x, y, z, id] of cells) { if (world.getBlock(x, y, z) !== AIR) continue; Events.emit('blockChanged', x, y, z, id, AIR, 0, 0); world.notifyNeighbors(x, y, z); }
   },
 
   mine(dt) {
     const t = this.target, def = world.getDef(t.x, t.y, t.z);
     if (def.id === AIR || def.hardness < 0) { this.breaking = null; return; } // bedrock: unbreakable even in creative
     if (Player.isCreative()) { if (this.useCooldown <= -0.15 || !this.breaking) { this.breakBlock(t.x, t.y, t.z, false); this.breaking = { x: t.x, y: t.y, z: t.z, progress: 0 }; this.useCooldown = 0; } return; }
+    if (Game.modeDef.toolOnly && !Items.get(Player.held()?.name)?.tool) { this.breaking = null; return; }   // puzzle: no tool, no mining
     if (!this.breaking || this.breaking.x !== t.x || this.breaking.y !== t.y || this.breaking.z !== t.z) this.breaking = { x: t.x, y: t.y, z: t.z, progress: 0 };
     const time = breakTime(def, Player.held());
     if (time === Infinity) { this.breaking.progress = 0; return; }
@@ -1791,6 +2036,7 @@ const Interaction = {
     if (drop) for (const d of blockDrops(def, meta, held)) Entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, { name: d.item, count: d.count });
     if (def.id === B.ice && world.getBlock(x, y - 1, z) !== AIR) { world.setBlock(x, y, z, B.water, 0); return; }
     if (def.model === 'door') { const other = (meta & 1) ? y - 1 : y + 1; if (world.getBlock(x, other, z) === id) world.setBlock(x, other, z, AIR); }
+    if (def.liquid && isSolidFluid(id)) { const D = this.fluidDig; world.setBlock(x, y, z, AIR, 0, SET_NO_NOTIFY); D.cells.push([x, y, z, id]); D.left = D.ms / 1000; return; }
     world.setBlock(x, y, z, AIR, 0);
   },
   // Blocks that need support (torches, plants, ladders...) break when the support goes.
@@ -1810,6 +2056,7 @@ const Interaction = {
   // Right click
   use() {
     const t = this.target, held = Player.held(), item = held ? Items.get(held.name) : null;
+    if (gm.use(held)) return;   // gm value items: right-click reproduces the stored value
     if (this.targetMob) { if (item && item.name === 'shears' && this.targetMob.type === 'sheep') { if (Mobs.shear(this.targetMob)) Inventory.damageHeldTool(); } return; }
     if (t) {
       const def = world.getDef(t.x, t.y, t.z);
@@ -1840,12 +2087,16 @@ const Interaction = {
     if (Math.abs(f[0]) > Math.abs(f[2])) return f[0] > 0 ? 1 : 3; // player looks +x -> front faces -x (west)
     return f[2] > 0 ? 2 : 0;
   },
+  // Cell a block would go into for target t: the target itself if replaceable (or a depth-selected air cell), else the face neighbour
+  placeCell(t) {
+    if (world.getDef(t.x, t.y, t.z).replaceable || t.depth) return [t.x, t.y, t.z];
+    const n = DIRS[t.face]; return [t.x + n[0], t.y + n[1], t.z + n[2]];
+  },
   placeHeldBlock(item) {
     const t = this.target; if (!t) return;
     const def = Blocks.byId[item.block];
     const tdef = world.getDef(t.x, t.y, t.z);
-    let x = t.x, y = t.y, z = t.z;
-    if (!tdef.replaceable) { const n = DIRS[t.face]; x += n[0]; y += n[1]; z += n[2]; }
+    const [x, y, z] = this.placeCell(t);
     if (y < 0 || y >= CHUNK_H) return;
     const cur = world.getDef(x, y, z);
     if (!cur.replaceable) return;
@@ -1877,10 +2128,12 @@ const Interaction = {
       if (test(player)) return;
       for (const m of Mobs.list) if (test(m)) return;
     }
+    const prev = [cur.id, world.getMeta(x, y, z)];
     world.setBlock(x, y, z, def.id, meta);
     if (def.model === 'door') world.setBlock(x, y + 1, z, def.id, meta | 1);
     if (def.tileEntity && def.interactive === 'chest') world.setTile(x, y, z, { type: 'chest', slots: new Array(27).fill(null) });
     if (def.onPlace) def.onPlace(x, y, z, meta);
+    Build.onPlaced(x, y, z, def, meta, prev);
     if (!Player.isCreative()) Inventory.consumeHeld();
     Particles.blockBreak(x, y, z, def, 0); gg.res_vam.a.block(def, [x + 0.5, y + 0.5, z + 0.5], 'place');
     player.exhaustion += 0.005;
@@ -1899,7 +2152,7 @@ const Interaction = {
     const s = Player.held(); if (!s) return;
     const n = all ? s.count : 1;
     const d = Player.lookDir(), e = Player.eye();
-    Entities.spawnItem(e[0] + d[0] * 0.5, e[1] - 0.3, e[2] + d[2] * 0.5, { name: s.name, count: n, dur: s.dur }, d[0] * 6, d[1] * 6 + 1.5, d[2] * 6, 40);
+    Entities.spawnItem(e[0] + d[0] * 0.5, e[1] - 0.3, e[2] + d[2] * 0.5, { ...s, count: n }, d[0] * 6, d[1] * 6 + 1.5, d[2] * 6, 40);
     s.count -= n; if (s.count <= 0) player.inventory[player.hotbar] = null;
     HUD.refreshHotbar();
   },
@@ -1951,6 +2204,15 @@ function rayBox(ox, oy, oz, dx, dy, dz, x0, y0, z0, x1, y1, z1) {
     if (!Player.isCreative()) Inventory.replaceHeld({ name: emptyTo, count: 1 });
     return true;
   };
+  // Air: erase the targeted block (or, on a depth-selected air cell, just mark a Build end point)
+  I.air.onUse = (t) => {
+    if (!t) return false;
+    const def = world.getDef(t.x, t.y, t.z); if (def.hardness < 0) return false;
+    const prev = [def.id, world.getMeta(t.x, t.y, t.z)];
+    if (def.id !== AIR) { Particles.blockBreak(t.x, t.y, t.z, def, 8); gg.res_vam.a.block(def, [t.x + 0.5, t.y + 0.5, t.z + 0.5], 'break'); world.setBlock(t.x, t.y, t.z, AIR, 0); }
+    Build.onPlaced(t.x, t.y, t.z, Blocks.byId[AIR], 0, prev);
+    return true;
+  };
   I.water_bucket.onUse = placeLiquid(B.water, 'bucket');
   I.lava_bucket.onUse = placeLiquid(B.lava, 'bucket');
   for (const tier of Object.keys(TOOL_TIERS)) I[tier + '_hoe'].onUse = (t) => {
@@ -2000,7 +2262,7 @@ const Inventory = {
     let left = stack.count;
     const max = this.maxStack(stack.name);
     if (max > 1 && !stack.dur) for (let i = from; i < to && left > 0; i++) { const s = slots[i]; if (s && s.name === stack.name && !s.dur && s.count < max) { const n = Math.min(max - s.count, left); s.count += n; left -= n; } }
-    for (let i = from; i < to && left > 0; i++) if (!slots[i]) { const n = Math.min(max, left); slots[i] = { name: stack.name, count: n }; if (stack.dur) slots[i].dur = stack.dur; left -= n; }
+    for (let i = from; i < to && left > 0; i++) if (!slots[i]) { const n = Math.min(max, left); slots[i] = { name: stack.name, count: n }; if (stack.dur) slots[i].dur = stack.dur; if (stack.v !== undefined) slots[i].v = stack.v; left -= n; }
     return left;
   },
   addToPlayer(stack) { const left = this.add(player.inventory, stack); HUD.refreshHotbar(); return left; },
@@ -2076,6 +2338,148 @@ Events.on('tileRemoved', (x, y, z, tile) => {
   if (Screens.isOpen() && Screens.data && Screens.data.x === x && Screens.data.y === y && Screens.data.z === z) Screens.close();
 });
 
+/* ---- BBat: block groups (creative W) ------------------------------------------------
+   Capture = iterative DFS over face-neighbours from the aimed block: air (and fluids) separate groups, blue wool links
+   floating parts and is stored as air. The group is kept in a global library (localStorage, also embedded in every save
+   and merged back on load) as { id, name, w, h, d, b: base64 [id, meta] per cell, x fastest then z then y }.
+   Items carry only { id }, so a rename shows everywhere. Placing (right-click) puts the box's bottom-centre on the
+   placement cell and records a Build history entry (Ctrl+Z). */
+const c_BBat = { max: 16384, span: 64, link: 'blue_wool', store: 'bbat' };
+const emojiHead = (t) => (t.match(/^\p{Extended_Pictographic}\uFE0F?(\u200D\p{Extended_Pictographic}\uFE0F?)*/u) || [''])[0];
+const u8b64 = (u) => { let t = ''; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(t); };
+const b64u8 = (t) => Uint8Array.from(atob(t), ch => ch.charCodeAt(0));
+const BBat = gg.my(new class BBat {
+  lib = (() => { try { return JSON.parse(localStorage[c_BBat.store] || '[]'); } catch { return []; } })();
+  icons = new Map();
+  persist() { try { localStorage[c_BBat.store] = JSON.stringify(this.lib); } catch (e) { HUD.message('BBat library: storage full'); } }
+  get(id) { return this.lib.find(g => g.id === id) || null; }
+  merge(list) { if (!Array.isArray(list)) return; let n = 0; for (const g of list) if (g?.id && !this.get(g.id)) { this.lib.push(g); n++; } if (n) this.persist(); }
+  rename(id, name) {
+    const i = this.lib.findIndex(g => g.id === id); if (i < 0) return;
+    if (name === '') this.lib.splice(i, 1); else this.lib[i].name = name;
+    this.persist();
+  }
+  nextName() { let n = 1; while (this.lib.some(g => g.name === '#' + n)) n++; return '#' + n; }
+  title(g, r) { const [w, d] = this.dims(g, r); return `${g.name} (${d}x${w} h${g.h})`; }   // tooltip: name (z × x as placed now — seen from the East = front, e.g. a portal 3x1 — height)
+  // Facing: quarter turns of yaw (0 = -z, 1 = -x, 2 = +z, 3 = +x). A group keeps its orientation relative to the player:
+  // turns = facing now - facing at capture; one turn maps local (x, z) -> (z, w-1-x) and swaps w/d.
+  facing() { return ((Math.round(player.yaw / (Math.PI / 2)) % 4) + 4) % 4; }
+  turns(g) { return ((this.facing() - (g.q ?? 0)) % 4 + 4) % 4; }
+  dims(g, r = this.turns(g)) { return r & 1 ? [g.d, g.w] : [g.w, g.d]; }
+  rot(x, z, w, d, r) { for (let k = 0; k < r; k++) { [x, z, w, d] = [z, w - 1 - x, d, w]; } return [x, z]; }
+  capture(t) {
+    if (!Game.modeDef.solidWater) { HUD.message('BBat: 仅在创造W模式可用'); return null; }
+    if (!t || world.getBlock(t.x, t.y, t.z) === AIR) { HUD.message('BBat: 先对准一个方块'); return null; }
+    const link = B[c_BBat.link], seen = new Set(), stack = [[t.x, t.y, t.z]], cells = [];
+    const lo = [t.x, t.y, t.z], hi = [t.x, t.y, t.z];
+    seen.add(posKey(t.x, t.y, t.z));
+    while (stack.length) {
+      const c = stack.pop(), id = world.getBlock(...c);
+      cells.push([...c, id === link ? AIR : id, world.getMeta(...c)]);
+      for (let k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], c[k]); hi[k] = Math.max(hi[k], c[k]); }
+      if (cells.length > c_BBat.max || hi.some((v, k) => v - lo[k] >= c_BBat.span)) { HUD.message(`BBat: 组太大（>${c_BBat.max} 格或跨度 >${c_BBat.span}），是否连着地面？用空气隔开`); return null; }
+      for (const d of DIRS) {
+        const n = [c[0] + d[0], c[1] + d[1], c[2] + d[2]], key = posKey(...n);
+        if (n[1] < 0 || n[1] >= CHUNK_H || seen.has(key)) continue;
+        const nid = world.getBlock(...n); if (nid === AIR || isLiquidId(nid)) continue;
+        seen.add(key); stack.push(n);
+      }
+    }
+    const [w, h, d] = [0, 1, 2].map(k => hi[k] - lo[k] + 1), u = new Uint8Array(w * h * d * 2);
+    for (const [x, y, z, id, m] of cells) { const i = (((y - lo[1]) * d + (z - lo[2])) * w + (x - lo[0])) * 2; u[i] = id; u[i + 1] = m; }
+    const g = { id: Date.now().toString(36) + rng.int(1e6).toString(36), name: this.nextName(), w, h, d, q: this.facing(), b: u8b64(u) };
+    this.lib.push(g); this.persist();
+    return g;
+  }
+  /* Place at t's placement cell, turned to the player's facing; with a Build anchor (line 1 / plane 0) tile unrotated copies
+     from the anchor to that cell, stepping by the group size: the Build line/plane is walked in copy-index space, then scaled by (w, h, d). */
+  place(g, t) {
+    if (!t) { HUD.message('BBat: 对准放置位置再右键'); return false; }
+    const B0 = Interaction.placeCell(t), A = Build.anchor, size = [g.w, g.h, g.d], u = b64u8(g.b), rec = Build.begin(A);
+    let at = [B0], r = this.turns(g);
+    if (A) {
+      r = 0;
+      Build.clear();
+      const m = [A.x, A.y, A.z].map((a, k) => Math.round((B0[k] - a) / size[k]));
+      at = (A.kind === 'line' ? Build.line : Build.plane).call(Build, [0, 0, 0], m).map(i => [A.x + i[0] * g.w, A.y + i[1] * g.h, A.z + i[2] * g.d]);
+      at = at.slice(0, Math.max(1, floor(c_BBat.max * 4 / (g.w * g.h * g.d))));
+    }
+    const [W, D] = this.dims(g, r);
+    for (const [ax, ay, az] of at) {
+      const ox = ax - (W >> 1), oz = az - (D >> 1);
+      for (let y = 0; y < g.h; y++) for (let z = 0; z < g.d; z++) for (let x = 0; x < g.w; x++) {
+        const i = ((y * g.d + z) * g.w + x) * 2, id = u[i], [rx, rz] = this.rot(x, z, g.w, g.d, r), wx = ox + rx, wy = ay + y, wz = oz + rz;
+        if (id === AIR || wy < 0 || wy >= CHUNK_H || world.getDef(wx, wy, wz).hardness < 0) continue;
+        Build.set(rec, wx, wy, wz, id, u[i + 1]);
+      }
+    }
+    Build.commit(rec);
+    HUD.message(`${this.title(g, r)}：放置 ${at.length > 1 ? at.length + ' 份，' : ''}${rec.cells.length} 格（Ctrl+Z 撤回）`);
+    return true;
+  }
+  // slot icon: emoji drawn to a canvas when the name starts with one (else null → Door item texture)
+  icon(g) {
+    const e = g && emojiHead(g.name); if (!e) return null;
+    if (!this.icons.has(e)) { const cv = document.createElement('canvas'); cv.width = cv.height = 48; const x = cv.getContext('2d'); x.font = '36px serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(e, 24, 27); this.icons.set(e, cv.toDataURL()); }
+    return this.icons.get(e);
+  }
+});
+
+/* ---- gm: value items (global window.gm) ----------------------------------------
+   Interface spec — every gm kind K is { item, get(), set(v), label(v), short(v) }:
+     get()     -> current value (JSON-serialisable) or null when there is nothing to capture
+     set(v)    -> reproduce the value in the world
+     label(v)  -> tooltip / message text;  short(v) -> slot overlay text
+   gm.make(K) -> { name: item, count: 1, v } (null if get() is null) · gm.use(stack) · gm.kindOf(name)
+   Stacks keep v through Inventory.add / drops / save / load. Generated from the Food tab's bottom-right cells;
+   right-click reproduces it — held in hand, or on its slot in the E panel. */
+const c_gm = { hourMin: 7, hourMax: 24, mobRange: 24, kinds: ['time', 'xyz', 'mob', 'bbat'] };
+const gm = window.gm = gg.my(new class gm {
+  time = {
+    item: 'gm_time',
+    get: () => clamp(Math.round(((Sky.time + 6000) % DAY_LENGTH) / 1000), c_gm.hourMin, c_gm.hourMax),
+    set: (h) => { Sky.time = ((h * 1000 - 6000) % DAY_LENGTH + DAY_LENGTH) % DAY_LENGTH; },
+    label: (h) => `Time ${String(h).padStart(2, '0')}:00`, short: (h) => h + 'h',
+  };
+  xyz = {
+    item: 'gm_xyz',
+    get: () => [player.x, player.y, player.z].map(v => Math.round(v * 10) / 10),
+    set: ([x, y, z]) => { Object.assign(player, { x, y, z, vx: 0, vy: 0, vz: 0, fallStart: y }); },
+    label: (v) => 'Position ' + v.map(Math.round).join(' '), short: (v) => v.map(Math.round).join('\n'),
+  };
+  mob = {
+    item: 'gm_mob',
+    // the mob under the crosshair, else the nearest one in range
+    get: () => {
+      let m = Interaction.targetMob;
+      if (!m) { let best = c_gm.mobRange ** 2; for (const o of Mobs.list) { const d = dist2(o.x, o.y, o.z, player.x, player.y, player.z); if (!o.dead && d < best) { best = d; m = o; } } }
+      return m ? { type: m.type, color: m.color } : null;
+    },
+    // spawn on the targeted block, else 3 blocks ahead
+    set: (v) => {
+      const t = Interaction.target, d = Player.forward(), n = t && DIRS[t.face], at = t ? [t.x + n[0] + 0.5, t.y + n[1], t.z + n[2] + 0.5] : [player.x + d[0] * 3, player.y, player.z + d[2] * 3];
+      const m = Mobs.spawnMob(v.type, ...at); if (m && v.type === 'sheep' && v.color) { m.color = v.color; Mobs.rebuild(m); }
+    },
+    label: (v) => 'Mob ' + prettify(v.type) + (v.type === 'sheep' ? ` (${v.color})` : ''), short: (v) => v.type.slice(0, 5),
+  };
+  bbat = {
+    item: 'gm_bbat',
+    get: () => { const g = BBat.capture(Screens.aim ?? Interaction.target); return g && { id: g.id }; },   // side effect: adds to the library
+    peek: () => Game.modeDef.solidWater ? {} : null,                                                       // generator cell preview (no capture)
+    set: (v) => { const g = BBat.get(v.id); if (!g) { HUD.message('BBat: 已删除'); return false; } return BBat.place(g, Screens.isOpen() ? Screens.aim : Interaction.target); },   // in the E panel: the block aimed when it opened
+    label: (v) => { const g = BBat.get(v.id); return g ? BBat.title(g) : v.id ? 'BBat (deleted)' : 'BBat: capture the aimed group (creative W)'; },
+    short: (v) => { const g = BBat.get(v.id); return g ? g.name.slice(emojiHead(g.name).length).slice(0, 6) : ''; },
+  };
+  kindOf(name) { return c_gm.kinds.find(k => this[k].item === name) || null; }
+  make(k) { const v = this[k].get(); return v == null ? null : { name: this[k].item, count: 1, v }; }
+  label(s) { const k = this.kindOf(s?.name); return k && s.v != null ? this[k].label(s.v) : ''; }
+  short(s) { const k = this.kindOf(s?.name); return k && s.v != null ? this[k].short(s.v) : ''; }
+  use(s) { const k = this.kindOf(s?.name); if (!k || s.v == null) return false; if (this[k].set(s.v) !== false && k !== 'bbat') HUD.message(this[k].label(s.v)); gg.res_vam.a.pop(); return true; }
+  iconSrc(s) { return s?.gen === 'bbat' ? Atlas.getIcon('shears') : s?.name === 'gm_bbat' && s.v ? BBat.icon(BBat.get(s.v.id)) : null; }
+  // the generator cells shown in the Food tab (live values)
+  cells() { return c_gm.kinds.map(k => ({ name: this[k].item, count: 1, v: (this[k].peek ?? this[k].get)() ?? undefined, gen: k })); }
+});
+
 /* ---- Screens ---------------------------------------------------------------- */
 const Screens = {
   current: null, data: null, cursor: null, containers: {}, craft2: new Array(4).fill(null), craft9: new Array(9).fill(null), result: [null],
@@ -2083,7 +2487,7 @@ const Screens = {
   isOpen() { return !!this.current; },
   open(type, data) {
     if (this.current) this.close();
-    this.current = type; this.data = data || null;
+    this.current = type; this.data = data || null; this.aim = Interaction.target;   // aimed block at open (BBat capture)
     this.suppressUnlock = Input.locked; Input.unlock();
     $('screen').classList.remove('hidden');
     this.render();
@@ -2129,14 +2533,26 @@ const Screens = {
       const tabs = ['blocks', 'materials', 'tools', 'food', 'misc'].map(n => `<button class="btn small ${n === this.tab ? 'sel' : ''}" data-tab="${n}">${prettify(n)}</button>`).join('');
       const list = Items.list.filter(it => it.creativeTab === this.tab);
       this.containers.catalog = list.map(it => ({ name: it.name, count: it.stack }));
-      html = `<h2>Creative Inventory</h2><div class="row">${tabs}<span style="font-size:11px">Click: take stack · Click catalogue with item: delete</span></div><div class="catalog">${list.map((it, i) => this.slotHTML('catalog', i)).join('')}</div>${this.playerInvHTML()}`;
+      // Food tab: gm generator cells [time][xyz][mob][bbat] in the bottom-right corner of the grid
+      // …preceded by the BBat library (left: take · right: rename, '' deletes, leading emoji = icon)
+      const food = this.tab === 'food', gen = food ? gm.cells() : [], lib = food ? BBat.lib.map(g => ({ name: 'gm_bbat', count: 1, v: { id: g.id } })) : [];
+      const cols = 9, n = list.length + lib.length, pad = gen.length ? (cols - (n + gen.length) % cols) % cols : 0;
+      this.containers.gmgen = gen; this.containers.bblib = lib;
+      html = `<h2>Creative Inventory</h2><div class="row">${tabs}<span style="font-size:11px">Click: take stack · Click catalogue with item: delete${food ? ' · BBat: right-click rename' : ''}</span></div><div class="catalog">${list.map((it, i) => this.slotHTML('catalog', i)).join('')}${lib.map((g, i) => this.slotHTML('bblib', i)).join('')}${'<div></div>'.repeat(pad)}${gen.map((g, i) => this.slotHTML('gmgen', i, 'gmgen')).join('')}</div>${this.playerInvHTML()}`;
     }
     P.innerHTML = html;
     P.onclick = null;
     const S = this;
     P.querySelectorAll('[data-tab]').forEach(b => gg.ev(b, { click() { S.tab = this.dataset.tab; S.render(); } }));
     P.querySelectorAll('.slot').forEach(el => gg.ev(el, {
-      mousedown(e) { e.preventDefault(); S.onSlot(this.dataset.c, +this.dataset.i, e.button, e.shiftKey); },
+      pointerdown(e) {
+        e.preventDefault(); S.cursorAt(e);
+        if (e.pointerType !== 'touch') return S.onSlot(this.dataset.c, +this.dataset.i, e.button, e.shiftKey);
+        const c = this.dataset.c, i = +this.dataset.i; this.longT = setTimeout(() => { this.longT = 0; S.onSlot(c, i, 2, false); }, gg.c_Touch?.long ?? 450);
+      },
+      pointerup(e) { if (e.pointerType === 'touch' && this.longT) { clearTimeout(this.longT); this.longT = 0; S.onSlot(this.dataset.c, +this.dataset.i, 0, false); } },
+      pointercancel() { clearTimeout(this.longT); this.longT = 0; },
+      contextmenu(e) { e.preventDefault(); },
       mouseenter() { S.showTooltip(this); },
       mouseleave() { $('tooltip').style.display = 'none'; },
     }));
@@ -2155,21 +2571,24 @@ const Screens = {
   renderSlot(el, s) {
     const img = el.querySelector('img'), cnt = el.querySelector('.cnt'), dur = el.querySelector('.dur');
     if (!s) { img.style.display = 'none'; cnt.textContent = ''; dur.classList.add('hidden'); return; }
-    img.style.display = 'block'; img.src = Atlas.getIcon(s.name);
-    cnt.textContent = s.count > 1 ? s.count : '';
+    img.style.display = 'block'; img.src = gm.iconSrc(s) || Atlas.getIcon(s.name);
+    const gl = gm.short(s); cnt.classList.toggle('gm', !!gl);
+    cnt.textContent = gl || (s.count > 1 ? s.count : '');
     const it = Items.get(s.name);
     if (it && it.tool && s.dur) { dur.classList.remove('hidden'); const f = 1 - s.dur / it.tool.durability; dur.firstElementChild.style.width = (f * 100) + '%'; dur.firstElementChild.style.background = f > 0.5 ? '#3f3' : f > 0.25 ? '#ff3' : '#f33'; }
     else dur.classList.add('hidden');
   },
+  cursorAt(e) { const el = $('cursor-stack'); el.style.left = (e.clientX - 18) + 'px'; el.style.top = (e.clientY - 18) + 'px'; },
   renderCursor() {
     const el = $('cursor-stack');
     if (!this.cursor) { el.style.display = 'none'; return; }
-    el.style.display = 'block'; el.querySelector('img').src = Atlas.getIcon(this.cursor.name); el.querySelector('.cnt').textContent = this.cursor.count > 1 ? this.cursor.count : '';
+    el.style.display = 'block'; el.querySelector('img').src = gm.iconSrc(this.cursor) || Atlas.getIcon(this.cursor.name); const gl = gm.short(this.cursor), cn = el.querySelector('.cnt'); cn.classList.toggle('gm', !!gl); cn.textContent = gl || (this.cursor.count > 1 ? this.cursor.count : '');
   },
   showTooltip(el) {
-    const s = this.containers[el.dataset.c][+el.dataset.i]; const tip = $('tooltip');
+    const c0 = el.dataset.c, s = this.containers[c0][+el.dataset.i]; const tip = $('tooltip');
     if (!s) { tip.style.display = 'none'; return; }
-    const it = Items.get(s.name); let text = it ? it.displayName : s.name;
+    const it = Items.get(s.name); let text = gm.label(s) || (it ? it.displayName : s.name);
+    if (c0 === 'gmgen') text += s.v === undefined ? '\n(nothing to capture)' : '\nClick: capture as item';
     if (it && it.tool && it.tool.durability) text += `\nDurability ${it.tool.durability - (s.dur || 0)} / ${it.tool.durability}`;
     if (it && it.food) text += `\nRestores ${it.food.hunger / 2} hunger`;
     tip.textContent = text; tip.style.display = 'block';
@@ -2189,6 +2608,16 @@ const Screens = {
     const cont = this.containers[c]; if (!cont) return;
     const s = cont[i];
     const isCatalog = c === 'catalog', isResult = c === 'result' || c === 'fout';
+    if (c === 'gmgen') {   // click: capture the current value as an item (cursor already holding something: delete it, like the catalogue)
+      if (this.cursor) this.cursor = null;
+      else { const st = gm.make(s.gen); if (st) { this.cursor = st; gg.res_vam.a.click(); } else HUD.message(Items.get(s.name).displayName + ': nothing to capture'); }
+      this.render(); return;
+    }
+    if (c === 'bblib') {
+      if (button === 2) { const g = BBat.get(s.v.id), name = prompt('BBat 名称（清空 = 删除；首字符 emoji = 图标）', g.name); if (name !== null) { BBat.rename(g.id, name.trim()); HUD.refreshHotbar(); } this.render(); return; }
+      this.cursor = this.cursor ? null : { ...s, v: { ...s.v } }; this.refresh(); return;
+    }
+    if (button === 2 && !this.cursor && gm.use(s)) return;   // right-click a gm value item in any slot: reproduce it
     if (isCatalog) {
       if (this.cursor) this.cursor = null; else if (s) this.cursor = { name: s.name, count: button === 2 ? 1 : s.count };
       this.refresh(); return;
@@ -2233,7 +2662,7 @@ const Screens = {
     this.refresh();
   },
   init() {
-    gg.ev(document, { mousemove(e) { const el = $('cursor-stack'); if (el.style.display !== 'none') { el.style.left = (e.clientX - 18) + 'px'; el.style.top = (e.clientY - 18) + 'px'; } } });
+    gg.ev(document, { pointermove(e) { Screens.cursorAt(e); } });
     gg.ev($('screen'), { mousedown(e) { if (e.target === this) Screens.close(); } });
     Events.on('keypress', (code) => {
       if (code === 'KeyE') { if (this.isOpen()) this.close(); else if (Game.running && !Game.paused && !player.dead) this.open('inventory'); }
@@ -2315,7 +2744,7 @@ const Entities = {
   },
   spawnItem(x, y, z, stack, vx = (rng.next() - 0.5) * 2, vy = 2.5, vz = (rng.next() - 0.5) * 2, pickupDelay = 10) {
     if (!stack || !stack.count || !Items.get(stack.name)) return null;
-    const e = { kind: 'item', x, y, z, vx, vy, vz, w: 0.125, h: 0.25, stack: { name: stack.name, count: stack.count, dur: stack.dur }, age: 0, pickupDelay, onGround: false, stepHeight: 0, mesh: null, lightKey: -1 };
+    const e = { kind: 'item', x, y, z, vx, vy, vz, w: 0.125, h: 0.25, stack: { name: stack.name, count: stack.count, dur: stack.dur, v: stack.v }, age: 0, pickupDelay, onGround: false, stepHeight: 0, mesh: null, lightKey: -1 };
     e.mesh = new THREE.Mesh(this.itemGeometry(stack.name, x, y, z), Mesher.material);
     this.scene.add(e.mesh); this.list.push(e);
     return e;
@@ -2461,6 +2890,7 @@ const HUD = {
     this.debug = !this.debug; player.noclip = this.debug; player.flying = this.debug || (player.flying && Player.isCreative());
     if (!this.dbgPane) this.dbgPane = buildPane(new gg.Pane({ container: $('dbg-pane') }), menu.DBG);
     this.syncs?.forEach(f => f()); $('dbg-pane').classList.toggle('hidden', !this.debug); $('mode').classList.toggle('hidden', this.debug);
+    if (XRay.on) remeshAll();   // x-ray is active only while the pane is open
   },
   init() {
     const hb = $('hotbar'); hb.innerHTML = '';
@@ -2471,9 +2901,10 @@ const HUD = {
     const slots = $('hotbar').children;
     for (let i = 0; i < 9; i++) { const el = slots[i]; el.classList.toggle('sel', i === player.hotbar); Screens.renderSlot(el, player.inventory[i]); }
     const s = player.inventory[player.hotbar];
-    if (s && s.name !== this.lastName) { const it = Items.get(s.name); $('itemname').textContent = it ? it.displayName : s.name; $('itemname').style.opacity = 1; this.nameTimer = 1.5; }
+    const key = s ? s.name + (s.v !== undefined ? JSON.stringify(s.v) : '') : null;   // gm items share a name: tell them apart by value
+    if (s && key !== this.lastName) { const it = Items.get(s.name); $('itemname').textContent = gm.label(s) || (it ? it.displayName : s.name); $('itemname').style.opacity = 1; this.nameTimer = 1.5; }
     else if (!s) $('itemname').style.opacity = 0;
-    this.lastName = s ? s.name : null;
+    this.lastName = key;
     this.heldLib?.sync();
   },
   message(text) {
@@ -2570,7 +3001,7 @@ const Save = gg.my(new class Save {
   head() {
     const p = { ...player, ...Screensaver.saved };   // never persist a screensaver viewpoint
     return { seed: Game.seed, time: Sky.time, day: Sky.day, mode: Game.mode, raining: Weather.raining, thunder: Weather.thunder,
-      player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying } };
+      player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying }, bbat: BBat.lib };
   }
   /* Cover = the save file's image: shot = { w, h (window CSS px at capture), url }; coverP resolves to the Blob, coverU8 its
      bytes (for the synchronous unload save). From live gameplay only, hotbar drawn as the pause page shows it.
@@ -2625,7 +3056,16 @@ const Save = gg.my(new class Save {
 });
 
 /* ---- Title = pause screen: Continue · New World <seed> (G: mode) · Save <io> · save list · settings pane ---- */
-const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, peekDelay: 90, hotbar: { paused: 0.5, title: 0 }, previewFov: 105, previewRd: 16, minRows: 4, lookSpeed: 1.9, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' },
+/* Screen states — one row per state, applied only by Title.set():
+     start: #start menu up (game paused)  loading: bottom spinner while the world isn't ready  hotbar: opacity  preview: wide title view */
+const c_TitleStates = {
+  title:   { start: 1, loading: 0, hotbar: 0,   preview: 1 },   // page opened: last world idles behind (never the spinner)
+  paused:  { start: 1, loading: 0, hotbar: 0.5, preview: 0 },   // in-game Esc
+  loading: { start: 0, loading: 1, hotbar: '',  preview: 0 },   // picked / new / imported world being saved, decoded, generated
+  game:    { start: 0, loading: 0, hotbar: '',  preview: 0 },
+};
+const c_1scr = { key: '_1scr', stops: 10 };   // TTFP first screen, see the 1scr script after #start
+const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, peekDelay: 90, previewFov: 105, previewRd: 16, minRows: 4, lookSpeed: 1.9, drift: 0.04, dateFmt: { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' },
   tryItems: [['water_bucket', 'lava_bucket'], ['torch', 'glass'], ['crafting_table', 'furnace', 'chest'], ['tnt', 'flint_and_steel', 'bow'], ['diamond_hoe', 'wheat_seeds', 'ladder', 'oak_door']] };
 /* ---- Tunables. gg.rndr = render pipeline, gg.sim = simulation/environment/controls. Ranges follow old.htm (VOX/P).
    Values the current mesher doesn't consume yet are stored for the DDA pipeline refactor. ---- */
@@ -2637,7 +3077,13 @@ const rndr = gg.rndr = {
   palette: { cDeep: '#3ac5cd', cShallow: '#1c9ca4', cPlat: '#9effe3', cSnow: '#cdc484' },
 };
 const sim = gg.sim = {
-  ambient: 0.609, screensaver: 0,
+  ambient: 0.609, screensaver: 0, lookFly: false, _cross: .6, crossDepth: .6,
+  // 十字/边框: centre crosshair + block outline opacity; 0 = both off (phones default to 0, see Touch.phone).
+  // crossFx = what is shown: depthPlace modes (创造W) aim with the crosshair, so on phones they override cross with >= crossDepth.
+  // Painted by Interaction.update whenever crossFx changes (pane edit, G, world load...).
+  get cross() { return this._cross; }, set cross(v) { this._cross = v; },
+  get crossFx() { return gg.Touch?.isPhone && Game.modeDef.depthPlace ? Math.max(this._cross, this.crossDepth) : this._cross; },
+  paintCross(v) { const el = $('crosshair'); el.style.opacity = v; el.classList.toggle('hidden', !v); },   // lookFly: while flying, W follows the camera pitch and never auto-lands
   get time() { return Sky.time; }, set time(v) { Sky.time = v; },
   get weather() { return Weather.state; }, set weather(v) { Weather.state = v; },
   get fov() { return Game.fovBase; }, set fov(v) { Game.fovBase = v; Player.fovTarget = v; },
@@ -2701,13 +3147,16 @@ const menu = gg.menu = {
       ['ambient', () => sim, { label: '日照倍率', ...R(0, 1) }],
       ['time', () => sim, { label: '时间', ...R(0, gg.DAY_LENGTH - 1, 100) }],
       ['weather', () => sim, { label: '天气', options: { '晴': 'clear', '雨/雪': 'rain', '雷暴': 'thunder' } }],
+      ['mode', () => Game, { label: '模式', options: Object.fromEntries(Object.entries(MODES).map(([m, d]) => [d.label, m])) }, (v) => Game.setMode(v)],
     ]],
     ['操控', [
-      ['mode', () => Game, { label: '模式', options: Object.fromEntries(Object.entries(MODES).map(([m, d]) => [d.label, m])) }, (v) => Game.setMode(v)],
-      ['fov', () => sim, { label: 'FoV', ...R(30, 120, 1) }],
       ['mouse', () => sim, { label: '鼠标速度', ...R(0.0005, 0.008, 0.0001) }],
+      ['cross', () => sim, { label: '十字/边框', ...R(0, 1, 0.05) }],
+      ['fov', () => sim, { label: 'FoV', ...R(30, 120, 1) }],
       ['flySpeed', () => sim, { label: '航速', ...R(2, 80, 0.5) }],
+      ['lookFly', () => sim, { label: '视线飞行' }],
       ['screensaver', () => sim, { label: '屏幕保护 s', ...R(0, 120, 1) }],
+      ['undo', () => c_Build, { label: '创造W可撤销', ...R(1, 60, 3) }],
     ]],
   ],
   // Top-right corner menu
@@ -2760,10 +3209,23 @@ const menu = gg.menu = {
   // F3 debug pane (top-left): merged debug text + fps graph + noclip
   DBG: [
     ['调试', [
-      ['text', () => HUD.dbg, { readonly: true, multiline: true, rows: 18, interval: 250 }],
+      ['信息', [['text', () => HUD.dbg, { readonly: true, multiline: true, rows: 18, interval: 250 }]], true],   // foldable debug text, open by default
       ['fps', () => HUD, { readonly: true, view: 'graph', min: 0, max: 150, interval: 250 }],
       toggle(player, 'noclip', '穿墙 noclip'),
       toggle(HUD, 'hurtMsg', '伤害→消息'),
+      // x-ray toggle; its opacity slider and prev/next (teleport to chunks with player changes) only show while it is on
+      (f) => {
+        const b = f.addButton({ title: '' }), a = f.addBinding(c_Fluid, 'ghostAlpha', { label: '幽灵透明度', ...R(0, 1, 0.05) });
+        const flt = f.addBinding(XRay, 'filter', { label: '过滤 !排除' });
+        const pick = f.addBlade({ view: 'list', label: '选中搜索', value: '', options: [{ text: '—', value: '' }, ...Blocks.byId.filter(d => d.id !== AIR).map(d => ({ text: d.name, value: d.name }))] });
+        const pv = f.addButton({ title: '◀ 上一块修改' }), nx = f.addButton({ title: '下一块修改 ▶ (F1)' }), rv = f.addButton({ title: '↶ 撤回屏幕范围内的修改 (F2)' });
+        const show = () => { b.title = `${XRay.on ? '☑' : '☐'} XRay-仅玩家方块不透明`; for (const x of [a, flt, pick, pv, nx, rv]) x.hidden = !XRay.on; };
+        b.on('click', () => { XRay.set(!XRay.on); show(); }); a.on('change', () => Game.applyFluidLook());
+        flt.on('change', (ev) => XRay.parse(ev.value));
+        pick.on('change', (ev) => { if (!ev.value) return; XRay.parse(`${XRay.filter} ${ev.value}`.trim()); flt.refresh(); pick.value = ''; });
+        pv.on('click', () => XRay.jump(-1)); nx.on('click', () => XRay.jump(1)); rv.on('click', () => XRay.revertScreen());
+        (HUD.syncs ??= []).push(show); show();
+      },
     ], true],
   ],
 };
@@ -2780,31 +3242,68 @@ const buildPane = (pane, decl) => {
   }
   return pane;
 };
-/* Screensaver: while paused, every sim.screensaver seconds jump to a random sky viewpoint with a wide FoV
-   (mobs are already frozen while paused). The real position comes back on resume / save. */
-const c_Saver = { spread: 160, height: [24, 64], pitch: [-0.6, -0.15], fov: [95, 125] };
+/* Screensaver: while paused, every sim.screensaver seconds move to a random sky viewpoint with a wide FoV
+   (mobs are already frozen while paused). The camera only moves once every chunk in the new view is meshed; chunks keep
+   loading around the real position (anchor). The real position comes back on resume / save. */
+const c_Saver = { spread: 160, height: [24, 64], pitch: [-0.6, -0.15], fov: [95, 125], rays: 9, step: 8, patience: 3 /* s per candidate */ };
 const Screensaver = gg.my(new class Screensaver {
-  t = 0; saved = null; fov = 0;
+  t = 0; saved = null; fov = 0; next = null; wait = 0;
+  get anchor() { return this.saved ?? player; }
   update(dt) {
     if (!sim.screensaver || !Game.ready) return;
-    if ((this.t += dt) < sim.screensaver) return; this.t = 0;
-    const p = player, C = c_Saver;
-    if (!this.saved) this.saved = { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch };
-    const o = this.saved, x = o.x + rng.range(-C.spread, C.spread), z = o.z + rng.range(-C.spread, C.spread);
-    const h = world.isLoaded(floor(x), floor(z)) ? world.getHeight(floor(x), floor(z)) : Terrain.heightAt(x, z);
-    Object.assign(p, { x, z, y: Math.max(h, SEA_LEVEL) + rng.range(...C.height), yaw: rng.range(0, Math.PI * 2), pitch: rng.range(...C.pitch) });
-    this.fov = rng.range(...C.fov);
+    if (!this.next) { if ((this.t += dt) < sim.screensaver) return; this.t = 0; this.wait = 0; this.next = this.pick(); }
+    if (this.inView(this.next)) { this.jump(this.next); this.next = null; }
+    else if ((this.wait += dt) > c_Saver.patience) { this.wait = 0; this.next = this.pick(); }
   }
-  restore() { this.t = 0; this.fov = 0; if (this.saved) { Object.assign(player, this.saved); this.saved = null; } }
+  pick() {
+    const C = c_Saver, o = this.anchor, r = Math.min(C.spread, ChunkManager.renderDistance * 16 * 0.7);   // stay inside what loads
+    return { x: o.x + rng.range(-r, r), z: o.z + rng.range(-r, r), dy: rng.range(...C.height),
+      yaw: rng.range(0, Math.PI * 2), pitch: rng.range(...C.pitch), fov: rng.range(...C.fov) };
+  }
+  // Rays fanned across the horizontal FoV: every chunk they cross inside the anchor's view distance (the only ones that
+  // will ever load) must be meshed
+  inView(v) {
+    const C = c_Saver, rd = ChunkManager.renderDistance, acx = floor(this.anchor.x) >> 4, acz = floor(this.anchor.z) >> 4;
+    const half = Math.atan(Math.tan(v.fov * Math.PI / 360) * Game.camera.aspect);
+    for (let k = 0; k < C.rays; k++) {
+      const a = v.yaw + half * (2 * k / (C.rays - 1) - 1), dx = -Math.sin(a), dz = -Math.cos(a);
+      for (let s = 0; ; s += C.step) {
+        const cx = floor(v.x + dx * s) >> 4, cz = floor(v.z + dz * s) >> 4;
+        if (Math.max(Math.abs(cx - acx), Math.abs(cz - acz)) > rd) { if (s === 0) return false; break; }
+        if (!world.getChunk(cx, cz)?.meshed) return false;
+      }
+    }
+    return true;
+  }
+  jump(v) {
+    const p = player;
+    this.saved ??= { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch };
+    Object.assign(p, { x: v.x, z: v.z, y: Math.max(world.getHeight(floor(v.x), floor(v.z)), SEA_LEVEL) + v.dy, yaw: v.yaw, pitch: v.pitch });
+    this.fov = v.fov;
+  }
+  restore() { this.t = this.wait = 0; this.fov = 0; this.next = null; if (this.saved) { Object.assign(player, this.saved); this.saved = null; } }
 });
 const Title = gg.my(new class Title {
-  bootId = 0; bootFile = null; pane = null; rt = null; userRd = null; want = null; shown = null; shownSeed = null; base = null; peekT = 0; fxRun = false; pt = null;
-  get visible() { return !$('start').classList.contains('hidden'); }
+  state = 'title'; bootId = 0; bootFile = null; pane = null; rt = null; userRd = null; want = null; shown = null; shownSeed = null; base = null; peekT = 0; fxRun = false; pt = null;
+  get visible() { return !!c_TitleStates[this.state].start; }
+  // The only place that flips screen state (DOM classes, Game.atTitle/paused, view distance, screensaver, pointer)
+  set(state, text) {
+    const S = c_TitleStates[state], st = $('start'); this.state = state;
+    Game.atTitle = state === 'title'; Game.paused = !!S.start;
+    st.classList.toggle('hidden', !S.start); st.classList.toggle('title', state === 'title'); st.classList.toggle('paused', state === 'paused');
+    if (!S.start) st.classList.remove('peek');
+    $('hotbar').style.opacity = S.hotbar;
+    if (text) { $('loadtext').textContent = text; $('loadbar').firstElementChild.style.width = '0'; }
+    $('loading').classList.toggle('hidden', !S.loading || (Game.running && Game.ready && !text));
+    this.preview(!!S.preview);
+    if (S.start) { Input.unlock(); Screens.close(); } else Screensaver.restore();
+  }
   // Boot world, idling behind the title: the &xyzb= file (overwrites its seed's slot) or else the last world
   async boot() {
     const id = ++this.bootId;
-    this.open();
-    await Save.ready;
+    this.set('title');
+    await Save.ready;   // the 1scr #save-list rows stay up until the save index is known (no empty-list flash)
+    this.open('title');
     let data = this.bootFile && await this.bootFile.then(buf => bwebp.load(buf)).catch(e => (HUD.message('xyzb: ' + e.message), null));
     if (data) await Save.import(data);
     const seed = data ? String(data.seed) : Save.last, e = seed && Save.entry(seed);
@@ -2812,20 +3311,15 @@ const Title = gg.my(new class Title {
     if (id !== this.bootId || Game.running) return;          // user already picked/created a world meanwhile
     if (e) {
       if (!data) Game.mode = e.mode || 'survival';
-      if (data?.shot && this.fits(data.shot)) { this.base = data.shot.url; this.showShot(this.base, false); }   // stays until the world is generated
       Game.start(seed, data, true);
-    }
+    } else $('sky1').classList.add('off');
     this.render();
   }
   // Two states share this screen: 'title' (page just opened, world idles behind) and 'paused' (in-game Esc)
   open(state = Game.running && Game.ready && !Game.atTitle ? 'paused' : 'title') {
-    $('start').classList.toggle('title', state === 'title'); $('start').classList.toggle('paused', state === 'paused');
-    $('hotbar').style.opacity = c_Title.hotbar[state];
-    Game.atTitle = state === 'title'; Game.paused = true; Input.unlock(); Screens.close();
-    $('death').classList.add('hidden'); $('loading').classList.toggle('hidden', !Game.running || Game.ready);
-    this.preview(state === 'title');
+    this.set(state); $('death').classList.add('hidden');
     const sp = gg.res_vam.t.splash; $('splash').textContent = sp[Math.floor(Math.random() * sp.length)];
-    $('start').classList.remove('hidden'); this.render(); this.pane?.refresh();
+    this.render(); this.pane?.refresh();
   }
   row(e) {
     const el = document.createElement('div');
@@ -2857,11 +3351,23 @@ const Title = gg.my(new class Title {
     if (!Game.running || !Player.isCreative()) { HUD.message('Give a try: creative mode only (G)'); return; }
     player.inventory[player.hotbar] = { name, count: 1 }; HUD.refreshHotbar(); this.play();
   }
+  // ---- 1scr (TTFP): last #save-list rows + a CSS gradient of the current sky dome, written on unload ----
+  snap1scr() { this.html1scr = $('save-list').innerHTML; }
+  sky1Bg(pitch = 0, fov = Game.fovBase) {
+    const u = Sky.dome.material.uniforms, T = u.top.value, H = u.hor.value, tf = Math.tan(fov * Math.PI / 360), n = c_1scr.stops;
+    const rgb = (t) => [H.r + (T.r - H.r) * t, H.g + (T.g - H.g) * t, H.b + (T.b - H.b) * t].map(v => Math.round(clamp(v, 0, 1) * 255)).join();
+    return 'linear-gradient(' + Array.from({ length: n + 1 }, (_, i) =>
+      `rgb(${rgb(smoothstep(-0.05, 0.45, Math.sin(Math.atan((0.5 - i / n) * 2 * tf) + pitch)))}) ${i * 100 / n}%`).join() + ')';
+  }
+  save1scr() {
+    try { localStorage[c_1scr.key] = JSON.stringify({ v: window._1scrV, bg: Sky.dome ? this.sky1Bg() : '', html: this.html1scr ?? '' }); } catch (e) { /* quota */ }
+  }
   render() {
     this.tryIcons();
     const list = Save.list();
     $('save-list').replaceChildren(...[...list, ...Array(Math.max(0, c_Title.minRows - list.length)).fill(null)].map(e => this.row(e)));
     $('btn-play').textContent = Game.running ? (Game.atTitle ? 'Enter World' : 'Continue') : list.length ? 'Enter: ' + (list[0].name || list[0].seed) : 'Play (new seed)';
+    this.snap1scr();
   }
   del(e) {
     if (!confirm(`Delete "${e.name}" (${e.seed})?`)) return;
@@ -2875,7 +3381,7 @@ const Title = gg.my(new class Title {
   /* Hover is hit-tested from the last pointer position, not mouseover/mouseleave: while a view transition runs the page
      hit-tests as its root, which flipped .peek (and the cursor) on and off in a loop. Re-checked when each transition ends. */
   hover() {
-    if (!this.visible || this.fxRun || !this.pt) return;
+    if (!this.visible || this.fxRun || !this.pt || (Game.running && !Game.ready)) return;   // no shot peeks while the boot world generates
     const el = document.elementFromPoint(...this.pt), row = el?.closest('#save-list .save-row');
     if (row) this.peek(row.classList.contains('cur') ? null : row.dataset.seed ?? null);   // the running world needs no preview
     else if (!el?.closest('#save-list')) this.peek(null);                                  // gaps between rows keep the shot
@@ -2901,8 +3407,7 @@ const Title = gg.my(new class Title {
   }
   // Leave the menu right away and show the bottom spinner while the old world is saved / the new one decoded
   async leave(text) {
-    Screensaver.restore(); $('start').classList.add('hidden'); $('start').classList.remove('peek'); $('hotbar').style.opacity = ''; Game.atTitle = false; this.preview(false);
-    $('loadtext').textContent = text; $('loadbar').firstElementChild.style.width = '0'; $('loading').classList.remove('hidden');
+    this.set('loading', text);
     await new Promise(r => requestAnimationFrame(() => setTimeout(r)));
     if (Game.running && Game.ready) await Save.save(true);
   }
@@ -2926,9 +3431,8 @@ const Title = gg.my(new class Title {
   // lock=false for Esc: Esc never counts as a user gesture, so pointer lock waits for the next click
   enter(lock = true) {
     if (!Game.running) return;
-    Screensaver.restore(); if (Game.ready) this.unpeek(); Game.atTitle = false; Game.paused = false; this.preview(false); $('start').classList.add('hidden'); $('hotbar').style.opacity = '';
-    if (!Game.ready) $('loading').classList.remove('hidden');
-    else if (!player.dead) { if (lock) Input.lock(); else HUD.message('Click to capture the mouse'); }
+    this.set(Game.ready ? 'game' : 'loading');
+    if (Game.ready) { this.unpeek(); if (!player.dead) { if (lock) Input.lock(); else HUD.message('Click to capture the mouse'); } }
   }
   play() {
     if (Game.running) return this.enter();
@@ -3041,23 +3545,24 @@ const Game = {
     Sky.time = 1000; Sky.day = 0; Weather.raining = Weather.thunder = false; Weather.amount = Weather.storm = 0;
     if (data) {
       data.fill();   // bwebp: chunks -> world.stored
-      Sky.time = data.time || 1000; Sky.day = data.day || 0; Weather.raining = !!data.raining; Weather.thunder = !!data.thunder; this.mode = data.mode || 'survival';
+      Sky.time = data.time || 1000; Sky.day = data.day || 0; Weather.raining = !!data.raining; Weather.thunder = !!data.thunder; this.mode = data.mode ?? 'survival'; BBat.merge(data.bbat);
       const pl = data.player;
       Player.reset(pl.spawn || [pl.x, pl.y, pl.z]);
       Object.assign(player, { x: pl.x, y: pl.y, z: pl.z, yaw: pl.yaw || 0, pitch: pl.pitch || 0, health: pl.health, hunger: pl.hunger, saturation: pl.saturation || 0, hotbar: pl.hotbar || 0, flying: !!pl.flying && Player.isCreative() });
       this.freshSpawn = false;
-      player.inventory = (pl.inventory || []).map(s => s ? { name: s.name, count: s.count, dur: s.dur } : null); while (player.inventory.length < 36) player.inventory.push(null);
+      player.inventory = (pl.inventory || []).map(s => s ? { name: s.name, count: s.count, dur: s.dur, ...(s.v !== undefined && { v: s.v }) } : null); while (player.inventory.length < 36) player.inventory.push(null);
     } else {
       const spawn = Terrain.findSpawn();
       Player.reset(spawn); this.freshSpawn = true; this.fov = this.fovBase;
       player.inventory.fill(null);
       if (Player.isCreative()) { player.inventory[0] = { name: 'stone', count: 64 }; player.inventory[1] = { name: 'oak_planks', count: 64 }; player.inventory[2] = { name: 'torch', count: 64 }; player.inventory[3] = { name: 'glass', count: 64 }; player.inventory[4] = { name: 'diamond_pickaxe', count: 1 }; }
     }
+    Build.clear(); this.applyFluidLook();
     HUD.refreshHotbar(); Motion.camera(this.camera, player);
-    $('death').classList.add('hidden'); $('start').classList.toggle('hidden', !title);
-    $('loadtext').textContent = 'Generating world…'; $('loading').classList.remove('hidden');
+    $('death').classList.add('hidden');
     this.hold = true;   // keep presenting the previous frame until the new world is ready (see loop)
-    this.running = true; this.ready = false; this.autosave = 0; this.atTitle = !!title; this.paused = !!title;
+    this.running = true; this.ready = false; this.autosave = 0;
+    Title.set(title ? 'title' : 'loading');
     HUD.message('Seed: ' + this.seed + ' · Press E for inventory, Esc for menu');
   },
   // New worlds: the noise height ignores caves/ravines, so pick a nearby column whose real
@@ -3074,14 +3579,18 @@ const Game = {
     if (!best) best = [px + 0.5, world.getHeight(px, pz), pz + 0.5];
     player.x = best[0]; player.y = best[1]; player.z = best[2]; player.vy = 0; player.fallStart = best[1];
     player.spawn = best.slice(); this.freshSpawn = false;
+    if (Player.isCreative()) Player.startFly();
   },
   pause() { if (this.running) { Save.capture(); Title.open(); } },
   resume() { Title.enter(); },
   get modeDef() { return MODES[this.mode] || MODES.survival; },
   setMode(m) {
-    this.mode = MODES[m] ? m : 'survival'; if (!this.modeDef.creative && !player.noclip) player.flying = false;
+    const was = this.modeDef.creative; this.mode = MODES[m] ? m : 'survival';
+    if (!this.modeDef.creative && !player.noclip) player.flying = false; else if (this.modeDef.creative && !was && this.running) Player.startFly();
+    Build.clear(); this.applyFluidLook(); remeshAll();
     HUD.message('Game mode: ' + this.modeDef.label); HUD.refreshHotbar(); Title.pane?.refresh(); if (Title.visible) Title.render();
   },
+  applyFluidLook() { if (Mesher.ghostMaterial) Mesher.ghostMaterial.uniforms.uAlphaMul.value = c_Fluid.ghostAlpha; },
   toggleMode() { const k = Object.keys(MODES); this.setMode(k[(k.indexOf(this.mode) + 1) % k.length]); },
   applyScale(v) { this.scale = v; this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5) * v); this.resize(); },
 
@@ -3102,12 +3611,13 @@ const Game = {
         ChunkManager.update(player.x, player.z, 40);
         $('loadbar').firstElementChild.style.width = (ChunkManager.progress() * 100) + '%';
         if (ChunkManager.isReady(player.x, player.z)) {
-          this.ready = true; $('loading').classList.add('hidden');
+          this.ready = true; $('loading').classList.add('hidden'); $('sky1').classList.add('off');
+          if (Title.state === 'loading') Title.set('game');
           CSS.fx(() => { this.hold = false; this.renderer.render(this.scene, this.camera); Title.unpeek(); });
           if (this.freshSpawn) this.settleSpawn(); else if (Physics.intersects(player)) player.y = world.getHeight(floor(player.x), floor(player.z)) + 1;
           if (this.atTitle) Title.render(); else { Input.lock(); HUD.message('Click to capture the mouse if it is not captured.'); }
         }
-      } else if (this.paused) { Title.look(dt); Screensaver.update(dt); ChunkManager.update(player.x, player.z, 4); }
+      } else if (this.paused) { Title.look(dt); Screensaver.update(dt); const a = Screensaver.anchor; ChunkManager.update(a.x, a.z, 4); }
       else {
         Player.update(dt);
         ChunkManager.update(player.x, player.z, 6);
@@ -3136,7 +3646,7 @@ const Game = {
     if (!this.hold) this.renderer.render(this.scene, this.camera);
   }
 };
-const unloadSave = () => Save.saveSync();
+const unloadSave = () => { Title.save1scr(); Save.saveSync(); };
 gg.ev(window, {
   load() {
     try { Game.init(); }
@@ -3153,14 +3663,17 @@ Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORA
   #tui, #tui * { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
   #tpad { position: absolute; pointer-events: auto; left: calc(9px + env(safe-area-inset-left)); bottom: calc(7px + env(safe-area-inset-bottom)); width: var(--padW, 26vw); height: var(--padH, 60vh);
     border-radius: 16px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.18)); }
+  /* hotbar in front of the PAD (z 6 > #tui 5); tap = select, ×2 = E, hold = Q */
+  body.touch #hotbar { z-index: 6; pointer-events: auto; touch-action: none; } body.touch .hslot { width: 46px; height: 46px; }
   #tpad > b { position: absolute; left: 0; right: 0; bottom: 0; height: 70px; display: grid; place-content: center; border-radius: 16px; background: rgba(24,24,24,.82);
     font: 600 40px/1 system-ui, sans-serif; color: #fff; letter-spacing: 1px; }
   #tpad > i { position: absolute; display: none; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%; border: 2px solid rgba(255,255,255,.55); background: rgba(255,255,255,.12); }
   #tpad > i.knob { width: 34px; height: 34px; margin: -17px 0 0 -17px; background: rgba(255,255,255,.45); border: 0; } #tpad.on > i { display: block; }
+  #tpad > b.long { background: rgba(126,143,204,.85); transition: background var(--long, .45s) linear; }
   .tb { position: absolute; pointer-events: auto; border-radius: 50%; display: grid; place-content: center; text-align: center; background: rgba(24,44,110,.55); border: 2px solid rgba(255,255,255,.35);
     color: #fff; font: 30px/1 system-ui, sans-serif; transition: transform .08s, background .08s; }
   .tb small { font: 14px 'VT323', monospace; opacity: .8; margin-top: 4px; } .tb.on, .tb.down { background: rgba(255,255,255,.32); } .tb.down { transform: scale(.93); }
-  .tb.break { width: 76px; height: 76px; right: calc(5px + env(safe-area-inset-right)); bottom: calc(133px + env(safe-area-inset-bottom)); }
+  .tb.break {width: 76px;height: 76px;right: calc(5px + env(safe-area-inset-right));bottom: calc(150px + env(safe-area-inset-bottom));}
   .tb.place { width: 67px; height: 67px; right: calc(99px + env(safe-area-inset-right)); bottom: calc(71px + env(safe-area-inset-bottom)); }
   .tb.pause { width: 47px; height: 47px; right: calc(113px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); font-weight: 900; }
   .tb.sprint { width: 56px; height: 56px; right: calc(15px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); filter: grayscale(1) brightness(1.8); }
@@ -3168,6 +3681,7 @@ Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORA
   body.touch .screen { justify-content: safe center; overflow-y: auto; }
   @media (max-height: 760px) { body.touch .screen > *, body.touch #screen .panel { zoom: .75; } }
   @media (max-height: 520px) { body.touch .screen > *, body.touch #screen .panel { zoom: .55; } body.touch .screen { gap: 4px; } }
+  body.touch #rt-pane { display: none; }   /* 体素引擎 menu: desktop only */
   body.touch #help { cursor: pointer; } body.touch #help:not(.open) { display: block; padding: 2px 14px; }
   body.touch #help:not(.open) > * { display: none; } body.touch #help:not(.open)::before { content: '? Help'; color: #ffe68a; }
 </style>
@@ -3176,41 +3690,50 @@ Object.assign(gg, { SET_SILENT, SET_NO_NOTIFY, CH_EMPTY, CH_GENERATED, CH_DECORA
    An input *aspect*: touches are woven into the existing keyboard/mouse pipeline as synthetic KeyboardEvents
    (window keydown/keyup -> Input.keys / Events 'keypress') plus Input.buttons / Events 'mousedown', so no game
    system knows about touch. Layout follows handover/mobile.webp:
-     · bottom-left PAD (60% high): WASD stick around the finger's start point; the bar shows WALK/SPRINT/SNEAK/FLY/SWIM
-     · canvas drag = look · hold still = Space (jump / swim; creative starts flying) · double-tap = land
-     · ⛏ break: hold = mine/attack, ×2 = Q · ▣ place: tap = use/place, hold = E · Ⅱ pause
+     · bottom-left PAD (60% high): WASD stick around the finger's start point; the bar shows WALK/RUN/DUCK/FLY/SWIM,
+       long-press on the bar = swap what a finger on a block does: mine (mouse 0) <-> place (mouse 2)
+     · hotbar (in front of the PAD): tap = select slot, double-tap = E (inventory), long-press = Q (drop)
+     · canvas drag = look (speed follows the mouse-speed setting) · hold still = Space (jump / swim) · double-tap = land
+     · right zone (same width as the PAD): a tap = jump, hold still = Space held (swim / fly up), drag = look
+     · ⛏ break: hold = mine/attack, ×2 = Q · ▣ place: tap = use/place, hold = E · Ⅱ pause, hold = F (pick block)
      · 🏃 sprint: tap toggles sprint (Shift while pushing forward), long-press = Alt+W (sneak forward) while held
    The first touch-end goes fullscreen (+ landscape lock where allowed). */
 const { $, Input, Events, Player, Game, Screens } = gg;
-const c_Touch = {
-  look: 1.6, dead: 14, slop: 5, hold: 200, dbl: 300, long: 450, padH: 0.6, padW: 0.26, fullscreen: true,
+const c_Touch = gg.c_Touch = {
+  look: 1.8 /* x Player.SENS (鼠标速度) */, dead: 14, jumpMs: 120, slop: 5, hold: 70, dbl: 150, long: 200, padH: 0.6, padW: 0.27, fullscreen: true,
   // [class, icon, hint, { hold: mouse button, dbl: tap-twice action, long: long-press action, tap: short-tap action }]
   btns: [
     ['break', '⛏', '×2 Q', { hold: 0, dbl: 'KeyQ' }],
     ['place', '▣', 'hold E', { hold: 2, long: 'KeyE' }],
-    ['pause', 'Ⅱ', '', { tap: 'pause' }],
+    ['pause', 'Ⅱ', '', { tap: 'pause', long: 'KeyF' }],
     ['sprint', '🏃', '', { tap: 'sprint', long: 'sneakW' }],
   ],
-  state: (p) => p.flying ? 'FLY' : p.inWater || p.inLava ? 'SWIM' : p.sneaking ? 'SNEAK' : p.sprinting ? 'SPRINT' : 'WALK',
+  state: (p) => p.flying ? 'FLY' : p.inWater || p.inLava ? 'SWIM' : p.sneaking ? 'DUCK' : p.sprinting ? 'RUN' : 'WALK',
 };
 const Touch = gg.my(new class Touch {
+  place = false;   // WALK long-press: a finger on a block places (mouse 2) instead of mining (mouse 0)
   look = null; pad = null; timer = 0; tap = 0; sprint = false; wasd = [0, 0, 0, 0]; K = ['KeyW', 'KeyS', 'KeyA', 'KeyD']; fs = c_Touch.fullscreen;
   key(type, code) { window.dispatchEvent(new KeyboardEvent(type, { code, bubbles: true })); }
   press(code) { this.key('keydown', code); this.key('keyup', code); }
+  chord(...codes) { codes.forEach(c => this.key('keydown', c)); codes.reverse().forEach(c => this.key('keyup', c)); }
+  // Phone Q: Ctrl+Z while Build has something to undo (creative-W fills / BBat / x-ray revert), else drop
+  q() { if (gg.Build?.history.length) this.chord('ControlLeft', 'KeyZ'); else this.press('KeyQ'); }
   hold(code, on) { if (!!Input.keys[code] !== on) this.key(on ? 'keydown' : 'keyup', code); }
   mouse(b, down) { Input.buttons[b] = down; if (down) Events.emit('mousedown', b); }
   // WASD from the pad; Shift follows (sprint latch && pushing forward) so standing still never looks like sprinting
   stick(...v) { v.forEach((b, i) => { if (b !== this.wasd[i]) this.key((this.wasd[i] = b) ? 'keydown' : 'keyup', this.K[i]); }); this.hold('ShiftLeft', this.sprint && !!this.wasd[0]); }
   // Long-press / tap actions: a long action may return its release
   act = {
-    KeyQ: () => this.press('KeyQ'), KeyE: () => this.press('KeyE'),
+    KeyQ: () => this.q(), KeyE: () => this.press('KeyE'), KeyF: () => this.press('KeyF'),
     pause: () => Game.pause(),
     sprint: () => { this.sprint = !this.sprint; this.stick(...this.wasd); },
     sneakW: () => { this.hold('AltLeft', true); this.hold('KeyW', true); return () => { this.hold('AltLeft', false); this.hold('KeyW', !!this.wasd[0]); }; },
   };
   // Any touch shows the touch UI; control is grabbed only while the game is live
+  // Phone layout, once: touch class + 十字/边框 off (the pane can turn them back on)
+  phone() { if (this.isPhone) return; this.isPhone = true; document.body.classList.add('touch'); gg.sim.cross = 0; }
   engage() {
-    Input.touch = true; document.body.classList.add('touch');
+    Input.touch = true; this.phone();
     if (!Input.locked && Game.running && !Game.paused && !Screens.isOpen()) Input.locked = true;
     return Input.locked;
   }
@@ -3225,9 +3748,9 @@ const Touch = gg.my(new class Touch {
     ui.innerHTML = '<div id="tpad"><i></i><i class="knob"></i><b>WALK</b></div>' + C.btns.map(([c, icon, hint]) => `<div class="tb ${c}">${icon}${hint ? `<small>${hint}</small>` : ''}</div>`).join('');
     $('app').append(ui);
     gg.ev(document, { touchstart() { T.engage(); }, touchend() { T.fullscreen(); } }, { passive: true });
-    if (matchMedia('(pointer: coarse)').matches) document.body.classList.add('touch'); // phone layout before the first touch
+    if (matchMedia('(pointer: coarse)').matches) this.phone(); // phone layout before the first touch
     gg.ev($('help'), { click(e) { if (document.body.classList.contains('touch') && e.target.tagName !== 'IMG') this.classList.toggle('open'); } });
-    this.lookOn($('gl')); this.padOn($('tpad')); C.btns.forEach(([c, , , spec]) => this.button(ui.querySelector('.tb.' + c), spec));
+    this.lookOn($('gl')); this.padOn($('tpad')); this.hotbarOn($('hotbar')); C.btns.forEach(([c, , , spec]) => this.button(ui.querySelector('.tb.' + c), spec));
     this.hud = { label: ui.querySelector('#tpad b'), sprintEl: ui.querySelector('.tb.sprint'), last: '' };
     const loop = () => { requestAnimationFrame(loop); if (Input.touch) this.frame(); }; loop();
   }
@@ -3244,16 +3767,24 @@ const Touch = gg.my(new class Touch {
     const mob = Mobs?.raycast(e, [d.x, d.y, d.z], hit ? hit.dist : reach);
     return { dir: [d.x, d.y, d.z], solid: !!(hit || mob) };
   }
+  swapAct() { this.place = !this.place; gg.HUD.message(this.place ? 'place blocks ▣' : 'mine blocks ⛏'); }
+  inZone(x) { return x > innerWidth * (1 - c_Touch.padW); }
+  spaceOn(f) { f.acting = f.space = 1; if (this.spaceN++ === 0) this.key('keydown', 'Space'); }
+  jump() { if (this.spaceN) return; this.key('keydown', 'Space'); setTimeout(() => { if (!this.spaceN) this.key('keyup', 'Space'); }, c_Touch.jumpMs); }
   action(f) {
     f.acting = 1;
     const w = this.scr2world(f.x, f.y);
-    if (w.solid) { f.mine = 1; this.aim = f; this.mouse(0, true); }
+    if (w.solid) { f.mine = 1; f.btn = this.place ? 2 : 0; this.aim = f; this.mouse(f.btn, true); }
     else { f.space = 1; if (this.spaceN++ === 0) this.key('keydown', 'Space'); }
   }
   release(f) {
     if (f.space && --this.spaceN === 0) this.key('keyup', 'Space');
     // keep a tap alive for a few frames, then hand the aim to another mining finger (if any)
-    if (f.mine) setTimeout(() => { if (this.aim !== f) return; const g = [...this.fingers.values()].find(g => g.mine); this.aim = g || null; if (!g) this.mouse(0, false); }, 80);
+    if (f.mine) setTimeout(() => {
+      if (this.aim !== f) return;
+      const g = [...this.fingers.values()].find(g => g.mine); this.aim = g || null;
+      if (!g || g.btn !== f.btn) this.mouse(f.btn, false);
+    }, 80);
   }
   // AOP: while a finger mines, Interaction.update aims along that finger's ray instead of the crosshair
   adviseAim() {
@@ -3273,9 +3804,10 @@ const Touch = gg.my(new class Touch {
       touchstart(ev) {
         ev.preventDefault(); if (!T.engage()) return;
         for (const t of ev.changedTouches) {
-          const f = { id: t.identifier, x: t.clientX, y: t.clientY, sx: t.clientX, sy: t.clientY, look: !T.look, moved: 0, acting: 0 };
+          const f = { id: t.identifier, x: t.clientX, y: t.clientY, sx: t.clientX, sy: t.clientY, look: !T.look, moved: 0, acting: 0, zone: T.inZone(t.clientX) };
           T.fingers.set(t.identifier, f);
-          if (f.look) { T.look = f; f.timer = setTimeout(() => { if (!f.moved && T.fingers.has(f.id)) T.action(f); }, C.hold); }
+          if (f.look) { T.look = f; f.timer = setTimeout(() => { if (!f.moved && T.fingers.has(f.id)) f.zone ? T.spaceOn(f) : T.action(f); }, C.hold); }
+          else if (f.zone) T.spaceOn(f);
           else T.action(f);
         }
       },
@@ -3286,7 +3818,7 @@ const Touch = gg.my(new class Touch {
           const dx = t.clientX - f.x, dy = t.clientY - f.y;
           if (!f.moved && Math.hypot(t.clientX - f.sx, t.clientY - f.sy) > C.slop) { f.moved = 1; clearTimeout(f.timer); }
           f.x = t.clientX; f.y = t.clientY;
-          if (f.look && !f.acting && Input.locked) { Input.dx -= C.look * dx; Input.dy -= C.look * dy; }
+          if (f.look && (!f.acting || f.zone) && Input.locked) { Input.dx -= C.look * dx; Input.dy -= C.look * dy; }   // x Player.SENS downstream
         }
       },
       touchend(ev) { T.lookEnd(ev); }, touchcancel(ev) { T.lookEnd(ev); },
@@ -3300,7 +3832,8 @@ const Touch = gg.my(new class Touch {
         this.look = null;
         // quick tap: hit what's under the finger; on air while flying, a double-tap lands
         if (!f.acting && !f.moved) {
-          if (this.scr2world(f.x, f.y).solid) { this.action(f); }
+          if (f.zone) this.jump();
+          else if (this.scr2world(f.x, f.y).solid) { this.action(f); }
           else { const n = performance.now(); if (n - this.tap < c_Touch.dbl && gg.player.flying) Player.toggleFly(); this.tap = n; }
         }
       }
@@ -3309,25 +3842,42 @@ const Touch = gg.my(new class Touch {
   }
   // Pad: stick centred on the finger's start point
   padOn(pad) {
-    const T = this, C = c_Touch, [ring, knob] = pad.querySelectorAll('i');
+    const T = this, C = c_Touch, [ring, knob] = pad.querySelectorAll('i'), label = pad.querySelector('b');
+    const noFly = () => { clearTimeout(T.pad?.fly); label.classList.remove('long'); };
     const at = (el, x, y) => { const r = pad.getBoundingClientRect(); el.style.left = x - r.left + 'px'; el.style.top = y - r.top + 'px'; };
-    const end = (ev) => { for (const t of ev.changedTouches) if (T.pad?.id === t.identifier) { T.pad = null; pad.classList.remove('on'); T.stick(0, 0, 0, 0); } };
+    const end = (ev) => { for (const t of ev.changedTouches) if (T.pad?.id === t.identifier) { noFly(); T.pad = null; pad.classList.remove('on'); T.stick(0, 0, 0, 0); } };
     gg.ev(pad, {
       touchstart(ev) {
         ev.preventDefault(); ev.stopPropagation(); T.engage();
         const t = ev.changedTouches[0]; if (T.pad || !t) return;
         T.pad = { id: t.identifier, x: t.clientX, y: t.clientY }; pad.classList.add('on'); at(ring, t.clientX, t.clientY); at(knob, t.clientX, t.clientY);
+        if (ev.target === label) { label.style.setProperty('--long', C.long + 'ms'); label.classList.add('long'); T.pad.fly = setTimeout(() => { label.classList.remove('long'); if (T.engage()) T.swapAct(); }, C.long); }
       },
       touchmove(ev) {
         ev.preventDefault();
         for (const t of ev.changedTouches) if (T.pad?.id === t.identifier) {
           const dx = t.clientX - T.pad.x, dy = t.clientY - T.pad.y, l = Math.hypot(dx, dy), k = Math.min(1, 40 / (l || 1));
-          at(knob, T.pad.x + dx * k, T.pad.y + dy * k);
+          at(knob, T.pad.x + dx * k, T.pad.y + dy * k); if (l > C.dead) noFly();
           if (Input.locked) T.stick(dy < -C.dead, dy > C.dead, dx < -C.dead, dx > C.dead);
         }
       },
       touchend: end, touchcancel: end,
     }, { passive: false });
+  }
+  // Hotbar: tap = DigitN, a 2nd tap on the same slot within dbl = E, long-press = Q (drops from the selected slot)
+  hotbarOn(hb) {
+    const T = this, C = c_Touch; let last = 0, lastI = -1, timer = 0;
+    gg.ev(hb, {
+      pointerdown(e) {
+        const el = e.target.closest('.hslot'); if (!el) return;
+        e.preventDefault(); e.stopPropagation(); if (!T.engage()) return;
+        const i = [...hb.children].indexOf(el), n = performance.now();
+        gg.player.hotbar = i; gg.HUD.refreshHotbar();
+        if (i === lastI && n - last < C.dbl) { last = 0; return T.press('KeyE'); }
+        last = n; lastI = i; clearTimeout(timer); timer = setTimeout(() => { timer = 0; last = 0; T.q(); }, C.long);
+      },
+      pointerup() { clearTimeout(timer); }, pointercancel() { clearTimeout(timer); }, contextmenu(e) { e.preventDefault(); },
+    });
   }
   // Round button: hold -> mouse button; dbl -> 2nd quick tap fires instead; long -> fires after c_Touch.long (may hold until release); tap -> short press
   button(el, spec) {
@@ -3341,8 +3891,7 @@ const Touch = gg.my(new class Touch {
     gg.ev(el, {
       pointerdown(e) {
         e.preventDefault(); e.stopPropagation(); el.setPointerCapture(e.pointerId); el.classList.add('down'); fired = false;
-        if (spec.tap === 'pause') { el.classList.add('armed'); return; }
-        if (!T.engage()) return;
+        if (spec.tap !== 'pause' && !T.engage()) return;   // pause taps work even before the game grabs control
         el.classList.add('armed');
         if (spec.dbl) { const n = performance.now(); if (n - last < C.dbl) { last = 0; fired = true; T.act[spec.dbl](); return; } last = n; }
         if (spec.hold != null) T.mouse(spec.hold, true);
@@ -3354,7 +3903,8 @@ const Touch = gg.my(new class Touch {
   // Per frame: state label, sprint lamp, re-assert latched keys (window blur clears Input.keys)
   frame() {
     const p = gg.player, C = c_Touch, s = C.state(p), h = this.hud, ui = $('tui');
-    if (s !== h.last) h.label.textContent = h.last = s;
+    const lbl = (this.place ? ' ▣' : '')+s;
+    if (lbl !== h.last) h.label.textContent = h.last = lbl;
     if (C.padH !== h.padH || C.padW !== h.padW) { h.padH = C.padH; h.padW = C.padW; ui.style.setProperty('--padH', C.padH * 100 + 'vh'); ui.style.setProperty('--padW', C.padW * 100 + 'vw'); }
     h.sprintEl.classList.toggle('on', this.sprint);
     if (this.sprint && this.wasd[0] && !Input.keys.ShiftLeft) this.hold('ShiftLeft', true);
@@ -3362,12 +3912,38 @@ const Touch = gg.my(new class Touch {
     if (!Input.locked && this.fingers.size) { for (const f of this.fingers.values()) { clearTimeout(f.timer); this.release(f); } this.fingers.clear(); this.look = null; }
   }
 });
-// Tweakpane: 触屏 folder in the top-right menu (built on window load, after this module ran)
+// Tweakpane: 触屏 folder in the top-right menu (built on window load, after this module ran). Look speed follows 鼠标速度.
 gg.menu.RT.push(['触屏', [
-  ['padH', '摇杆区高度', 0.2, 1, 0.01], ['padW', '摇杆区宽度', 0.1, 0.6, 0.01], ['look', '视角灵敏度', 0.2, 5, 0.05], ['dead', '摇杆死区 px', 2, 60, 1],
-  ['hold', '长按跳跃 ms', 50, 800, 10], ['long', '长按按钮 ms', 150, 1500, 10], ['dbl', '双击间隔 ms', 100, 800, 10],
-].map(([k, label, min, max, step]) => [k, () => c_Touch, { label, min, max, step }])]);
+  ['padW', '摇杆区宽度', 0.1, 0.6, 0.01, c_Touch], ['reachS', '可破坏距离', 2, 12, 0.5, gg.Interaction],
+  ['long', '长按 ms', 150, 1500, 10, c_Touch], ['dbl', '双击 ms', 100, 800, 10, c_Touch],
+].map(([k, label, min, max, step, o]) => [k, () => o, { label, min, max, step }])]);
 Touch.init();
+/* ---- HelpKeys: a <b> in #help is clickable when its label parses to keys; clicking it simulates them via Touch.key.
+   Label grammar: 'A / B' → first alternative; spaces → taps in sequence ('W W' = double tap); '+' → chord ('Ctrl+Z').
+   Tokens: alias table, F1..F12, digits → DigitN, single letters → KeyX; anything else (Mouse, wheel(1-9)) stays plain text. */
+const c_HelpKeys = { resumeMs: 150 /* Esc-resume first, then the keys */, gap: 90, alias: { Space: 'Space', SPC: 'Space', Shift: 'ShiftLeft', Alt: 'AltLeft', Ctrl: 'ControlLeft', Esc: 'Escape', Tab: 'Tab' } };
+const HelpKeys = gg.my(new class HelpKeys {
+  code(t) { return c_HelpKeys.alias[t] ?? (/^F\d{1,2}$/.test(t) ? t : /^\d$/.test(t) ? 'Digit' + t : /^[A-Z]$/.test(t) ? 'Key' + t : null); }
+  // label → [[chord codes]...] or null
+  parse(label) {
+    const taps = label.split('/')[0].trim().split(/\s+/).filter(Boolean).map(t => t.split('+').map(k => this.code(k)));
+    return taps.length && taps.every(c => c.every(Boolean)) ? taps : null;
+  }
+  // #help lives on the pause/title screen: resume the game first (like Esc; the click is a gesture, so pointer lock works), then send the keys
+  play(taps) {
+    const wait = gg.Title.visible && Game.running ? (gg.Title.enter(), c_HelpKeys.resumeMs) : 0;
+    taps.forEach((c, i) => setTimeout(() => Touch.chord(...c), wait + i * c_HelpKeys.gap));
+  }
+  init() {
+    for (const b of document.querySelectorAll('#help b')) {
+      const label = b.querySelector('b') ? b.firstChild.textContent : b.textContent, taps = this.parse(label);
+      if (!taps) continue;
+      b.classList.add('k'); b.title = 'click: ' + taps.map(c => c.join('+')).join(' ');
+      gg.ev(b, { click: (e) => { e.stopPropagation(); this.play(taps); } });
+    }
+  }
+});
+HelpKeys.init();
 </script>
 </body>
 </html>

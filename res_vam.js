@@ -180,6 +180,8 @@ G.mutton = (p) => meat(p, '#d05050', true); G.cooked_mutton = (p) => meat(p, '#8
 G.bucket = (p) => bucket(p, null); G.water_bucket = (p) => bucket(p, '#3f76e4'); G.lava_bucket = (p) => bucket(p, '#ff8a1a');
 G.bow = (p) => { const c = C('#8a6a3a'); p.line(3, 3, 7, 2, c); p.line(7, 2, 13, 8, c); p.line(13, 8, 13, 13, c); p.line(3, 3, 12, 13, C('#e8e8e8')); return p.outline(); };
 G.arrow = (p) => { p.line(3, 12, 11, 4, C('#8a6a3a')); p.rect(11, 2, 3, 3, C('#c8c8c8')); p.rect(2, 11, 3, 3, C('#f4f4f4')); return p.outline(); };
+G.clock = (p) => { p.ellipse(8, 8, 6, 6, C('#e2b23a')); p.ellipse(8, 8, 4.5, 4.5, C('#f6efd6')); p.line(8, 8, 8, 4.5, C('#222222'), 1); p.line(8, 8, 10.5, 9.5, C('#222222'), 1); return p.outline(); };
+G.compass = (p) => { p.ellipse(8, 8, 6, 6, C('#8c8c8c')); p.ellipse(8, 8, 4.5, 4.5, C('#e6e6e6')); p.line(8, 8, 8, 4, C('#d62a1a'), 1.5); p.line(8, 8, 8, 12, C('#333333'), 1.5); return p.outline(); };
 G.shears = (p) => { const g = C('#c8c8c8'); p.line(4, 4, 11, 11, g, 2); p.line(11, 4, 4, 11, g, 2); p.ellipse(4, 12.5, 2, 2, C('#d62a1a')); p.ellipse(12, 12.5, 2, 2, C('#d62a1a')); return p.outline(); };
 G.flint_and_steel = (p) => { for (let y = 3; y < 9; y++) p.rect(3 + (y >> 1), y, 8 - y, 1, C('#3a3a3a')); p.ellipse(10, 10, 4, 4, C('#c8c8c8')); p.ellipse(10, 10, 2, 2, [0, 0, 0], 0); p.rect(10, 8, 4, 4, [0, 0, 0], 0); return p.outline(); };
 for (const tier of Object.keys(TOOL_MAT_COLORS)) for (const kind of Object.keys(TOOL_MAPS)) G[tier + '_' + kind] = (p) => drawMap(p, TOOL_MAPS[kind], { m: C(TOOL_MAT_COLORS[tier]), h: C('#6b4a2b') });

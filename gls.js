@@ -173,7 +173,7 @@ void main() {
   #include <fog_vertex>
 }`;
 const CHUNK_FRAG = `
-uniform sampler2D uAtlas; uniform float uTiles; uniform float uSkyBright; uniform float uAlphaTest; uniform vec3 uNightTint;
+uniform sampler2D uAtlas; uniform float uTiles; uniform float uSkyBright; uniform float uAlphaTest; uniform float uAlphaMul; uniform vec3 uNightTint;
 varying vec2 vUv; varying float vTile; varying vec2 vLight; varying vec3 vTint;
 #include <fog_pars_fragment>
 void main() {
@@ -187,7 +187,7 @@ void main() {
   float br = 0.035 + 0.965 * (l * l * 0.55 + l * 0.45);
   vec3 col = tex.rgb * vTint * br;
   col = mix(col, col * uNightTint, (1.0 - uSkyBright) * (1.0 - smoothstep(sky, sky + 0.05, vLight.y)));
-  gl_FragColor = vec4(col, tex.a);
+  gl_FragColor = vec4(col, tex.a * uAlphaMul);
   #include <fog_fragment>
 }`;
 
@@ -232,11 +232,11 @@ class MeshBuilder {
 }
 
 const Mesher = {
-  pb: new Uint8Array(PX * PY * PZ), pm: new Uint8Array(PX * PY * PZ), ps: new Uint8Array(PX * PY * PZ), pl: new Uint8Array(PX * PY * PZ),
+  pb: new Uint8Array(PX * PY * PZ), pm: new Uint8Array(PX * PY * PZ), ps: new Uint8Array(PX * PY * PZ), pl: new Uint8Array(PX * PY * PZ), pg: new Uint8Array(PX * PY * PZ), pr: new Uint8Array(PX * PY * PZ),   // debug x-ray: pg 1 = cell still equals world generation (ghost) · pr 1 = generated block removed by the player (red volume)
   opaqueById: null,
   mT: new Int32Array(16 * CHUNK_H), mK1: new Int32Array(16 * CHUNK_H), mK2: new Int32Array(16 * CHUNK_H), mK3: new Int32Array(16 * CHUNK_H),
-  ob: new MeshBuilder(), wb: new MeshBuilder(),
-  material: null, waterMaterial: null,
+  ob: new MeshBuilder(), wb: new MeshBuilder(), gb: new MeshBuilder(),   // opaque / water / ghost (inflow fluid in solid-fluid mode)
+  material: null, waterMaterial: null, ghostMaterial: null,
   cl: [[0, 0, 3], [0, 0, 3], [0, 0, 3], [0, 0, 3]],
 
   init() {
@@ -244,36 +244,38 @@ const Mesher = {
     for (const b of Blocks.byId) this.opaqueById[b.id] = b.opaque ? 1 : 0;
     const mk = (transparent, alphaTest) => new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
-        uAtlas: { value: null }, uTiles: { value: 1 }, uSkyBright: { value: 1 }, uAlphaTest: { value: alphaTest }, uNightTint: { value: new THREE.Vector3(0.62, 0.7, 1.0) }
+        uAtlas: { value: null }, uTiles: { value: 1 }, uSkyBright: { value: 1 }, uAlphaTest: { value: alphaTest }, uAlphaMul: { value: 1 }, uNightTint: { value: new THREE.Vector3(0.62, 0.7, 1.0) }
       }]),
       vertexShader: CHUNK_VERT, fragmentShader: CHUNK_FRAG, fog: true, transparent, depthWrite: true, side: THREE.FrontSide
     });
     this.material = mk(false, 0.5);
     this.waterMaterial = mk(true, 0.05);
+    this.ghostMaterial = mk(true, 0.02); this.ghostMaterial.depthWrite = false; this.ghostMaterial.uniforms.uAlphaMul.value = 0.5;
     this.updateAtlas();
     Events.on('atlasRebuilt', () => this.updateAtlas());
   },
   updateAtlas() {
-    for (const m of [this.material, this.waterMaterial]) { m.uniforms.uAtlas.value = Atlas.texture; m.uniforms.uTiles.value = Atlas.tilesPerRow; }
+    for (const m of [this.material, this.waterMaterial, this.ghostMaterial]) { m.uniforms.uAtlas.value = Atlas.texture; m.uniforms.uTiles.value = Atlas.tilesPerRow; }
   },
-  setSkyBrightness(v) { this.material.uniforms.uSkyBright.value = v; this.waterMaterial.uniforms.uSkyBright.value = v; },
+  setSkyBrightness(v) { for (const m of [this.material, this.waterMaterial, this.ghostMaterial]) m.uniforms.uSkyBright.value = v; },
 
   // Copy the chunk plus a 1-block border of its neighbours into padded arrays.
   fillPadded(c) {
-    const pb = this.pb, pm = this.pm, ps = this.ps, pl = this.pl, ox = c.cx * 16, oz = c.cz * 16;
+    const pb = this.pb, pm = this.pm, ps = this.ps, pl = this.pl, pg = this.pg, pr = this.pr, ox = c.cx * 16, oz = c.cz * 16, xr = gg.XRay?.active ? gg.XRay : null;
     for (let dx = -1; dx <= 16; dx++) for (let dz = -1; dz <= 16; dz++) {
       const wx = ox + dx, wz = oz + dz;
       const ch = (dx >= 0 && dx < 16 && dz >= 0 && dz < 16) ? c : gg.world.chunkAt(wx, wz);
       const p0 = pidx(dx, -1, dz);
       pb[p0] = B.bedrock; pm[p0] = 0; ps[p0] = 0; pl[p0] = 0;
-      const top = pidx(dx, CHUNK_H, dz); pb[top] = 0; pm[top] = 0; ps[top] = 15; pl[top] = 0;
+      const top = pidx(dx, CHUNK_H, dz); pb[top] = 0; pm[top] = 0; ps[top] = 15; pl[top] = 0; pg[p0] = pg[top] = pr[p0] = pr[top] = 0;
       if (!ch || ch.state < gg.CH_GENERATED) {
-        for (let y = 0; y < CHUNK_H; y++) { const p = p0 + (y + 1) * PZ; pb[p] = 0; pm[p] = 0; ps[p] = 15; pl[p] = 0; }
+        for (let y = 0; y < CHUNK_H; y++) { const p = p0 + (y + 1) * PZ; pb[p] = 0; pm[p] = 0; ps[p] = 15; pl[p] = 0; pg[p] = pr[p] = 0; }
         continue;
       }
       const lx = wx & 15, lz = wz & 15, base = (lx << 11) | (lz << 7);
       const bl = ch.blocks, me = ch.meta, sk = ch.sky, bk = ch.blk;
       for (let y = 0; y < CHUNK_H; y++) { const p = p0 + (y + 1) * PZ, i = base | y; pb[p] = bl[i]; pm[p] = me[i]; ps[p] = sk[i]; pl[p] = bk[i]; }
+      if (xr) { const g = xr.gen(ch); for (let y = 0; y < CHUNK_H; y++) { const i = base | y; const p = p0 + (y + 1) * PZ; const same = xr.same(g[i], bl[i]); pg[p] = bl[i] !== AIR && same ? 1 : 0; pr[p] = bl[i] === AIR && !same ? 1 : 0; } }
     }
   },
 
@@ -334,7 +336,7 @@ const Mesher = {
 
   // Greedy meshing of all full-cube blocks in the chunk
   greedy(c) {
-    const pb = this.pb, pm = this.pm, ps = this.ps, pl = this.pl, op = this.opaqueById, byId = Blocks.byId;
+    const pb = this.pb, pm = this.pm, ps = this.ps, pl = this.pl, op = this.opaqueById, byId = Blocks.byId, xr = !!gg.XRay?.active, pg = this.pg, GH = 1 << 17;
     const mT = this.mT, mK1 = this.mK1, mK2 = this.mK2, mK3 = this.mK3, cl = this.cl, ob = this.ob;
     const DIMS = [16, CHUNK_H, 16];
     const p = [0, 0, 0], q = [0, 0, 0];
@@ -356,7 +358,7 @@ const Mesher = {
             if (def.model !== 'cube') { mT[m] = 0; continue; }
             q[0] = p[0]; q[1] = p[1]; q[2] = p[2]; q[axis] += dn;
             const qi = pidx(q[0], q[1], q[2]);
-            if (!this.faceVisible(def, byId[pb[qi]])) { mT[m] = 0; continue; }
+            if (!this.faceVisible(def, byId[pb[qi]]) && !(xr && !pg[pi] && pg[qi])) { mT[m] = 0; continue; }   // x-ray: player blocks show their faces through ghost terrain
             const tiles = Blocks.tilesFor(def, pm[pi]);
             const bio = BIOMES[c.biomes[((p[0]) << 4) | p[2]] || 0];
             const tint = this.tintFor(def, face, bio);
@@ -376,7 +378,7 @@ const Mesher = {
               k1 |= (sa << (cidx * 4)) | (ao << (16 + cidx * 2));
               k2 |= ba << (cidx * 4);
             }
-            mT[m] = tiles[face] + 1; mK1[m] = k1; mK2[m] = k2 | (tint === WHITE_RGB ? 0 : 1 << 16);
+            mT[m] = tiles[face] + 1; mK1[m] = k1; mK2[m] = k2 | (tint === WHITE_RGB ? 0 : 1 << 16) | (xr && pg[pi] ? GH : 0);
             mK3[m] = (Math.round(tint[0] * 255) << 16) | (Math.round(tint[1] * 255) << 8) | Math.round(tint[2] * 255);
             any = true;
           }
@@ -396,7 +398,7 @@ const Mesher = {
             const lo = [0, 0, 0], hi = [0, 0, 0];
             lo[axis] = hi[axis] = s + (side === 0 ? 1 : 0);
             lo[iAxis] = i; hi[iAxis] = i + w; lo[jAxis] = j; hi[jAxis] = j + h;
-            this.emitFace(ob, face, lo[0], lo[1], lo[2], hi[0], hi[1], hi[2], t - 1, cl, tint, shade, null, false);
+            this.emitFace(k2 & GH ? this.gb : ob, face, lo[0], lo[1], lo[2], hi[0], hi[1], hi[2], t - 1, cl, tint, shade, null, false);
             for (let hh = 0; hh < h; hh++) for (let k = 0; k < w; k++) mT[(j + hh) * ni + i + k] = 0;
             i += w;
           }
@@ -470,6 +472,8 @@ const Mesher = {
   emitLiquid(b, x, y, z, def, meta, bio) {
     const pb = this.pb, id = def.id, op = this.opaqueById;
     const covered = pb[pidx(x, y + 1, z)] === id;
+    // solid-fluid mode splits sources and inflow ghosts into different meshes: faces between the two kinds stay visible
+    const solid = gg.Game.modeDef.solidWater, kind = (q) => solid && this.pm[q] !== 0, same = (q) => pb[q] === id && kind(q) === kind(pidx(x, y, z));
     const H = (cx, cz) => covered ? 1 : this.liquidCorner(cx, y, cz, id);
     const h00 = H(x, z), h10 = H(x + 1, z), h01 = H(x, z + 1), h11 = H(x + 1, z + 1);
     const p = pidx(x, y, z), L = [this.ps[p], this.pl[p]], L4 = [L, L, L, L], tile = def.tiles[0];
@@ -480,7 +484,7 @@ const Mesher = {
       this.liquidQuad(b, [X0, Y + h01, Z1, X1, Y + h11, Z1, X1, Y + h10, Z0, X0, Y + h00, Z0], [0, 1, 1, 1, 1, 0, 0, 0], tile,
         [CL(X0, Z1), CL(X1, Z1), CL(X1, Z0), CL(X0, Z0)], tint, 1.0, true);
     }
-    if (pb[pidx(x, y - 1, z)] !== id && !op[pb[pidx(x, y - 1, z)]])
+    if (!same(pidx(x, y - 1, z)) && !op[pb[pidx(x, y - 1, z)]])
       this.liquidQuad(b, [X1, Y, Z1, X0, Y, Z1, X0, Y, Z0, X1, Y, Z0], [0, 1, 1, 1, 1, 0, 0, 0], tile, L4, tint, 0.5, false);
     // sides: [face, a(x,z), b(x,z), ha, hb] wound CCW from outside; skip same-liquid and opaque neighbours
     const sides = [
@@ -488,7 +492,7 @@ const Mesher = {
       [FACE_PZ, X0, Z1, X1, Z1, h01, h11], [FACE_NZ, X1, Z0, X0, Z0, h10, h00]];
     for (const [f, ax, az, bx, bz, ha, hb] of sides) {
       const d = DIRS[f], q = pidx(x + d[0], y, z + d[2]), nid = pb[q];
-      if (nid === id || op[nid]) continue;
+      if (same(q) || op[nid]) continue;
       const Ln = [Math.max(L[0], this.ps[q]), Math.max(L[1], this.pl[q])], L4n = [Ln, Ln, Ln, Ln];
       this.liquidQuad(b, [ax, Y, az, bx, Y, bz, bx, Y + hb, bz, ax, Y + ha, az], [0, 1, 1, 1, 1, 1 - hb, 0, 1 - ha], tile, L4n, tint, FACE_SHADE[f], false);
     }
@@ -533,12 +537,20 @@ const Mesher = {
     }
   },
 
+  // Debug x-ray: generated blocks the player removed (now air) as a red volume — only its outer faces, full light, ghost mesh
+  emitRemoved() {
+    const pr = this.pr, tile = Atlas.index('white_wool'), cl = [[15, 15, 3], [15, 15, 3], [15, 15, 3], [15, 15, 3]], red = [1, 0.15, 0.12];
+    for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) for (let y = 0; y < CHUNK_H; y++) {
+      if (!pr[pidx(x, y, z)]) continue;
+      for (let f = 0; f < 6; f++) { const d = DIRS[f]; if (!pr[pidx(x + d[0], y + d[1], z + d[2])]) this.emitFace(this.gb, f, x, y, z, x + 1, y + 1, z + 1, tile, cl, red, FACE_SHADE[f], null, false); }
+    }
+  },
   // Build (or rebuild) the meshes of a chunk. Returns true if anything was built.
   buildChunk(c) {
     this.fillPadded(c);
-    this.ob.reset(); this.wb.reset();
+    this.ob.reset(); this.wb.reset(); this.gb.reset();
     this.greedy(c);
-    const pb = this.pb, pm = this.pm, byId = Blocks.byId;
+    const pb = this.pb, pm = this.pm, byId = Blocks.byId, pg = gg.XRay?.active ? this.pg : null;
     for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) {
       const bio = BIOMES[c.biomes[(x << 4) | z] || 0];
       const top = c.height[x * 16 + z];
@@ -547,14 +559,17 @@ const Mesher = {
         if (id === AIR) continue;
         const def = byId[id];
         if (def.model === 'cube' || def.model === 'none') continue;
-        if (def.model === 'liquid') this.emitLiquid(id === B.water ? this.wb : this.ob, x, y, z, def, pm[pidx(x, y, z)], bio);
-        else this.emitModel(this.ob, x, y, z, def, pm[pidx(x, y, z)], bio);
+        if (def.model === 'liquid') { const m = pm[pidx(x, y, z)];   // solid-fluid mode: inflow cells (non-source: dry up once their feed is dug) render as translucent ghosts
+          this.emitLiquid((gg.Game.modeDef.solidWater && m !== 0) || (pg && pg[pidx(x, y, z)]) ? this.gb : id === B.water ? this.wb : this.ob, x, y, z, def, m, bio); }
+        else this.emitModel(pg && pg[pidx(x, y, z)] ? this.gb : this.ob, x, y, z, def, pm[pidx(x, y, z)], bio);
       }
     }
+    if (pg) this.emitRemoved();
     gg.ChunkManager.disposeMesh(c);
-    const g = this.ob.toGeometry(), wg = this.wb.toGeometry();
+    const g = this.ob.toGeometry(), wg = this.wb.toGeometry(), gg2 = this.gb.toGeometry();
     if (g) { c.mesh = new THREE.Mesh(g, this.material); c.mesh.position.set(c.cx * 16, 0, c.cz * 16); c.mesh.matrixAutoUpdate = false; c.mesh.updateMatrix(); gg.ChunkManager.scene.add(c.mesh); }
     if (wg) { c.waterMesh = new THREE.Mesh(wg, this.waterMaterial); c.waterMesh.position.set(c.cx * 16, 0, c.cz * 16); c.waterMesh.matrixAutoUpdate = false; c.waterMesh.updateMatrix(); c.waterMesh.renderOrder = 1; gg.ChunkManager.scene.add(c.waterMesh); }
+    if (gg2) { c.ghostMesh = new THREE.Mesh(gg2, this.ghostMaterial); c.ghostMesh.position.set(c.cx * 16, 0, c.cz * 16); c.ghostMesh.matrixAutoUpdate = false; c.ghostMesh.updateMatrix(); c.ghostMesh.renderOrder = 2; gg.ChunkManager.scene.add(c.ghostMesh); }
     c.meshed = true; c.dirty = false;
     return true;
   }

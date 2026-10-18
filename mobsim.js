@@ -125,7 +125,8 @@ const Mobs = {
   spawnTick() {
     const p = gg.player; if (!gg.Game.running) return;
     let passive = 0, hostile = 0;
-    for (const m of this.list) if (!m.dead) { if (isMonster(m.def)) hostile++; else passive++; }
+    const peaceful = !!gg.Game.modeDef.peaceful;   // harmless mode: monsters vanish and never spawn (spawners included)
+    for (const m of this.list) if (!m.dead) { if (!isMonster(m.def)) passive++; else if (peaceful) this.remove(m); else hostile++; }
     const rd = gg.ChunkManager.renderDistance;
     // Initial passive population of newly meshed chunks
     if (passive < 14 && Scheduler.tick % 4 === 0) {
@@ -144,7 +145,7 @@ const Mobs = {
       }
     }
     // Hostile spawning in darkness
-    if (hostile < 26 && Scheduler.tick % 2 === 0) {
+    if (!peaceful && hostile < 26 && Scheduler.tick % 2 === 0) {
       const x = floor(p.x) + rng.irange(-48, 48), z = floor(p.z) + rng.irange(-48, 48);
       const c = gg.world.chunkAt(x, z);
       if (c && c.state >= gg.CH_LIT) {
@@ -168,7 +169,7 @@ const Mobs = {
         if (dist2(x, y, z, p.x, p.y, p.z) > 256) continue;
         if (--t.cooldown > 0) continue;
         t.cooldown = 200 + rng.int(600);
-        if (hostile > 30) continue;
+        if (peaceful || hostile > 30) continue;
         for (let k = 0; k < 4; k++) { const sx = x + rng.irange(-4, 4), sz = z + rng.irange(-4, 4), sy = y + rng.irange(-1, 1); if (this.canStand(sx, sy, sz, MOB_TYPES[t.mob])) { this.spawnMob(t.mob, sx + 0.5, sy, sz + 0.5); gg.Particles.burst(sx + 0.5, sy + 1, sz + 0.5, 10, [0.9, 0.9, 0.9]); if (rng.chance(0.5)) break; } }
       }
     }
