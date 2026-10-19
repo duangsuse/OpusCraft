@@ -12,7 +12,8 @@ const { THREE, scene, camera, renderer, U, GLSL, MeshBuilder, makeGeometry,
 const WORLD_VS = /* glsl */`
   attribute vec2 aUv;
   attribute vec4 aData;       // layer, sky*16, block*16, shade*255
-  uniform float uWave;
+  uniform float uWave, uTime;
+  uniform vec3 uSway;         // 树叶摇动（与 v2 同参：幅度, 频率, 距离）
   varying vec3 vUv;
   varying vec3 vLight;
   varying float vFog;
@@ -20,7 +21,14 @@ const WORLD_VS = /* glsl */`
   void main() {
     vUv = vec3(aUv / 16.0 + vec2(uWave, uWave * 0.5), aData.x);
     vLight = voxLight(aData.y / 16.0, aData.z / 16.0) * (aData.w / 255.0);
-    vec4 mv = modelViewMatrix * vec4(position / ${PS.toFixed(1)}, 1.0);
+    vec3 p = position / ${PS.toFixed(1)};
+    if (uSway.x > 0.0 && abs(aData.x - ${T_SIDE[B.LEAVES]}.0) < 0.5) {   // 树叶：按世界位置的连续场平移顶点（相邻叶块共享顶点同步移动，不开缝）
+      vec3 w = (modelMatrix * vec4(p, 1.0)).xyz;
+      float dist = length((modelViewMatrix * vec4(p, 1.0)).xyz);
+      p.xz += uSway.x * clamp((uSway.z - dist) / (0.3 * uSway.z), 0.0, 1.0)
+            * sin(uTime * uSway.y + (w.x + w.z) * 0.3 + w.y * 0.5) * vec2(1.0, 0.6);
+    }
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
     vFog = -mv.z;
     gl_Position = projectionMatrix * mv;
   }`;
@@ -36,8 +44,12 @@ const WORLD_FS = /* glsl */`
     if (t.a < uAlphaTest) discard;
     gl_FragColor = vec4(applyFog(t.rgb * vLight, vFog), t.a);
   }`;
-const opaqueMat = new THREE.ShaderMaterial({ uniforms: { ...U, uAlphaTest: { value: 0.5 }, uWave: { value: 0 } }, vertexShader: WORLD_VS, fragmentShader: WORLD_FS });
-const waterMat = new THREE.ShaderMaterial({ uniforms: { ...U, uAlphaTest: { value: 0.01 }, uWave: { value: 0 } }, vertexShader: WORLD_VS, fragmentShader: WORLD_FS,
+// 摇动参数取 v2 面板保存的值（vc.v2.params），没有则用 v2 默认
+const SWAY = (() => { try { const s = JSON.parse(localStorage.getItem('vc.v2.params') || 'null') || {};
+  return [s.swayAmp ?? 0.04, s.swayFreq ?? 1.2, s.swayDist ?? 32]; } catch (e) { return [0.04, 1.2, 32]; } })();
+const uTime = { value: 0 }, uSway = { value: new THREE.Vector3(...SWAY) };
+const opaqueMat = new THREE.ShaderMaterial({ uniforms: { ...U, uAlphaTest: { value: 0.5 }, uWave: { value: 0 }, uTime, uSway }, vertexShader: WORLD_VS, fragmentShader: WORLD_FS });
+const waterMat = new THREE.ShaderMaterial({ uniforms: { ...U, uAlphaTest: { value: 0.01 }, uWave: { value: 0 }, uTime, uSway: { value: new THREE.Vector3() } }, vertexShader: WORLD_VS, fragmentShader: WORLD_FS,
   transparent: true, depthWrite: false, side: THREE.DoubleSide });
 
 const mbOpaque = new MeshBuilder(), mbWater = new MeshBuilder();
@@ -135,7 +147,7 @@ function setChunkMesh(c, key, mb, mat) {
 function disposeChunk(c) {
   for (const k of ['mesh', 'waterMesh']) if (c[k]) { scene.remove(c[k]); c[k].geometry.dispose(); c[k] = null; }
 }
-function update(dt) { waterMat.uniforms.uWave.value = (performance.now() / 12000) % 1; }
+function update(dt) { waterMat.uniforms.uWave.value = (performance.now() / 12000) % 1; uTime.value = (performance.now() / 1000) % 3600; }
 function render() { renderer.render(scene, camera); }
 return { name: 'v1', buildChunk, disposeChunk, update, render, mbOpaque,
   stats: () => `mesh ${meshTimeAvg.toFixed(1)} ms` };
