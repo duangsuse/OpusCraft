@@ -2429,7 +2429,9 @@ addEventListener('resize', () => {
 // =====================================================================
 //  Save / load
 // =====================================================================
-let noSave = false;
+// ?seed=N：固定种子的一次性世界（不读档、不存档；基准/对比测试用）
+const URL_SEED = new URLSearchParams(location.search).get('seed');
+let noSave = URL_SEED !== null;
 function saveGame() {
   if (noSave || !gameStarted) return;
   const data = { v: 1, seed: SEED, time: worldTime, spawn: spawnPoint.toArray(),
@@ -2456,8 +2458,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) saveG
 // =====================================================================
 //  Init & main loop
 // =====================================================================
-const loaded = loadGame();
-if (!loaded) SEED = (Math.random() * 2 ** 31) | 0;
+const loaded = URL_SEED === null && loadGame();
+if (!loaded) SEED = URL_SEED !== null ? (parseInt(URL_SEED, 10) | 0) : (Math.random() * 2 ** 31) | 0;
 initNoise(SEED);
 if (!loaded) {
   // find a dry spot near the origin
@@ -2476,7 +2478,7 @@ player.airMaxY = player.pos.y;
 if (loaded) $('btn-play').textContent = 'Continue';
 { const t0 = performance.now(); while (performance.now() - t0 < 1500) { updateChunks(200); if (pendingChunks === 0) break; if (getSpiral(settings.rd).length - pendingChunks > 20) break; } }
 
-let shownHealth = -1;
+let shownHealth = -1, freezeTime = false;   // freezeTime：测试用，停住昼夜（基准/像素对比）
 let last = performance.now(), fpsT = 0, fpsN = 0, fps = 0, saveTimer = 0, debugT = 0;
 function updateCamera(dt) {
   const p = player;
@@ -2516,7 +2518,7 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   const running = gameStarted && uiMode !== 'menu';
   if (running) {
-    worldTime = (worldTime + dt / DAY_LENGTH) % 1;
+    if (!freezeTime) worldTime = (worldTime + dt / DAY_LENGTH) % 1;
     updatePlayer(dt); updateInteraction(dt); updateMobs(dt); updateItems(dt); updateTNT(dt); updateSpawning(dt);
     saveTimer += dt; if (saveTimer > 30) { saveTimer = 0; saveGame(); }
   } else if (!gameStarted) { player.yaw += dt * 0.04; player.pitch = -0.1; }
@@ -2535,7 +2537,7 @@ requestAnimationFrame(frame);
 
 // handle for automated testing / tinkering from the console
 window.game = { THREE, player, inv, mobs, items, chunks, settings, B, I, ITEMS, BLOCKS, getBlock, setBlock, addItem, Mob, explode, primeTNT,
-  camera, scene, renderer, get target() { return target; }, get worldTime() { return worldTime; }, set worldTime(v) { worldTime = v; },
+  camera, scene, renderer, get target() { return target; }, get worldTime() { return worldTime; }, set worldTime(v) { worldTime = v; }, set freezeTime(v) { freezeTime = !!v; },
   get mouse() { return mouse; }, keys, startGame, openInventory, closeInventory, craft, RECIPES, selectSlot, useAction, updateChunks,
   setTestMode(v) { testMode = v; }, get pendingChunks() { return pendingChunks; }, breakBlock, respawn, get uiMode() { return uiMode; },
   meshChunk, get VR() { return VR; }, MeshBuilder, RCTX, ck, generateChunk };

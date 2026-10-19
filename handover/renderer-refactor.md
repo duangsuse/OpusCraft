@@ -1,434 +1,275 @@
-# VoxelCraft 渲染器重构交接（v1 / v2）
+# VoxelCraft 渲染器交接 · v2 DDA 性能阶段
 
-> 最终目标：把 `./old.htm`（青屿）里的 **DDA 后处理渲染器 + Tweakpane 面板** 移植到 `v2.js`，
-> 让它直接渲染 VoxelCraft 的 3D 体素世界（而非高程图），并与 `v1.js` 共享同一套顶点 / 光照 / 材质接口。
+> 上一版（接口约定、old.htm 移植拆解、M0–M2 实施记录、面板 DSL 规范）已完成，全文见 git 历史：
+> `git show 801c7e4:handover/renderer-refactor.md`。本版只保留**仍要用到的约定**，其余篇幅全部给性能。
 
-## 0. 现状一览
+## 0. 现状
 
-| 文件 | 作用 | 状态 |
-|---|---|---|
-| `VoxelCraft.html` | 游戏主体：世界存储/生成、**光照（共享）**、实体、UI、输入、天空、HUD | 已改造：共享接口 + 渲染器加载器 |
-| `v1.js` | 光栅化渲染器：逐面网格 + 顶点 AO + 四角平滑光照 + 水波 | 完成（与重构前画面一致） |
-| `v2.js` | DDA 渲染器 | **占位**：内部直接复用 v1，`name = 'v2(stub→v1)'` |
-| `tools/verify-renderer.mjs` | 无头 Chromium + CDP 接口验证脚本 | 完成，全部通过 |
-| `old.htm` | 移植来源：Max-Mip 高程图 DDA + 水面/雾/AO/阴影 + Tweakpane | 只读参考 |
+| 文件 | 状态 |
+|---|---|
+| `VoxelCraft.html` | 宿主 A：世界/光照/实体/UI；`RCTX` 传给渲染器；`?r=v1`（默认）/ `?r=v2`；`RCTX.settings = settings`（L2346） |
+| `v1.js` | 光栅化基线（逐面网格 + 顶点 AO + 四角平滑光照），完成，**画面基准** |
+| `v2.js`（735 行） | DDA 渲染器，M0–M2 完成。功能齐全：每个滑条都有效果，画面与 v1 一致。**问题只剩帧率** |
+| `index.html` + `gls.js` | 宿主 B（bridge-mind 精简版，three r170）：`CHUNK_H=128`，`Mesher.greedy` 贪心合并，增量光照（`Lighting`）。**v2 尚未接入**，是 `ChunkSource` 接口的第二个消费者 |
+| `tools/verify-renderer.mjs` | 无头 Chromium 接口验证，v1/v2/bogus 三组 PASS（`node tools/verify-renderer.mjs`，需 `http://localhost:8765/`） |
 
-切换：`VoxelCraft.html?r=v1`（默认）/ `?r=v2`；非法值或加载失败 → 自动回退 v1（控制台 `console.error`）。
-确认方式：F3 调试面板显示 `<name> <stats()>`；控制台打印 `[VoxelCraft] renderer <name>`；`window.game.VR.name`。
+### 0.1 仍然有效的接口约定（简）
 
-已完成的玩法功能点（与渲染器无关，验证脚本一并覆盖）：
-- **N** noclip（无碰撞 + 飞行，HUD `NOCLIP`，生物不追踪）
-- **F** 拾取准星方块到快捷栏（已有→选中；背包有→交换；否则放 64 个）；飞行改为 **双击空格**
-- **E** 背包顶部「All Blocks」面板：左键拿 64 / 右键拿 1 / Shift 入包 / 持物点击=删除
+```js
+export function createRenderer(ctx) → { name, buildChunk(c), disposeChunk(c), update(dt), render(), stats() }
+```
+- `buildChunk` 可重入（编辑/邻居光照变化会反复调用）；`disposeChunk` 后 `c.mesh = c.waterMesh = null`。
+- 区块只在 3×3 邻居都生成后才 build；`c.blocks / c.sky / c.blk` 索引 `(lx*16+lz)*CH + y`（index.html 的 `bidx` 同布局，CH=128）。
+- 共享 GLSL：`voxLight(sky,blk)`、`matSample/matSampleLod(uv,layer,lod)`、`applyFog(c,z)`；共享 uniform 对象 `U`（含 `uSunDir`）。
+- 主循环：`updateChunks(5ms)` → `updateSky → VR.update` → `clear; VR.render(); clearDepth; hudScene`。
 
-## 1. 主文件结构（`VoxelCraft.html`，行号为当前版本近似值）
+### 0.2 v2.js 结构索引
 
 | 行 | 内容 |
 |---|---|
-| ~99 | importmap：`three@0.160.0`（old.htm 用 r170，移植时注意 API 差异很小，可按需升级） |
-| ~884–895 | `renderer` / `scene` / `camera`（`renderer.autoClear = false`，`outputColorSpace = Linear`，`ColorManagement.enabled = false`） |
-| ~897–922 | **共享接口**：`GLSL`、`U` |
-| ~924–975 | 天空球 / 太阳 / 月亮 / 星星 / 云 / 选择框 / 裂纹（都是 `scene` 里的普通网格，由渲染器的 `render()` 一起画） |
-| ~979 | `class Chunk` |
-| ~1110–1199 | **共享光照**：`RB/RSKY/RBLK`、`FACES/UVS/AO_CURVE`、`buildRegion`、`computeLight`、`storeLight` |
-| ~1200–1242 | **共享顶点**：`MeshBuilder`、`makeGeometry` |
-| ~1243–1260 | 渲染器加载器 `RENDERER_ID` / `RCTX` / `VR`，以及 `meshChunk` / `disposeChunk` 包装 |
-| ~1279 | `updateChunks`（流式加载，预算 ms） |
-| ~1305 | `setBlock`（编辑 → `markUrgent` 本区块及接壤区块） |
-| ~2138 | `hudScene`（手持物品，单独相机，渲染器**不负责**） |
-| ~2183–2208 | `updateSky(dt)`：写 `U.*`、雾、天空，末尾调用 `VR.update(dt)` |
-| ~2508–2527 | `frame()`：`renderer.clear()` → `VR.render()` → `clearDepth` → 画 `hudScene` |
-| ~2531 | `window.game`（调试句柄，含 `VR`、`MeshBuilder`、`RCTX`） |
+| 1–60 | 面板 DSL（`R/V2/vec2/toN/fromN/buildPane`）、`P_DEFAULTS`、localStorage `vc.v2.params` |
+| 62–98 | `createRenderer` 入口、`PANEL` 声明 |
+| 99–162 | **数据通路**：`rebuildRing`（N=2rd+5 环形槽位）、`uploadChunk`（CPU 打包 RG8UI 体素 + R8UI 4³ 砖 + 列高 `uCol`）、`clearChunk`、`reuploadAll`。上传走 `renderer.copyTextureToTexture3D`（r160 对 RG8UI/R8UI 已验证可用） |
+| 165–204 | `apply(key,fx)`、Tweakpane 加载、F4 开关 |
+| 206–553 | `DDA_FS`：`cloudHit`（体积云 2D DDA）、`voxAt/brickAt/colMaxAt`、`smoothLight`（9 邻域四角平滑光 + AO）、`crossHit/torchHit`、**`trace`（L356，两级 DDA：4³ 砖 → 体素，含列高跳过、天空早退、cutout/水/预算耗尽 kind=4）**、`main`（L447：场景深度裁剪、着色、阴影射线、水面、雾、云） |
+| 555–588 | 水面噪声法线贴图 |
+| 589–650 | uniforms、`post`（写 `gl_FragDepth`）、`comp`（低分辨率合成）、`ensureRT`（`scale` + `maxMP` 上限） |
+| 652–673 | `EXT_disjoint_timer_query_webgl2`（目前只有**一个**查询包住整帧） |
+| 675–715 | `render()`：sceneRT → ddaRT → comp；局部坐标（玩家区块原点）|
+| 717–735 | 导出：`P/ring/post/comp/reuploadAll/togglePanel/stats` |
 
-## 2. 渲染器模块接口
+### 0.3 已测得的基线（Intel RPL-S 核显，ANGLE/GL，1280×657，rd=6，整帧 GPU 含 scene pass）
 
-```js
-// v1.js / v2.js 都必须导出：
-export function createRenderer(ctx) {
-  return {
-    name,              // string，如 'v1'、'v2'
-    buildChunk(c),     // 区块 c 的方块或光照变化后调用（见 §4 调用时序）
-    disposeChunk(c),   // 区块卸载前调用；必须释放该区块的所有 GPU 资源，并把 c.mesh / c.waterMesh 置 null
-    update(dt),        // 每帧调用一次，在 updateSky 写完 U.* 之后
-    render(),          // 每帧绘制世界；主循环已 renderer.clear()，之后还会 clearDepth 画 HUD
-    stats(),           // string，显示在 F3 面板
-  };
+| 设置 | 整帧 GPU |
+|---|---|
+| scale 0.65 + 阴影 20 步（**当前默认**） | 8.7 ms（60 fps 勉强） |
+| scale 0.5 | 6.1 ms |
+| scale 0.4 | 4.4 ms |
+| scale 1.0 | 13.8 ms（54 fps） |
+| 2560×1400 无像素上限 → 1.5 MP | 48 ms（`maxMP=0.7` 后降到 ×0.58） |
+
+结论：核显上 **每 DDA 像素约 12–16 ns**，要在 scale≥0.8 跑 60 fps 需要把每像素成本砍 2–3×。
+`steps` 本身不是瓶颈（64..384 画面逐像素零差异，见历史 §7.7），**平均步数与每步 fetch 数**才是。
+
+## 1. 成本模型：一个 DDA 像素里钱花在哪
+
+当前 `trace` 的每步成本（每个循环迭代）：
+
+| 阶段 | 每步 fetch | 备注 |
+|---|---|---|
+| 砖级（空砖区） | 1×`brickAt`（R8UI）+ 换区块列时 1×`colMaxAt` | 每步前进 4 格；列高跳过处理天空/山脊 |
+| 体素级（进入非空砖） | 1×`voxAt`（RG8UI）+ 命中非空时 1×`uInfo` | ≤10 步/砖；树冠/草地几乎每步都非空 |
+| 命中着色 | `smoothLight` 9×(`voxAt`+`uInfo`) = **18 fetch** + 1 atlas | 固定一次；和 ~25 步的步进相比不可忽略（≈30–40% 的 fetch） |
+| 阴影射线 | 又一次 `trace`（默认 20 步）| `sky<8` / 背光面跳过；仍是第二大项 |
+| 体积云 | `cloudHit` **每像素都跑**，最多 96 次 2D 步 | 云 slab 裁剪后多数射线仍要走一段；未测 |
+| 水面 | 2 次噪声采样 + 若干 sin | 只在水像素 |
+
+现有的加速结构（都在 `uploadChunk` CPU 打包时顺手算，与 mesher 无关）：
+**4³ 砖占用**（R8UI）、**区块列高 `maxY`**（`uCol`，附带槽位归属校验）、**全局 `uWorldMaxY`**（天空早退）、**雾距裁剪** `maxD = min(uFogFar, sceneZ)`。
+没有的：16³ 区块级标记、占据位图、距离场、预打包 AO。
+
+> 在动手加结构之前，**先把 §5 的测量工具做出来**（步数热力图 + 分 pass 计时）。
+> 没有它们，下面每一项的收益都只是估算。
+
+## 2. 目标架构：`ChunkSource` + mesher 副产品 + 距离场 Worker
+
+### 2.1 `ChunkSource`（v2 唯一的世界入口，取代直接读 `ctx.chunks / c.blocks / c.sky / c.blk`）
+
+```ts
+interface ChunkSource {
+  size: 16;                                  // 区块边长
+  height: number;                            // 96 / 128 / 256，不能写死；要求 height % 16 == 0
+  getChunk(cx, cz): {
+    blocks: Uint8Array | Uint16Array;        // (lx*16+lz)*height + y
+    light?: Uint8Array;                      // 同索引，sky<<4 | blk；缺省视为 sky=15, blk=0
+    maxY?: number;                           // 可选：最高非空 y+1（index.html 的 Chunk.height 已有逐列版本）
+    accel?: ChunkAccel;                      // 可选：mesher 顺手产出的加速结构（§3），没有则 v2 自己算
+  } | null;                                  // null = 未加载/已卸载 → v2 清槽位
+  onChunkChanged(cb: (cx, cz) => void);      // 生成完成、光照变化、编辑、卸载 都走它
+  onBlockChanged?(cb: (x, y, z, oldId, newId) => void);   // 可选：有它才能走 §3.4 的「单格即时路径」
+}
+interface ChunkAccel {
+  sectionFlags: Uint8Array;                  // height/16 项：0 空 1 混合 2 全不透明
+  brick: Uint8Array;                         // 4×(height/4)×4，1 = 非空（RENDER!=0）
+  bitmap?: Uint32Array;                      // 可选：16³ 占据位图，height/16 × 128 个 uint32（布局见 §3.2）
+  faceAO?: Uint8Array;                       // 可选：§3.5
 }
 ```
 
-加载方式（主文件）：`VR = (await import(\`./${RENDERER_ID}.js?t=...\`)).createRenderer(RCTX)`（顶层 await，`?t=` 防缓存）。
+- **方块表**单独一个适配对象 `BlockTable`：`kind[id]`（0 无 / 1 立方 / 2 花草 / 3 火把 / 4 水）、`opaque[id]`、`solid[id]`、`occupied[id]`（= 射线必须停下检查的：`kind != 0`）、`tileTop/Bot/Side[id]`。v2 用它生成 `uInfo`，Worker 用 `occupied` 算距离场。
+- 两个宿主的适配器：
+  - **VoxelCraft**：`getChunk` 直接返回 `{blocks: c.blocks, light: pack(c.sky, c.blk)}`；`onChunkChanged` 挂在 `meshChunk`（build 之后）和 `disposeChunk`；`onBlockChanged` 挂在 `setBlock`（L1308）。`accel` 由 v2 自己在打包时算（现状）。
+  - **index.html**：`getChunk` 读 `gg.world` 的 `Chunk`（`state >= CH_LIT`），`maxY = max(c.height)`；`onChunkChanged` 挂 `Mesher.buildChunk`（L1332）和 `world.chunks.delete`（L1272）；`onBlockChanged` 挂 `Events.on('blockChanged')`。`accel` 由 `Mesher.fillPadded / greedy` 顺手产出（§3）。
+    着色侧差异（2D tile 图集而非 `DataArrayTexture`、生物群系 tint、`model: box/layer/door/liquid`）**不在本阶段范围**，先只接几何 + 加速结构，用 VoxelCraft 的材质路径验证性能。
+- v2 内部：`buildChunk(c)` → `source.onChunkChanged` 回调 → `uploadChunk(cx,cz)`；环形槽位/归属校验逻辑不变；`${CH}` 在 shader 里全部改成 `uH`/`#define H`（由 `source.height` 注入）。
 
-### 2.1 `ctx`（= `RCTX`）字段
+### 2.2 mesher 副产品 → DDA 加速结构（对照现状）
 
-| 字段 | 说明 |
-|---|---|
-| `THREE, scene, camera, renderer` | 同一 three 实例；`scene` 中包含天空、太阳月亮、星星、云、生物、掉落物、粒子、选择框 |
-| `U` | 共享 uniform **对象**（用 `{...U}` 展开到材质里，使所有材质共享同一份引用）：`uAtlas, uSkyDarken, uSkyTint, uFogColor, uFogNear, uFogFar` |
-| `GLSL.light / .mat / .fog` | 共享 GLSL 片段（见 §3） |
-| `MeshBuilder, makeGeometry` | 共享顶点格式构建器（见 §3.1） |
-| `atlas` | `THREE.DataArrayTexture`，16×16×NT，RGBA8，Nearest/NearestMipmapLinear，Repeat |
-| `CS=16, CH=96, SEA=40, RS=48, RSCH=RS*CH, PS=64` | 常量 |
-| `B, BLOCKS` | 方块 id 表 / 方块定义 |
-| `SOLID, OPAQUE, LIGHT_PASS, RENDER, EMIT` | `Uint8Array(256)` 按方块 id 查表 |
-| `T_TOP, T_BOT, T_SIDE` | 每个方块顶面 / 底面 / 侧面的 atlas 图层号 |
-| `R_NONE=0, R_CUBE=1, R_CROSS=2, R_TORCH=3, R_WATER=4` | `RENDER[id]` 的取值 |
-| `FACES, UVS, AO_CURVE` | 面表（+X,−X,+Y,−Y,+Z,−Z；含角点 `c`、`shade`、区域偏移 `n` 与 AO 邻居偏移 `ao`） |
-| `RB, RSKY, RBLK` | 3×3 区块区域缓冲（48×48×96），**只在 `buildChunk` 调用期间有效** |
-| `chunks, ck, getBlock` | 区块 Map / key 函数 / 世界坐标取方块 |
-
-## 3. 共享接口细节
-
-### 3.1 顶点（`MeshBuilder` → `makeGeometry`）
-
-| attribute | 类型 | 含义 |
-|---|---|---|
-| `position` | Int16×3 | 区块内坐标 × `PS`（64），着色器里 `/PS` |
-| `aUv` | Uint8×2 | texel 单位，16 = 一格；着色器里 `aUv/16` |
-| `aData` | Uint8×4 | `x` = atlas 图层，`y` = 天空光×16，`z` = 方块光×16，`w` = 明暗（面方向 × AO）×255 |
-
-- `mb.vert(x,y,z,u,v,layer,sky,blk,shade)`，`mb.quad(base, flip)`（`flip` 用于 AO 各向异性翻转对角线）。
-- `makeGeometry` 会在上传 GPU 后释放 CPU 数组（`onUpload(releaseArray)`），并为区块设置 bounding sphere。网格位置 = `(cx*16, 0, cz*16)`。
-
-### 3.2 光照（主文件统一计算，渲染器只读）
-
-- 体素光等级 0..15：`sky`（天空光，竖直无衰减 + BFS），`blk`（方块光，`EMIT[id]`，火把 = 14）。
-- 每次 `meshChunk(c)` 都执行 `buildRegion → computeLight → storeLight`：
-  - `RB/RSKY/RBLK`：区域缓冲，索引 `rx*RSCH + rz*CH + y`；中心区块位于 `rx,rz ∈ [16,32)`。
-  - `c.sky / c.blk`：中心区块持久化的光照，`Uint8Array(16*16*96)`，**索引与 `c.blocks` 相同**：`(lx*16 + lz)*96 + y`。
-  - 区块边界光照变化时自动 `markDirty` 邻居（随后邻居会再次 `buildChunk`）。
-- GLSL：`vec3 voxLight(float sky, float blk)`（参数 0..15），内部使用 `bright()`、`uSkyDarken`（夜晚整体压低天空光，0..10）、`uSkyTint`，方块光色 `(1, .86, .66)`。
-- JS 等价函数：`brightJS`、`lightColor(x,y,z,out)`（实体/粒子用）。
-
-### 3.3 材质
-
-- GLSL：`vec4 matSample(vec2 uv, float layer)`（`uv` 以方块为单位，0..1 = 一格），`vec3 applyFog(vec3 c, float viewDist)`。
-- 透明规则：`a < 0.5` 视为镂空（树叶、花草、火把）；水为半透明（v1 中 `depthWrite=false`、`DoubleSide`、水面顶部下沉 1/8）。
-- `GLSL.mat` 自带 `precision highp sampler2DArray;`，需放在片元着色器里、使用 `uAtlas` 之前。
-
-## 4. 调用时序
-
-```
-启动:   createRenderer(RCTX)
-每帧:   updateChunks(budget)
-          ├─ 对 urgent / 尚未构建 / dirty 的区块: meshChunk(c)
-          │     buildRegion → computeLight → storeLight(c) → VR.buildChunk(c) → c.meshed = true
-          └─ 每 60 帧卸载远处区块: VR.disposeChunk(c) → chunks.delete
-        updateSky(dt)   → 写 U.*、scene.fog → VR.update(dt)
-        renderer.clear(); VR.render(); clearDepth; render(hudScene)
-编辑:   setBlock → markUrgent(本区块 + 接壤区块) → 下一帧 meshChunk
-```
-
-注意：
-- `buildChunk` 可能对同一区块被**反复**调用（编辑、邻居光照变化），必须可重入、先释放旧资源。
-- 区块只有在 3×3 邻居都已生成时才会被构建；`disposeChunk` 只在卸载时调用。
-- `c.mesh / c.waterMesh` 这两个字段名由 v1 使用，验证脚本也会检查 `disposeChunk` 之后它们为空。v2 若不产出网格，保持为 `null` 即可。
-
-## 5. v2 移植计划：old.htm → v2.js
-
-### 5.1 来源拆解（old.htm）
-
-| old.htm 位置 | 内容 | 在 v2 中的去向 |
-|---|---|---|
-| L359–412 | 天空渐变球 + 星星、太阳色、曝光、雾、「光照与风」面板 | 视觉参数并入 v2 后处理 uniform；天空仍由主文件 `updateSky` 管，v2 读 `U.uFogColor` 等 |
-| L611 `VOX` | 参数默认值（steps / shadowSteps / scale / fog* / ambient / ao* / shadow* / water* / wave / refl / foam / spec） | v2 的 `P` 参数对象（可存 localStorage） |
-| L740–790 | 全屏四边形 `blit`、高程图 RT、Max-Mip 金字塔 | **替换**为 3D 体素纹理 + 占用金字塔（见 5.2） |
-| L792–1060 `post` 着色器 | `trace()` 分层 DDA、`faceAO()`、阴影射线、水面（菲涅尔 / 焦散 / 泡沫 / 高光 / 两阶不透明度）、两阶雾、水下雾 | 移植主体：`trace()` 改为 3D，其余着色逻辑基本照搬 |
-| L1062–1095 | `compMat` 低分辨率合成；`sceneRT`（带 DepthTexture）/ `lowRT` | 照搬：场景先画到 `sceneRT`，DDA 读深度后合成 |
-| L1098–1145 `gg.render` | 每帧：隐藏地形层 → 场景 → `sceneRT` → 设置 uniform → `post` | 改写成 `v2.render()` |
-| L1150–1188 | Tweakpane 绑定（`scale / steps / shadowSteps / ambient / ao / shadow / fog / water...`） | 照搬到 v2 面板 |
-
-old.htm 的依赖（`gg.P.lightDir`、`gg.p1`、`gg.waterY()`、`gg.ctl.rising`、`terrainLayer`、`hmCam`）在 VoxelCraft 中都不存在，需要替换：
-太阳方向 ← `worldTime`（需由主文件通过 ctx 暴露 `sunDir`，或 v2 读 `scene` 中的 sun 网格位置）；水面 ← 体素 `B.WATER`（不再是单一水平面）；地形层 ← v2 根本不往 `scene` 里加区块网格。
-
-### 5.2 v2 数据通路（建议；**与 §7 冲突处以 §7 为准**）
-
-1. **体素 3D 纹理**（环形寻址，跟随玩家）：尺寸 `(2*rd+3)*16 × 96 × 同`，格式 `RG8UI`，`R` = 方块 id，`G` = `sky<<4 | blk`。
-   - `buildChunk(c)`：用 `c.blocks + c.sky + c.blk` 打包出 16×96×16 的数据，`texSubImage3D` 写入槽位 `((cx mod N), (cz mod N))`。three r160 的 `Data3DTexture` 不支持局部更新，需要直接调用 GL：`renderer.properties.get(tex).__webglTexture` + `renderer.state.bindTexture`，写完后调用 `renderer.resetState()`。
-   - `disposeChunk(c)`：把该槽位清零（视为空气或「未加载」）。
-2. **占用金字塔**（对应 old.htm 的 Max-Mip）：4³ 砖与 16³ 区块段各一级 `R8` 3D 纹理，记录「是否有非空气」。DDA 在空砖之间大步跳跃，进入非空砖后做逐格 DDA。
-3. **着色**：命中面后用 `matSample` 取 atlas，光照用 `voxLight(sky, blk)`（取命中面前方体素的光照，可三线性平滑），AO 用 old.htm 的 `vAO` 公式，查询邻居 `SOLID`。阴影：沿太阳方向发射第二条 DDA 射线，并乘以 `sky/15` 防止洞穴漏光。
-4. **特殊方块**：
-   - 树叶 / 玻璃：命中后 `a < 0.5` 继续步进。
-   - 花草 `R_CROSS`：格内两条对角平面求交并做 alpha 测试。
-   - 火把 `R_TORCH`：格内小盒子求交（贴墙时倾斜，可先只做直立版本）。
-   - 水 `R_WATER`：命中水面时记录 `tw`，按 old.htm 的水面逻辑叠加，再继续追踪水底。
-5. **合成**：`scene`（天空、实体、粒子、选择框、云）→ `sceneRT`（带深度）；`post` 读取 `tDepth`，只在体素比场景更近时覆盖，并输出深度。`scale < 1` 时走低分辨率 RT，再用 `compMat` 合成。
-6. **Tweakpane**：`tweakpane@4.0.5`（CDN 可用），只在 v2 中创建面板；若采用动态 `import('https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js')` 不需要改 importmap。
-
-### 5.3 v2 验收标准
-
-- `node tools/verify-renderer.mjs` 全部通过（v2 不产出网格时，会自动跳过顶点检查）。
-- 放置 / 破坏方块、火把光照在下一帧可见；跨区块移动时没有空洞或闪烁。
-- 实体、粒子、选择框和 DDA 地形相互遮挡正确（依赖深度）。
-- 面板可调 `scale / steps / shadowSteps / ambient / ao / shadow / fog* / water*`，F3 中的 `stats()` 显示 DDA 分辨率和耗时。
-
-## 6. 验证
-
-```bash
-# 需要本地服务：http://localhost:8765/（已有 http-server）
-node tools/verify-renderer.mjs            # 或传入 baseURL 参数
-```
-
-脚本依次加载 `?r=v1`、`?r=v2`、`?r=bogus`，检查以下项目：
-- 渲染器选择和回退。
-- 接口函数是否齐全。
-- 区块构建完成后，每个已构建区块都有 `c.sky/c.blk`。
-- 顶点格式（Int16/Uint8/Uint8，itemSize 3/2/4）。
-- 着色器使用了 `voxLight / matSample / applyFog`，并且共享 `U`。
-- 放置火把会触发 `buildChunk`，且 `c.blk = 14`；移除后恢复为 0。
-- `disposeChunk` 释放资源。
-- `render()` 无 GL 错误，且有绘制调用。
-- 功能点 1 的 N/F/E 按键。
-- 页面没有未捕获异常。
-
-当前结果：**3 组全部 PASS**。
-
-## 7. 计划评审与修订（可行性 + 性能）
-
-> 背景：old.htm 的高程图 DDA 在 `scale=0.8`、`steps=72`、`shadowSteps=48` 下流畅。
-> 3D 体素 DDA 每像素成本天然更高（没有「一列一个高度」的捷径、没有 y>hMax 直接判空），
-> 所以要靠 **射线更短（雾距裁剪）+ 空区跳得更快（砖块 + 列高）+ 天空像素早退** 把成本拉回同一量级。
-
-### 7.1 §5.2 中需要修正的点
-
-| # | 原计划 | 问题 | 修订 |
+| 副产品 | mesher 额外成本 | v2 现状 | 对 DDA 的收益（相对**现状**，非相对裸体素 DDA） |
 |---|---|---|---|
-| 1 | 环形纹理 `N = 2*rd+3` | 卸载半径是 `R+2`（`updateChunks`），已 mesh 的区块可分布在 `2R+5` 宽度内，`cx mod N` 会撞槽；`disposeChunk` 清零时可能清掉别人的数据 | `N = 2*rd + 5`，并为每个槽位记录 `owner = ck(cx,cz)`：`disposeChunk` 仅在 `owner === 自己` 时清零；`buildChunk` 覆盖时更新 owner |
-| 2 | `buildChunk` 用 `RB/RSKY/RBLK` 打包 | 区域缓冲只在 `meshChunk` 期间有效；改 `rd`（重建纹理）、恢复上下文时需要 **重传所有已 mesh 区块** | 打包一律用持久化的 `c.blocks / c.sky / c.blk`（索引同为 `(lx*16+lz)*96+y`）；提供 `reuploadAll()` 遍历 `ctx.chunks` |
-| 3 | 直接调 GL `texSubImage3D` | 可行，但要手动处理 `UNPACK_*` 状态与 `resetState()` | 优先用 three 自带 `renderer.copyTextureToTexture3D(box, pos, srcData3DTexture, dstTex)`（r160 已有，内部即 `texSubImage3D`；dst 先 `renderer.initTexture()`）。只有它对 `RG8UI` 不工作时才退回裸 GL（**待验证**：RGIntegerFormat + UnsignedByteType → RG8UI） |
-| 4 | 占用金字塔用 GPU pass 生成 | 没必要：4³ 砖占用在 CPU 打包时顺手算（每区块 4×24×4 = 384 字节） | CPU 生成，与体素数据同帧上传；另加 **每区块列高 `maxY`**（N×N `R8` 2D 纹理）和全局 `uWorldMaxY` uniform，取代 16³ 层级 |
-| 5 | 「post 输出深度」只写了一句 | 这是正确遮挡的关键，而且 `scale<1` 时低分辨率深度也要传到全分辨率 | 见 7.3 的三段式合成；`depthTest:true + depthFunc:AlwaysDepth + depthWrite:true + gl_FragDepth`（`depthTest:false` 时 GL 会连深度写入一起关掉） |
-| 6 | 世界坐标直接进 shader | 玩家走远后（坐标 >1e5）float 精度不够，DDA 会出现裂缝/抖动 | 所有射线数学在 **「玩家所在区块原点」局部坐标** 中进行：JS 用 double 算 `ro = camPos - origin`，shader 只见 ±(N/2·16) 范围的数值 |
-| 7 | `matSample` 隐式 mip | 光线步进中相邻像素 uv 不连续，隐式导数在体素边缘乱跳 → 闪烁/糊 | 用 `textureLod`：`lod = log2(tHit * uTexelAngle * 16)`（`uTexelAngle` = 单个 DDA 像素的视角弧度）。建议在主文件 `GLSL.mat` 增加 `matSampleLod(uv, layer, lod)`（v1 不受影响） |
-| 8 | 太阳方向待定 | — | 主文件 `U` 增加 `uSunDir`（`updateSky` 里由 `worldTime` 算：`normalize(sx, sy, 0.2)`，与 `sun.position` 同源），v1 不用但也无害 |
-| 9 | 水面按 old.htm 的「单一水平面」 | 水是体素（海平面 + 水桶放置任意高度） | 在 DDA 中处理：从非水进入水体素时记录 `tw` 与入射法线，继续步进直到命中非水非空气（水底）或离开水体；`depth = tHit - tw`；水色逻辑照搬。顶面下沉 1/8 可后做 |
-| 10 | 阴影射线 | 3D 中阴影射线最贵，且 v1 本来没有太阳阴影 | 默认关闭（`shadowSteps=0`）；开启时：`sky<8` 或 `ndl<=0` 直接跳过；`shadowDist` 默认 24；射线超过 `uWorldMaxY` 立即判无遮挡 |
+| 区块级空/实标记（16³ 段） | ~0（quad 数==0 时判断全空/全实） | 无；只有列高 | 列高已经干掉了地表以上的空段；新增收益在**山体侧面、悬崖、洞穴**（列高很高但大半是空气）和地下全实段（进入即命中，不下探到体素级）。估 1.2–1.5× |
+| 16³ 占据位图（512 B/区块段，R32UI） | +5% | 无；体素级直接读 RG8UI | 体素级每步 1 bit 代替 2 B，一个 texel 覆盖 2×4×4 格，**连续几步命中同一 texel 不用 fetch**；树冠/草地里 1.5–2× |
+| 4³ 砖占用 | +2% | **已有** | — |
+| Chebyshev 距离场（截断 16） | +50–100% mesher 时间 → 放 Worker | 无 | **单项最大**：开阔处一步跳 ≤16 格（砖级是 4 格），掠射角沿地表的射线从「每 4 格一次 fetch」变「每 d 格一次」。相对现状估 2–4× 步数下降；替代砖级循环 |
+| 逐面 AO 四角打包 | +3%（greedy 合并前 `k1>>>16 & 255` 就是它） | 无；shader 9 邻域 | 只省掉 AO 的不透明判定，平滑光照仍要 9 个邻居的 sky/blk；存储是难点（§3.5）。估着色 10–20%，总帧 <5% |
 
-### 7.2 推荐的 shader 结构：两级嵌套 DDA（比 old.htm 的 L 升降更易写对）
+## 3. 加速结构设计
+
+### 3.1 区块段标记 + 列高（扩展现有 `uCol`）
+
+- 新纹理 `uSect`：`R8UI` 3D，尺寸 `N × H/16 × N`；0 = 全空、1 = 混合、2 = 全不透明（`opaque[id]` 对全部 4096 格成立）。
+- 生成：VoxelCraft 在 `uploadChunk` 的扫描里顺手统计；index.html 在 `Mesher.greedy` 结束后按「该段 quad 数 == 0 且首格为空/不透明」判断（mesher 已经知道每个面是否暴露）。
+- shader：砖级循环前先检查 `uSect`；`0` → 用段 AABB 直接跳到段出口（同列高跳过的写法）；`2` → 以进入面为命中（`hc` = 入口格，`voxAt` 取 id 着色）；`1` → 现有砖级/体素级逻辑。
+- 三级循环（段→砖→体素）会增加寄存器压力；**若 3.4 的距离场上线，段级空标记可以取消**（d=16 的跳跃覆盖了它），只留「全实 = 直接命中」。
+
+### 3.2 16³ 占据位图（体素级步进的廉价替身）
+
+- 布局：`R32UI` 3D，尺寸 `SX/2 × H/4 × SX/4`；texel `(x>>1, y>>2, z>>2)`，bit = `(x&1) | (y&3)<<1 | (z&3)<<3`。每 texel = 2×4×4 格。
+- shader 体素级：`cur = texelFetch(uBits, tc)`；步进后若 `tc` 不变则直接查寄存器里的 `cur`，不 fetch。只有 bit=1 才去 `voxAt` 取 id/kind。
+- 生成：mesher 扫描时 `bits[(y>>2)*... ] |= 1 << bit`（index.html 在 `fillPadded` 拷贝循环里顺手；VoxelCraft 在 `uploadChunk` 里）。每区块 `H/16 × 512 B`。
+- 与 3.4 的关系：有距离场后，d≥2 的格子不需要位图；d∈{0,1} 的「表皮」里位图仍能省 fetch。两者不冲突，但**优先做距离场**；位图作为「距离场未就绪区块」和低端机（不想开 Worker）的退化路径。
+
+### 3.3 4³ 砖（已有，不动）
+
+仅一处改进：`uploadChunk` 的 `setColumn` 每次都 O(N²) 重算 `worldMaxY`，改为只在列高下降时重算（微小，但每次编辑都触发）。
+
+### 3.4 Chebyshev 距离场（重点）
+
+**定义与编码**：`d(p)` = 到最近「占据格」（`occupied[id]`，即 `kind != 0`，含水/花草/火把/树叶）的切比雪夫距离，截断 `T=16`。
+纹理 `uDist`：`R8UI` 3D，与体素纹理同尺寸（`SX × H × SX`），值 `v = d + 1`（1 = 本格被占据，2 = 相邻，…，17 = ≥16），**`v = 0` 保留为「未计算」**。y 越界：`y<0` 视为占据、`y>=H` 视为 d=T。
+
+**shader 用法**（替换砖级循环；列高跳过与 `uSect==2` 保留）：
+```
+loop:
+  v = dist(cell)
+  v == 0  → 退化：brickAt/位图 路径（现有代码）
+  v == 1  → 占据：取 id/kind，走现有的「命中 / cutout / 花草 / 火把 / 水」判定；未命中则体素步进 1 格
+  v == 2  → 体素步进 1 格（本格确定是空气，不取 id）
+  v >= 3  → 跳跃：k = v-2；盒子 [cell-k, cell+k+1)（局部坐标），t = 盒子出口；cell = floor(ro + r*(t+ε))；nrm 按出口轴；重算 tM
+```
+每次跳跃 = 1 fetch + 一次 slab 求交（≈12 ALU），不比砖级一步贵。注意 `ε` 与现有 `cellAt(ro,r,t+1e-4,…)` 用同一套，避免掠射角下在盒子边界反复。
+
+**生成（Worker，`v2-dist.worker.js`）**：
+- 截断 L∞ 距离变换可分离、三遍：
+  1. X 遍：对每条 (y,z) 行，前向/后向两次扫，得 `dx = min |x-x'|`（截断 T）。
+  2. Y 遍：`dxy(x,y,z) = min_{|k|≤T} max(|k|, dx(x,y+k,z))`，k 从 0 向两侧扩，`|k| ≥ 当前最优` 即停。
+  3. Z 遍：同上。
+- 区块 C 的 DF 需要邻居：X 遍覆盖 `x,z ∈ [-16,32)` 全高，Y 遍覆盖 `x∈[0,16), z∈[-16,32)`，Z 遍只算 C。
+  估算 H=96：≈ 0.2M×2 + 74K×≤32 + 24K×≤32 ≈ 3–4M 简单操作，**JS 里 3–6 ms/区块**，放 Worker 不占主线程。
+- Worker 持有全部已加载区块的 `occupied` 位镜像（`Uint8Array(16·H·16)`，或直接用 §3.2 的位图，省 8× 内存）。
+- 邻居尚未加载 → 视为空气算一遍（结果偏大 = **不安全**吗？否：邻居不存在时 v2 环形纹理里它也不存在，射线不会进入；邻居到达后会触发邻居的 DF 计算，**同时要把已算过的 8 个邻居标脏重算**，否则边界 16 格内的 d 会偏大 → 穿帮）。
+
+**协议**：
+```
+主线程                                   Worker
+init {height, occupied: Uint8Array(256)}  ─▶
+load {cx,cz, blocks}  （blocks 是 copy，   ─▶  存镜像；算本块 DF；把 8 个邻居入队重算
+      不要 transfer 掉 c.blocks！）
+                                          ◀─ dist {cx,cz, buf: Uint8Array(16·H·16)}（transfer，H=96 时 24 KB）
+                                             主线程：槽位归属仍是本块 → copyTextureToTexture3D 进 uDist
+unload {cx,cz}                            ─▶  删镜像（不重算邻居：它们边界处 d 偏小，安全）
+edit {x,y,z,occ}                          ─▶  更新镜像；局部重算（见下）并返回受影响区块（≤9 个）的 dist
+```
+- Worker 队列：**edit 优先于 load**；同一区块多次入队去重；`dist` 回来时若槽位已被别的区块占用则丢弃。
+- 主线程上传：`stDist`（`Data3DTexture 16×H×16`）复用现有 `copyTextureToTexture3D` 路径；区块卸载时 `uDist` 槽位不用清（列高 0 就不会进）；**区块重新上传（光照变化）不要清 DF**（DF 只依赖 occupancy，光照变化不影响）。
+
+**编辑路径（安全性是关键）**：
+- DF **偏小永远安全**（少跳几步），**偏大就穿帮**（射线跳过新放的方块）。
+- 放置（空→占据）：只需 `d_new = min(d_old, cheb(cell, p))`，对 `(2T+1)³ = 36K` 格做一遍 min，**不需要邻居信息**。推荐主线程保留一份 DF CPU 镜像（24 KB/区块，300 区块 ≈ 7 MB），放置时**主线程同步**做这个 min 并立即上传受影响区块（≤9 块 × 24 KB），零延迟且安全；再把 edit 通知 Worker 同步镜像即可，不必等它返回。
+- 移除（占据→空）：主线程把该格 `v` 写成 **1**（当作仍占据 → shader 取 id 发现是空气 → 步进 1 格，安全且立即可见）；Worker 异步做局部精确重算（只重算 `cheb ≤ T` 的 36K 格，X/Y/Z 三遍限定在 `(2T+1)³` 盒子及其 ±T 的输入范围，≈ 3–5 ms），回来后覆盖。
+- 若不想在主线程存镜像：退而求其次是放置时同步把 **`(2T+1)³` 全写 1**（安全但损失那片的跳跃，直到 Worker 回包覆盖），仍比等 Worker 好。
+
+**退化**：`v == 0`（Worker 未回）→ 现有砖级/位图路径，不卡画面。距离场默认开，面板加 `df` 开关（0 = 强制退化，用于 A/B 测步数）。
+
+**内存**（`N=2rd+5`，`SX=16N`；单位 MB）：
+
+| rd | N / SX | 体素 RG8UI H=96 / 128 | DF R8UI H=96 / 128 | 位图 R32UI H=96 | 砖 R8UI |
+|---|---|---|---|---|---|
+| 6 | 17 / 272 | 14.2 / 18.9 | 7.1 / 9.5 | 0.9 | 0.2 |
+| 8 | 21 / 336 | 21.7 / 28.9 | 10.8 / 14.5 | 1.4 | 0.3 |
+| 12 | 29 / 464 | 41.3 / 55.1 | 20.7 / 27.6 | 2.6 | 0.7 |
+
+**备选（若 Worker 成本/内存不可接受）**：砖级距离场 —— 在 4³ 砖占用上算 DF（1 B/砖，尺寸是体素 DF 的 1/64，H=96 rd=8 仅 170 KB，算一块 <0.1 ms 可放主线程），一次跳 ≤16 砖 = 64 格；进入非空砖后按现有体素级走。开阔处收益与体素 DF 相当，**表皮内（掠射角沿地表）不如体素 DF**。先做体素 DF，用 §5 的热力图比较后再决定是否保留两者。
+
+### 3.5 逐面 AO 四角打包（最后做，先测再做）
+
+- 来源：index.html `Mesher.greedy` 里 `k1` 的 bit 16–23 就是 4 角 AO（2 bit × 4），在合并前按 `(axis, side, s, i, j)` 写出即可；VoxelCraft 没有 mesher，要在 `uploadChunk` 里补一遍 6 面邻域扫描（+ 不止 3%）。
+- 存储难点：3D 纹理里「每面 1 B」= 6 B/格。可利用「相邻两格之间的那个边界面，最多只有一侧暴露」压成 **每格 3 B（RGB8UI：x/y/z 三个负向边界）**；rd=8 H=96 仍要 32 MB。
+- 它只省 `smoothLight` 里的 9 次 `uInfo`（不透明判定），sky/blk 的 9 次 `voxAt` 仍在。更划算的替代：**把 `opaque/solid/kind` 位塞进体素纹理**（RG8UI → RGBA8UI：R=id，G=sky<<4|blk，B=flags，A=DF！），`cellLO` 从 2 fetch 变 1 fetch，体素级步进也不再查 `uInfo`，而且 DF 和体素合并成一次 fetch。代价：体素纹理 ×2（rd=8 H=96 → 43 MB，DF 纹理省掉 11 MB，净 +11 MB），DF 上传要改成写 A 通道（`copyTextureToTexture3D` 无法只写一个通道 → 主线程持有 RGBA 打包镜像或由 Worker 直接回传整块 RGBA 98 KB）。
+- 决策依据：§5 工具里加 `uDebug=3`（跳过 smoothLight，用本格光照）量出着色占比；**>20% 才值得动存储**。
+
+### 3.6 整合后的 `trace` 结构
 
 ```
-trace(ro, rd, maxD):
-  if (rd.y >= 0 && ro.y >= uWorldMaxY) return miss           // 天空早退
-  clip [tEnter,tExit] to ring AABB (局部坐标) 与 maxD          // 不读环外数据
-  outer: Amanatides–Woo over 4³ bricks (ivec3 cell, vec3 tMax/tDelta)
-    每进入一个新区块列(16×16)且 rd.y>=0 且 y>chunkMaxY → 直接跳到列出口   // 列高跳过
-    brick 空 → 继续
-    brick 非空 → inner: 体素 DDA，限定在该 brick 内（≤10 步），从 brick 入口 t 开始
-        id==AIR → 继续
-        OPAQUE  → 命中，返回 (t, normal, cell)
-        CUTOUT(叶/玻璃/花草/火把) → 求交 + alpha 测试，不透则命中，透则继续；总 alpha 测试次数 ≤8，超过按不透明处理
-        WATER   → 首次进入记 tw/normal，之后继续
-    inner 无命中 → 回到 outer
+clip to ring AABB / maxD；天空早退 (uWorldMaxY)
+loop (≤512, 预算 uSteps):
+  换区块列 → colMaxAt；cell.y ≥ cmax → 跳列出口/降到 y=cmax（现有）
+  [可选] uSect==2 → 命中入口格
+  v = dist(cell)
+    v==0 → 砖级一步（现有 brickAt；非空砖则体素级，现有）
+    v>=3 → 盒跳跃
+    v<=2 → 体素级一步；v==1 时取 id/kind 判命中（现有 cutout/花草/火把/水逻辑不变）
+预算耗尽 → kind=4 全雾（现有）
 ```
+阴影射线复用同一循环（`shadow=true`：不记录水、不做 cutout 采样、`nAlpha` 上限 2）。
 
-- 步数上限：`uSteps`（uniform，不必 recompile；old.htm 已是 `if (i>=maxSteps) break` 形式）。
-- 命中后着色：取面前方 3×3 体素（9 次 `texelFetch`，同一纹素含 id+sky+blk），同时得到 **v1 同款四角平滑光照与 AO**（复用 `emitCube` 的「两侧都不透明则不计角点」规则），双线性到像素 → 与 v1 像素级一致，然后 `voxLight() * shade`、`matSampleLod()`、`applyFog()`。
-- 方块表（`RENDER / OPAQUE / SOLID / T_TOP / T_BOT / T_SIDE`）打进一张 256×1 `RGBA8UI` 纹理 `uBlockInfo`，shader 里 `texelFetch(uBlockInfo, ivec2(id,0), 0)` 一次取全。
-- 体素纹理用 `usampler3D` + `texelFetch`（WebGL2，项目已依赖 `sampler2DArray`，无额外要求）。
+## 4. 与加速结构无关、但应一起做的开销削减
 
-### 7.3 合成流程（解决实体 / 粒子 / 裂纹 / 选择框遮挡）
+| # | 项 | 做法 | 预期 |
+|---|---|---|---|
+| 1 | 阴影射线默认 20 步 | 先测关闭/开启差值；保留时：只对 `n.y>0` 顶面 + `G>0.3` 发射；或棋盘格半数像素发射、comp 时 2×2 取邻 | 核显上可能是 20–30% 的帧 |
+| 2 | `cloudHit` 每像素执行 | 射线不可能到云 slab（`r.y<=0 && ro.y<y0`，或 slab 入口 `t` 已超过命中 `tHit`）时跳过；**先 trace 再算云**，把 `tHit*cosF` 作为云的 `tX` 上限 | 地面像素省 ≤96 次 2D 步 |
+| 3 | `cellLO` 两次依赖 fetch | §3.5 的 flags 入体素纹理，或至少把 `opaque` 塞进 `uInfo` 之外的更小纹理 | 着色 fetch 18 → 9 |
+| 4 | `voxAt/brickAt` 的取模 | `uOrgSlot*16 + o` 预合并为一个 uniform 偏移；`% uSX` 在 `SX` 为 2 的幂时换 `&`（N=2rd+5 不是 2 的幂 → 可把 SX 向上取到 2 的幂，多占内存换 ALU；核显上 ALU 不是瓶颈，**低优先**） | 小 |
+| 5 | `scale<1` 时不做场景深度裁剪（`uClipScene=0`） | 对 `tDepth` 做 2×2 **max**（最远）采样作为保守裁剪，仍安全 | 实体/近景多时省步数 |
+| 6 | sceneRT 全分辨率 + comp 全屏 pass | 不可省（深度合成需要），但 comp 可与 HUD 深度写合并……留着 | — |
+| 7 | 预算耗尽像素 | 热力图里若成片 kind=4，说明结构没起作用，而不是 `steps` 太小 | 诊断用 |
 
-```
-① renderer.render(scene, camera) → sceneRT(color + DepthTexture)   // 整个 scene：天空、生物、掉落物、粒子（Points 写深度）、选择框…
-② DDA pass:
-     scale==1: 直接画到屏幕，material.depthTest=true, depthFunc=AlwaysDepth, depthWrite=true, 写 gl_FragDepth
-     scale<1 : 画到 lowRT（RGBA + R32F/深度打包在 alpha 或第二个附件），再由 compMat 画到屏幕并写 gl_FragDepth = 低分辨率深度（nearest 采样）
-   tDepth 用于 maxD = min(uFogFar, sceneZ/cosF)：体素比场景远时不覆盖场景颜色
-③ 第二次只画「覆盖层」：crackMesh（polygonOffset 依赖真实深度）、highlight、以及其它 transparent/depthWrite=false 的对象 —— 这样它们能被 DDA 地形正确遮挡
-   （v2 每帧 traverse 一次 scene 把这些对象临时 visible=false/true，对象数很少，成本可忽略；也可让主文件把它们挂到 ctx.overlay 组）
-④ 主循环照旧 clearDepth → hudScene
-```
+## 5. 测量工具（P0，先做）
 
-`gl_FragDepth` 公式（z = 视空间正距离 = `tHit*cosF`）：`depth = far*(z-near) / (z*(far-near))`。
+1. **分 pass GPU 计时**：现在只有一个查询包整帧；改为 `scene / dda / comp` 三个顺序查询（`qWait` 改数组），`stats()` 显示 `gpu s/d/c`。
+2. **步数热力图**（已实现为编译期宏 `DBG`/`DBGRAW`，`VR.setDebug(view, raw)`；`DBG=0` 与生产着色器完全相同；`4`=dist 留到 P2）：`1` = 主射线迭代次数 / `uSteps` 映射成热力色，`2` = 总 fetch 次数（循环内计数），`3` = 跳过 `smoothLight`（本格光照），`4` = 显示 `dist` 值，`5` = 显示命中层级（段/砖/DF 跳/体素）。面板加「调试视图」下拉。
+3. **固定机位基准**：`tools/bench-v2.mjs`（参考 `diag-water.mjs` 的写法）：同一种子、固定 4 个机位（平地远眺 / 树冠仰视掠射 / 洞穴 / 水面），每机位读 30 帧 `stats()` 的 `gpu` 与热力图平均步数（`readPixels` 求均值），输出表格。每个优化前后都跑它，**数字写进本文档 §6**。
+4. 验证脚本增项：`VR.source` 存在且 `height` 与宿主一致；DF 开关切换后画面逐像素一致（DF 只应影响步数，不应影响画面——这是最好的正确性测试）；放置方块后下一帧无穿帮（放一个 1 格厚的墙，背后贴天空色，`readPixels` 检查）。
 
-### 7.4 性能建议（按收益排序）
-
-1. **射线长度裁到雾距**：`maxD = min(uFogFar, sceneZ/cosF)`。雾远端颜色 == 天空地平线色（`tmpHor`），超出雾距显示天空与 v1 视觉无差，但射线从「视距」缩到 `rd*16-2`（rd=6 时 94 格；rd=10 时 158 格）。这是把 3D DDA 拉回 old.htm 成本的第一要素。
-2. **天空像素早退**：`uWorldMaxY`（全局）+ 每区块 `chunkMaxY`（2D 纹理）。平地场景天空占屏 40–50%，这两步让这些像素接近零成本；没有它们，近水平略向上的射线会穿过几十个空砖。
-3. **4³ 砖跳跃**：rd=10 时对角线射线最坏 ≈ 60 砖步 + ≤10 体素步；通常 <25 步命中地面。估算 1080p×0.8² ≈ 1.3M 射线 × ~30 次 fetch ≈ 40M 3D fetch/帧，与 old.htm（72 步 × 2D fetch）同一量级，桌面 GPU 60 fps 可期；核显建议默认 `scale 0.6`。
-4. **DDA 分辨率上限**：主文件 `pixelRatio` 可到 1.5，4K/高 DPR 下 0.8 仍太大。`scale` 之外再设 `maxDDAPixels`（如 1920×1080 或 2.1M 像素）取 min；面板显示实际 DDA 分辨率。
-5. **阴影**：默认关闭；开启时按 7.1-#10 跳过无效射线。进阶可用棋盘格/半分辨率阴影或只对 `n.y>0` 的顶面算。
-6. **着色只在命中后做**：9 次邻域 fetch + 1 次 atlas 采样 + fog，对比步进可忽略；不要在循环内采样 atlas（除 cutout 方块的 alpha 测试）。
-7. **alpha 测试上限**：树冠区域每条射线最多 8 次透明命中，防止森林场景单像素几十次 atlas 采样；超过后按不透明处理（视觉差异极小）。
-8. **局部坐标 + 整数 DDA**：除精度外，`ivec3` 单元 + `tMax/tDelta` 的分支少，比 old.htm 的 float `floor()`/`exp2()` 升降更省 ALU。
-9. **上传成本**：每区块打包 16×96×16×2B = 48 KB + 384 B 砖 + 1 B 列高，CPU <0.3 ms/区块，可在 `updateChunks` 的 5 ms 预算内与光照一起完成；不要每帧全量重传。
-10. **低分辨率合成**：先照搬 old.htm 的 `l.a` 掩码混合；若地形/实体边缘锯齿明显再升级为深度感知上采样（比较 lowRT 深度与 sceneRT 深度选最近）。时间域重投影（TAA 式）留作最后手段。
-11. **统计**：`stats()` 用 `EXT_disjoint_timer_query_webgl2` 读 DDA pass GPU 时间（不可用时退回帧时间 EMA），F3 同时显示 `DDA WxH / steps / shadow`。
-
-### 7.5 主文件需要的最小改动
-
-- `U.uSunDir`（`updateSky` 内更新）。
-- `GLSL.mat` 增加 `matSampleLod(vec2 uv, float layer, float lod)`。
-- （可选）`ctx.overlay` 组 / 或 `ctx.settings` 真正赋值为 `settings`（现在是 `null`），以便 v2 监听 `rd` 变化重建环形纹理。
-- `tools/verify-renderer.mjs` 增加 v2 专项：放火把后下一帧读回 DDA 像素亮度变化；跨区块移动 N 帧后无 GL 错误；`rd` 从 6→8 后 `render()` 正常。
-
-### 7.6 里程碑
+## 6. 里程碑
 
 | 阶段 | 内容 | 验收 |
 |---|---|---|
-| M0 | 环形 3D 纹理 + 砖占用 + 列高，仅 `OPAQUE` 方块，纯色/atlas 无 AO，`scale=1`，与 sceneRT 深度合成 | verify 通过；跨区块移动无洞；放/挖方块下一帧可见 |
-| M1 | 平滑光照 + AO + `voxLight/applyFog` + `matSampleLod`；cutout（叶/玻璃/花草/火把）；水 | 与 v1 并排截图对比光照一致；火把光下一帧可见 |
-| M2 ✅ | `gl_FragDepth` + 覆盖层二次绘制；`scale<1` 低分辨率路径；Tweakpane；stats GPU 计时 | 实体/粒子/裂纹遮挡正确；`scale 0.8` 下桌面 60 fps |
-| M3 | 阴影射线；`rd` 变更重建；参数持久化 localStorage；核显调优 | 面板全部参数可调，默认值写回 §5.1 的 `P` |
+| P0 | §5 测量工具 | 四机位基线表（平均步数 / fetch / gpu ms）写入本节 |
+| P1 | `ChunkSource` + `BlockTable` 适配（VoxelCraft），`H` 参数化；`uploadChunk` 产出 `sectionFlags`（§3.1） | verify 通过；画面与 P0 逐像素一致；步数在悬崖/洞穴机位下降 |
+| P2 | 距离场 Worker + shader 跳跃 + 编辑安全路径（§3.4）；面板 `df` 开关 | DF 开/关画面 0 px 差异；四机位平均步数 ≥2× 下降；放置/移除下一帧可见无穿帮；主线程 `updateChunks` 耗时不升 |
+| P3 | §4 的 1/2/3/5 | 核显 `scale 0.8` 四机位 ≤ 12 ms 整帧（目标 60 fps 留余量）|
+| P4 | 位图（§3.2）作为退化路径 + index.html 适配器（几何 + 加速结构 + mesher 副产品） | index.html `?r=v2` 能出图（材质先用占位）；`Mesher` 产出 accel 的额外耗时 ≤5% |
+| P5 | AO 打包 / flags 入体素纹理（§3.5），按 P0 工具的数据决定 | 着色占比下降可量化 |
 
-## 8. v2 调参面板 DSL（Tweakpane，右上角）
+### 6.1 P0 实测基线（`node tools/bench-v2.mjs --save p0`）
 
-> 目标：面板由一份**声明式表**生成；所有 vec2 参数不直接绑定 pane，而是绑定一个 `xy ∈ [-1,1]²` 的代理点，
-> 由 DSL 把 xy 线性/对数映射回各自真实区间，方便在同一个方形拾取器里手调两个量纲不同的参数。
-> 区间按 VoxelCraft 的尺度（1 方块 = 1 单位，CH=96，视距 ≤ 16 区块 = 256 格）重新设定，old.htm 的 0..2000 一类区间不再适用。
+环境：Intel RPL-S 核显，ANGLE/GL，无头 Chromium，1280×657，seed 20240607，rd 6，`scale 0.65`（DDA 832×427），`steps 128`，`shadowSteps 20`，`worldTime 0.12`（冻结），水波/云冻结。gpu 为 30 帧中位数（ms）。
 
-### 8.1 语法
+| 机位 | gpu scene | gpu dda | gpu comp* | s+d+comp* | 主射线迭代 | 阴影迭代 | 耗尽 | fetch | 列跳/砖/体素 | 平滑光照占比 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| plain `24.5,53,32.5` | 0.17 | 10.90 | 1.09 | 12.16 | 26.0 | 4.1 | 0.7% | 39.7 | 4.0/0.8/12.6 | 7.4% |
+| canopy `51.5,53,20.5` | 0.19 | 7.79 | 1.08 | 9.06 | 13.1 | 4.3 | 0.0% | 37.4 | 0.7/0.3/6.5 | 14.3% |
+| cave `-53.5,11,-71.5` | 0.17 | 5.59 | 1.00 | 6.76 | 11.9 | 0.0 | 0.0% | 33.6 | 0.0/2.1/5.4 | 22.2% |
+| water `-17.5,42.4,-9.5` | 0.18 | 19.94 | 1.06 | 21.18 | 52.5 | 3.2 | 13.0% | 83.9 | 3.9/0.0/32.2 | 4.3% |
 
-```
-spec   := [ section, ... ]
-section:= [ title, [ row, ... ] ]
-row    := [ key, target, opts ]              // 标量
-        | [ 'v', vec2(target, kx, ky), V2(label, Rx, Ry) ]   // 二维：key 固定写 'v'（占位，不参与持久化）
-target := () => object                       // 惰性取对象（P / ctx.settings 可能在声明之后才存在）
-opts   := { label, ...R(min, max, step?, log?), fx? }
-R(min, max, step = 0.01, log = false)  → { min, max, step, log }
-V2(label, Rx, Ry)                       → { label, rx: Rx, ry: Ry, fx? }
-vec2(target, kx, ky)                    → { __vec2: true, get: target, kx, ky }
-```
+说明 / 发现：
+- **comp\***：合成 pass 的独立计时（两帧之间画到同尺寸 RT）。帧内 comp 查询是当帧第一次写默认帧缓冲，会把等交换链/vsync 的时间也算进去（实测帧内 10–30 ms、与 DDA 成本无关），**不能作为合成本身的成本**，bench 表里另列「comp 帧内」只作参考。
+- 列跳/砖/体素 = 主射线在三级上的平均步数；fetch 只计体素结构（`uVox/uBrick/uCol/uInfo`）与云纹理，不含图集/噪声采样。
+- 平滑光照占比 = (dda − dda[DBG 3：本格光照、无 AO]) / dda。
+- **水面是最大热点**：主射线 52 步、13% 像素耗尽预算，几乎全在体素级（32 步）—— 水体是「非空砖」，砖级跳不过去；远处平地视角的地平线水带同样是红色（见 `tools/out/bench/plain-iter.png`）。P2 的距离场/段跳要对水面单独看效果。
+- 洞穴机位无光（全黑），只用于步数/着色统计；平滑光照占比在洞穴最高（22%）。
+- 无头与有头（`--headed`）的 dda 数字同量级但有头更高、波动更大（桌面合成器共享 GPU）；对比请固定同一模式。
 
-- `fx`：参数生效方式，缺省 `'u'`（只改 uniform）。`'rt'` = 重建 RT（scale）、`'tex'` = 重建环形纹理并重传（rd）、`'sh'` = 重编译着色器（steps/shadowSteps 若以 define 形式存在；若用 uniform 上限则无需）。
-- 映射（n ∈ [-1,1]，r = R(...)）：
-  - 线性：`v = min + (n+1)/2 · (max−min)`；反向 `n = 2(v−min)/(max−min) − 1`
-  - 对数（`log=true`，要求 min>0）：`v = min · (max/min)^((n+1)/2)`；反向 `n = 2·ln(v/min)/ln(max/min) − 1`
-  - 量化：`v = round(v/step)·step`；写回前 `n` clamp 到 [-1,1]
-- 二维行的 pane 绑定是 `{x:{min:-1,max:1}, y:{min:-1,max:1, inverted:true}, picker:'inline', expanded:true}`（`inverted` 让"上 = 大"）；
-  change 时把 label 更新为 `"<label> <vx> / <vy>"` 显示真实值。
-- Tweakpane 的 point2d 是**就地写属性**（`target.writeProperty('x', …)`），所以代理点必须用 x/y 访问器对象，而不是每次返回新对象。
+像素一致性：`--save NAME` 存每机位 ddaRT 原始像素到 `tools/out/ref/NAME/`，`--cmp NAME` 逐像素比较（同机重复运行 0 px 差异）。P1「画面与 P0 逐像素一致」即 `node tools/bench-v2.mjs --cmp p0` 四机位全 0 px。
 
-### 8.2 参考实现（放在 v2.js 内，约 60 行）
+## 7. 风险与注意
 
-```js
-const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-export const R = (min, max, step = 0.01, log = false) => ({ min, max, step, log });
-export const V2 = (label, rx, ry, fx) => ({ label, rx, ry, fx });
-export const vec2 = (get, kx, ky) => ({ __vec2: true, get, kx, ky });
-const toN = (v, r) => clamp(r.log ? 2 * Math.log(v / r.min) / Math.log(r.max / r.min) - 1
-                                  : 2 * (v - r.min) / (r.max - r.min) - 1, -1, 1);
-const fromN = (n, r) => {
-  n = clamp(n, -1, 1);
-  const v = r.log ? r.min * Math.pow(r.max / r.min, (n + 1) / 2) : r.min + (n + 1) / 2 * (r.max - r.min);
-  return r.step ? Math.round(v / r.step) * r.step : v;
-};
-const fmt = v => Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
-
-// apply(key, fx) 由 v2 提供：按 fx 决定只更新 uniform / 重建 RT / 重传纹理 / 重编译
-// resetDefaults() 把 P 恢复为 §8.4 默认值（并触发所有 fx）
-export function buildPane(pane, spec, apply, resetDefaults) {
-  const refreshers = [];
-  for (const [title, rows] of spec) {
-    const f = pane.addFolder({ title, expanded: title === '性能' });
-    for (const [key, tgt, o] of rows) {
-      if (tgt && tgt.__vec2) {
-        const { get, kx, ky } = tgt, { rx, ry, label, fx } = o;
-        const pt = { get x() { return toN(get()[kx], rx); }, set x(n) { get()[kx] = fromN(n, rx); },
-                     get y() { return toN(get()[ky], ry); }, set y(n) { get()[ky] = fromN(n, ry); } };
-        const b = f.addBinding({ v: pt }, 'v', { label, x: { min: -1, max: 1 }, y: { min: -1, max: 1, inverted: true },
-                                                  picker: 'inline', expanded: true });
-        const relabel = () => { b.label = `${label} ${fmt(get()[kx])} / ${fmt(get()[ky])}`; };
-        b.on('change', () => { relabel(); apply(kx, fx); apply(ky, fx); });
-        relabel(); refreshers.push(relabel);
-      } else {
-        const { label, min, max, step, fx } = o;
-        f.addBinding(tgt(), key, { label, min, max, step }).on('change', () => apply(key, fx));
-      }
-    }
-  }
-  const refresh = () => { pane.refresh(); refreshers.forEach(r => r()); };
-  pane.addButton({ title: '重置默认' }).on('click', () => { resetDefaults(); refresh(); });
-  return { refresh };
-}
-```
-
-> 注意 `tgt()` 在 `addBinding` 时才求值，所以 `P` / `ctx.settings` 只需在调用 `buildPane` 之前存在即可。
-> 对数区间在 xy 拾取器中是"等比"滑动：`shadowDist` 从 4→96 正好跨 -1→+1。
-
-### 8.3 面板声明（最终版，区间已按 VoxelCraft 尺度调整）
-
-```js
-const S = () => ctx.settings, Pr = () => P;
-export const PANEL = [
-  ['性能', [
-    ['rd',          S,  { label: '视距(区块)', ...R(2, 16, 1), fx: 'tex' }],          // 与主菜单 settings.rd 同一字段
-    ['scale',       Pr, { label: 'DDA 分辨率', ...R(0.25, 1.5, 0.05), fx: 'rt' }],    // >1 为超采样，仅排错用
-    ['steps',       Pr, { label: '渲染迭代', ...R(32, 256, 8) }],                    // 外层砖步 + 内层体素步 合计上限
-    ['shadowSteps', Pr, { label: '阴影迭代', ...R(0, 64, 4) }],                      // 0 = 关闭阴影射线
-    ['v', vec2(Pr, 'shadowStrength', 'shadowDist'), V2('阴影 强度/距离', R(0, 1), R(4, 96, 1, true))],
-    ['v', vec2(Pr, 'waterClarity', 'reflStrength'), V2('水 透亮/反射',   R(0, 1), R(0, 1))],
-    ['fogA1',       Pr, { label: '雾强度', ...R(0, 1) }],                             // 1 = 与 v1 一致（uFogNear/Far 由主文件给）
-  ]],
-  ['光影', [
-    ['sun',         Pr, { label: '日照倍率', ...R(0, 1) }],                           // 0 = 纯 voxLight（= v1）
-    ['exposure',    Pr, { label: '曝光度', ...R(0.2, 3, 0.01) }],
-    ['v', vec2(Pr, 'sunAz', 'sunEl'),           V2('光向量 方位/仰角偏移', R(-3.14, 3.14, 0.01), R(-1, 1, 0.01))],
-    ['v', vec2(Pr, 'aoStrength', 'aoCurve'),    V2('AO 强度/曲线', R(0, 1), R(0.5, 3, 0.01, true))],
-    ['v', vec2(Pr, 'waterA2', 'waterA1'),       V2('水体不透明 深/浅', R(0, 1), R(0, 1))],
-    ['v', vec2(Pr, 'waterD2', 'waterD1'),       V2('水深过渡 深/浅(格)', R(1, 24, 0.5, true), R(0, 8, 0.25))],
-    ['v', vec2(Pr, 'waveStrength', 'foamWidth'),V2('水面 波纹/泡沫', R(0, 0.2, 0.005), R(0, 1.5, 0.05))],
-  ]],
-];
-```
-
-与草案的差异：
-- `viewDist` → 直接绑 `ctx.settings.rd`（主文件需把 `RCTX.settings = settings`），避免两个视距。
-- `ambient` 改名 `sun`：VoxelCraft 的基础光来自 `voxLight(sky, blk)`，不存在 old.htm 那种"环境光 + 太阳"模型；
-  `sun` 定义为叠加项 `light *= 1 + sun · max(dot(n, sunDir), 0) · dayF · shadow · sky/15`，取 0 时与 v1 完全一致。
-- `lightDir` 改为 `sunAz/sunEl` **偏移**（太阳基准方向来自 `worldTime`/`U.uSunDir`），默认 0/0；用于手调而非替代昼夜。
-- `shadowDist` 10..1000 → 4..96（对数）；`waterD1/D2` 0..20/0..60 → 0..8/1..24 格；`fogEnd/fogEnd2/fogA2` 删除（雾距由主文件 `U` 决定，v2 只保留强度 `fogA1`）。
-- `steps` 上限 512 → 256（砖级 DDA 下 160 格视距最坏约 70 步，256 足够）；`shadowSteps` 128 → 64。
-- `scale` 上限 2 → 1.5。
-
-### 8.4 默认值（`P`，持久化到 localStorage `vc.v2.params`，带 `ver` 字段）
-
-| key | 默认 | fx | 说明 |
-|---|---|---|---|
-| scale | 0.65 | rt | 用户上限；实际 = `min(scale, sqrt(maxMP·1e6 / 像素数))` |
-| maxMP | 0.7 | rt | DDA 像素上限（百万），大窗口自动降内部分辨率保帧 |
-| steps | 128 | u | uniform 上限，循环硬上限 512；耗尽时按「全雾远景」返回（见 §7.7） |
-| shadowSteps | 0 | sh | 0 时着色器剔除阴影分支 |
-| shadowStrength / shadowDist | 0.6 / 24 | u | |
-| waterClarity / reflStrength | 0.72 / 0.36 | u | |
-| fogA1 | 1.0 | u | |
-| sun | 0.33 | u | |
-| exposure | 0.86 | u | |
-| sunAz / sunEl | 1.18 / 0.32 | u | 弧度偏移 |
-| aoStrength / aoCurve | 0.59 / 1.92 | u | v1 的 AO_CURVE≈[0.42,0.62,0.8,1]，aoStrength 0.58 + aoCurve 1 最接近 |
-| waterA2 / waterA1 | 1 / 0.78 | u | |
-| waterD2 / waterD1 | 11 / 1.5 | u | 格 |
-| waveStrength / foamWidth | 0.06 / 1.2 | u | 正弦波幅 / 岸边泡沫宽 |
-| waveNoise / waveScale | 0.08 / 1 | u | 噪声法线强度（可平铺 128² 噪声贴图）/ 噪声频率 |
-| uwNear / uwFar | 2 / 44 | u | **水下**雾近/远，覆盖主程序的 0.5 / 18（那档太浑） |
-| (rd) | settings.rd | tex | 不在 P 中，改动同步主菜单滑块 |
-
-### 8.5 集成约定
-
-- 加载：`const { Pane } = await import('https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js')`，仅 v2 创建；CDN 失败只 `console.warn`，渲染不受影响。
-- 位置：Tweakpane 默认 `position:fixed; top:8px; right:8px`，正好右上；`z-index` 需高于 `#debug`/HUD。面板宽 280px，标题 `v2 DDA`，初始折叠。
-- 开关：`F4` 切换显示（主文件 keydown 已处理 F3，需为 F4 加 `preventDefault` 并派发给 `VR.togglePanel?.()`）；显示时若处于 pointer lock 则 `exitPointerLock()`，面板关闭不自动重新锁定（点击画布即可）。
-- 面板打开期间，`uiMode` 保持 `null` 但鼠标事件被 pane 吞掉；为避免误触方块，pane 容器上 `pointerdown` 需 `stopPropagation`（Tweakpane 已做，确认即可）。
-- `apply(key, fx)`：`'u'` → 下一帧统一写 uniform（标脏即可）；`'rt'` → `ensureRT()`；`'tex'` → `rebuildRing(); reuploadAll()` 并同步 `$('rd')` 滑块；`'sh'` → `post.defines.SHADOW = shadowSteps>0 ? 1 : 0; post.needsUpdate = true`。
-- `stats()` 增加 `P.scale` 与实际 DDA 像素尺寸，方便看面板改动是否生效。
-- 验证脚本增项：`window.game.VR.P` 存在且含上表全部 key；`VR.panelSpec` 中每个 vec2 行 `fromN(toN(v)) === v`（在 step 精度内）往返一致。
-
-### 7.7 M2 实施记录（用户反馈的三个问题）
-
-数值都在 `--use-gl=angle --use-angle=gl`（Intel RPL-S 核显）+ 1280×657 绘制缓冲下测得。
-
-1. **帧数低** → `stats()` 接 `EXT_disjoint_timer_query_webgl2`，HUD 里能直接看到整帧 GPU 耗时；
-   新增 `maxMP` 像素上限，窗口变大时自动降 DDA 内部分辨率。
-   实测（整帧 GPU，含 scene pass）：`scale 0.65 + 阴影 20 步` = 8.7 ms / 60 fps、`0.5` = 6.1 ms、`0.4` = 4.4 ms、`1.0` = 13.8 ms (54 fps)；
-   2560×1400 窗口未加上限时 1.5 MP → 48 ms，`maxMP=0.7` 后降到 ×0.58 / 0.7 MP。
-2. **横向穿屏毛刺**（对着树/山时整行透出天空）→ 根因是掠射角下**迭代预算耗尽**：
-   `steps` 用尽时旧实现直接 `return false`，该像素就变成天空色，一整行掠射角射线同时耗尽 → 横向条纹。
-   重现：树冠仰视机位 `steps=128` 漏空 3335 px（4.8%，集中在连续几十行），`steps=250` 归零。
-   修法：① 循环硬上限 256→512；② 耗尽时返回 `kind=4` 的「全雾远景」而不是未命中，漏空变成雾色（在雾距上肉眼不可见）；
-   ③ 雾远裁剪留 3% 余量，避免正好落在 far 面的几何被 `tX` 裁掉。
-   验证：同分辨率下 `steps=64/96/128/160` vs `384` 的最终画面逐像素对比，全部机位差异 **0 px**（修前 `steps=8` 差异 27%、最长横向连通 866 px）。
-3. **水体** → ① 水面波纹换成「正弦 + 可平铺 128² 噪声法线」两层滚动叠加（`waveNoise`/`waveScale` 上面板），
-   实测高频能量 +10%、时间维逐帧差异 0.74（确认在动），焦散/泡沫也吃噪声相位；
-   ② 新增 `uwNear/uwFar`（默认 2 / 44）覆盖主程序水下的 0.5 / 18，水下可视距离翻倍；
-   ③ 修掉水下**漏空方向输出天空色且不加雾**的 bug（水下向外看会漏出亮天空），改为输出雾色并按 `uFogFar` 写深度。
+- `postMessage` **transfer 会把 `c.blocks` 从主线程拿走**，必须 `slice()` 或 structured clone；回传的 `dist` buffer 可以 transfer。
+- Worker 积压时（快速移动大量加载）编辑必须插队；主线程的放置 min-更新不依赖 Worker，所以画面不会穿帮，只是跳跃暂时偏保守。
+- DF 的不变量：**纹理里的 d 永远 ≤ 真实 d**。任何改 occupancy 的路径（生成、编辑、卸载邻居后再加载）都要对照检查；违反的症状是「掠射角下方块背面透出天空/雾的细条」。
+- 区块光照变化（火把）会反复 `buildChunk` → 不要让它触发 DF 重算，也不要清 `uDist` 槽位。
+- `copyTextureToTexture3D` 在 r160 对 RG8UI/R8UI 可用；R32UI（位图）需验证 `RedIntegerFormat + UnsignedIntType`，不行则裸 GL `texSubImage3D` + `resetState()`。
+- 三级/多路径循环会抬高寄存器占用，核显 occupancy 下降可能吃掉收益——每加一级都用 P0 工具测，不要凭估算叠加。
+- 环形 N 与 `uSect/uDist/uBits` 的槽位寻址必须与 `uVox` 同一套 `wrap`；`rebuildRing` 时一起重建、`reuploadAll` 时一起重传（DF 需向 Worker 请求 `resend-all`，或主线程镜像直接重传）。

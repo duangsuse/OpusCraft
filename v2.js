@@ -32,8 +32,8 @@ export function buildPane(pane, spec, apply, resetDefaults) {
         b.on('change', () => { relabel(); apply(kx, fx); apply(ky, fx); });
         relabel(); refreshers.push(relabel);
       } else {
-        const { label, min, max, step, fx } = o;
-        f.addBinding(tgt(), key, { label, min, max, step }).on('change', () => apply(key, fx));
+        const { label, min, max, step, fx, options } = o;
+        f.addBinding(tgt(), key, options ? { label, options } : { label, min, max, step }).on('change', () => apply(key, fx));
       }
     }
   }
@@ -45,10 +45,7 @@ export function buildPane(pane, spec, apply, resetDefaults) {
 // ───────────────────────── 参数默认值（handover §8.4） ─────────────────────────
 const P_VER = 3, P_KEY = 'vc.v2.params';
 const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || /Mobi|Android/i.test(navigator.userAgent);
-export const P_DEFAULTS = { scale: 0.65, steps: 128, shadowSteps: 20, shadowStrength: 0.68, shadowDist: 6, waterClarity: 0.72, reflStrength: 0.36,
-  fogA1: 1, sun: 0.33, exposure: 0.86, sunAz: 1.18, sunEl: 0.32, aoStrength: 0.59, aoCurve: 1.92,
-  waterA2: 1, waterA1: 0.78, waterD2: 11, waterD1: 1.5, waveStrength: 0.06, foamWidth: 1.2, waveNoise: 0.08, waveScale: 1,
-  uwNear: 2, uwFar: 44, maxMP: 0.7 };   // maxMP = DDA 像素上限（百万），大窗口自动降内部分辨率
+export const P_DEFAULTS = {"scale":0.7999999999999999,"steps":128,"shadowSteps":20,"shadowStrength":0.68,"shadowDist":6,"waterClarity":0.72,"reflStrength":0.36,"fogA1":1,"sun":0.33,"exposure":0.86,"sunAz":1.18,"sunEl":0.32,"aoStrength":0.59,"aoCurve":1.92,"waterA2":1,"waterA1":0.78,"waterD2":11,"waterD1":1.5,"waveStrength":0.06,"foamWidth":1.2,"waveNoise":0.08,"waveScale":1,"uwNear":7.1,"uwFar":50,"maxMP":7.6,"cloudThick":5,"cloudDensity":0.34,"cloudShade":0.28,"cloudLight":0.36,"uwWindow":0.75};   // maxMP = DDA 像素上限（百万），大窗口自动降内部分辨率
 function loadP() {
   const P = { ...P_DEFAULTS };
   try {
@@ -61,17 +58,21 @@ function saveP(P) { try { localStorage.setItem(P_KEY, JSON.stringify({ ver: P_VE
 
 export function createRenderer(ctx) {
   const P = loadP();
-  const S = () => ctx.settings, Pr = () => P;
+  // 调试/测量状态（不持久化）：view = DBG 宏（handover §5.2），raw = 原始计数编码（bench 用），time/cloudX = 冻结动画
+  const D = { view: 0, raw: 0, time: null, cloudX: null };
+  const S = () => ctx.settings, Pr = () => P, Dr = () => D;
+  const DBG_VIEWS = { '正常': 0, '主射线迭代': 1, 'fetch 次数': 2, '跳过平滑光照': 3, '层级 列/砖/体素': 5 };
   const PANEL = [
     ['性能', [
       ['rd',          S,  { label: '视距(区块)', ...R(2, 16, 1), fx: 'tex' }],
-      ['scale',       Pr, { label: 'DDA 分辨率', ...R(0.25, 1.5, 0.05), fx: 'rt' }],
-      ['maxMP',       Pr, { label: '像素上限(百万)', ...R(0.2, 4, 0.1), fx: 'rt' }],
-      ['steps',       Pr, { label: '渲染迭代', ...R(32, 384, 8) }],
+      ['scale',       Pr, { label: 'DDA 分辨率', ...R(0.25, 2.5, 0.05), fx: 'rt' }],
+      ['maxMP',       Pr, { label: '像素上限(百万)', ...R(0.2, 8, 0.1), fx: 'rt' }],
+      ['steps',       Pr, { label: '渲染迭代', ...R(32, 576, 8) }],
       ['shadowSteps', Pr, { label: '阴影迭代', ...R(0, 64, 4), fx: 'sh' }],
       ['v', vec2(Pr, 'shadowStrength', 'shadowDist'), V2('阴影 强度/距离', R(0, 1), R(4, 96, 1, true))],
       ['v', vec2(Pr, 'waterClarity', 'reflStrength'), V2('水 透亮/反射',   R(0, 1), R(0, 1))],
       ['fogA1',       Pr, { label: '雾强度', ...R(0, 1) }],
+      ['view',        Dr, { label: '调试视图', options: DBG_VIEWS, fx: 'dbg' }],
     ]],
     ['光影', [
       ['sun',         Pr, { label: '日照倍率', ...R(0, 1) }],
@@ -85,6 +86,9 @@ export function createRenderer(ctx) {
     ]],
     ['水下', [
       ['v', vec2(Pr, 'uwNear', 'uwFar'),          V2('雾 近/远',       R(0.2, 8, 0.1), R(6, 96, 1))],
+      ['uwWindow',    Pr, { label: '水面透光窗', ...R(0, 1) }],
+      ['v', vec2(Pr, 'cloudThick', 'cloudDensity'), V2('云 厚度/密度', R(1, 16, 0.5), R(0.02, 1, 0.01, true))],
+      ['v', vec2(Pr, 'cloudShade', 'cloudLight'),   V2('云 背光暗部/日照', R(0, 1), R(0, 1))],
     ]],
   ];
 
@@ -166,6 +170,12 @@ export function createRenderer(ctx) {
   // ── 参数生效 ──
   let saveT = 0;
   function apply(key, fx) {
+    if (fx === 'dbg') { setDebug(D.view, D.raw); return; }
+    if (key === 'scale') {         // 用户拉高 scale：像素上限跟着抬，否则 maxMP 会把它静默截住（1280×657 时 0.7MP ≈ ×0.91）
+      renderer.getDrawingBufferSize(dbSize);
+      const need = Math.ceil(P.scale * P.scale * dbSize.x * dbSize.y / 1e5) / 10;
+      if (need > P.maxMP) { P.maxMP = Math.min(8, need); if (paneUI) paneUI.refresh(); }
+    }
     if (fx === 'rt') ensureRT();
     if (fx === 'tex') {          // 同步主菜单视距滑块（其 input 处理器负责写 settings + localStorage）
       const el = document.getElementById('rd');
@@ -209,6 +219,14 @@ export function createRenderer(ctx) {
   ${GLSL.light}
   ${GLSL.mat}
   ${GLSL.fog}
+  // ── 测量（handover §5）：DBG 1 主射线迭代 / 2 fetch 计数 / 3 跳过 smoothLight / 5 层级；DBGRAW=1 输出原始计数 ──
+  #define DBG_HEAT (DBG == 1 || DBG == 2 || DBG == 5)
+  int gFetch = 0, gIt = 0, gSIt = 0, gLvC = 0, gLvB = 0, gLvV = 0;
+  #if DBG_HEAT
+  #define CNT(n) gFetch += n
+  #else
+  #define CNT(n)
+  #endif
   uniform usampler3D uVox, uBrick;
   uniform usampler2D uCol, uInfo;
   uniform sampler2D tScene, tDepth;
@@ -224,13 +242,17 @@ export function createRenderer(ctx) {
   uniform sampler2D uCloudTex;
   uniform vec3 uCloudColor;
   uniform vec4 uCloud;             // (offset.x, offset.y, 底面高度, 厚度)
+  uniform vec3 uCloud2;            // (密度 /格, 背光暗部, 日照)
+  uniform float uUwWindow;         // 水下仰视：水面透光窗强度
   // 体积云：云纹理每个 texel = 12×12 格，挤出成厚度 uCloud.w 的盒子；在云层 slab 内做 2D 网格 DDA
+  // 沿射线累积云内路径长度 → Beer-Lambert 不透明度（边角薄、横穿厚）；入射面按朝向/太阳着色，越厚核心越暗
   bool cloudHit(vec3 ro, vec3 r, out float tc, out vec4 cc) {
     ro.xz += uWOff + uCloud.xy;
     float y0 = uCloud.z, y1 = uCloud.z + uCloud.w;
     float ta = (y0 - ro.y) / r.y, tb = (y1 - ro.y) / r.y;
     float tE = max(min(ta, tb), 0.0), tX = max(ta, tb);
-    if (ro.y >= y0 && ro.y <= y1) tX = r.y > 0.0 ? tb : ta; else if (tX < 0.0) return false;
+    bool inside = ro.y >= y0 && ro.y <= y1;
+    if (inside) tX = r.y > 0.0 ? tb : ta; else if (tX < 0.0) return false;
     tX = min(tX, 600.0);
     if (tE >= tX) return false;
     const float SZ = 768.0 / 64.0;
@@ -238,42 +260,55 @@ export function createRenderer(ctx) {
     ivec2 cell = ivec2(floor(p)), st = ivec2(sign(d));
     vec2 inv = 1.0 / mix(d, vec2(1e-6), vec2(lessThan(abs(d), vec2(1e-6))));
     vec2 tM = tE + (vec2(cell + max(st, ivec2(0))) - p) * inv, tD = abs(inv);
-    float t = tE; int face = (ro.y < y0 || ro.y > y1) ? (r.y > 0.0 ? 3 : 2) : -1;   // 2 顶 3 底 0 x侧 1 z侧
+    float t = tE, od = 0.0; int face = inside ? 4 : (r.y > 0.0 ? 3 : 2), f0 = -1;   // 2 顶 3 底 0 x侧 1 z侧 4 相机在云内
+    tc = -1.0;
     for (int i = 0; i < 96; i++) {
       if (t >= tX) break;
-      if (face >= 0 && texelFetch(uCloudTex, ((cell % 64) + 64) % 64, 0).a > 0.5) {
-        float sh = face == 2 ? 1.0 : face == 3 ? 0.7 : face == 0 ? 0.88 : 0.8;
-        float hd = length(r.xz * t);
-        cc = vec4(uCloudColor * sh, 0.85 * (1.0 - smoothstep(250.0, 480.0, hd)));
-        tc = t; return cc.a > 0.01;
+      CNT(1);
+      float tn = min(min(tM.x, tM.y), tX);
+      if (texelFetch(uCloudTex, ((cell % 64) + 64) % 64, 0).a > 0.5) {
+        if (f0 < 0) { tc = t; f0 = face; }
+        od += tn - t;
+        if (od * uCloud2.x > 4.0) break;              // 已基本不透明
       }
-      if (face < 0) face = 0;                     // 相机在云层内：首格跳过
       if (tM.x < tM.y) { t = tM.x; cell.x += st.x; tM.x += tD.x; face = 0; }
       else             { t = tM.y; cell.y += st.y; tM.y += tD.y; face = 1; }
     }
-    return false;
+    if (f0 < 0) return false;
+    vec3 nF = f0 == 2 ? vec3(0.0, 1.0, 0.0) : f0 == 3 ? vec3(0.0, -1.0, 0.0) : f0 == 0 ? vec3(-sign(r.x), 0.0, 0.0)
+            : f0 == 1 ? vec3(0.0, 0.0, -sign(r.z)) : -r;
+    float base = f0 == 2 ? 1.0 : f0 == 3 ? 0.8 : f0 == 0 ? 0.92 : f0 == 1 ? 0.87 : 0.92;   // 底面比天空亮（白云）
+    float faceSh = 1.0 - (1.0 - base) * (0.6 + 0.8 * uCloud2.y);
+    float core = 1.0 - 0.3 * uCloud2.y * (1.0 - exp(-od / max(uCloud.w, 1.0)));
+    float dayF = smoothstep(-0.05, 0.12, uSunDir.y);
+    float lit = 1.0 + uCloud2.z * (max(dot(nF, uSunDir), 0.0) - 0.2) * dayF;
+    float hd = length(r.xz * tc);
+    cc = vec4(uCloudColor * faceSh * core * lit, (1.0 - exp(-od * uCloud2.x)) * (1.0 - smoothstep(250.0, 480.0, hd)));
+    return cc.a > 0.01;
   }
   uniform int uShadowSteps;
   uniform float uShadowStrength, uShadowDist, uSun;
   uniform mat4 uInvProj, uCamWorld;
   varying vec2 vUv;
 
+
   // 局部坐标（相对玩家所在区块原点）→ 环形纹素；被除数先加正偏移，避免负数取模（GLSL 未定义）
   uvec2 voxAt(ivec3 c) {
-    int o = uSX * 4;
+    int o = uSX * 4; CNT(1);
     return texelFetch(uVox, ivec3((c.x + uOrgSlot.x * 16 + o) % uSX, c.y, (c.z + uOrgSlot.y * 16 + o) % uSX), 0).rg;
   }
   uint brickAt(ivec3 b) {
-    int S4 = uSX / 4, o = uSX * 4;
+    int S4 = uSX / 4, o = uSX * 4; CNT(1);
     return texelFetch(uBrick, ivec3((b.x + uOrgSlot.x * 4 + o) % S4, b.y, (b.z + uOrgSlot.y * 4 + o) % S4), 0).r;
   }
   // 区块列高 maxY+1；槽位归属（区块坐标低 8 位）不符 → 视为空
   int colMaxAt(ivec2 ch) {
+    CNT(1);
     uvec4 c = texelFetch(uCol, (ch + uOrgSlot + uN * 64) % uN, 0);
     ivec2 lo = (ch + uOrgLow + 4096) % 256;
     return (c.r == 0u || int(c.g) != lo.x || int(c.b) != lo.y) ? 0 : int(c.r);
   }
-  uint infoR(uint id) { return texelFetch(uInfo, ivec2(int(id), 0), 0).r; }
+  uint infoR(uint id) { CNT(1); return texelFetch(uInfo, ivec2(int(id), 0), 0).r; }
   // 邻域查询（越界：y<0 视为不透明，y>=CH 视为满天空光的空气）
   void cellLO(ivec3 c, out float o, out float s, out float b) {
     if (c.y < 0) { o = 1.0; s = 0.0; b = 0.0; return; }
@@ -356,6 +391,7 @@ export function createRenderer(ctx) {
   bool trace(vec3 ro, vec3 r, float maxD, int maxSteps, bool shadow,
              out float tHit, out ivec3 hc, out ivec3 nrm, out uint hid, out int kind, out vec3 uvl,
              out float tw, out ivec3 wn) {
+    // 分量为 0 时 inv=inf、sign=0，起点恰在格边界会得到 0*inf=NaN（整列/整行穿到天空的细线）→ 钳到 ±1e-7
     vec3 inv = 1.0 / r;
     ivec3 st = ivec3(sign(r)), up = max(st, ivec3(0));
     vec3 t1, t2, tn, tf;
@@ -372,23 +408,37 @@ export function createRenderer(ctx) {
     tM = (vec3((cell + up) * 4) - ro) * inv;
     ivec2 curCh = ivec2(-1 << 20); int cmax = 0;
     uint prevId = 0u; int nAlpha = 0;
-    // 相机在水中：水面由主程序的水下雾表现，射线不再记录入水点
+    // 相机在水中：不画水面（由水下雾表现）；tw 改为记录出水点（水中路径长度，用于仰视透光窗）
     bool camWater = !shadow && home.y >= 0 && home.y < ${CH} && voxAt(home).r == ${B.WATER}u;
     bool exh = false;
-    for (int i = 0; i < 512; i++) {
+    for (int i = 0; i < 576; i++) {
       if (t >= tX) break;
       if (i >= maxSteps) { exh = true; break; }
+      #if DBG_HEAT
+      if (shadow) gSIt++; else gIt++;
+      #endif
       if (!fine) {
         ivec2 ch = ivec2(floor(vec2(cell.xz) / 4.0));
         if (ch != curCh) { curCh = ch; cmax = colMaxAt(ch); }
         if (cell.y * 4 >= cmax) {
+          if (camWater && tw < 0.0) tw = t;               // 相机在水中：记录出水点
           // 整段高于本区块列高：直接跳到列出口，或下降到 y = 列高 的平面
           vec2 tc = (vec2((ch + up.xz) * 16) - ro.xz) * inv.xz;
           float tCol = min(tc.x, tc.y), tY = (r.y < 0.0 && cmax > 0) ? (float(cmax) - ro.y) * inv.y : 1e30;
-          if (tY < tCol) { t = max(t, tY); nrm = ivec3(0, 1, 0); }
-          else { t = max(t, tCol); nrm = tc.x < tc.y ? ivec3(-st.x, 0, 0) : ivec3(0, 0, -st.z); }
-          cell = cellAt(ro, r, t + 1e-3, 4.0); tM = (vec3((cell + up) * 4) - ro) * inv;
+          // 跨越的那一维直接按整数给出（掠射时 t+ε 推不过平面：cmax 为 4 的倍数会原地打转直到耗尽 → 横线）
+          if (tY < tCol) {
+            t = max(t, tY); nrm = ivec3(0, 1, 0);
+            cell = cellAt(ro, r, t, 4.0); cell.y = (cmax - 1) / 4;
+          } else {
+            t = max(t, tCol); cell = cellAt(ro, r, t, 4.0);
+            if (tc.x < tc.y) { nrm = ivec3(-st.x, 0, 0); cell.x = st.x > 0 ? (ch.x + 1) * 4 : ch.x * 4 - 1; }
+            else             { nrm = ivec3(0, 0, -st.z); cell.z = st.z > 0 ? (ch.y + 1) * 4 : ch.y * 4 - 1; }
+          }
+          tM = (vec3((cell + up) * 4) - ro) * inv;
           prevId = 0u;
+          #if DBG_HEAT
+          if (!shadow) gLvC++;
+          #endif
           continue;
         }
         if (cell.y >= 0 && brickAt(cell) != 0u) {          // 非空砖 → 逐格 DDA（限定在砖内）
@@ -398,17 +448,22 @@ export function createRenderer(ctx) {
           continue;
         }
         prevId = 0u;
+        if (camWater && tw < 0.0) tw = t;
+        #if DBG_HEAT
+        if (!shadow) gLvB++;
+        #endif
         if (tM.x < tM.y && tM.x < tM.z) { t = tM.x; cell.x += st.x; tM.x += tD4.x; nrm = ivec3(-st.x, 0, 0); }
         else if (tM.y < tM.z)           { t = tM.y; cell.y += st.y; tM.y += tD4.y; nrm = ivec3(0, -st.y, 0); }
         else                            { t = tM.z; cell.z += st.z; tM.z += tD4.z; nrm = ivec3(0, 0, -st.z); }
       } else {
         if (ivec3(floor(vec3(cell) / 4.0)) != bc) {         // 离开砖 → 回到砖级
-          fine = false; cell = cellAt(ro, r, t + 1e-4, 4.0); tM = (vec3((cell + up) * 4) - ro) * inv;
+          fine = false; cell = ivec3(floor(vec3(cell) / 4.0)); tM = (vec3((cell + up) * 4) - ro) * inv;   // 精确：刚跨出的格所在砖
           continue;
         }
         uint id = voxAt(cell).r;
+        if (camWater && tw < 0.0 && id != ${B.WATER}u) tw = t;
         if (id != 0u) {
-          uvec4 inf = texelFetch(uInfo, ivec2(int(id), 0), 0);
+          uvec4 inf = texelFetch(uInfo, ivec2(int(id), 0), 0); CNT(1);
           uint rk = inf.r & 15u;
           float tN = min(min(tM.x, tM.y), tM.z);
           vec3 o = ro - vec3(cell);
@@ -434,6 +489,9 @@ export function createRenderer(ctx) {
           }
         }
         prevId = id;
+        #if DBG_HEAT
+        if (!shadow) gLvV++;
+        #endif
         if (tM.x < tM.y && tM.x < tM.z) { t = tM.x; cell.x += st.x; tM.x += tD1.x; nrm = ivec3(-st.x, 0, 0); }
         else if (tM.y < tM.z)           { t = tM.y; cell.y += st.y; tM.y += tD1.y; nrm = ivec3(0, -st.y, 0); }
         else                            { t = tM.z; cell.z += st.z; tM.z += tD1.z; nrm = ivec3(0, 0, -st.z); }
@@ -443,6 +501,25 @@ export function createRenderer(ctx) {
     if (exh && !shadow) { tHit = min(t, tX); hc = ivec3(0); hid = 0u; kind = 4; nrm = ivec3(0, 1, 0); return true; }
     return false;
   }
+
+  #if DBG_HEAT
+  vec3 heat(float x) { x = clamp(x, 0.0, 1.0); return clamp(vec3(1.5) - abs(4.0 * x - vec3(3.0, 2.0, 1.0)), 0.0, 1.0); }
+  // 覆写输出：热力色（或 DBGRAW 原始计数：RG = 16 位计数，B = 阴影迭代），深度 0 → 合成时盖住一切
+  void dbgOut() {
+    int v = DBG == 1 ? gIt : gFetch;
+    #if DBGRAW
+    if (DBG == 5) gl_FragColor = vec4(vec3(min(ivec3(gLvC, gLvB, gLvV), 255)) / 255.0, 1.0);
+    else gl_FragColor = vec4(float(v & 255) / 255.0, float(min(v >> 8, 255)) / 255.0, float(min(gSIt, 255)) / 255.0, 1.0);
+    #else
+    if (DBG == 5) gl_FragColor = vec4(sqrt(vec3(gLvC, gLvB, gLvV) / vec3(8.0, 32.0, 64.0)), 1.0);
+    else gl_FragColor = vec4(heat(DBG == 1 ? float(v) / float(uSteps) : float(v) / 256.0), 1.0);
+    #endif
+    gl_FragDepth = 0.0;
+  }
+  #define RET { dbgOut(); return; }
+  #else
+  #define RET return
+  #endif
 
   void main() {
     vec4 vp = uInvProj * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
@@ -458,26 +535,38 @@ export function createRenderer(ctx) {
     float tHit; ivec3 hc, n; uint id; int kind; vec3 uvl; float tw; ivec3 wn;
     // ×1.03：给雾远端留一点余量，否则正好落在 far 面上的几何会被 tX 裁掉（边缘一圈漏空）
     bool hit = trace(uRo, r, zLim * 1.03 / cosF, uSteps, false, tHit, hc, n, id, kind, uvl, tw, wn);
-    bool water = tw >= 0.0 && (!hit || tw < tHit);
+    bool camW = uRo.y >= 0.0 && uRo.y < ${CH}.0 && voxAt(ivec3(floor(uRo))).r == ${B.WATER}u;
+    bool water = !camW && tw >= 0.0 && (!hit || tw < tHit);
     float tc; vec4 cc; bool cloud = cloudHit(uRo, r, tc, cc);
     if (!hit && !water) {
+      if (camW) {
+        // 水下仰视：只有 Snell 窗口（临界角 ≈48.6° → r.y > 0.66）能看到水面外的天空/云，
+        // 透过的光带水色、按水中路径长度加雾；窗口外是全反射 → 水体雾色。出不了水（深水/洞穴）也是雾色
+        vec3 o = uFogColor;
+        if (tw >= 0.0 && r.y > 0.0) {
+          vec3 skyc = cloud ? mix(sc.rgb, cc.rgb, cc.a) : sc.rgb;
+          vec3 tint = mix(vec3(1.0), uFogColor / max(max(uFogColor.r, uFogColor.g), max(uFogColor.b, 1e-3)), 0.4);
+          float win = smoothstep(0.6, 0.72, r.y) * uUwWindow;
+          o = mix(skyc * tint * 1.1, uFogColor, max(smoothstep(uFogNear, uFogFar, tw), 1.0 - win));
+        }
+        float zf = uFogFar;
+        gl_FragColor = vec4(o, 1.0);
+        gl_FragDepth = uFar * (zf - uNear) / (zf * (uFar - uNear));
+        RET;
+      }
       if (cloud && tc * cosF < sceneZ) {                         // 天空前的云
         float zc = tc * cosF;
         gl_FragColor = vec4(mix(sc.rgb, cc.rgb, cc.a), 1.0); gl_FragDepth = uFar * (zc - uNear) / (zc * (uFar - uNear));
-      } else if (uRo.y >= 0.0 && uRo.y < ${CH}.0 && voxAt(ivec3(floor(uRo))).r == ${B.WATER}u) {
-        // 水下：没有命中的方向也是水体（不能漏出未加雾的天空）
-        float zf = uFogFar;
-        gl_FragColor = vec4(uFogColor, 1.0);
-        gl_FragDepth = uFar * (zf - uNear) / (zf * (uFar - uNear));
+        RET;
       } else { gl_FragColor = vec4(sc.rgb, 0.0); gl_FragDepth = 1.0; }
-      return;
+      RET;
     }
     vec3 col = sc.rgb; float z = sceneZ;
     if (hit && kind == 4) {                                    // 预算耗尽：视作全雾远景
       z = tHit * cosF; col = uFogColor;
     } else if (hit) {
       vec3 f = clamp(uRo + r * tHit - vec3(hc), 0.0, 1.0);
-      uvec4 inf = texelFetch(uInfo, ivec2(int(id), 0), 0);
+      uvec4 inf = texelFetch(uInfo, ivec2(int(id), 0), 0); CNT(1);
       vec2 uv; float layer, shade, ao = 1.0; vec3 L;
       if (kind == 0) {
         uv = faceUV(n, f, inf, layer, shade);
@@ -485,7 +574,11 @@ export function createRenderer(ctx) {
         if (n.x != 0)      { t1 = ivec3(0, 0, 1); t2 = ivec3(0, 1, 0); fl = f.zy; }
         else if (n.y != 0) { t1 = ivec3(1, 0, 0); t2 = ivec3(0, 0, 1); fl = f.xz; }
         else               { t1 = ivec3(1, 0, 0); t2 = ivec3(0, 1, 0); fl = f.xy; }
+        #if DBG == 3
+        { float o_, s_, b_; cellLO(hc + n, o_, s_, b_); L = vec3(s_, b_, 1.0); }   // 测着色占比：本格光照、无 AO
+        #else
         L = smoothLight(hc + n, t1, t2, fl);
+        #endif
         // AO：old.htm 公式 mix(1-强度, 1, ao^曲线)；强度 0.58 / 曲线 1 ≈ v1 的 AO_CURVE
         ao = mix(1.0 - uAoStrength, 1.0, pow(clamp(L.z, 0.0, 1.0), uAoCurve));
       } else {                                                // 花草 / 火把：本格光照（同 v1）
@@ -547,9 +640,10 @@ export function createRenderer(ctx) {
       z = tw * cosF;
     }
     col = mix(col, applyFog(col, z), uFogA1);
-    if (cloud && tc * cosF < z) { col = mix(col, cc.rgb, cc.a); z = tc * cosF; }   // 地形在云后（高处俯视）
+    if (cloud && !camW && tc * cosF < z) { col = mix(col, cc.rgb, cc.a); z = tc * cosF; }   // 地形在云后（高处俯视）
     gl_FragColor = vec4(col, 1.0);
     gl_FragDepth = uFar * (z - uNear) / (z * (uFar - uNear));
+    RET;
   }`;
   // 水面噪声法线贴图（可平铺 128²：RG = 斜率，B = 高度）：4 层值噪声 → bump
   const waterNoiseTex = (() => {
@@ -598,10 +692,10 @@ export function createRenderer(ctx) {
     uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uShadowSteps: { value: 0 }, uShadowStrength: { value: 0 },
     uShadowDist: { value: 24 }, uSun: { value: 0 },
     uCloudTex: { value: ctx.cloudMat ? ctx.cloudMat.uniforms.uTex.value : null }, uCloudColor: { value: new THREE.Color(1, 1, 1) },
-    uCloud: { value: new THREE.Vector4(0, 0, CH + 36, 4) }, uInvProj: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() },
+    uCloud: { value: new THREE.Vector4(0, 0, CH + 36, 4) }, uCloud2: { value: new THREE.Vector3(0.3, 0.35, 0.35) }, uUwWindow: { value: 0.75 }, uInvProj: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() },
   };
   const post = new THREE.ShaderMaterial({
-    uniforms: uni, fragmentShader: DDA_FS,
+    uniforms: uni, fragmentShader: DDA_FS, defines: { DBG: 0, DBGRAW: 0 },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     depthTest: true, depthWrite: true, depthFunc: THREE.AlwaysDepth,   // depthTest:false 会连深度写入一起关掉
   });
@@ -654,29 +748,50 @@ export function createRenderer(ctx) {
 
   let ddaMs = 0, ddaScale = 0.65;
 
-  // ── GPU 计时（EXT_disjoint_timer_query_webgl2；不可用则静默跳过） ──
+  // ── GPU 分 pass 计时（EXT_disjoint_timer_query_webgl2；不可用则静默跳过）──
+  // scene / dda / comp 三个顺序查询为一组；同一时刻只挂一组在途，结果可用后取回
   const glc = renderer.getContext();
   const qExt = glc && glc.getExtension ? glc.getExtension('EXT_disjoint_timer_query_webgl2') : null;
-  const qPool = []; let qWait = null, gpuMs = 0;
-  function gpuBegin() {
-    if (!qExt || qWait) return null;
+  const PASSES = ['scene', 'dda', 'comp'];
+  const qPool = []; let qSet = null, qCur = null, qIdx = -1;
+  const gpu = { scene: 0, dda: 0, comp: 0, total: 0 };      // EMA（显示用）
+  const gpuLast = { scene: 0, dda: 0, comp: 0, total: 0, frame: 0 };   // 最近一组原始值（bench 用）
+  let gpuFrames = 0;
+  function gpuPass(i) {                                      // 结束上一个 pass 的查询，开始第 i 个
+    if (!qExt) return;
+    if (qIdx >= 0) { glc.endQuery(qExt.TIME_ELAPSED_EXT); qIdx = -1; }
+    if (i < 0 || !qCur) return;
     const q = qPool.pop() || glc.createQuery();
+    qCur[i] = q; qIdx = i;
     glc.beginQuery(qExt.TIME_ELAPSED_EXT, q);
-    return q;
   }
-  function gpuEnd(q) { if (q) { glc.endQuery(qExt.TIME_ELAPSED_EXT); qWait = q; } }
   function gpuPoll() {
-    if (!qWait || !glc.getQueryParameter(qWait, glc.QUERY_RESULT_AVAILABLE)) return;
-    const ns = glc.getQueryParameter(qWait, glc.QUERY_RESULT) || 0, disjoint = glc.getParameter(qExt.GPU_DISJOINT_EXT);
-    qPool.push(qWait); qWait = null;
-    if (!disjoint && ns > 0) gpuMs = gpuMs * 0.85 + (ns / 1e6) * 0.15;
+    if (!qExt || !qSet) return;
+    if (!qSet.every(q => glc.getQueryParameter(q, glc.QUERY_RESULT_AVAILABLE))) return;
+    const disjoint = glc.getParameter(qExt.GPU_DISJOINT_EXT);
+    const ms = qSet.map(q => (glc.getQueryParameter(q, glc.QUERY_RESULT) || 0) / 1e6);
+    qPool.push(...qSet); qSet = null;
+    if (disjoint) return;
+    let tot = 0;
+    PASSES.forEach((k, i) => { gpuLast[k] = ms[i]; tot += ms[i]; gpu[k] = gpuFrames ? gpu[k] * 0.85 + ms[i] * 0.15 : ms[i]; });
+    gpuLast.total = tot; gpuLast.frame = ++gpuFrames; gpu.total = gpu.scene + gpu.dda + gpu.comp;
+  }
+
+  // ── 调试视图：切 DBG 宏（重新编译 post 着色器；DBG=0 时与生产着色器完全相同） ──
+  function setDebug(view = 0, raw = 0) {
+    D.view = view | 0; D.raw = raw ? 1 : 0;
+    if (post.defines.DBG !== D.view || post.defines.DBGRAW !== D.raw) {
+      post.defines.DBG = D.view; post.defines.DBGRAW = D.raw; post.needsUpdate = true;
+    }
+    if (paneUI) paneUI.refresh();
   }
 
   function render() {
     const t0 = performance.now();
     gpuPoll();
-    const gt = gpuBegin();
+    qCur = qExt && !qSet ? [] : null;
     ensureRT();
+    gpuPass(0);
     // ① 整个 scene（天空、实体、粒子、选择框…）→ sceneRT
     const prev = renderer.getRenderTarget();
     renderer.setRenderTarget(sceneRT); renderer.clear(); renderer.render(scene, camera);
@@ -689,7 +804,7 @@ export function createRenderer(ctx) {
     uni.uSX.value = ring.SX; uni.uN.value = ring.N; uni.uWorldMaxY.value = ring.worldMaxY;
     uni.uSteps.value = Math.round(P.steps); uni.uFogA1.value = P.fogA1;
     uni.uAoStrength.value = P.aoStrength; uni.uAoCurve.value = P.aoCurve; uni.uExposure.value = P.exposure;
-    uni.uTime.value = (performance.now() / 1000) % 3600; uni.uWOff.value.set(pcx * CS, pcz * CS);
+    uni.uTime.value = D.time != null ? D.time : (performance.now() / 1000) % 3600; uni.uWOff.value.set(pcx * CS, pcz * CS);
     uni.uWater0.value.set(P.waterClarity, P.reflStrength, P.waveStrength, P.foamWidth);
     uni.uWater1.value.set(P.waterA1, P.waterA2, Math.min(P.waterD1, P.waterD2 - 0.01), P.waterD2);
     uni.uWave1.value.set(P.waveNoise, P.waveScale);
@@ -697,27 +812,33 @@ export function createRenderer(ctx) {
     const az = Math.atan2(sd.x, sd.z) + P.sunAz, el = clamp(Math.asin(clamp(sd.y, -1, 1)) + P.sunEl, -1.5, 1.5);
     uni.uSunDir.value.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
     uni.uShadowSteps.value = Math.round(P.shadowSteps); uni.uShadowStrength.value = P.shadowStrength;
-    uni.uShadowDist.value = P.shadowDist; uni.uSun.value = P.sun;
+    uni.uShadowDist.value = P.shadowDist; uni.uSun.value = P.sun; uni.uUwWindow.value = P.uwWindow;
     if (ctx.cloudMat) {
       const cu = ctx.cloudMat.uniforms; uni.uCloudColor.value.copy(cu.uColor.value);
-      uni.uCloud.value.set(cu.uOffset.value.x, cu.uOffset.value.y, ctx.clouds.position.y, 4);
+      uni.uCloud.value.set(D.cloudX != null ? D.cloudX : cu.uOffset.value.x, cu.uOffset.value.y, ctx.clouds.position.y, P.cloudThick);
+      uni.uCloud2.value.set(P.cloudDensity, P.cloudShade, P.cloudLight);
       ctx.clouds.visible = false;   // 平面云由 DDA 体积云代替
     }
     uni.uNear.value = camera.near; uni.uFar.value = camera.far;
     uni.uInvProj.value.copy(camera.projectionMatrixInverse); uni.uCamWorld.value.copy(camera.matrixWorld);
     uni.uTexelAngle.value = 2 * Math.tan(camera.fov * Math.PI / 360) / ddaRT.height;
     uni.uClipScene.value = ddaRT.width === sceneRT.width && ddaRT.height === sceneRT.height ? 1 : 0;
+    gpuPass(1);
     renderer.setRenderTarget(ddaRT); renderer.clear(); renderer.render(postScene, postCam);
     renderer.setRenderTarget(prev);
+    gpuPass(2);
     renderer.render(compScene, postCam);
-    gpuEnd(gt);
+    gpuPass(-1);
+    if (qCur) { qSet = qCur; qCur = null; }
     ddaMs = ddaMs * 0.9 + (performance.now() - t0) * 0.1;
   }
 
   return {
     name: 'v2', P, P_DEFAULTS, panelSpec: PANEL, toN, fromN, paneReady, togglePanel, panelVisible,
     get pane() { return pane; }, refreshPane: () => paneUI && paneUI.refresh(),
-    ring, reuploadAll, post, comp, get sceneRT() { return sceneRT; }, get ddaRT() { return ddaRT; },
+    ring, reuploadAll, post, comp, D, setDebug,
+    get perf() { return { gpu: { ...gpu }, gpuLast: { ...gpuLast }, hasTimer: !!qExt, cpuMs: ddaMs, scale: ddaScale,
+                          ddaW: ddaRT ? ddaRT.width : 0, ddaH: ddaRT ? ddaRT.height : 0 }; }, get sceneRT() { return sceneRT; }, get ddaRT() { return ddaRT; },
     buildChunk: c => { c.mesh = c.waterMesh = null; uploadChunk(c); },
     disposeChunk: c => { clearChunk(c); c.mesh = c.waterMesh = null; },
     update: dt => {
@@ -730,6 +851,7 @@ export function createRenderer(ctx) {
     },
     render,
     stats: () => `DDA ${ddaRT ? ddaRT.width + 'x' + ddaRT.height : '-'} (×${ddaScale.toFixed(2)}) steps ${Math.round(P.steps)} ring ${ring.N}² up ${ring.uploads} ${ddaMs.toFixed(1)}ms` +
-      (qExt ? ` gpu ${gpuMs.toFixed(1)}ms` : ''),
+      (qExt ? ` gpu s/d/c ${gpu.scene.toFixed(1)}/${gpu.dda.toFixed(1)}/${gpu.comp.toFixed(1)} = ${gpu.total.toFixed(1)}ms` : '') +
+      (D.view ? ` [dbg ${D.view}]` : ''),
   };
 }
