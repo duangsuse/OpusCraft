@@ -86,6 +86,7 @@
   #overlay.lq-out { animation: lqOut .8s ease-in; }
   @keyframes lqIn { 0% { opacity: 1; transform: translateY(-100%); } 45% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(0); } }
   @keyframes lqOut { 0% { opacity: 1; transform: translateY(0); filter: blur(1.5px); } 100% { opacity: 0; transform: translateY(18%); filter: blur(0); } }
+  #hud.menu #mode { display: none; }   /* top-left HUD: hidden behind the title / pause screen */
   #mode { position: absolute; left: 8px; top: 8px; font-size: 12px; color: #fff; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.25); padding: 4px 6px; white-space: pre; }
   #breakhint { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); width: 120px; height: 6px; background: rgba(0,0,0,0.5); display: none; }
   #breakhint i { display: block; height: 100%; background: #fff; width: 0; }
@@ -140,12 +141,21 @@
     text-shadow: 5px 5px 0 #3f3f3f, 0 0 30px rgba(0,0,0,.4);
     margin-bottom: 4px;
     }
+  #title b {
+    background: url(./res/sclogo.webp);
+    background-clip: text;
+    color: #0000;
+    text-shadow: 5px 5px 0 #11ff9a21, 0 0 30px rgba(0, 0, 0, .4);
+  }
   #splash { position: absolute; right: -40px; bottom: -22px; font-family: 'VT323', monospace; font-size: 30px; color: #ff0; letter-spacing: 0;
     text-shadow: 2px 2px 0 #3f3f00; transform: rotate(-16deg); animation: splashPulse .6s ease-in-out infinite alternate; white-space: nowrap; }
   @keyframes splashPulse { from { transform: rotate(-16deg) scale(.95); } to { transform: rotate(-16deg) scale(1.06); } }
   #sub {font-size: 32px;color: #cfcfcf;margin-bottom: 14px;text-shadow: 2px 2px 0 #222;}
+  #sub a {color:lightblue}
   #start.title {background: radial-gradient(ellipse at center, rgba(0, 0, 0, .35) 39%, rgb(34 49 69 / 85%) 97%);}
   #start.title #menu-pane { display: none; }
+  /* Title.promptXYZB(): the same screen as a world-file prompt — only the slot button and the paste/pick row */
+  #start.ask > :not(.mrow, #btn-play), #start.ask #new-form { display: none; }
   .screen .btn { width: 580px; max-width: 92vw; height: 60px; margin: 0; padding: 0 20px; background: #717171; color: #e8e8e8; font-family: 'VT323', monospace; font-size: 36px;
     border: 3px solid; border-color: #b0b0b0 #3a3a3a #3a3a3a #b0b0b0; box-shadow: 0 0 0 2px #000; text-shadow: 2px 2px 0 #383838; cursor: pointer;
     display: flex; align-items: center; justify-content: center; gap: 8px; }
@@ -233,12 +243,12 @@
   <!-- Title = pause screen (OpusCraft layout). Esc / click on the backdrop = Continue -->
   <img id="shot" alt="">
   <div id="start" class="screen">
-    <div id="title">OoPUSCRA<span style="font-size: .55em;">F</span>T<span id="splash"></span></div>
-    <div id="sub">a tiny block game</div>
+    <div id="title">OoPUS<b>CRA<span style="font-size: .55em;">F</span>T</b><span id="splash"></span></div>
+    <div id="sub">a tiny <abbr title="Survivalcraft by kaalus, APIMOD-ver, linux exec(20MB)"><a href="https://scapiweb.netlify.app/">block game</a></abbr></div>
     <button class="btn" id="btn-play"></button>
     <div class="mrow">
       <form id="new-form" class="btn"><button type="submit">New World</button><input id="seed-input" name="seed" size="4" placeholder="⇆ ∞" pattern="z1-[A-Za-z0-9_\-]+" title="z1-xxxx (empty = random)" spellcheck="false" autocomplete="off"><small id="new-mode">G: Mode</small></form>
-      <button class="btn" id="btn-save">Share <input id="io" size="2" placeholder="⇅" title="paste a world image (from Share) here to import"></button>
+      <button class="btn" id="btn-save">Share <input id="io" size="2" placeholder="⇅" title="paste a world file (bw_….webp) to import · type anything to roll back to the Share checkpoint"></button>
     </div>
     <div id="save-list"></div>
     <div id="menu-pane"></div>
@@ -282,6 +292,42 @@
   (window.gg ??= {}).err = put;
 
 })();
+</script>
+<script type="module">
+const brotli = await import('https://cdn.jsdelivr.net/npm/brotli-wasm@3.0.1/+esm').then(m => m.default);
+const { NeedsMoreOutput, NeedsMoreInput, ResultSuccess } = brotli.BrotliStreamResultCode;
+
+function makeStream(StreamCtor, method) {
+  return class extends window[method === 'compress' ? 'CompressionStream' : 'DecompressionStream'] {
+    constructor(format) {
+      if (format !== 'brotli') return super(format);
+      const s = new StreamCtor();
+      return new TransformStream({
+        transform(chunk, ctrl) {
+          let off = 0, res;
+          do {
+            res = s[method](chunk.subarray(off), 65536);
+            if (res.buf.length) ctrl.enqueue(res.buf);
+            off += res.input_offset;
+          } while (res.code === NeedsMoreOutput);
+          if (res.code !== NeedsMoreInput && res.code !== ResultSuccess)
+            ctrl.error(new Error(`brotli ${method} failed: ${res.code}`));
+        },
+        flush(ctrl) {
+          if (method !== 'compress') return;
+          let res;
+          do {
+            res = s.compress(null, 65536);
+            if (res.buf.length) ctrl.enqueue(res.buf);
+          } while (res.code !== ResultSuccess);
+        }
+      });
+    }
+  };
+}
+
+window.CompressionStream = makeStream(brotli.CompressStream, 'compress');
+window.DecompressionStream = makeStream(brotli.DecompressStream, 'decompress');
 </script>
   <div id="rt-pane"></div>
   <!-- Loading overlay -->
@@ -1047,7 +1093,7 @@ class World {
   }
   reset(seed) {
     for (const c of this.chunks.values()) if (typeof ChunkManager !== 'undefined') ChunkManager.disposeMesh(c);
-    this.chunks.clear(); this.stored.clear(); this.pendingFeatures.clear(); this.lastChunk = null; this.seed = seed; gg.XRay?.box.clear(); gg.XRay?.pending?.clear();
+    this.chunks.clear(); this.stored.clear(); this.pendingFeatures.clear(); this.lastChunk = null; this.seed = seed; gg.XRay?.reset();
   }
   getChunk(cx, cz) {
     const k = chunkKey(cx, cz);
@@ -1319,8 +1365,27 @@ const ChunkManager = {
 const c_XRay = { filter: '!*_leaves !dirt  !wood', far: 160 /* screen-quad clamp, horizontal blocks */, lift: 30 /* jump: above the changes */, pitch: -1.2 };
 const XRay = gg.my(new class XRay {
   on = false; box = new Map(); filter = c_XRay.filter; skip = new Uint8Array(256);
+  base = null;   // diff base from a save: { seed, name, day, time, kb, map: key -> Chunk }; null = diff against world generation
   get active() { return this.on && HUD.debug; }
-  set(v) { this.on = v; if (!v) { this.box.clear(); this.pending?.clear(); for (const c of [...world.chunks.values(), ...world.stored.values()]) { delete c.gen; delete c.genMeta; } } remeshAll(); }
+  set(v) { this.on = v; if (!v) this.dropGen(); remeshAll(); }
+  dropGen() { this.box.clear(); this.pending?.clear(); for (const c of [...world.chunks.values(), ...world.stored.values()]) delete c.gen; }
+  reset() { this.box.clear(); this.pending?.clear(); this.base = null; this.cursor = this.anchor = null; HUD.syncs?.forEach(f => f()); }
+  /* Reference ("old side" of the diff) of a chunk: { b: blocks, m: meta } or null (not comparable).
+     Base save: its chunk; chunks it doesn't hold were never modified there = generation, only valid for the same seed. */
+  ref(c) {
+    const B = this.base, t = B?.map.get(c.key);
+    if (t) return t.ref ??= { b: t.blocks, m: t.meta };
+    return B && B.seed !== Game.seed ? null : this.gen(c);
+  }
+  // data: bwebp.load() result (or null = back to generation); a different seed asks first. -> applied?
+  setBase(data, name) {
+    if (data && String(data.seed) !== Game.seed && !confirm(`原存档种子 ${data.seed} ≠ 当前世界 ${Game.seed}\n仍要以它为 diff 基准？（它没保存的区块将不参与比较）`)) return false;
+    if (data) { const map = new Map(); data.fill((c) => map.set(c.key, c)); this.base = { seed: String(data.seed), name, day: data.day ?? 0, time: data.time ?? 0, kb: data.file.length >> 10, map }; }
+    else this.base = null;
+    this.cursor = null; if (this.active) remeshAll(); HUD.syncs?.forEach(f => f());
+    HUD.message(data ? `X-ray: diff vs 原存档 ${name ?? data.seed}` : 'X-ray: diff vs world generation');
+    return true;
+  }
   parse(text = this.filter) {
     this.filter = text; const toks = text.split(/[\s,]+/).filter(Boolean), sk = this.skip;
     const rx = (t) => /^\d+$/.test(t) ? (d) => d.id === +t : ((r) => (d) => r.test(d.name))(new RegExp('^' + t.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$'));
@@ -1330,6 +1395,7 @@ const XRay = gg.my(new class XRay {
     if (this.active) remeshAll();
   }
   same(g, b) { return g === b || this.skip[g] || this.skip[b]; }
+  // Generation reference (the world generator run into this.box), cached per chunk as c.gen = { b, m }
   gen(c) {
     if (c.gen) return c.gen;
     const w = world, keep = [w.chunks, w.pendingFeatures, w.lastChunk];
@@ -1339,19 +1405,20 @@ const XRay = gg.my(new class XRay {
       const mid = at(c.cx, c.cz);
       for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) at(c.cx + dx, c.cz + dz);
       for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) { const t = at(c.cx + dx, c.cz + dz); if (t.state === CH_EMPTY) Terrain.generateChunk(t); }
-      c.gen = mid.blocks; c.genMeta = mid.meta;
+      c.gen = { b: mid.blocks, m: mid.meta };
     } finally { [w.chunks, w.pendingFeatures, w.lastChunk] = keep; }
     return c.gen;
   }
   // changed cells of a chunk vs generation (filter applied): count, centroid column (local) and the highest changed y
   diff(c) {
-    const g = this.gen(c), b = c.blocks; let n = 0, sx = 0, sz = 0, my = 0;
+    const r = this.ref(c); if (!r) return null;
+    const g = r.b, b = c.blocks; let n = 0, sx = 0, sz = 0, my = 0;
     for (let i = 0; i < b.length; i++) if (!this.same(g[i], b[i])) { n++; sx += i >> 11; sz += (i >> 7) & 15; my = Math.max(my, i & 127); }
     return n ? { n, x: sx / n, z: sz / n, y: my } : null;
   }
   // prev/next: step through modified chunks (loaded + stored, sorted by cx, cz), skip ones without block changes, teleport above the changes
   jump(dir) {
-    const all = [...new Set([...world.chunks.values(), ...world.stored.values()])].filter(c => c.modified && c.state >= CH_GENERATED).sort((a, b) => a.cx - b.cx || a.cz - b.cz);
+    const all = [...new Set([...world.chunks.values(), ...world.stored.values()])].filter(c => (c.modified || this.base?.map.has(c.key)) && c.state >= CH_GENERATED).sort((a, b) => a.cx - b.cx || a.cz - b.cz);
     let i = all.findIndex(c => c.key === this.cursor); if (i < 0) i = dir > 0 ? -1 : all.length;
     for (let k = 0; k < all.length; k++) {
       i = (i + dir + all.length) % all.length; const c = all[i], d = this.diff(c); if (!d) continue;
@@ -1383,7 +1450,8 @@ const XRay = gg.my(new class XRay {
     const rec = Build.begin();
     for (let cx = floor(Math.min(...xs)) >> 4; cx <= floor(Math.max(...xs)) >> 4; cx++) for (let cz = floor(Math.min(...zs)) >> 4; cz <= floor(Math.max(...zs)) >> 4; cz++) {
       const c = world.getChunk(cx, cz); if (!c || c.state < CH_GENERATED) continue;
-      const g = this.gen(c), gm = c.genMeta, b = c.blocks;
+      const r = this.ref(c); if (!r) continue;
+      const g = r.b, gm = r.m, b = c.blocks;
       for (let lx = 0; lx < 16; lx++) for (let lz = 0; lz < 16; lz++) {
         const wx = cx * 16 + lx, wz = cz * 16 + lz; if (!inside(wx + 0.5, wz + 0.5)) continue;
         for (let y = 0; y < CHUNK_H; y++) { const i = bidx(lx, y, lz); if (!this.same(g[i], b[i])) Build.set(rec, wx, y, wz, g[i], gm[i]); }
@@ -2964,7 +3032,7 @@ const c_Save = {
 };
 const Save = gg.my(new class Save {
   idx = []; last = null; ready = this.open();       // IDB mirror
-  shot = null; shots = new Map(); coverP = null; coverU8 = null;   // cover of the running world; title previews by seed
+  shot = null; coverP = null; shots = new Map();   // running world's cover (bwebp shot {w, h, url, u8}) + pending capture; title previews by seed
 
   // ---- names ----
   key(seed) { return c_Save.prefix + seed; }
@@ -3003,8 +3071,8 @@ const Save = gg.my(new class Save {
     return { seed: Game.seed, time: Sky.time, day: Sky.day, mode: Game.mode, raining: Weather.raining, thunder: Weather.thunder,
       player: { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, health: p.health, hunger: p.hunger, saturation: p.saturation, inventory: p.inventory, hotbar: p.hotbar, spawn: p.spawn, flying: p.flying }, bbat: BBat.lib };
   }
-  /* Cover = the save file's image: shot = { w, h (window CSS px at capture), url }; coverP resolves to the Blob, coverU8 its
-     bytes (for the synchronous unload save). From live gameplay only, hotbar drawn as the pause page shows it.
+  /* Cover = the save file's webp: shot = { w, h (window CSS px at capture), url, u8 }; coverP resolves once it's encoded.
+     From live gameplay only, hotbar drawn as the pause page shows it. No webp encoder (Safari) -> no cover.
      The GL buffer isn't preserved: render + copy in one task. */
   capture() {
     if (!Game.running || !Game.ready || Game.hold || Game.atTitle || Screensaver.saved) return;
@@ -3020,25 +3088,22 @@ const Save = gg.my(new class Save {
     }
     const wh = { w: innerWidth, h: innerHeight }, seed = Game.seed;
     this.coverP = new Promise(res => c.toBlob(res, c_Save.type, c_Save.shotQ)).then(async (blob) => {
-      if (Game.seed !== seed) return blob;
-      this.coverU8 = new Uint8Array(await blob.arrayBuffer());
-      this.shot = { ...wh, url: URL.createObjectURL(blob) }; this.shots.set(seed, this.shot);
-      return blob;
+      if (Game.seed !== seed || blob?.type !== c_Save.type) return;
+      this.shot = { ...wh, url: URL.createObjectURL(blob), u8: new Uint8Array(await blob.arrayBuffer()) }; this.shots.set(seed, this.shot);
     });
   }
-  coverWH() { return this.shot && { w: this.shot.w, h: this.shot.h }; }
   // -> { blob, name } (for sharing) or null
   async save(silent) {
     if (!Game.running || !Game.ready) return null;
     try {
       if (!Game.paused) this.capture();
-      const seed = Game.seed, blob = await this.put(seed, await bwebp.dump(await this.coverP, this.coverWH()));
-      if (!silent) HUD.message(`World saved (${(blob.size / 1024).toFixed(0)} KB)`);
+      await this.coverP; const seed = Game.seed, blob = await this.put(seed, await bwebp.dump(this.shot));
+      if (!silent) HUD.message(`World saved (${bwebp.kb({ blob })})`);
       return { blob, name: this.fileName(seed) };
     } catch (e) { HUD.message('Save failed: ' + e.message); return null; }
   }
-  // Page unload: gzip is async, so columns go palette/bit-packed uncompressed; the IDB write is best effort
-  saveSync() { if (Game.running && Game.ready) this.put(Game.seed, bwebp.dumpSync(this.coverU8, this.coverWH())).catch(() => {}); }
+  // Page unload: compression is async, so columns go palette/bit-packed uncompressed; the IDB write is best effort
+  saveSync() { if (Game.running && Game.ready) this.put(Game.seed, bwebp.dumpSync(this.shot)).catch(() => {}); }
 
   // ---- file -> data (Game.start input) ----
   async loadData(seed) { try { return await this.read(seed); } catch (e) { HUD.message('Load failed: ' + e.message); return null; } }
@@ -3061,6 +3126,7 @@ const Save = gg.my(new class Save {
 const c_TitleStates = {
   title:   { start: 1, loading: 0, hotbar: 0,   preview: 1 },   // page opened: last world idles behind (never the spinner)
   paused:  { start: 1, loading: 0, hotbar: 0.5, preview: 0 },   // in-game Esc
+  ask:     { start: 1, loading: 0, hotbar: 0.5, preview: 0 },   // Title.promptXYZB(): Continue = current state / paste / file -> data
   loading: { start: 0, loading: 1, hotbar: '',  preview: 0 },   // picked / new / imported world being saved, decoded, generated
   game:    { start: 0, loading: 0, hotbar: '',  preview: 0 },
 };
@@ -3218,8 +3284,14 @@ const menu = gg.menu = {
         const b = f.addButton({ title: '' }), a = f.addBinding(c_Fluid, 'ghostAlpha', { label: '幽灵透明度', ...R(0, 1, 0.05) });
         const flt = f.addBinding(XRay, 'filter', { label: '过滤 !排除' });
         const pick = f.addBlade({ view: 'list', label: '选中搜索', value: '', options: [{ text: '—', value: '' }, ...Blocks.byId.filter(d => d.id !== AIR).map(d => ({ text: d.name, value: d.name }))] });
-        const pv = f.addButton({ title: '◀ 上一块修改' }), nx = f.addButton({ title: '下一块修改 ▶ (F1)' }), rv = f.addButton({ title: '↶ 撤回屏幕范围内的修改 (F2)' });
-        const show = () => { b.title = `${XRay.on ? '☑' : '☐'} XRay-仅玩家方块不透明`; for (const x of [a, flt, pick, pv, nx, rv]) x.hidden = !XRay.on; };
+        const pv = f.addButton({ title: '◀ 上一块修改' }), nx = f.addButton({ title: '下一块修改 ▶ (F1)' }), rv = f.addButton({ title: '↶ 撤回俯视范围内的修改 (F2)' });
+        // diff base: none = world generation; click prompts a world (Title.promptXYZB), click again = 解除diff
+        const bs = f.addButton({ label: '原存档', title: '选择…' });
+        const show = () => {
+          b.title = `${XRay.on ? '☑' : '☐'} XRay-仅玩家方块不透明`; for (const x of [a, flt, pick, pv, nx, rv, bs]) x.hidden = !XRay.on;
+          const B = XRay.base; bs.title = B ? `+${Title.age({ day: Sky.day - B.day, time: Sky.time - B.time })} ${B.kb} KB` : '粘贴以diff… (当前/历史图片)';   // + = world time since the base
+        };
+        bs.on('click', async () => { if (XRay.base) return XRay.setBase(null); const r = await Title.promptXYZB(); if (r) XRay.setBase(r.data, r.name); });
         b.on('click', () => { XRay.set(!XRay.on); show(); }); a.on('change', () => Game.applyFluidLook());
         flt.on('change', (ev) => XRay.parse(ev.value));
         pick.on('change', (ev) => { if (!ev.value) return; XRay.parse(`${XRay.filter} ${ev.value}`.trim()); flt.refresh(); pick.value = ''; });
@@ -3290,13 +3362,22 @@ const Title = gg.my(new class Title {
   set(state, text) {
     const S = c_TitleStates[state], st = $('start'); this.state = state;
     Game.atTitle = state === 'title'; Game.paused = !!S.start;
-    st.classList.toggle('hidden', !S.start); st.classList.toggle('title', state === 'title'); st.classList.toggle('paused', state === 'paused');
+    st.classList.toggle('hidden', !S.start); st.classList.toggle('title', state === 'title'); st.classList.toggle('paused', state === 'paused'); st.classList.toggle('ask', state === 'ask');
     if (!S.start) st.classList.remove('peek');
-    $('hotbar').style.opacity = S.hotbar;
+    $('hotbar').style.opacity = S.hotbar; $('hud').classList.toggle('menu', !!S.start);
+    if (state === 'game' && this.greeted !== Game.seed) { this.greeted = Game.seed; HUD.message('Seed: ' + Game.seed + ' · Press E for inventory, Esc for menu'); }   // once per world, on entering play
     if (text) { $('loadtext').textContent = text; $('loadbar').firstElementChild.style.width = '0'; }
     $('loading').classList.toggle('hidden', !S.loading || (Game.running && Game.ready && !text));
     this.preview(!!S.preview);
     if (S.start) { Input.unlock(); Screens.close(); } else Screensaver.restore();
+  }
+  // Bottom spinner with `hint` while fn runs, in any screen state (nests; the 'loading' state keeps it up) -> fn's result
+  async waits(hint, fn) {
+    this.waiting = (this.waiting ?? 0) + 1;
+    $('loadtext').textContent = hint; $('loadbar').firstElementChild.style.width = '0'; $('loading').classList.remove('hidden');
+    await new Promise(r => requestAnimationFrame(() => setTimeout(r)));   // paint the spinner before the encode blocks
+    try { return await fn(); }
+    finally { if (--this.waiting === 0 && !c_TitleStates[this.state].loading) $('loading').classList.add('hidden'); }
   }
   // Boot world, idling behind the title: the &xyzb= file (overwrites its seed's slot) or else the last world
   async boot() {
@@ -3321,12 +3402,13 @@ const Title = gg.my(new class Title {
     const sp = gg.res_vam.t.splash; $('splash').textContent = sp[Math.floor(Math.random() * sp.length)];
     this.render(); this.pane?.refresh();
   }
+  // In-game age of a save entry / head: whole days + hours since tick 0 ("0d3h")
+  age(e) { const ticks = (e.day ?? 0) * gg.DAY_LENGTH + (e.time ?? 0); return e.time == null ? '—' : `${floor(ticks / gg.DAY_LENGTH)}d${floor(ticks % gg.DAY_LENGTH / 1000)}h`; }
   row(e) {
     const el = document.createElement('div');
     if (!e) { el.className = 'save-row empty'; el.textContent = '— empty —'; return el; }
     const cur = Game.running && e.seed === Game.seed, born = new Date(e.born ?? e.t ?? 0).toLocaleString(undefined, c_Title.dateFmt);
-    // In-game age: whole days + hours since tick 0 ("0d3h")
-    const ticks = (e.day ?? 0) * gg.DAY_LENGTH + (e.time ?? 0), age = e.time == null ? '—' : `${floor(ticks / gg.DAY_LENGTH)}d${floor(ticks % gg.DAY_LENGTH / 1000)}h`;
+    const age = this.age(e);
     el.className = 'save-row' + (cur ? ' cur' : ''); el.dataset.seed = e.seed;
     el.innerHTML = '<b></b><abbr></abbr><span class="del" title="Delete">✕</span>';
     el.querySelector('b').textContent = (cur ? '▶ ' : '') + (e.name || Save.defaultName(e.seed));
@@ -3366,12 +3448,14 @@ const Title = gg.my(new class Title {
     this.tryIcons();
     const list = Save.list();
     $('save-list').replaceChildren(...[...list, ...Array(Math.max(0, c_Title.minRows - list.length)).fill(null)].map(e => this.row(e)));
-    $('btn-play').textContent = Game.running ? (Game.atTitle ? 'Enter World' : 'Continue') : list.length ? 'Enter: ' + (list[0].name || list[0].seed) : 'Play (new seed)';
+    $('btn-play').textContent = Game.running ? (Game.atTitle && !this.asked ? 'Enter World' : 'Continue') : list.length ? 'Enter: ' + (list[0].name || list[0].seed) : 'Play (new seed)';
     this.snap1scr();
   }
   del(e) {
     if (!confirm(`Delete "${e.name}" (${e.seed})?`)) return;
-    this.peek(null); Save.remove(e.seed).finally(() => this.render());
+    const live = Game.running && e.seed === Game.seed;   // the world in play: drop it and reload (no unload save brings it back)
+    if (live) Game.running = false;
+    this.peek(null); Save.remove(e.seed).finally(() => { this.render(); if (live) location.reload(); });   // render first: the 1scr snapshot drops the row
   }
   // Save screenshot under the hovered / touch-slid row, cross-faded with CSS.fx; only when the shot's WxH fits this window
   fits(shot) {
@@ -3420,9 +3504,23 @@ const Title = gg.my(new class Title {
     if (!data && e) Game.mode = e.mode || 'survival';
     Game.start(seed, data, false); Save.touch(seed); this.enter();
   }
+  /* async world-file prompt on the title screen (CSS #start.ask hides all but #btn-play and the Share/⇅ row):
+     Continue = the current state (dumped through bwebp like a save), ⇅ paste / Share button = a file. Nothing is written or started.
+     -> { data, name } | null (Esc / backdrop). */
+  promptXYZB() {
+    this.asked?.(null);
+    const back = this.state;
+    this.set('ask'); this.render();
+    return new Promise(res => this.asked = (r) => { this.asked = null; back === 'game' ? this.enter(false) : this.set(back); this.render(); res(r); });
+  }
+  async current() {
+    const data = await bwebp.load(await (await bwebp.dump(null)).arrayBuffer());
+    this.asked?.({ data, name: (Save.entry(Game.seed)?.name || Save.defaultName(Game.seed)) + ' (当前)' });
+  }
   // Pasted / picked world file: parsed first (a bad file leaves the menu as is), then it overwrites its seed's slot
   async importFile(buf) {
     let data; try { data = await bwebp.load(buf); } catch (err) { return HUD.message('Import failed: ' + err.message); }
+    if (this.asked) return this.asked({ data, name: Save.entry(String(data.seed))?.name || Save.defaultName(String(data.seed)) });
     this.bootId++; this.unpeek();
     await this.leave('Loading world…');
     await Save.import(data);
@@ -3435,6 +3533,7 @@ const Title = gg.my(new class Title {
     if (Game.ready) { this.unpeek(); if (!player.dead) { if (lock) Input.lock(); else HUD.message('Click to capture the mouse'); } }
   }
   play() {
+    if (this.asked) return this.current();
     if (Game.running) return this.enter();
     const list = Save.list();
     return list.length ? this.pick(list[0].seed) : this.newWorld('');
@@ -3466,15 +3565,16 @@ const Title = gg.my(new class Title {
     });
     gg.ev($('seed-input'), { keydown: stop });
     bwebp.onUI({
-      dump: () => Game.running && Game.ready ? Save.save(true) : (HUD.message('No world to save'), Promise.resolve(null)),
+      dump: () => Game.running && Game.ready ? T.waits('Saving world…', () => Save.save(true)) : (HUD.message('No world to save'), Promise.resolve(null)),
       import: (buf) => T.importFile(buf),
-      msg: (t) => HUD.message(t), done: () => T.render(),
+      msg: (t) => HUD.message(t), done: () => T.render(), asking: () => !!T.asked,
     });
-    gg.ev($('start'), { mousedown(e) { if (e.target === this && Game.running) T.enter(); } });
+    gg.ev($('start'), { mousedown(e) { if (e.target !== this) return; if (T.asked) T.asked(null); else if (Game.running) T.enter(); } });
     const at = (x, y) => { T.pt = [x, y]; T.hover(); };
     gg.ev(document, { pointermove(e) { at(e.clientX, e.clientY); }, touchstart(e) { at(e.touches[0].clientX, e.touches[0].clientY); }, touchmove(e) { at(e.touches[0].clientX, e.touches[0].clientY); } }, { passive: true });
     Events.on('keypress', (code) => {
       if (!this.visible) return;
+      if (this.asked) { if (code === 'Escape') this.asked(null); return; }
       if (code === 'KeyG') Game.toggleMode(); else if (code === 'Escape' && Game.running) this.enter(false);
     });
     this.buildPane();
@@ -3492,7 +3592,7 @@ const Menus = {
     // Resource pack only via URL: ?tex=pack.zip
     if (location.protocol.startsWith('http')) {
       const q = new URLSearchParams(location.search), packUrl = q.get('tex');
-      if(packUrl) fetch(packUrl).then(r => r.ok ? r.blob() : (location='?tex=survivalpack.zip')).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop())));
+      if(packUrl) fetch(packUrl).then(r => r.ok ? r.blob() : (location='?tex=res/survivalpack.zip')).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop())));
       // World via URL: &xyzb=world.webp (a bwebp file from Share) — Title.boot imports it over the slot of its seed
       const worldUrl = q.get('xyzb');
       if (worldUrl) Title.bootFile = fetch(worldUrl).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('HTTP ' + r.status)));
@@ -3538,8 +3638,8 @@ const Game = {
   // Start a new (or loaded) world with the given seed
   // title=true: build the world behind the title screen (stays paused, no pointer lock)
   start(seed, data, title) {
-    this.seed = String(seed); Save.shot = data?.shot || null;
-    Save.coverU8 = data?.coverU8 || null; Save.coverP = data?.coverBlob ? Promise.resolve(data.coverBlob) : null;   // a loaded world keeps its cover until the next capture
+    if (this.seed !== String(seed)) bwebp.lastW = null;   // the Share checkpoint belongs to the previous world
+    this.seed = String(seed); Save.shot = data?.shot || null; Save.coverP = null;   // a loaded world keeps its cover until the next capture
     world.reset(this.seed); Terrain.init(this.seed); Scheduler.clear(); Entities.clear(); Mobs.clear(); Particles.n = 0;
     ChunkManager.needsScan = true; ChunkManager.pcx = 1e9; ChunkManager.stats = { generated: 0, meshed: 0, loaded: 0 };
     Sky.time = 1000; Sky.day = 0; Weather.raining = Weather.thunder = false; Weather.amount = Weather.storm = 0;
@@ -3563,7 +3663,6 @@ const Game = {
     this.hold = true;   // keep presenting the previous frame until the new world is ready (see loop)
     this.running = true; this.ready = false; this.autosave = 0;
     Title.set(title ? 'title' : 'loading');
-    HUD.message('Seed: ' + this.seed + ' · Press E for inventory, Esc for menu');
   },
   // New worlds: the noise height ignores caves/ravines, so pick a nearby column whose real
   // surface matches the sampled height and stand the player on it.

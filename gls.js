@@ -275,7 +275,7 @@ const Mesher = {
       const lx = wx & 15, lz = wz & 15, base = (lx << 11) | (lz << 7);
       const bl = ch.blocks, me = ch.meta, sk = ch.sky, bk = ch.blk;
       for (let y = 0; y < CHUNK_H; y++) { const p = p0 + (y + 1) * PZ, i = base | y; pb[p] = bl[i]; pm[p] = me[i]; ps[p] = sk[i]; pl[p] = bk[i]; }
-      if (xr) { const g = xr.gen(ch); for (let y = 0; y < CHUNK_H; y++) { const i = base | y; const p = p0 + (y + 1) * PZ; const same = xr.same(g[i], bl[i]); pg[p] = bl[i] !== AIR && same ? 1 : 0; pr[p] = bl[i] === AIR && !same ? 1 : 0; } }
+      if (xr) { const g = xr.ref(ch)?.b ?? bl; for (let y = 0; y < CHUNK_H; y++) { const i = base | y; const p = p0 + (y + 1) * PZ; const same = xr.same(g[i], bl[i]); pg[p] = bl[i] !== AIR && same ? 1 : 0; pr[p] = bl[i] === AIR && !same ? 1 : 0; } }
     }
   },
 
