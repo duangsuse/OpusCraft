@@ -79,9 +79,25 @@ const PAGE_CHECKS = `(async () => {
   ck('meshed 区块已有共享光照 c.sky/c.blk', meshed.length && meshed.every(c => c.sky instanceof Uint8Array && c.blk instanceof Uint8Array && c.sky.length === 16 * 16 * 96),
      meshed.length + ' meshed');
   if (VR.ring) {
-    const R = VR.ring, own = meshed.filter(c => R.owner[(((c.cz % R.N) + R.N) % R.N) * R.N + (((c.cx % R.N) + R.N) % R.N)] === g.ck(c.cx, c.cz));
+    const R = VR.ring, own = meshed.filter(c => R.owner[(((c.cz % R.N) + R.N) % R.N) * R.N + (((c.cx % R.N) + R.N) % R.N)] === c.cx + ',' + c.cz);   // v2 槽位归属键 = "cx,cz"（与宿主 ck 无关，ChunkSource 只给坐标）
     ck('v2: 环形纹理尺寸 N=2rd+5', R.N === 2 * g.settings.rd + 5 && R.vox.image.width === R.N * 16, 'N=' + R.N + ' rd=' + g.settings.rd);
     ck('v2: 所有 meshed 区块占有槽位', own.length === meshed.length, own.length + '/' + meshed.length);
+    const Hh = meshed.length ? meshed[0].blocks.length / 256 : 0;
+    ck('v2: VR.source 存在且 height 与宿主一致', !!VR.source && typeof VR.source.getChunk === 'function' && VR.source.height === Hh, 'source.height=' + (VR.source && VR.source.height) + ' 宿主=' + Hh);
+    {   // 段标记（handover §3.1）：逐区块按定义重算全空/全不透明掩码，与列纹理一致
+      const BT = VR.blockTable; let bad = 0;
+      for (const c of meshed) {
+        const s = (((c.cz % R.N) + R.N) % R.N) * R.N + (((c.cx % R.N) + R.N) % R.N);
+        let em = 0, fm = 0, my = 0;
+        for (let k = 0; k < Hh / 16; k++) {
+          let ne = 0, op = 0;
+          for (let i = 0; i < 256; i++) for (let y = k * 16; y < k * 16 + 16; y++) { const id = c.blocks[i * Hh + y]; if (id && BT.kind[id]) { ne++; if (y >= my) my = y + 1; } if (BT.opaque[id]) op++; }
+          if (!ne) em |= 1 << k; if (op === 4096) fm |= 1 << k;
+        }
+        if (R.colData[s * 4] !== my || R.colData[s * 4 + 2] !== em || R.colData[s * 4 + 3] !== fm) bad++;
+      }
+      ck('v2: 列高/段掩码与区块数据一致', bad === 0, bad + '/' + meshed.length + ' 不一致');
+    }
     ck('v2: uWorldMaxY 已统计', R.worldMaxY > 0 && R.worldMaxY <= 96, 'worldMaxY=' + R.worldMaxY);
     const e = g.renderer.getContext().getError(); ck('v2: 环形上传无 GL 错误', e === 0, 'glError=' + e + ' uploads=' + R.uploads);
   }

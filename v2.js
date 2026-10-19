@@ -93,13 +93,20 @@ export function createRenderer(ctx) {
   ];
 
 
-  // ───────────────── 环形体素纹理 + 4³ 砖占用 + 区块列高（handover §5.2 / §7.1） ─────────────────
-  const { THREE, renderer, CS, CH, B, RENDER, OPAQUE, SOLID, T_TOP, T_BOT, T_SIDE, ck } = ctx;
-  const BY = CH / 4;                                    // 每列砖层数（24）
+  // ───────────────── 世界入口：ChunkSource + BlockTable（handover §2.1） ─────────────────
+  // 宿主可在 ctx.source / ctx.blockTable 里给自己的适配器；缺省用 VoxelCraft 适配器（读 ctx.chunks 的 c.blocks/sky/blk）
+  const { THREE, renderer } = ctx;
+  const SRC = ctx.source || voxelCraftSource(ctx), BT = ctx.blockTable || voxelCraftBlocks(ctx);
+  const CS = 16, H = SRC.height;
+  if (SRC.size !== CS || H % 16 || H > 256) throw new Error(`[v2] ChunkSource 不支持：size ${SRC.size} height ${H}（要求 16 / 16 的倍数且 ≤256）`);
+  const BY = H / 4, NS = H / 16;                        // 每列砖层数 / 区块段数（≤16，段掩码 16 位）
+  const ckey = (cx, cz) => cx + ',' + cz;
+
+  // ───────────────── 环形体素纹理 + 4³ 砖占用 + 区块列（列高 + 段标记，handover §3.1/§3.3） ─────────────────
   const ring = { rd: 0, N: 0, SX: 0, vox: null, brick: null, col: null, colData: null, owner: [], maxY: null, worldMaxY: 0, uploads: 0 };
-  const stVox = new THREE.Data3DTexture(new Uint8Array(CS * CH * CS * 2), CS, CH, CS);   // 上传暂存（不绑定到着色器）
+  const stVox = new THREE.Data3DTexture(new Uint8Array(CS * H * CS * 2), CS, H, CS);   // 上传暂存（不绑定到着色器）
   const stBrick = new THREE.Data3DTexture(new Uint8Array(4 * BY * 4), 4, BY, 4);
-  const boxV = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(CS - 1, CH - 1, CS - 1));
+  const boxV = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(CS - 1, H - 1, CS - 1));
   const boxB = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(3, BY - 1, 3));
   const dstPos = new THREE.Vector3();
   const wrap = (a, m) => ((a % m) + m) % m;
@@ -110,9 +117,10 @@ export function createRenderer(ctx) {
     t.needsUpdate = true; renderer.initTexture(t); t.image.data = null;   // 只在 GPU 上保留
     return t;
   }
-  // 方块表：r = RENDER | OPAQUE<<4 | SOLID<<5，g/b/a = T_TOP/T_BOT/T_SIDE
+  // 方块表：r = kind | opaque<<4 | solid<<5 | cullSelf<<6，g/b/a = tileTop/Bot/Side
   const infoData = new Uint8Array(256 * 4);
-  for (let i = 0; i < 256; i++) infoData.set([RENDER[i] | (OPAQUE[i] << 4) | (SOLID[i] << 5), T_TOP[i], T_BOT[i], T_SIDE[i]], i * 4);
+  for (let i = 0; i < 256; i++)
+    infoData.set([BT.kind[i] | (BT.opaque[i] << 4) | (BT.solid[i] << 5) | ((BT.cullSelf ? BT.cullSelf[i] : 0) << 6), BT.tileTop[i], BT.tileBot[i], BT.tileSide[i]], i * 4);
   const infoTex = new THREE.DataTexture(infoData, 256, 1, THREE.RGBAIntegerFormat, THREE.UnsignedByteType);
   Object.assign(infoTex, { internalFormat: 'RGBA8UI', minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false, unpackAlignment: 1 });
   infoTex.needsUpdate = true;
@@ -120,50 +128,65 @@ export function createRenderer(ctx) {
   function rebuildRing() {
     for (const k of ['vox', 'brick', 'col']) if (ring[k]) ring[k].dispose();
     const rd = ctx.settings ? ctx.settings.rd : 6, N = 2 * rd + 5, SX = N * CS;
-    Object.assign(ring, { rd, N, SX, owner: new Array(N * N).fill(null), maxY: new Uint8Array(N * N), worldMaxY: 0 });
-    ring.vox = intTex3D(SX, CH, SX, THREE.RGIntegerFormat, 'RG8UI', 2);
+    Object.assign(ring, { rd, N, SX, owner: new Array(N * N).fill(null), maxY: new Uint16Array(N * N), worldMaxY: 0 });
+    ring.vox = intTex3D(SX, H, SX, THREE.RGIntegerFormat, 'RG8UI', 2);
     ring.brick = intTex3D(N * 4, BY, N * 4, THREE.RedIntegerFormat, 'R8UI', 1);
-    ring.colData = new Uint8Array(N * N * 4);           // r = maxY+1（0=空/无效），g/b = 区块坐标低 8 位（槽位归属校验）
-    ring.col = new THREE.DataTexture(ring.colData, N, N, THREE.RGBAIntegerFormat, THREE.UnsignedByteType);
-    Object.assign(ring.col, { internalFormat: 'RGBA8UI', minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false, unpackAlignment: 1 });
+    // 区块列 RGBA16UI：r = maxY+1（0 = 空/无效），g = 区块坐标低 8 位 x | z<<8（槽位归属校验），
+    //                 b = 全空段掩码，a = 全不透明段掩码（bit k = 第 k 个 16 格段）
+    ring.colData = new Uint16Array(N * N * 4);
+    ring.col = new THREE.DataTexture(ring.colData, N, N, THREE.RGBAIntegerFormat, THREE.UnsignedShortType);
+    Object.assign(ring.col, { internalFormat: 'RGBA16UI', minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, generateMipmaps: false, unpackAlignment: 1 });
     ring.col.needsUpdate = true;
     if (uni) { uni.uVox.value = ring.vox; uni.uBrick.value = ring.brick; uni.uCol.value = ring.col; }
   }
-  function setColumn(s, cx, cz, maxY) {
+  function setColumn(s, cx, cz, maxY, emptyM, fullM) {
+    const old = ring.maxY[s];
     ring.maxY[s] = maxY;
-    ring.colData.set([maxY, wrap(cx, 256), wrap(cz, 256), 0], s * 4);
+    ring.colData.set([maxY, wrap(cx, 256) | (wrap(cz, 256) << 8), emptyM, fullM], s * 4);
     ring.col.needsUpdate = true;
-    let m = 0; for (let i = 0; i < ring.maxY.length; i++) if (ring.maxY[i] > m) m = ring.maxY[i];
-    ring.worldMaxY = m;
+    if (maxY >= ring.worldMaxY) ring.worldMaxY = maxY;
+    else if (old >= ring.worldMaxY) {                   // 只有最高列下降时才 O(N²) 重算
+      let m = 0; for (let i = 0; i < ring.maxY.length; i++) if (ring.maxY[i] > m) m = ring.maxY[i];
+      ring.worldMaxY = m;
+    }
   }
-  function uploadChunk(c) {
-    if (!c.blocks || !c.sky || !c.blk) return;
-    const N = ring.N, sx = wrap(c.cx, N), sz = wrap(c.cz, N), s = sz * N + sx;
-    const b = c.blocks, sk = c.sky, bl = c.blk, vd = stVox.image.data, bd = stBrick.image.data;
-    bd.fill(0);
+  const secNE = new Uint16Array(NS), secOp = new Uint16Array(NS);
+  function uploadChunk(cx, cz) {
+    const ch = SRC.getChunk(cx, cz);
+    if (!ch) { clearChunk(cx, cz); return; }
+    const N = ring.N, sx = wrap(cx, N), sz = wrap(cz, N), s = sz * N + sx;
+    const b = ch.blocks, lt = ch.light, sk = ch.sky, bl = ch.blk, vd = stVox.image.data, bd = stBrick.image.data;
+    const KIND = BT.kind, OPQ = BT.opaque;
+    bd.fill(0); secNE.fill(0); secOp.fill(0);
     let maxY = 0;
     for (let lx = 0; lx < CS; lx++) for (let lz = 0; lz < CS; lz++) {
-      const base = (lx * CS + lz) * CH, bxz = (lz >> 2) * BY * 4 + (lx >> 2);
-      let o = (lz * CH * CS + lx) * 2;
-      for (let y = 0; y < CH; y++, o += CS * 2) {
+      const base = (lx * CS + lz) * H, bxz = (lz >> 2) * BY * 4 + (lx >> 2);
+      let o = (lz * H * CS + lx) * 2;
+      for (let y = 0; y < H; y++, o += CS * 2) {
         const id = b[base + y];
-        vd[o] = id; vd[o + 1] = (sk[base + y] << 4) | bl[base + y];
-        if (id && RENDER[id]) { bd[bxz + (y >> 2) * 4] = 1; if (y >= maxY) maxY = y + 1; }
+        vd[o] = id; vd[o + 1] = lt ? lt[base + y] : sk ? (sk[base + y] << 4) | bl[base + y] : 0xF0;
+        if (id && KIND[id]) {
+          bd[bxz + (y >> 2) * 4] = 1; if (y >= maxY) maxY = y + 1;
+          secNE[y >> 4]++; if (OPQ[id]) secOp[y >> 4]++;
+        }
       }
     }
+    let emptyM = 0, fullM = 0;
+    for (let k = 0; k < NS; k++) { if (!secNE[k]) emptyM |= 1 << k; if (secOp[k] === 4096) fullM |= 1 << k; }
     renderer.copyTextureToTexture3D(boxV, dstPos.set(sx * CS, 0, sz * CS), stVox, ring.vox);
     renderer.copyTextureToTexture3D(boxB, dstPos.set(sx * 4, 0, sz * 4), stBrick, ring.brick);
-    ring.owner[s] = ck(c.cx, c.cz);
-    setColumn(s, c.cx, c.cz, maxY);
+    ring.owner[s] = ckey(cx, cz);
+    setColumn(s, cx, cz, maxY, emptyM, fullM);
     ring.uploads++;
   }
-  function clearChunk(c) {
-    const N = ring.N, sx = wrap(c.cx, N), sz = wrap(c.cz, N), s = sz * N + sx;
-    if (ring.owner[s] !== ck(c.cx, c.cz)) return;      // 槽位已被别的区块占用：不动
+  function clearChunk(cx, cz) {
+    const N = ring.N, sx = wrap(cx, N), sz = wrap(cz, N), s = sz * N + sx;
+    if (ring.owner[s] !== ckey(cx, cz)) return;         // 槽位已被别的区块占用：不动
     ring.owner[s] = null;
-    setColumn(s, c.cx, c.cz, 0);                        // 列高 0 = 整列视为空，体素数据无需清零
+    setColumn(s, cx, cz, 0, 0, 0);                      // 列高 0 = 整列视为空，体素数据无需清零
   }
-  function reuploadAll() { for (const c of ctx.chunks.values()) if (c.meshed) uploadChunk(c); }
+  function reuploadAll() { SRC.forEachChunk(uploadChunk); }
+  SRC.onChunkChanged(uploadChunk);
   let uni = null;
   rebuildRing();
 
@@ -219,7 +242,8 @@ export function createRenderer(ctx) {
   ${GLSL.light}
   ${GLSL.mat}
   ${GLSL.fog}
-  // ── 测量（handover §5）：DBG 1 主射线迭代 / 2 fetch 计数 / 3 跳过 smoothLight / 5 层级；DBGRAW=1 输出原始计数 ──
+  #define H ${H}
+  // ── 测量（handover §5）：DBG 1 主射线迭代 / 2 fetch 计数 / 3 跳过 smoothLight / 5 层级（列+段跳/砖/体素）；DBGRAW=1 输出原始计数 ──
   #define DBG_HEAT (DBG == 1 || DBG == 2 || DBG == 5)
   int gFetch = 0, gIt = 0, gSIt = 0, gLvC = 0, gLvB = 0, gLvV = 0;
   #if DBG_HEAT
@@ -301,18 +325,18 @@ export function createRenderer(ctx) {
     int S4 = uSX / 4, o = uSX * 4; CNT(1);
     return texelFetch(uBrick, ivec3((b.x + uOrgSlot.x * 4 + o) % S4, b.y, (b.z + uOrgSlot.y * 4 + o) % S4), 0).r;
   }
-  // 区块列高 maxY+1；槽位归属（区块坐标低 8 位）不符 → 视为空
-  int colMaxAt(ivec2 ch) {
+  // 区块列：x = 列高 maxY+1，y = 全空段掩码，z = 全不透明段掩码；槽位归属（区块坐标低 8 位）不符 → 视为空
+  uvec3 colAt(ivec2 ch) {
     CNT(1);
     uvec4 c = texelFetch(uCol, (ch + uOrgSlot + uN * 64) % uN, 0);
     ivec2 lo = (ch + uOrgLow + 4096) % 256;
-    return (c.r == 0u || int(c.g) != lo.x || int(c.b) != lo.y) ? 0 : int(c.r);
+    return (c.r == 0u || c.g != uint(lo.x | (lo.y << 8))) ? uvec3(0u) : c.rba;
   }
   uint infoR(uint id) { CNT(1); return texelFetch(uInfo, ivec2(int(id), 0), 0).r; }
-  // 邻域查询（越界：y<0 视为不透明，y>=CH 视为满天空光的空气）
+  // 邻域查询（越界：y<0 视为不透明，y>=H 视为满天空光的空气）
   void cellLO(ivec3 c, out float o, out float s, out float b) {
     if (c.y < 0) { o = 1.0; s = 0.0; b = 0.0; return; }
-    if (c.y >= ${CH}) { o = 0.0; s = 15.0; b = 0.0; return; }
+    if (c.y >= H) { o = 0.0; s = 15.0; b = 0.0; return; }
     uvec2 v = voxAt(c);
     o = (infoR(v.r) & 16u) != 0u ? 1.0 : 0.0; s = float(v.g >> 4u); b = float(v.g & 15u);
   }
@@ -348,7 +372,7 @@ export function createRenderer(ctx) {
     layer = float(inf.a); shade = 0.8; return vec2(1.0 - f.x, f.y);
   }
   float lodAt(float t) { return log2(max(t * uTexelAngle * 16.0, 1e-3)); }
-  bool solidAt(ivec3 c) { return c.y >= 0 && c.y < ${CH} && (infoR(voxAt(c).r) & 32u) != 0u; }
+  bool solidAt(ivec3 c) { return c.y >= 0 && c.y < H && (infoR(voxAt(c).r) & 32u) != 0u; }
 
   // 花草：格内两条对角竖直平面（v1 emitCross：x=z 与 x+z=1，水平范围 0.15..0.85）
   bool crossHit(vec3 o, vec3 d, float t0, float t1, float layer, inout float tH, inout vec2 uvH) {
@@ -406,10 +430,10 @@ export function createRenderer(ctx) {
     bool fine = false;
     ivec3 bc, cell = cellAt(ro, r, t + 1e-4, 4.0);
     tM = (vec3((cell + up) * 4) - ro) * inv;
-    ivec2 curCh = ivec2(-1 << 20); int cmax = 0;
+    ivec2 curCh = ivec2(-1 << 20); int cmax = 0; uint sEmpty = 0u, sFull = 0u;
     uint prevId = 0u; int nAlpha = 0;
     // 相机在水中：不画水面（由水下雾表现）；tw 改为记录出水点（水中路径长度，用于仰视透光窗）
-    bool camWater = !shadow && home.y >= 0 && home.y < ${CH} && voxAt(home).r == ${B.WATER}u;
+    bool camWater = !shadow && home.y >= 0 && home.y < H && voxAt(home).r == ${BT.waterId}u;
     bool exh = false;
     for (int i = 0; i < 576; i++) {
       if (t >= tX) break;
@@ -419,7 +443,7 @@ export function createRenderer(ctx) {
       #endif
       if (!fine) {
         ivec2 ch = ivec2(floor(vec2(cell.xz) / 4.0));
-        if (ch != curCh) { curCh = ch; cmax = colMaxAt(ch); }
+        if (ch != curCh) { curCh = ch; uvec3 cc = colAt(ch); cmax = int(cc.x); sEmpty = cc.y; sFull = cc.z; }
         if (cell.y * 4 >= cmax) {
           if (camWater && tw < 0.0) tw = t;               // 相机在水中：记录出水点
           // 整段高于本区块列高：直接跳到列出口，或下降到 y = 列高 的平面
@@ -441,6 +465,32 @@ export function createRenderer(ctx) {
           #endif
           continue;
         }
+        // 区块段标记（handover §3.1；此处 cell.y*4 < cmax ≤ H，段号 < 16）
+        #if SECT
+        uint sb = cell.y >= 0 ? 1u << uint(cell.y >> 2) : 0u;
+        if ((sEmpty & sb) != 0u) {                         // 全空段：直接跳到段 AABB 出口（同列高跳过的写法）
+          if (camWater && tw < 0.0) tw = t;
+          int sy = cell.y >> 2;
+          vec3 tb = (vec3(ivec3(ch.x, sy, ch.y) + up) * 16.0 - ro) * inv;
+          cell = cellAt(ro, r, max(t, min(min(tb.x, tb.y), tb.z)), 4.0);
+          if (tb.x < tb.y && tb.x < tb.z) { t = max(t, tb.x); nrm = ivec3(-st.x, 0, 0); cell.x = st.x > 0 ? (ch.x + 1) * 4 : ch.x * 4 - 1; }
+          else if (tb.y < tb.z)           { t = max(t, tb.y); nrm = ivec3(0, -st.y, 0); cell.y = st.y > 0 ? (sy + 1) * 4 : sy * 4 - 1; }
+          else                            { t = max(t, tb.z); nrm = ivec3(0, 0, -st.z); cell.z = st.z > 0 ? (ch.y + 1) * 4 : ch.y * 4 - 1; }
+          tM = (vec3((cell + up) * 4) - ro) * inv;
+          prevId = 0u;
+          #if DBG_HEAT
+          if (!shadow) gLvC++;
+          #endif
+          continue;
+        }
+        if ((sFull & sb) != 0u) {                          // 全不透明段：入口格必然命中（除非相机就在这格里）
+          ivec3 fc = clamp(cellAt(ro, r, t + 1e-4, 1.0), cell * 4, cell * 4 + 3);
+          if (fc != home) {
+            if (camWater && tw < 0.0) tw = t;
+            tHit = t; hc = fc; hid = voxAt(fc).r; return true;
+          }
+        }
+        #endif
         if (cell.y >= 0 && brickAt(cell) != 0u) {          // 非空砖 → 逐格 DDA（限定在砖内）
           fine = true; bc = cell;
           cell = clamp(cellAt(ro, r, t + 1e-4, 1.0), bc * 4, bc * 4 + 3);
@@ -461,7 +511,7 @@ export function createRenderer(ctx) {
           continue;
         }
         uint id = voxAt(cell).r;
-        if (camWater && tw < 0.0 && id != ${B.WATER}u) tw = t;
+        if (camWater && tw < 0.0 && id != ${BT.waterId}u) tw = t;
         if (id != 0u) {
           uvec4 inf = texelFetch(uInfo, ivec2(int(id), 0), 0); CNT(1);
           uint rk = inf.r & 15u;
@@ -470,13 +520,13 @@ export function createRenderer(ctx) {
           if (cell != home && (inf.r & 16u) != 0u) {                       // 不透明方块
             tHit = t; hc = cell; hid = id; return true;
           }
-          if (cell != home && rk == 1u && !(id == ${B.GLASS}u && prevId == id)) {   // 镂空方块（树叶/玻璃）：入射面 alpha 测试
+          if (cell != home && rk == 1u && !((inf.r & 64u) != 0u && prevId == id)) {   // 镂空方块（树叶/玻璃）：入射面 alpha 测试
             float ly, sh; vec2 uv = faceUV(nrm, clamp(o + r * t, 0.0, 1.0), inf, ly, sh);
             if (++nAlpha > 8 || matSampleLod(uv, ly, lodAt(t)).a >= 0.5) { tHit = t; hc = cell; hid = id; return true; }
           }
           if (rk == 4u && !shadow && tw < 0.0 && !camWater) {             // 水：只记录首次入水点，射线继续穿过
             // 上方不是水 → 水面下沉 1/8（同 v1 lowerTop）：入射点高于 7/8 时改求与 y=7/8 平面的交点
-            bool lowered = cell.y + 1 >= ${CH} || voxAt(cell + ivec3(0, 1, 0)).r != ${B.WATER}u;
+            bool lowered = cell.y + 1 >= H || voxAt(cell + ivec3(0, 1, 0)).r != ${BT.waterId}u;
             float y0 = o.y + r.y * t;
             if (!lowered || y0 <= 0.875) { tw = t; wn = nrm; }
             else if (r.y < 0.0) { float tp = (0.875 - o.y) / r.y; if (tp <= tN) { tw = tp; wn = ivec3(0, 1, 0); } }
@@ -535,7 +585,7 @@ export function createRenderer(ctx) {
     float tHit; ivec3 hc, n; uint id; int kind; vec3 uvl; float tw; ivec3 wn;
     // ×1.03：给雾远端留一点余量，否则正好落在 far 面上的几何会被 tX 裁掉（边缘一圈漏空）
     bool hit = trace(uRo, r, zLim * 1.03 / cosF, uSteps, false, tHit, hc, n, id, kind, uvl, tw, wn);
-    bool camW = uRo.y >= 0.0 && uRo.y < ${CH}.0 && voxAt(ivec3(floor(uRo))).r == ${B.WATER}u;
+    bool camW = uRo.y >= 0.0 && uRo.y < float(H) && voxAt(ivec3(floor(uRo))).r == ${BT.waterId}u;
     bool water = !camW && tw >= 0.0 && (!hit || tw < tHit);
     float tc; vec4 cc; bool cloud = cloudHit(uRo, r, tc, cc);
     if (!hit && !water) {
@@ -617,9 +667,9 @@ export function createRenderer(ctx) {
       float fres = 0.02 + 0.98 * pow(1.0 - max(dot(-r, wN), 0.0), 5.0);
       ivec3 ac = ivec3(floor(wp + wN * 0.01));                 // 水面外侧那格的光照（夜晚/洞穴变暗）
       float sky = 15.0, blk = 0.0;
-      if (ac.y >= 0 && ac.y < ${CH}) { uvec2 g = voxAt(ac); sky = float(g.g >> 4u); blk = float(g.g & 15u); }
+      if (ac.y >= 0 && ac.y < H) { uvec2 g = voxAt(ac); sky = float(g.g >> 4u); blk = float(g.g & 15u); }
       vec3 lit = voxLight(sky, blk) * uExposure;
-      vec3 tex = matSampleLod(fract(wq.xz * vec2(1.0, 1.0)) , ${T_SIDE[B.WATER]}.0, lodAt(tw)).rgb;
+      vec3 tex = matSampleLod(fract(wq.xz * vec2(1.0, 1.0)) , ${BT.tileSide[BT.waterId]}.0, lodAt(tw)).rgb;
       vec3 shallow = vec3(0.45, 0.85, 0.80), deep = vec3(0.05, 0.30, 0.60);
       float trans = exp(-depth * mix(1.5, 0.06, clamp(uWater0.x, 0.0, 1.0)));
       vec3 body = mix(shallow, deep, 1.0 - exp(-depth * 0.10)) * (0.7 + 0.6 * dot(tex, vec3(0.333))) * lit;
@@ -692,10 +742,10 @@ export function createRenderer(ctx) {
     uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uShadowSteps: { value: 0 }, uShadowStrength: { value: 0 },
     uShadowDist: { value: 24 }, uSun: { value: 0 },
     uCloudTex: { value: ctx.cloudMat ? ctx.cloudMat.uniforms.uTex.value : null }, uCloudColor: { value: new THREE.Color(1, 1, 1) },
-    uCloud: { value: new THREE.Vector4(0, 0, CH + 36, 4) }, uCloud2: { value: new THREE.Vector3(0.3, 0.35, 0.35) }, uUwWindow: { value: 0.75 }, uInvProj: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() },
+    uCloud: { value: new THREE.Vector4(0, 0, H + 36, 4) }, uCloud2: { value: new THREE.Vector3(0.3, 0.35, 0.35) }, uUwWindow: { value: 0.75 }, uInvProj: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() },
   };
   const post = new THREE.ShaderMaterial({
-    uniforms: uni, fragmentShader: DDA_FS, defines: { DBG: 0, DBGRAW: 0 },
+    uniforms: uni, fragmentShader: DDA_FS, defines: { DBG: 0, DBGRAW: 0, SECT: 0 },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     depthTest: true, depthWrite: true, depthFunc: THREE.AlwaysDepth,   // depthTest:false 会连深度写入一起关掉
   });
@@ -799,7 +849,7 @@ export function createRenderer(ctx) {
     // ② DDA：局部坐标（玩家区块原点）避免远处 float 精度问题
     const pcx = Math.floor(camera.position.x / CS), pcz = Math.floor(camera.position.z / CS), h = ring.rd + 2;
     uni.uRo.value.set(camera.position.x - pcx * CS, camera.position.y, camera.position.z - pcz * CS);
-    uni.uLo.value.set(-h * CS, 0, -h * CS); uni.uHi.value.set((h + 1) * CS, CH, (h + 1) * CS);
+    uni.uLo.value.set(-h * CS, 0, -h * CS); uni.uHi.value.set((h + 1) * CS, H, (h + 1) * CS);
     uni.uOrgSlot.value = [wrap(pcx, ring.N), wrap(pcz, ring.N)]; uni.uOrgLow.value = [wrap(pcx, 256), wrap(pcz, 256)];
     uni.uSX.value = ring.SX; uni.uN.value = ring.N; uni.uWorldMaxY.value = ring.worldMaxY;
     uni.uSteps.value = Math.round(P.steps); uni.uFogA1.value = P.fogA1;
@@ -839,13 +889,15 @@ export function createRenderer(ctx) {
     ring, reuploadAll, post, comp, D, setDebug,
     get perf() { return { gpu: { ...gpu }, gpuLast: { ...gpuLast }, hasTimer: !!qExt, cpuMs: ddaMs, scale: ddaScale,
                           ddaW: ddaRT ? ddaRT.width : 0, ddaH: ddaRT ? ddaRT.height : 0 }; }, get sceneRT() { return sceneRT; }, get ddaRT() { return ddaRT; },
-    buildChunk: c => { c.mesh = c.waterMesh = null; uploadChunk(c); },
-    disposeChunk: c => { clearChunk(c); c.mesh = c.waterMesh = null; },
+    source: SRC, blockTable: BT,
+    // VoxelCraft 适配器：宿主的 build/dispose 就是 onChunkChanged 的事件源（其它宿主由自己的适配器发事件，这两个可为空操作）
+    buildChunk: c => { c.mesh = c.waterMesh = null; if (SRC.built) SRC.built(c); },
+    disposeChunk: c => { if (SRC.disposed) SRC.disposed(c); c.mesh = c.waterMesh = null; },
     update: dt => {
       if (ctx.settings && ctx.settings.rd !== ring.rd) { rebuildRing(); reuploadAll(); }
       // 水下雾：主程序用的是近 0.5 / 远 18（很浑），面板可调（雾颜色仍随昼夜/水体取主程序的）
       const cp = camera.position;
-      if (ctx.getBlock(Math.floor(cp.x), Math.floor(cp.y), Math.floor(cp.z)) === B.WATER) {
+      if (ctx.getBlock(Math.floor(cp.x), Math.floor(cp.y), Math.floor(cp.z)) === BT.waterId) {
         U.uFogNear.value = Math.min(P.uwNear, P.uwFar - 0.5); U.uFogFar.value = Math.max(P.uwNear + 0.5, P.uwFar);
       }
     },
@@ -854,4 +906,31 @@ export function createRenderer(ctx) {
       (qExt ? ` gpu s/d/c ${gpu.scene.toFixed(1)}/${gpu.dda.toFixed(1)}/${gpu.comp.toFixed(1)} = ${gpu.total.toFixed(1)}ms` : '') +
       (D.view ? ` [dbg ${D.view}]` : ''),
   };
+}
+
+// ───────────────── VoxelCraft 适配器（handover §2.1） ─────────────────
+// ChunkSource：getChunk 返回 {blocks, sky, blk}（light 缺省时用 sky/blk 两个数组，省一次打包拷贝）；
+// 额外约定 forEachChunk(fn(cx,cz))：rebuildRing 后整环重传用。事件源 = 宿主调用 renderer.buildChunk/disposeChunk
+export function voxelCraftSource(ctx) {
+  const live = new Map(), cbs = [], key = (cx, cz) => cx + ',' + cz;
+  const emit = c => { for (const f of cbs) f(c.cx, c.cz); };
+  if (ctx.chunks) for (const c of ctx.chunks.values()) if (c.meshed) live.set(key(c.cx, c.cz), c);   // 中途创建：接管已建区块
+  return {
+    size: ctx.CS, height: ctx.CH,
+    getChunk(cx, cz) {
+      const c = live.get(key(cx, cz));
+      return c && c.blocks && c.sky && c.blk ? { blocks: c.blocks, sky: c.sky, blk: c.blk } : null;
+    },
+    forEachChunk(fn) { for (const c of [...live.values()]) fn(c.cx, c.cz); },
+    onChunkChanged(cb) { cbs.push(cb); },
+    built(c) { live.set(key(c.cx, c.cz), c); emit(c); },
+    disposed(c) { const k = key(c.cx, c.cz); if (live.get(k) === c) { live.delete(k); emit(c); } },
+  };
+}
+// BlockTable：kind 0 无 / 1 立方 / 2 花草 / 3 火把 / 4 水（= VoxelCraft 的 RENDER）；cullSelf = 同种相邻不画内面（玻璃）
+export function voxelCraftBlocks(ctx) {
+  const { B, RENDER, OPAQUE, SOLID, T_TOP, T_BOT, T_SIDE } = ctx;
+  const cullSelf = new Uint8Array(256); cullSelf[B.GLASS] = 1;
+  const occupied = new Uint8Array(256); for (let i = 1; i < 256; i++) occupied[i] = RENDER[i] ? 1 : 0;
+  return { kind: RENDER, opaque: OPAQUE, solid: SOLID, occupied, cullSelf, tileTop: T_TOP, tileBot: T_BOT, tileSide: T_SIDE, waterId: B.WATER };
 }
