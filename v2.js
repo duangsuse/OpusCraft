@@ -55,7 +55,7 @@ export const P_DEFAULTS = {"scale":0.7999999999999999,"steps":128,"shadowSteps":
   // 树叶：0 方块 / 1 卡片；内部剔除（LEAVES_INNER）
   leafStyle: 0, leafCardLayers: 2, leafOverhang: 0.25, leafHaloDist: 32, leafSeed: 0, leafCullInterior: 1, leafDensity: 1,
   // 水下看水面（v1 表现：半透明水贴图面）
-  uwSurfaceAlpha: 0.67, uwRipple: 0.4, uwRippleFreq: .64, uwTint: '#7fd8e6', uwTintMix: 0.3,
+  uwSurfaceAlpha: 0.67, uwRipple: 0.4, uwRippleFreq: .64, uwRippleMix: 0.5, uwPattern: 0.6, shoreWaveAmp: 0.12, shoreWaveSpeed: 1, uwTintMix: 0.5, uwShafts: 0.5,
   // 星空 / 云星搭配 / 云风格（0 体积 / 1 MC 方块 / 2 Bliss）
   starDensity: 67, starProb: 0.16, starGamma: 1.6, starTwinkle: 0.6, starMinElev: 0., cloudStarBlock: 1,
   cloudNightAlpha: 1., cloudStyle: 0, cloudAlpha: 0.2, skyDarkenNight: 0.12,
@@ -65,7 +65,7 @@ export const P_DEFAULTS = {"scale":0.7999999999999999,"steps":128,"shadowSteps":
 const WATER_PRESETS = {
   noise: { waterStyle: 0, reflStrength: 0.36, waterClarity: 0.72, foamWidth: 1.2, waveNoise: 0.08, waveStrength: 0.06, waterSpec: 20,  waterSkyZen: 0, waterDeepSat: 0, shoreFade: 0.3 },
   mc:    { waterStyle: 1, reflStrength: 0.6,  waterClarity: 0.85, foamWidth: 1.2, waveNoise: 0,    waveStrength: 0.06, waterSpec: 64,  waterSkyZen: 1, waterDeepSat: 1, shoreFade: 0.4 },
-  bliss: { waterStyle: 2, reflStrength: 0.8,  waterClarity: 0.92, foamWidth: 0,   waveNoise: 0.03, waveStrength: 0.05, waterSpec: 180, waterSkyZen: 1, waterDeepSat: 1, shoreFade: 0.6 },
+  bliss: { waterStyle: 2, reflStrength: 0.8,  waterClarity: 0.92, foamWidth: 1.2, waveNoise: 0.03, waveStrength: 0.05, waterSpec: 180, waterSkyZen: 1, waterDeepSat: 1, shoreFade: 0.6 },
 };
 // 云预设按钮：风格 + 适合该风格的厚度/密度/明暗
 const CLOUD_PRESETS = {
@@ -109,8 +109,8 @@ export function createRenderer(ctx) {
     ['植被', [
       ['v', vec2(Pr, 'swayAmp', 'swayFreq'),      V2('摇动 幅度/频率', R(0, 0.15, 0.005), R(0.3, 3, 0.05))],
       ['swayDist',    Pr, { label: '摇动距离(格)', ...R(8, 96, 1) }],
-      ['leafShadow',  Pr, { label: '树叶阴影', options: { '精确': 0, '实心': 1, '无': 2 }, fx: 'sh' }],
-      ['v', vec2(Pr, 'leafShadowDist', 'leafLodDist'), V2('精确阴影/镂空距离 (max=∞)', R(4, 64, 1, true), R(16, 160, 1, true))],
+      ['leafShadow',  Pr, { label: '树叶阴影', options: { '精确': 0, '实心': 1, '无': 2 }, fx: 'def' }],
+      ['v', vec2(Pr, 'leafShadowDist', 'leafLodDist'), V2('精确阴影/镂空距离 (max=∞)', R(4, 64, 1, true), R(16, 160, 1, true), 'def')],
       ['leafLodMs',   Pr, { label: '精度切换渐变 ms', ...R(0, 2000, 10) }],
     ]],
     ['树叶', [
@@ -130,24 +130,27 @@ export function createRenderer(ctx) {
       ['', null, { button: '云：MC 方块', fn: () => setPreset(CLOUD_PRESETS.mc) }],
       ['', null, { button: '云：Bliss', fn: () => setPreset(CLOUD_PRESETS.bliss) }],
     ]],
-    ['水', [
+    ['水体', [
       ['waterStyle',  Pr, { label: '风格', options: { '噪声': 0, 'Reimagined': 1, 'Bliss': 2 }, fx: 'def' }],
       ['v', vec2(Pr, 'waterClarity', 'reflStrength'), V2('透亮/反射',   R(0, 1), R(0, 1))],
       ['v', vec2(Pr, 'waterA2', 'waterA1'),       V2('不透明 深/浅', R(0, 1), R(0, 1))],
       ['v', vec2(Pr, 'waterD2', 'waterD1'),       V2('水深过渡 深/浅(格)', R(1, 24, 0.5, true), R(0, 8, 0.25))],
       ['v', vec2(Pr, 'waveStrength', 'waveNoise'), V2('波浪 正弦/噪声', R(0, 0.2, 0.005), R(0, 0.4, 0.005))],
       ['waveScale',   Pr, { label: '噪声频率', ...R(0.2, 4, 0.05) }],
-      ['v', vec2(Pr, 'foamWidth', 'shoreFade'),   V2('岸边 泡沫/软化(格)', R(0, 1.5, 0.05), R(0, 1.5, 0.05))],
       ['v', vec2(Pr, 'waterSpec', 'waterSkyZen'), V2('高光指数/天顶反射', R(8, 256, 1, true), R(0, 1))],
       ['waterDeepSat', Pr, { label: '深水饱和', ...R(0, 1) }],
-      ['uwSurfaceAlpha', Pr, { label: '水下看水面不透明', ...R(0, 1) }],
-      ['v', vec2(Pr, 'uwRipple', 'uwRippleFreq'), V2('水下仰视 波纹/频率', R(0, 1), R(0.5, 1.5, 0.01))],
-      ['uwTint',      Pr, { label: '水下仰视 滤镜色' }],
-      ['uwTintMix',   Pr, { label: '滤镜强度', ...R(0, 1) }],
-      ['v', vec2(Pr, 'uwNear', 'uwFar'),          V2('水下雾 近/远', R(0.2, 8, 0.1), R(6, 96, 1))],
       ['', null, { button: '水面：噪声', fn: () => setPreset(WATER_PRESETS.noise) }],
       ['', null, { button: '水面：Reimagined', fn: () => setPreset(WATER_PRESETS.mc) }],
       ['', null, { button: '水面：Bliss', fn: () => setPreset(WATER_PRESETS.bliss) }],
+    ]],
+    ['岸边/水下', [
+      ['v', vec2(Pr, 'foamWidth', 'shoreFade'),   V2('岸边 波纹范围/软化(格)', R(0, 1.5, 0.05), R(0, 1.5, 0.05))],
+      ['v', vec2(Pr, 'shoreWaveAmp', 'shoreWaveSpeed'), V2('岸边波纹 起伏(格)/速度', R(0, 0.3, 0.01), R(0, 3, 0.05))],
+      ['uwSurfaceAlpha', Pr, { label: '水下看水面不透明', ...R(0, 1) }],
+      ['v', vec2(Pr, 'uwRipple', 'uwRippleFreq'), V2('水下仰视 波纹/频率', R(0, 1), R(0.5, 1.5, 0.01))],
+      ['v', vec2(Pr, 'uwRippleMix', 'uwPattern'), V2('波纹 经典↔水底式/图样亮度', R(0, 1), R(0, 1.5))],
+      ['v', vec2(Pr, 'uwTintMix', 'uwShafts'),    V2('水下 水色吸收/光束', R(0, 1), R(0, 1.5))],
+      ['v', vec2(Pr, 'uwNear', 'uwFar'),          V2('水下雾 近/远', R(0.2, 8, 0.1), R(6, 96, 1))],
     ]],
     ['天空', [
       ['v', vec2(Pr, 'starDensity', 'starProb'),  V2('星 密度/概率', R(24, 96, 1), R(0.02, 0.2, 0.005))],
@@ -194,7 +197,8 @@ export function createRenderer(ctx) {
   if (LEAF_OK) {
     infoData[LV * 4] |= 128;
     for (let i = 192; i < 255; i++) infoData.set([5, 0, 0, 0], i * 4);
-    infoData.set([1 | 16 | (BT.solid[LV] << 5) | 128, BT.tileTop[LV], BT.tileBot[LV], BT.tileSide[LV]], 255 * 4);
+    // LEAVES_INNER 不带树叶位：按普通不透明方块处理，不参与树叶的 alpha / LOD / 摇动 / 阴影档计算
+    infoData.set([1 | 16 | (BT.solid[LV] << 5), BT.tileTop[LV], BT.tileBot[LV], BT.tileSide[LV]], 255 * 4);
   }
   const LEAF_CARD_LAYER = BT.tileCard != null ? BT.tileCard : (LV != null ? BT.tileSide[LV] : 0);
   const infoTex = new THREE.DataTexture(infoData, 256, 1, THREE.RGBAIntegerFormat, THREE.UnsignedByteType);
@@ -353,7 +357,7 @@ export function createRenderer(ctx) {
   function resetDefaults() {
     Object.assign(P, P_DEFAULTS); saveP(P);
     for (const k in P_DEFAULTS) apply(k, 'u');
-    apply('scale', 'rt'); apply('shadowSteps', 'sh'); apply('leafStyle', 'leaf');
+    apply('scale', 'rt'); apply('shadowSteps', 'sh'); apply('leafStyle', 'leaf'); apply('leafShadow', 'def');
   }
   function setPreset(pr) {         // 预设按钮：只写 P
     Object.assign(P, pr);
@@ -363,7 +367,9 @@ export function createRenderer(ctx) {
   // 风格开关 → 编译期宏（关闭时不进着色器，不增加常驻分支）
   function syncDefines() {
     if (!post) return;
-    const want = { LEAF_CARDS: LEAF_OK && P.leafStyle === 1 ? 1 : 0, CLOUD_STYLE: P.cloudStyle | 0, WATER_STYLE: P.waterStyle | 0 };
+    const want = { LEAF_CARDS: LEAF_OK && P.leafStyle === 1 ? 1 : 0, CLOUD_STYLE: P.cloudStyle | 0, WATER_STYLE: P.waterStyle | 0,
+                   // 树叶阴影档 / 距离渐变：编译期（距离取 max 视为 ∞ → 整段代码不进着色器）
+                   LEAF_SH: P.leafShadow | 0, LEAF_SH_LOD: (P.leafShadow | 0) === 0 && P.leafShadowDist < 64 ? 1 : 0, LEAF_LOD: P.leafLodDist < 160 ? 1 : 0 };
     if (want.CLOUD_STYLE === 2 && !uni.uCloudNoise.value) uni.uCloudNoise.value = makeCloudNoise();   // 体积云噪声：首次启用时生成
     let ch = false;
     for (const k in want) if (post.defines[k] !== want[k]) { post.defines[k] = want[k]; ch = true; }
@@ -421,6 +427,7 @@ export function createRenderer(ctx) {
   uniform sampler2D uWaterNoise;   // 可平铺噪声法线（RG = 斜率）
   uniform vec2 uWave1;             // (噪声强度, 噪声频率)
   uniform vec3 uSunDir;
+  uniform vec3 uSunVis;            // 宿主天空里太阳的真实方向（无面板偏移）
   uniform sampler2D uCloudTex;
   uniform vec3 uCloudColor;
   uniform vec4 uCloud;             // (offset.x, offset.y, 底面高度, 厚度)
@@ -434,11 +441,12 @@ export function createRenderer(ctx) {
   uniform float uUwAlpha;          // 水下仰视：水面不透明度（v1 表现）
   uniform vec3 uWater2;            // (高光指数, 天顶反射权重, 深水饱和)
   uniform vec3 uSkyTop;            // 宿主天空球天顶色
+  uniform vec2 uShore;             // 岸边波纹：(起伏高度/格, 速度)
   uniform float uShoreFade;        // 岸边软化：竖直水深 < 该值时水面渐隐
   uniform vec3 uRoLag;             // 指数滞后的相机（局部坐标）：树叶精度切换渐变
   uniform vec3 uSkyHor;            // 宿主天空球地平线色（反射用）
-  uniform vec4 uUw;                // 水下仰视：(波纹强度, 波纹频率, 滤镜强度, -)
-  uniform vec3 uUwTint;            // 水下仰视：滤镜色
+  uniform vec2 uUw2;               // 水下仰视波纹：(0 经典 ↔ 1 水底式, 图样亮度)
+  uniform vec4 uUw;                // 水下：(仰视波纹强度, 波纹频率, 水体吸收, 光束强度)
   #if CLOUD_STYLE == 2
   precision highp sampler3D;
   uniform sampler3D uCloudNoise;   // 64³ 可平铺：R = Perlin-Worley 低频形状，G = Worley 高频侵蚀
@@ -485,10 +493,11 @@ export function createRenderer(ctx) {
     if (tE >= tX) return false;
     float dt = max((tX - tE) / float(nS), 1.2);
     float t = tE + dt * ign(gl_FragCoord.xy);
-    bool day = uSunDir.y > -0.05;
-    vec3 Ld = day ? uSunDir : -uSunDir;                                 // 夜间用月光（对向）
-    float dayF = smoothstep(-0.05, 0.12, uSunDir.y);
-    vec3 sunC = mix(vec3(1.0, 0.5, 0.25), vec3(1.0, 0.96, 0.9), smoothstep(0.02, 0.35, uSunDir.y));
+    // 光源用宿主可见的太阳/月亮方向（东升西落于 x-y 平面，z 略偏 0.2），不含面板「光向量偏移」——银边/高亮点与天上的日月对齐
+    bool day = uSunVis.y > -0.05;
+    vec3 Ld = day ? uSunVis : -uSunVis;                                 // 夜间用月光（宿主月亮 = 太阳对向）
+    float dayF = smoothstep(-0.05, 0.12, uSunVis.y);
+    vec3 sunC = mix(vec3(1.0, 0.5, 0.25), vec3(1.0, 0.96, 0.9), smoothstep(0.02, 0.35, uSunVis.y));
     vec3 lightC = mix(vec3(0.10, 0.13, 0.20), sunC * (1.0 + 1.83 * uCloud2.z), dayF);   // 日照 0.36 → ×1.66
     vec3 amb = mix(vec3(0.75), mix(uSkyTop, uSkyHor, 0.5), dayF) * uCloudColor * 0.9;   // 天空光（宿主云色已含昼夜；夜间不再乘暗天色）
     float cth = dot(r, Ld);
@@ -562,7 +571,7 @@ export function createRenderer(ctx) {
       else             { t = tM.y; cell.y += st.y; tM.y += tD.y; face = 1; }
     }
     if (f0 < 0) return false;
-    float dayF = smoothstep(-0.05, 0.12, uSunDir.y), hd = length(r.xz * tc);
+    float dayF = smoothstep(-0.05, 0.12, uSunVis.y), hd = length(r.xz * tc);   // 云一律对齐宿主可见日月
     float nightA = mix(uStar1.z, 1.0, dayF);         // 夜间云更实（按住星星）
     #if CLOUD_STYLE == 1
     float baseM = f0 == 2 ? 1.0 : f0 == 3 ? 0.75 : f0 == 4 ? 0.92 : 0.85;   // 顶亮、底暗、侧中等
@@ -574,7 +583,7 @@ export function createRenderer(ctx) {
     float base = f0 == 2 ? 1.0 : f0 == 3 ? 0.8 : f0 == 0 ? 0.92 : f0 == 1 ? 0.87 : 0.92;   // 底面比天空亮（白云）
     float faceSh = 1.0 - (1.0 - base) * (0.6 + 0.8 * uCloud2.y);
     float core = 1.0 - 0.3 * uCloud2.y * (1.0 - exp(-od / max(uCloud.w, 1.0)));
-    float lit = 1.0 + uCloud2.z * (max(dot(nF, uSunDir), 0.0) - 0.2) * dayF;
+    float lit = 1.0 + uCloud2.z * (max(dot(nF, uSunVis), 0.0) - 0.2) * dayF;
     cc = vec4(uCloudColor * faceSh * core * lit, min((1.0 - exp(-od * uCloud2.x)) * nightA, 1.0) * (1.0 - smoothstep(250.0, 480.0, hd)));
     return cc.a > 0.01;
   }
@@ -643,7 +652,9 @@ export function createRenderer(ctx) {
   bool solidAt(ivec3 c) { return c.y >= 0 && c.y < H && (infoR(voxAt(c).r) & 32u) != 0u; }
 
   // 花草：格内两条对角竖直平面（v1 emitCross：x=z 与 x+z=1，水平范围 0.15..0.85）
-  bool crossHit(vec3 o, vec3 d, float t0, float t1, float layer, inout float tH, inout vec2 uvH) {
+  // sw = 摇动剪切量（高草；底部固定、顶部偏移 sw·(1, 0.6)，同树叶）；线性剪切不改变射线参数 t
+  bool crossHit(vec3 o, vec3 d, float t0, float t1, float layer, float sw, inout float tH, inout vec2 uvH) {
+    if (sw != 0.0) { vec2 sv = sw * vec2(1.0, 0.6); o.xz -= sv * o.y; d.xz -= sv * d.y; }
     float ta = -(o.x - o.z) / (d.x - d.z), tb = (1.0 - o.x - o.z) / (d.x + d.z);
     for (int k = 0; k < 2; k++) {
       float tt = (k == 0) == (ta < tb) ? ta : tb;
@@ -680,7 +691,7 @@ export function createRenderer(ctx) {
   }
 
   // ── 树叶（goals §1/§2）──
-  int gLeafSh = 0;                     // 阴影射线的树叶档 0 精确 / 1 实心 / 2 无
+  bool gLeafSolid = false;             // LEAF_SH == 0 时：本次阴影射线的受光面是树叶 → 树叶按实心
   // 距离一律按「格中心到相机」量化：整块树叶一起切换精度/摇动幅度，不会出现一个球面扫过所有树
   float cellD(ivec3 c) { return length(vec3(c) + 0.5 - uRo); }
   ivec3 gShHome = ivec3(-1 << 20);     // 阴影射线跳过的起点格（卡片命中点在树叶格内）
@@ -864,16 +875,27 @@ export function createRenderer(ctx) {
           uint rk = inf.r & 15u;
           float tN = min(min(tM.x, tM.y), tM.z);
           vec3 o = ro - vec3(cell);
-          if ((inf.r & 128u) != 0u) {                                       // 树叶（含 LEAVES_INNER）
+          if ((inf.r & 128u) != 0u) {                                       // 树叶（LEAVES_INNER 走下面的不透明分支）
             if (cell != home) {
-              bool opq = (inf.r & 16u) != 0u;
-              if (shadow) {                                                  // 阴影：精确 / 实心 / 无（不摇）
-                if (gLeafSh != 2) {
-                  bool h = gLeafSh == 1 || opq || (gLeafSh == 0 && lodSolid(cell, uLeaf0.y, nrm, clamp(o + r * t, 0.0, 1.0))) || ++nAlpha > 8;   // 远处叶块整格投实心影（带渐变）
-                  if (!h) { float ly, sh; vec2 uv = faceUV(nrm, clamp(o + r * t, 0.0, 1.0), inf, ly, sh); h = matSampleLod(uv, ly, lodAt(t)).a >= 0.5; }
-                  if (h) { tHit = t; hc = cell; hid = id; return true; }
-                }
-              } else if (opq || lodSolid(cell, uLeaf0.x, nrm, clamp(o + r * t, 0.0, 1.0)) || ++nAlpha > 8) {   // 内部 / 远处 LOD：实心（带渐变）
+              if (shadow) {                                                  // 阴影（不摇）：LEAF_SH 编译期三档
+                #if LEAF_SH == 0
+                bool h = gLeafSolid;                                         // 树叶受光面：树叶之间按实心
+                #if LEAF_SH_LOD
+                h = h || lodSolid(cell, uLeaf0.y, nrm, clamp(o + r * t, 0.0, 1.0));   // 远处叶块整格投实心影（带渐变）
+                #endif
+                h = h || ++nAlpha > 8;
+                if (!h) { float ly, sh; vec2 uv = faceUV(nrm, clamp(o + r * t, 0.0, 1.0), inf, ly, sh); h = matSampleLod(uv, ly, lodAt(t)).a >= 0.5; }
+                if (h) { tHit = t; hc = cell; hid = id; return true; }
+                #elif LEAF_SH == 1
+                tHit = t; hc = cell; hid = id; return true;                  // 实心：直接命中
+                #endif
+                                                                             // LEAF_SH == 2：穿过
+              }
+              #if LEAF_LOD
+              else if (lodSolid(cell, uLeaf0.x, nrm, clamp(o + r * t, 0.0, 1.0)) || ++nAlpha > 8) {   // 远处 LOD：实心（带渐变）
+              #else
+              else if (++nAlpha > 8) {
+              #endif
                 tHit = t; hc = cell; hid = id; return true;
               } else {
                 #if LEAF_CARDS
@@ -888,7 +910,11 @@ export function createRenderer(ctx) {
               }
             }
           } else {
+            #if LEAF_SH == 2
+            if (cell != home && (inf.r & 16u) != 0u && !(shadow && ${LEAF_OK ? 'id == 255u' : 'false'})) {   // 不透明方块（树叶阴影「无」时内部树叶也不挡）
+            #else
             if (cell != home && (inf.r & 16u) != 0u) {                     // 不透明方块
+            #endif
               tHit = t; hc = cell; hid = id; return true;
             }
             if (cell != home && rk == 1u && !((inf.r & 64u) != 0u && prevId == id)) {   // 镂空方块（玻璃等）：入射面 alpha 测试
@@ -917,7 +943,7 @@ export function createRenderer(ctx) {
           }
           if (rk == 2u || rk == 3u) {                                        // 花草 / 火把
             float tt = 0.0; vec2 uv = vec2(0.0);
-            bool h = ++nAlpha > 8 ? false : rk == 2u ? crossHit(o, r, t, tN, float(inf.a), tt, uv)
+            bool h = ++nAlpha > 8 ? false : rk == 2u ? crossHit(o, r, t, tN, float(inf.a), !shadow && id == ${BT.tallGrassId != null ? BT.tallGrassId : 256}u ? swayK(cell) : 0.0, tt, uv)
                                                      : torchHit(cell, o, r, t, tN, float(inf.a), tt, uv);
             if (h) { tHit = tt; hc = cell; hid = id; kind = int(rk); uvl = vec3(uv, float(inf.a)); return true; }
           }
@@ -979,40 +1005,28 @@ export function createRenderer(ctx) {
 
   // ── 水面辅助 ──
   float nB(vec2 uv) { return texture2D(uWaterNoise, uv).b * 1.417; }      // 可平铺噪声高度 ≈ 0..1
-  float cut(float th, float x, float aa) { return aa > 0.0 ? smoothstep(th - aa, th + aa, x) : step(th, x); }
-  // 岸边泡沫（仿 Complementary Reimagined）：按竖直水深 e = vd/宽 对两层反向漂移的噪声做阈值。
-  // 贴岸实心带（边界被噪声撕碎）+ 外侧零碎泡沫斑 + 向外漂散、被噪声打断的浪线；无正弦。
-  // Reimagined 风格吸附到方块 16² 像素格、硬边；其它风格软边
-  float foamMask(vec2 q, float vd) {
-    float w = uWater0.w;
-    if (w <= 0.0) return 0.0;
-    float e = vd / w;
-    if (e >= 1.0) return 0.0;
-    #if WATER_STYLE == 1
-    q = (floor(q * 16.0) + 0.5) / 16.0; float aa = 0.0;
-    #else
-    float aa = 0.05;
-    #endif
-    float n1 = nB(q * 0.23 + uTime * vec2(0.011, 0.006));
-    float n2 = nB(q * 0.61 - uTime * vec2(0.008, -0.013));
-    float n = n1 * 0.6 + n2 * 0.4;
-    float core  = 1.0 - cut(0.15 + 0.35 * n, e, aa);
-    float spots = cut(0.5 + 0.45 * e, n2, aa) * 0.7;
-    float ring  = cut(0.86, fract(e * 1.4 - uTime * 0.2 + n1 * 0.7), aa * 0.5) * cut(0.42, n2, aa) * (1.0 - e) * 0.65;
-    return max(core, max(spots, ring)) * (1.0 - smoothstep(0.7, 1.0, e));
+  // 岸边波纹（替代泡沫）：平行于岸线、向岸推进的涌浪。d = 到岸距离（格），返回起伏 0..1（× uShore.x = 格）
+  // 相位沿岸线由噪声打乱 → 拍岸时刻不同步；d = 0 处即岸壁上水线的升降
+  float shoreH(vec2 q, float d) {
+    float R = uWater0.w;
+    if (R <= 0.0 || d >= R) return 0.0;
+    float ph = d * 3.6 + uTime * 1.7 * uShore.y + nB(q * 0.17 + uTime * vec2(0.006, 0.004)) * 7.0;
+    float s = 0.5 + 0.5 * sin(ph);
+    return s * s * (1.0 - smoothstep(0.25 * R, R, d));
   }
   // 到岸距离（水平，格）：水面层 5×5 邻格里最近的非水非空方块的 AABB 距离（MC 水至少 0.875 深，竖直水深分不出岸边）
-  float shoreDist(vec3 wp, float R) {
+  // dir = 离岸方向（距离场梯度，单位向量；无岸 = 0）
+  float shoreDist(vec3 wp, float R, out vec2 dir) {
     ivec3 c = ivec3(floor(wp - vec3(0.0, 0.01, 0.0)));
     vec2 f = wp.xz - vec2(c.xz);
-    float d = 9.0;
+    float d = 9.0; dir = vec2(0.0);
     for (int dz = -2; dz <= 2; dz++) for (int dx = -2; dx <= 2; dx++) {
       if (dx == 0 && dz == 0) continue;
       vec2 lo = vec2(float(dx), float(dz));
       float dd = length(f - clamp(f, lo, lo + 1.0));
       if (dd >= min(d, R)) continue;
       uint id = voxAt(c + ivec3(dx, 0, dz)).r;
-      if (id != 0u && id != ${BT.waterId}u) d = dd;
+      if (id != 0u && id != ${BT.waterId}u) { d = dd; dir = (f - clamp(f, lo, lo + 1.0)) / max(dd, 1e-4); }
     }
     return d;
   }
@@ -1049,16 +1063,67 @@ export function createRenderer(ctx) {
     }
     return cos(a);
   }
-  // 返回 (dx, dy, 亮度系数)：dx/dy 量级同原 shader（±0.016 屏幕 uv）
-  vec3 uwRipple(vec2 wxz) {
-    vec2 c = wxz * 0.04 * uUw.y; float t = uTime * 1.3;
+  // 返回 (dx, dy, 亮度系数)：dx/dy 量级同原 shader（±0.016 屏幕 uv）；面板 0.5/1 = 原着色器 0.14/2.15
+  vec3 uwRipple(vec2 wxz, float k) {
+    vec2 c = wxz * 0.04 * uUw.y * 2.15; float t = uTime * 1.3;
     float c0 = uwRip(c, t);
     float dx = 0.5 * (c0 - uwRip(c + vec2(21.33, 0.0), t)) / 60.0;
     float dy = 0.5 * (c0 - uwRip(c + vec2(0.0, 10.95), t)) / 60.0;
     float al = 1.0 + dx * dy * 700.0;
     float ddx = dx - 0.012, ddy = dy - 0.012;
     if (ddx > 0.0 && ddy > 0.0) al = pow(al, ddx * ddy * 200000.0);
-    return vec3(dx, dy, mix(1.0, al, uUw.x));
+    return vec3(dx, dy, mix(1.0, al, k));
+  }
+  // ── 水下（相机在水中）的低成本光效 ──
+  // 焦散图样：两层反向漂移噪声之差 → 亮脊（同水上看水底）
+  float causAt(vec2 fp) {
+    float c1 = nB(fp * 0.31 + uTime * vec2(0.031, 0.017)), c2 = nB(fp * 0.43 - uTime * vec2(0.022, -0.027));
+    return pow(clamp(1.0 - abs(c1 - c2) * 3.0, 0.0, 1.0), 6.0);
+  }
+  // 水面波纹场（与 causAt 同频率/漂移）：返回 (高度梯度 xz, 亮脊图样)
+  vec3 uwField(vec2 fp) {
+    vec2 A = uTime * vec2(0.031, 0.017), B = uTime * vec2(0.022, -0.027);
+    float c1 = nB(fp * 0.31 + A), c2 = nB(fp * 0.43 - B), e = 0.15;
+    float hx = nB((fp + vec2(e, 0.0)) * 0.31 + A) + nB((fp + vec2(e, 0.0)) * 0.43 - B);
+    float hz = nB((fp + vec2(0.0, e)) * 0.31 + A) + nB((fp + vec2(0.0, e)) * 0.43 - B);
+    float h0 = c1 + c2;
+    return vec3((hx - h0) / e, (hz - h0) / e, pow(clamp(1.0 - abs(c1 - c2) * 3.0, 0.0, 1.0), 6.0));
+  }
+  vec3 uwSunC() { return mix(vec3(1.0, 0.55, 0.3), vec3(1.0, 0.95, 0.85), smoothstep(0.02, 0.35, uSunDir.y)); }
+  vec3 uwLs() { return refract(-uSunDir, vec3(0.0, 1.0, 0.0), 0.752); }   // 水中阳光传播方向（向下，经水面折射）
+  // 水体颜色吸收：按水体本身的颜色（= 宿主水下雾色 cWater×昼夜）逐通道 Beer 衰减 + 向水色内散射
+  vec3 uwAbsorb(vec3 c, float d) {
+    vec3 wc = uFogColor / max(max(uFogColor.r, uFogColor.g), max(uFogColor.b, 1e-3));
+    vec3 Tr = exp(-uUw.z * 0.3 * (1.05 - wc) * d);
+    return c * Tr + uFogColor * (1.0 - Tr);
+  }
+  // 水下物体表面焦散：从所在水格向上找水面（≤ 8 格），按水深衰减；投影沿折射阳光方向
+  float uwCaustic(vec3 p, ivec3 c) {
+    if (c.y < 0 || c.y >= H || voxAt(c).r != ${BT.waterId}u) return 0.0;
+    int k = 1;
+    for (; k < 8; k++) { ivec3 q = c + ivec3(0, k, 0); if (q.y >= H || voxAt(q).r != ${BT.waterId}u) break; }
+    if (k >= 8) return 0.0;
+    float dz = max(float(c.y + k) - 0.125 - p.y, 0.0);
+    vec3 Ls = uwLs();
+    vec2 fp = p.xz + uWOff - Ls.xz / min(Ls.y, -0.2) * dz;
+    return causAt(fp) * exp(-dz * 0.15);
+  }
+  // 水中光束（god rays）：沿视线 6 个抖动采样点，把焦散噪声沿折射阳光方向投到 y=0 平面 → 与太阳方向一致的光柱；前向散射加权
+  vec3 uwShafts(vec3 ro, vec3 r, float tMax, float skyK) {
+    float dayF = smoothstep(-0.05, 0.12, uSunDir.y);
+    if (uUw.w <= 0.0 || dayF <= 0.0 || skyK <= 0.0) return vec3(0.0);
+    vec3 Ls = uwLs();
+    vec2 sl = Ls.xz / min(Ls.y, -0.2);
+    float tm = min(tMax, 24.0), dt = tm / 6.0, t = dt * ign(gl_FragCoord.xy), a = 0.0;
+    for (int i = 0; i < 6; i++) {
+      vec3 p = ro + r * t;
+      vec2 q = p.xz + uWOff - sl * p.y;
+      float n1 = nB(q * 0.09 + uTime * vec2(0.012, 0.007)), n2 = nB(q * 0.13 - uTime * vec2(0.009, -0.011));
+      a += pow(clamp(1.0 - abs(n1 - n2) * 2.2, 0.0, 1.0), 3.0) * exp(-t * 0.07);
+      t += dt;
+    }
+    float ph = 0.3 + 1.7 * pow(max(dot(r, -Ls), 0.0), 3.0);
+    return uwSunC() * (a / 6.0) * ph * uUw.w * 0.5 * dayF * skyK * uExposure * min(tm / 8.0, 1.0);
   }
   // 反射：追踪命中 → 简化着色（体素光 + 朝阳面，无 AO/阴影）；未命中 → 天空渐变 + 云（低采样）
   bool reflHit(vec3 p, vec3 d, float tMax, float t0, out vec3 col) {
@@ -1081,6 +1146,8 @@ export function createRenderer(ctx) {
     }
     return false;
   }
+  #if WATER_STYLE == 2
+  // Bliss 水反射（仅 WATER_STYLE 2 编译）
   vec3 reflScene(vec3 p, vec3 d, float tMax, float t0, float skyK) {
     vec3 hc_;
     if (reflHit(p, d, tMax, t0, hc_)) return hc_;
@@ -1093,6 +1160,7 @@ export function createRenderer(ctx) {
     #endif
     return s;
   }
+  #endif
 
   void main() {
     vec4 vp = uInvProj * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
@@ -1111,13 +1179,37 @@ export function createRenderer(ctx) {
     bool camW = uRo.y >= 0.0 && uRo.y < float(H) && voxAt(ivec3(floor(uRo))).r == ${BT.waterId}u;
     bool water = !camW && tw >= 0.0 && (!hit || tw < tHit);
     bool uwSurf = camW && tw >= 0.0 && (!hit || tw < tHit);   // 水下仰视：水面 = 半透明贴图面（同 v1）
-    vec3 uwR = vec3(0.0, 0.0, 1.0), rc = r;                     // 水下仰视波纹：折射偏移（云/天空/水上地形一起扭）
-    if (uwSurf && uUw.x > 0.0) { vec3 wp0 = uRo + r * tw; uwR = uwRipple(wp0.xz + uWOff); rc = normalize(r + vec3(uwR.x, 0.0, uwR.y) * 3.0 * uUw.x); }
+    // 水下仰视波纹 = 水面图样 + 对水上内容的折射扭曲，两者出自同一个波纹场（图样与扭曲同步移动，不再分层「打鼓」）
+    //   经典：Shadertoy 7 向余弦（高光 → 图样，差分 → 扭曲）；水底式：与水底焦散同源的噪声（亮脊 → 图样，高度梯度 → 扭曲）
+    //   uUw2.x 混合两者；uUw2.y 图样亮度。图样只叠在水面层上，不再调制水上内容的整体亮度
+    //   去突兀：远处/掠射水面、屏幕边缘逐渐减弱
+    float uwK = uUw.x * 0.28;                                  // 波纹强度（面板→着色器）
+    vec3 rc = r; vec2 uwOff = vec2(0.0); float uwPat = 0.0;
+    if (uwSurf && uwK > 0.0) {
+      vec3 wp0 = uRo + r * tw; vec2 wq0 = wp0.xz + uWOff;
+      vec2 se = min(vUv, 1.0 - vUv);
+      float fade = exp(-tw * 0.035) * smoothstep(0.04, 0.3, abs(r.y)) * smoothstep(0.0, 0.06, min(se.x, se.y));
+      float mN = uUw2.x, mS = 1.0 - mN;
+      if (mS > 0.0) {
+        vec3 uwR = uwRipple(wq0, uwK);
+        uwOff += uwR.xy * 3.0 * uwK * mS;
+        uwPat += clamp((uwR.z - 1.0) / max(uwK, 1e-3) * 0.25, 0.0, 1.0) * mS;
+      }
+      if (mN > 0.0 && wn.y != 0) {
+        vec3 fl = uwField(wq0 * (uUw.y / 0.64));
+        uwOff -= fl.xy * 0.045 * uUw.x * mN;
+        uwPat += fl.z * mN;
+      }
+      uwOff *= fade; uwPat *= fade;
+      rc = normalize(r + vec3(uwOff.x, 0.0, uwOff.y));
+    }
+    float camSky = 15.0;                                       // 相机所在水格的天空光（水下光效按它衰减：洞穴/深处无光束）
+    if (camW) camSky = float(voxAt(ivec3(floor(uRo))).g >> 4u);
     float tc; vec4 cc; bool cloud = cloudHit(uRo, rc, tc, cc);
     if (!hit && !water && !uwSurf) {
       if (camW) {                                              // 水下且出不了水（深水/洞穴/水下平视）：水体雾色
         float zf = uFogFar;
-        gl_FragColor = vec4(uFogColor, 1.0);
+        gl_FragColor = vec4(uFogColor + uwShafts(uRo, r, 24.0, camSky / 15.0), 1.0);
         gl_FragDepth = uFar * (zf - uNear) / (zf * (uFar - uNear));
         RET;
       }
@@ -1176,7 +1268,10 @@ export function createRenderer(ctx) {
       if (uShadowSteps > 0 && ndl > 0.0 && G > 0.0) {
         float st; ivec3 sc_, sn_; uint si_; int sk_; vec3 su_; float stw_; ivec3 swn_;
         vec3 p0 = uRo + r * tHit + (kind == 0 ? nW * 2e-3 : uSunDir * 0.02);
-        gLeafSh = int(uLeaf0.z);
+        // 树叶受光面：树叶之间只做「实心」级统一处理（不做 alpha / 距离渐变）；精确档只用于投到地面等非树叶表面的整体拖影
+        #if LEAF_SH == 0
+        gLeafSolid = kind == 6 || (kind == 0 && (inf.r & 128u) != 0u);
+        #endif
         if (kind == 6) gShHome = ivec3(floor(p0));
         if (trace(p0, uSunDir, uShadowDist, uShadowSteps, true, st, sc_, sn_, si_, sk_, su_, stw_, swn_)) sh = 0.0;
       }
@@ -1184,13 +1279,43 @@ export function createRenderer(ctx) {
       float sunK = 1.0 + uSun * ndl * sh * G - uShadowStrength * 0.5 * occl * G;
       vec3 lv = max(uSkyTint * bright(max(L.x - uSkyDarken, 0.0)) * sunK, vec3(1.0, 0.86, 0.66) * bright(L.y));
       col = matSampleLod(uv, layer, lodAt(tHit)).rgb * lv * shade * ao * uExposure;
+      if (camW) {                                              // 相机在水中：水下表面焦散
+        ivec3 wc_ = kind == 0 ? hc + n : hc;
+        col *= 1.0 + uwCaustic(uRo + r * tHit, wc_) * 1.4 * dayF * clamp((L.x - 7.0) / 8.0, 0.0, 1.0);
+      }
       z = tHit * cosF;
+      // 岸壁水线（纵向的岸边波纹）：紧邻水面格的侧面上，水线随涌浪升降（shoreH 在 d = 0 处），水线以下盖半透明水色，上方留湿痕变暗
+      if (!camW && !water && kind == 0 && n.y == 0 && uWater0.w > 0.0 && uShore.x > 0.0 && tHit < 96.0) {
+        ivec3 wc = hc + n;
+        if (wc.y >= 0 && wc.y < H - 1 && voxAt(wc).r == ${BT.waterId}u && voxAt(wc + ivec3(0, 1, 0)).r != ${BT.waterId}u) {
+          vec3 p = uRo + r * tHit;
+          float dy = p.y - (float(wc.y) + 0.875), top = uShore.x * 1.6;
+          if (dy > -0.02 && dy < top) {
+            float hh = shoreH(p.xz + uWOff, 0.0) * uShore.x;
+            float aw = 0.02 + tHit * 0.002;                      // 水线抗锯齿
+            float band = 1.0 - smoothstep(hh - aw, hh + aw, dy);
+            uvec2 g = voxAt(wc);
+            vec3 wl = voxLight(float(g.g >> 4u), float(g.g & 15u)) * uExposure;
+            col *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, top, dy));                 // 湿痕
+            vec3 wv = mix(col * vec3(0.55, 0.8, 0.85), vec3(0.12, 0.38, 0.55) * wl, 0.45);
+            wv += wl * 0.35 * (1.0 - smoothstep(0.0, aw * 3.0, abs(dy - hh)));   // 水线处的细亮边（水面弯月面反光）
+            col = mix(col, wv, band * 0.85);
+          }
+        }
+      }
     }
-    if (water) {                                              // 水面（old.htm：波纹法线 + 菲涅尔 + 透射 + 高光 + 岸边泡沫）
+    if (water) {                                              // 水面（old.htm：波纹法线 + 菲涅尔 + 透射 + 高光 + 岸边波纹）
       vec3 wp = uRo + r * tw, wq = wp + vec3(uWOff.x, 0.0, uWOff.y);
       float depth = hit ? tHit - tw : 60.0;
       float vd = depth * max(-r.y, 0.15);                      // 竖直水深近似 → 岸边泡沫 / 软化
       vec3 wN = vec3(wn);
+      // 岸边波纹：到岸距离 + 离岸方向 → 涌浪起伏 sh0 与其沿离岸方向的斜率 sg（法线倾斜）
+      float sd = 9.0, sh0 = 0.0, sg = 0.0; vec2 sdir = vec2(0.0);
+      if (hit && wn.y > 0 && tw < 96.0 && uWater0.w > 0.0 && uShore.x > 0.0) {
+        sd = shoreDist(wp, min(uWater0.w, 2.0), sdir);
+        sh0 = shoreH(wq.xz, sd);
+        sg = (shoreH(wq.xz, sd + 0.05) - shoreH(wq.xz, max(sd - 0.05, 0.0))) / 0.1;
+      }
       // 噪声法线：两层不同尺度/流向的可平铺噪声叠加（打破纯正弦的机械感）
       vec2 nq = wq.xz * (0.06 * uWave1.y), nq2 = wq.xz * (0.15 * uWave1.y);
       #if WATER_STYLE == 1
@@ -1214,6 +1339,7 @@ export function createRenderer(ctx) {
         float A = uWater0.z * 1.6 * (1.0 - smoothstep(32.0, 120.0, tw));
         wN = normalize(vec3(-(hx - h0) / eps * A - ns.x * uWave1.x * 2.0, 1.0, -(hz - h0) / eps * A - ns.y * uWave1.x * 2.0));
       }
+      wN = normalize(wN - vec3(sdir.x, 0.0, sdir.y) * sg * uShore.x * 1.5);
       float cv = max(dot(-r, wN), 0.0);
       float fres = 0.02 + 0.98 * pow(1.0 - cv, 5.0);
       vec3 rr = reflect(r, wN);
@@ -1235,7 +1361,9 @@ export function createRenderer(ctx) {
       float spec = pow(max(dot(rr, uSunDir), 0.0), uWater2.x) * uWater2.x * 0.03 * dayF * skyK;
       if (spec > 0.01 && uShadowSteps > 0) {                   // 高光阴影：树/山挡住的水面没有太阳倒影
         float st; ivec3 sc_, sn_; uint si_; int sk_; vec3 su_; float stw_; ivec3 swn_;
-        gLeafSh = int(uLeaf0.z);
+        #if LEAF_SH == 0
+        gLeafSolid = false;                                    // 水面高光：非树叶受光面
+        #endif
         if (trace(wp + vec3(0.0, 0.05, 0.0), uSunDir, max(uShadowDist, 16.0), uShadowSteps, true, st, sc_, sn_, si_, sk_, su_, stw_, swn_)) spec = 0.0;
       }
       wcol = mix(seen, refl, clamp(fres * (0.4 + uWater0.y), 0.0, 1.0)) + sunC * min(spec, 8.0);
@@ -1246,6 +1374,7 @@ export function createRenderer(ctx) {
         float w2 = sin(wq.z * 0.8 - uTime * 1.0) + 0.5 * sin((wq.x + wq.z) * 1.3 + uTime * 1.5);
         wN = normalize(vec3(-(w1 * uWater0.z + ns.x * uWave1.x * 4.0), 1.0, -(w2 * uWater0.z + ns.y * uWave1.x * 4.0)));
       }
+      wN = normalize(wN - vec3(sdir.x, 0.0, sdir.y) * sg * uShore.x * 1.5);
       float fres = 0.02 + 0.98 * pow(1.0 - max(dot(-r, wN), 0.0), 5.0);
       #if WATER_STYLE == 1
       vec3 tex = matSampleLod(fract(wq.xz + uTime * vec2(0.02, 0.01)), ${BT.tileSide[BT.waterId]}.0, lodAt(tw)).rgb;
@@ -1263,37 +1392,44 @@ export function createRenderer(ctx) {
       a = clamp(mix(uWater1.x, uWater1.y, smoothstep(uWater1.z, uWater1.w, depth)) + fres * uWater0.y * 0.5, 0.0, 1.0);
       #endif
       if (hit && wn.y > 0) {
-        float fm = tw < 96.0 && uWater0.w > 0.0 ? foamMask(wq.xz, shoreDist(wp, min(uWater0.w, 2.0))) : 0.0;   // 岸边泡沫（到岸距离 × 噪声阈值，非正弦）
-        wcol = mix(wcol, vec3(0.95) * lit, fm * 0.85);
-        if (uShoreFade > 0.0) a *= mix(smoothstep(0.0, uShoreFade, vd), 1.0, fm * 0.85);   // 岸边软化（泡沫处保留）
+        wcol += lit * sh0 * 0.12 * (1.0 - smoothstep(0.0, 1.0, sd));           // 浪峰略亮（水体增厚），不再画白色泡沫
+        if (uShoreFade > 0.0) a *= smoothstep(0.0, uShoreFade, vd + sh0 * uShore.x * 2.0);   // 岸边软化：边缘随涌浪进退
       }
       col = mix(col, wcol, a);
       z = tw * cosF;
     }
     if (uwSurf) {                                             // 水下仰视：水面 = 半透明水贴图（同 v1 waterMat），再按水中路径加水下雾
       vec3 behind = hit ? col : (cloud ? mix(sc.rgb, cc.rgb, cc.a) : sc.rgb);
-      if (uUw.x > 0.0) {                                      // 波纹：沿折射方向重新追踪水上（简化着色），未命中 → 偏移采样天空
+      if (uwK > 0.0) {                                      // 波纹：沿折射方向重新追踪水上（简化着色），未命中 → 偏移采样天空
         vec3 p0 = uRo + r * tw + rc * 0.03, hb;
-        vec3 skyB = texture2D(tScene, clamp(vUv + uwR.xy * 2.0 * uUw.x, 0.0, 1.0)).rgb;
+        vec3 skyB = texture2D(tScene, clamp(vUv + uwOff * (2.0 / 3.0), 0.0, 1.0)).rgb;   // 屏幕偏移 = 折射偏移 × 2/3（同原版比例）
         behind = reflHit(p0, rc, 96.0, tw, hb) ? hb : (cloud ? mix(skyB, cc.rgb, cc.a) : skyB);
-        behind *= uwR.z;
       }
-      behind *= mix(vec3(1.0), uUwTint, uUw.z);              // 水下仰视滤镜
+      {                                                       // 斯涅尔窗里的太阳：沿折射阳光反方向的光斑
+        vec3 Ls = uwLs();
+        float gl = pow(max(dot(r, -Ls), 0.0), 180.0) * 3.0 + pow(max(dot(r, -Ls), 0.0), 12.0) * 0.25;
+        behind += uwSunC() * gl * smoothstep(-0.05, 0.12, uSunDir.y) * (camSky / 15.0) * uExposure;
+      }
       vec3 wp = uRo + r * tw, wq = wp + vec3(uWOff.x, 0.0, uWOff.y);
       ivec3 ac = ivec3(floor(wp + r * 0.01)); ac.y = clamp(ac.y, 0, H - 1);   // 出水点外侧那格的光照（同 v1 水面顶点光）
       uvec2 g = voxAt(ac);
-      vec2 suv = (wn.y != 0 ? wq.xz : wn.x != 0 ? wq.zy : wq.xy) + vec2(1.0, 0.5) * uTime / 12.0;
+      vec2 suv = (wn.y != 0 ? wq.xz : wn.x != 0 ? wq.zy : wq.xy) + vec2(1.0, 0.5) * uTime / 12.0 + uwOff * 4.0;   // 水面贴图随波纹场轻微扭动
       vec4 st = matSampleLod(fract(suv), ${BT.tileSide[BT.waterId]}.0, lodAt(tw));
       float shd = wn.y != 0 ? 1.0 : wn.x != 0 ? 0.6 : 0.8;
       vec3 surf = st.rgb * voxLight(float(g.g >> 4u), float(g.g & 15u)) * shd * uExposure;
       vec3 o = mix(behind, surf, clamp(st.a * uUwAlpha / 0.667, 0.0, 1.0));
+      o += voxLight(float(g.g >> 4u), float(g.g & 15u)) * uExposure * uwPat * uUw2.y * 0.6;   // 水面波纹图样（同水底焦散的亮网）
+      o = uwAbsorb(o, tw);                                    // 水体本身的颜色（替代旧的屏幕滤镜色）
       o = mix(o, uFogColor, smoothstep(uFogNear, uFogFar, tw) * uFogA1);
+      o += uwShafts(uRo, r, tw, camSky / 15.0);
       float zw = max(tw * cosF, uNear * 1.01);
       gl_FragColor = vec4(o, 1.0);
       gl_FragDepth = uFar * (zw - uNear) / (zw * (uFar - uNear));
       RET;
     }
+    if (camW && hit && kind != 4) col = uwAbsorb(col, tHit);
     col = mix(col, applyFog(col, z), uFogA1);
+    if (camW && hit) col += uwShafts(uRo, r, tHit, camSky / 15.0);
     if (cloud && !camW && tc * cosF < z) { col = mix(col, cc.rgb, cc.a); z = tc * cosF; }   // 地形在云后（高处俯视）
     else if (cloud && !camW && kind == 4 && r.y > 0.0) col = mix(col, cc.rgb, cc.a);       // 上行射线预算耗尽（=远景雾）：云仍画在其上，否则地平线上方出现无云带
     gl_FragColor = vec4(col, 1.0);
@@ -1391,16 +1527,16 @@ export function createRenderer(ctx) {
     uAoStrength: { value: 0.6 }, uAoCurve: { value: 1 }, uExposure: { value: 1 }, uTime: { value: 0 },
     uWater0: { value: new THREE.Vector4() }, uWater1: { value: new THREE.Vector4() }, uWOff: { value: new THREE.Vector2() },
     uWaterNoise: { value: waterNoiseTex }, uWave1: { value: new THREE.Vector2(0.05, 1) },
-    uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uShadowSteps: { value: 0 }, uShadowStrength: { value: 0 },
+    uSunDir: { value: new THREE.Vector3(0, 1, 0) }, uSunVis: { value: new THREE.Vector3(0, 1, 0) }, uShadowSteps: { value: 0 }, uShadowStrength: { value: 0 },
     uShadowDist: { value: 24 }, uSun: { value: 0 },
     uCloudTex: { value: ctx.cloudMat ? ctx.cloudMat.uniforms.uTex.value : null }, uCloudColor: { value: new THREE.Color(1, 1, 1) },
     uLeaf0: { value: new THREE.Vector4() }, uLeaf1: { value: new THREE.Vector4() }, uSway: { value: new THREE.Vector3() },
     uStar0: { value: new THREE.Vector4() }, uStar1: { value: new THREE.Vector4() }, uStarOn: { value: 1 }, uCloudAlpha: { value: 0.85 },
-    uUwAlpha: { value: 0.67 }, uUw: { value: new THREE.Vector4(0.5, 1, 0.3, 0) }, uUwTint: { value: new THREE.Color(0.5, 0.85, 0.9) }, uShoreFade: { value: 0.3 }, uRoLag: { value: new THREE.Vector3() }, uSkyHor: { value: new THREE.Color(0.7, 0.8, 1) }, uCloudNoise: { value: null }, uWater2: { value: new THREE.Vector3(20, 0, 0) }, uSkyTop: { value: new THREE.Color(0.4, 0.6, 1) },
+    uUwAlpha: { value: 0.67 }, uUw2: { value: new THREE.Vector2(0.4, 0.6) }, uUw: { value: new THREE.Vector4(0.5, 1, 0.3, 0) }, uShoreFade: { value: 0.3 }, uShore: { value: new THREE.Vector2(0.12, 1) }, uRoLag: { value: new THREE.Vector3() }, uSkyHor: { value: new THREE.Color(0.7, 0.8, 1) }, uCloudNoise: { value: null }, uWater2: { value: new THREE.Vector3(20, 0, 0) }, uSkyTop: { value: new THREE.Color(0.4, 0.6, 1) },
     uCloud: { value: new THREE.Vector4(0, 0, H + 36, 4) }, uCloud2: { value: new THREE.Vector3(0.3, 0.35, 0.35) }, uInvProj: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() },
   };
   post = new THREE.ShaderMaterial({
-    uniforms: uni, fragmentShader: DDA_FS, defines: { DBG: 0, DBGRAW: 0, SECT: 0, LEAF_CARDS: 0, CLOUD_STYLE: 0, WATER_STYLE: 0 },
+    uniforms: uni, fragmentShader: DDA_FS, defines: { DBG: 0, DBGRAW: 0, SECT: 0, LEAF_CARDS: 0, CLOUD_STYLE: 0, WATER_STYLE: 0, LEAF_SH: 0, LEAF_SH_LOD: 0, LEAF_LOD: 0 },
     vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     depthTest: true, depthWrite: true, depthFunc: THREE.AlwaysDepth,   // depthTest:false 会连深度写入一起关掉
   });
@@ -1521,11 +1657,13 @@ export function createRenderer(ctx) {
     uni.uAoStrength.value = P.aoStrength; uni.uAoCurve.value = P.aoCurve; uni.uExposure.value = P.exposure;
     uni.uTime.value = D.time != null ? D.time : (performance.now() / 1000) % 3600; uni.uWOff.value.set(pcx * CS, pcz * CS);
     uni.uWater0.value.set(P.waterClarity, P.reflStrength, P.waveStrength, P.foamWidth);
+    uni.uShore.value.set(P.shoreWaveAmp, P.shoreWaveSpeed);
     uni.uWater1.value.set(P.waterA1, P.waterA2, Math.min(P.waterD1, P.waterD2 - 0.01), P.waterD2);
     uni.uWave1.value.set(P.waveNoise, P.waveScale);
     const sd = ctx.U.uSunDir.value;   // 主程序太阳方向 + 面板方位/仰角偏移
     const az = Math.atan2(sd.x, sd.z) + P.sunAz, el = clamp(Math.asin(clamp(sd.y, -1, 1)) + P.sunEl, -1.5, 1.5);
     uni.uSunDir.value.set(Math.cos(el) * Math.sin(az), Math.sin(el), Math.cos(el) * Math.cos(az));
+    uni.uSunVis.value.copy(sd).normalize();
     uni.uShadowSteps.value = Math.round(P.shadowSteps); uni.uShadowStrength.value = P.shadowStrength;
     uni.uShadowDist.value = P.shadowDist; uni.uSun.value = P.sun;
     uni.uLeaf0.value.set(P.leafLodDist >= 160 ? 1e30 : P.leafLodDist, P.leafShadowDist >= 64 ? 1e30 : P.leafShadowDist, P.leafShadow, P.leafHaloDist);
@@ -1534,7 +1672,8 @@ export function createRenderer(ctx) {
     uni.uStar0.value.set(P.starDensity, P.starProb, P.starGamma, P.starTwinkle);
     uni.uStar1.value.set(P.starMinElev, P.cloudStarBlock, P.cloudNightAlpha, P.skyDarkenNight);
     uni.uStarOn.value = D.hostStars ? 0 : 1; uni.uCloudAlpha.value = P.cloudAlpha;
-    uni.uUwAlpha.value = P.uwSurfaceAlpha; uni.uUw.value.set(P.uwRipple * 0.28, P.uwRippleFreq * 2.15, P.uwTintMix, 0);   // 面板 0.5/1 = 着色器 0.14/2.15；频率 ±50% uni.uUwTint.value.set(P.uwTint); uni.uShoreFade.value = P.shoreFade; uni.uWater2.value.set(P.waterSpec, P.waterSkyZen, P.waterDeepSat);
+    uni.uUwAlpha.value = P.uwSurfaceAlpha; uni.uUw.value.set(P.uwRipple, P.uwRippleFreq, P.uwTintMix, P.uwShafts); uni.uUw2.value.set(P.uwRippleMix, P.uwPattern);
+    uni.uShoreFade.value = P.shoreFade; uni.uWater2.value.set(P.waterSpec, P.waterSkyZen, P.waterDeepSat);
     if (ctx.skyMat) { uni.uSkyTop.value.copy(ctx.skyMat.uniforms.uTop.value); uni.uSkyHor.value.copy(ctx.skyMat.uniforms.uHorizon.value); }
     if (ctx.cloudMat) {
       const cu = ctx.cloudMat.uniforms; uni.uCloudColor.value.copy(cu.uColor.value);
@@ -1559,7 +1698,7 @@ export function createRenderer(ctx) {
   return {
     name: 'v2', P, P_DEFAULTS, panelSpec: PANEL, toN, fromN, paneReady, togglePanel, panelVisible,
     get pane() { return pane; }, refreshPane: () => paneUI && paneUI.refresh(),
-    ring, reuploadAll, post, comp, D, setDebug,
+    ring, reuploadAll, post, comp, D, setDebug, apply,   // apply(key,fx)：bench --set 覆盖参数后走同一条副作用路由（def/leaf 宏重编译）
     get perf() { return { gpu: { ...gpu }, gpuLast: { ...gpuLast }, hasTimer: !!qExt, cpuMs: ddaMs, scale: ddaScale,
                           ddaW: ddaRT ? ddaRT.width : 0, ddaH: ddaRT ? ddaRT.height : 0 }; }, get sceneRT() { return sceneRT; }, get ddaRT() { return ddaRT; },
     source: SRC, blockTable: BT,
@@ -1567,6 +1706,8 @@ export function createRenderer(ctx) {
     buildChunk: c => { c.mesh = c.waterMesh = null; if (SRC.built) SRC.built(c); },
     disposeChunk: c => { if (SRC.disposed) SRC.disposed(c); c.mesh = c.waterMesh = null; },
     update: dt => {
+      // 宿主的水下 CSS 蓝色遮罩（屏幕 2D 滤镜）由着色器内的水体吸收代替
+      if (typeof document !== 'undefined') { const wEl = document.getElementById('water'); if (wEl && wEl.style.display !== 'none') wEl.style.display = 'none'; }
       if (ctx.settings && ctx.settings.rd !== ring.rd) { rebuildRing(); reuploadAll(); }
       // 水下雾：主程序用的是近 0.5 / 远 18（很浑），面板可调（雾颜色仍随昼夜/水体取主程序的）
       const cp = camera.position;
@@ -1607,5 +1748,5 @@ export function voxelCraftBlocks(ctx) {
   const cullSelf = new Uint8Array(256); cullSelf[B.GLASS] = 1;
   const occupied = new Uint8Array(256); for (let i = 1; i < 256; i++) occupied[i] = RENDER[i] ? 1 : 0;
   return { kind: RENDER, opaque: OPAQUE, solid: SOLID, occupied, cullSelf, tileTop: T_TOP, tileBot: T_BOT, tileSide: T_SIDE, waterId: B.WATER,
-           leavesId: B.LEAVES, tileCard: ctx.TEX ? ctx.TEX.leaves_card : undefined };
+           leavesId: B.LEAVES, tallGrassId: B.TALL_GRASS, tileCard: ctx.TEX ? ctx.TEX.leaves_card : undefined };
 }

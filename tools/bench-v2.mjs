@@ -43,6 +43,10 @@ const init = await b.js(`(async () => {
   g.setTestMode(true); g.startGame(); g.player.noclip = true; g.player.vel.set(0, 0, 0);
   g.settings.rd = ${RD};
   Object.assign(VR.P, ${JSON.stringify(SET)});
+  {   // 覆盖的参数走面板同一条副作用路由（风格/树叶宏需要重编译着色器）；vec2 行的两个键各自路由
+    const fxOf = {}; for (const [, rows] of VR.panelSpec) for (const [k, t, o] of rows) { if (o && o.fx) { if (t && t.__vec2) { fxOf[t.kx] = o.fx; fxOf[t.ky] = o.fx; } else fxOf[k] = o.fx; } }
+    for (const k in ${JSON.stringify(SET)}) if (fxOf[k] && fxOf[k] !== 'tex') VR.apply(k, fxOf[k]);
+  }
   g.freezeTime = true; g.worldTime = 0.12;
   VR.D.time = 10; VR.D.cloudX = 0;                    // 冻结水波/云，保证可比
   const settle = async () => {
