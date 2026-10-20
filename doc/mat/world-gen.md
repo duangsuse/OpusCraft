@@ -142,8 +142,8 @@ tile 数据（chest 槽位 / spawner）只在落在本块时写（`setTileGen` �
 
 ### 5.1 值得借的三件事（按改动量排序）
 
-1. **把 `temp / hum` 量化存进区块**（u4+u4 或各一 u8，与 §2.3 "只存 biome id" 相对）→ `tintFor` 改成按 (temp, hum) 查一张 2D 色图并在 mesher/v2 里做双线性 → 草色 / 水色渐变、雪线连续，消除硬缝；判定树保持不变。这正是 Survivalcraft 与 MC 原版 grass colormap 的做法，也契合 `xyzb/meta.md` 的"查表而非扩 id"原则。
-2. **Luanti 式 `(heat, humidity, y)` 最近点分类 + 每群系一套 `top/filler/stone/dust`**：把 §2.1 的 if 链换成一张表，可以在 Tweakpane 里加减群系而不改代码；高海拔 / 海底群系用 `y_min/y_max` 自然表达（替代 `h > 92` 等魔数）。
+1. 【用户已确认】 **把 `temp / hum` 量化存进区块**（u4+u4 或各一 u8，与 §2.3 "只存 biome id" 相对）→ `tintFor` 改成按 (temp, hum) 查一张 2D 色图并在 mesher/v2 里做双线性 → 草色 / 水色渐变、雪线连续，消除硬缝；判定树保持不变。这正是 Survivalcraft 与 MC 原版 grass colormap 的做法，也契合 `xyzb/meta.md` 的"查表而非扩 id"原则。
+2. 【用户已确认，提供UI】 **Luanti 式 `(heat, humidity, y)` 最近点分类 + 每群系一套 `top/filler/stone/dust`**：把 §2.1 的 if 链换成一张表，可以在 Tweakpane 里加减群系而不改代码；高海拔 / 海底群系用 `y_min/y_max` 自然表达（替代 `h > 92` 等魔数）。
 3. **3D 密度造山（仅山区、仅 y>74）**：在 `mountain > 0.45` 的列上叠一张低频 3D 噪声做"挖空"（像 v7 mountain 的反向），得到悬崖与洞口而不改变整体 2D 结构；成本只在山区列。DDA 渲染器天然支持悬垂，不需要网格侧改动。
 
 反向的提醒：Survivalcraft 的河流 / 多岩层和 Luanti 的 floatlands 都会把生成从 "2D 高度 + 后处理" 变成"3D 字段求解"，对 `CHUNK_H=128`、主线程 6 ms 预算来说都偏贵，暂不建议。

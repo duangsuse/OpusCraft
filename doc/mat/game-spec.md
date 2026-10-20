@@ -138,6 +138,8 @@ Food 页签里 4 个**生成格**显示实时值，点一下生成一个带 `sta
 
 ## 8. 音效（`res_vam.js`）
 
+> 将在后续版本处理，暂时不改
+
 - 全程序化 WebAudio：噪声突发 + 振荡器啁啾，`c_Audio { volume 0.55, range 28 }` 空间衰减。
 - `SOUND_MAT`：材质 → `[滤波频率, 时长系数, 滤波类型]`（stone 1700 bandpass、wood 850、grass 2600 highpass、gravel 700 lowpass…）。
 - `SOUND_RULES`：**按顺序匹配的谓词表** `[d => /glass|ice/.test(d.name), 'glass'] …`，最后 `[() => true, 'stone']` 兜底——方块不用逐个标注材质。
