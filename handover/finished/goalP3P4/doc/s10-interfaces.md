@@ -109,6 +109,8 @@ mesher 若在 Worker 里跑：`aux` 的各 buffer 走 transfer（§7：`blocks` 
 
 ### 10.5 落地顺序
 
+> ⚠ goalP3P4 已完成 1–3 与 5（宿主 A 侧；`aux.dist` 通路 = `dfMerge`），4 在 `goalP4P5`。`Env.underwater` 补了可选 `fog` 参数，见 goal-renderapi.ts §3。
+
 1. 字面量收口（`isFluid/fluidTop`、`Env` 轮询对象 + `voxelCraftEnv`），`--cmp` 0 px；verify 加「v2 不再直接读 `ctx.skyMat/cloudMat/clouds/stars/getBlock`」检查（grep 即可）。
 2. `onChunkChanged(what)` + `rev` 去重 + `aux` 可选字段（先只接 `maxY/sectEmpty/sectFull/brick`），VoxelCraft 适配器全传 `'blocks'`。
 3. `uVox` ~~RGB8UI 第三通道~~ ⚠ RGBA8UI（goal-renderapi.ts `UVOX`：B = meta，A = dist|flags），同时建 CPU 镜像（ts §5 `Mirror`）。岸距 nibble（`aux.shoreD`）的 GPU 落点**未定**（B 高 4 位已保留给宿主 meta），做 §9.2-4 时再定。

@@ -6,6 +6,8 @@
 
 ## 7. 风险与注意
 
+> ⚠ goalP3P4 的实现（按区块 DF + 无状态 Worker，§6.5）让「Worker 镜像 / 邻居标脏重算 / transfer 掉 `c.blocks`」三条不再适用：主线程只发占据数组的拷贝（transfer 拷贝本身）。「d 永远 ≤ 真实 d」照旧，verify 有逐格检查。新增风险见 §8.7：寄存器压力（SIMD8 + spill）比步数更决定帧时间。
+
 - `postMessage` **transfer 会把 `c.blocks` 从主线程拿走**，必须 `slice()` 或 structured clone；回传的 `dist` buffer 可以 transfer。
 - Worker 积压时（快速移动大量加载）编辑必须插队；主线程的放置 min-更新不依赖 Worker，所以画面不会穿帮，只是跳跃暂时偏保守。
 - DF 的不变量：**纹理里的 d 永远 ≤ 真实 d**。任何改 occupancy 的路径（生成、编辑、卸载邻居后再加载）都要对照检查；违反的症状是「掠射角下方块背面透出天空/雾的细条」。

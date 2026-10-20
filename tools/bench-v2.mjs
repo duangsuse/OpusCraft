@@ -3,8 +3,10 @@
 //     --url URL         默认 http://localhost:8765/VoxelCraft.html
 //     --seed N          世界种子（默认 20240607）      --rd N        视距（默认 6）
 //     --scale S         DDA 分辨率（默认 = v2 默认）   --size WxH    视口（默认 1280x657）
-//     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,water）
+//     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,water,uw）
 //     --set k=v,...     覆盖 VR.P 参数（如 shadowSteps=0）
+//     --preset NAME     云 + 水面预设（VR.presets.cloud/water 同名项：vol|noise|mc|bliss）；--set 在其后覆盖
+//     --ref             VR.setRef(1) 参考模式：主射线 / 阴影 / 反射折射步数预算全放到 576 + 精确入格（DF 开/关 0 px 对比用）
 //     --no-shade        跳过「跳过平滑光照」的计时（省时间）
 //     --shots DIR       保存每机位截图（正常 + 迭代热力图），默认 tools/out/bench
 //     --save NAME       保存每机位 ddaRT 原始像素到 tools/out/ref/NAME/（画面一致性基准）
@@ -12,7 +14,8 @@
 //     --json FILE       结果另存为 JSON          --headed      有头模式（核显实测更可信）
 //     --swiftshader     用软件渲染（无 GPU 计时，仅步数/fetch 统计）
 // 输出：每机位 GPU 分 pass 时间（scene/dda/comp，中位数）、主射线平均迭代、阴影平均迭代、
-//       预算耗尽占比、平均 fetch、层级（列跳/砖步/体素步）、着色占比（dda - dda[跳过 smoothLight]）。
+//       预算耗尽占比、平均 fetch、平均 texture() 采样（DBG 6）、层级（列跳/砖步/体素步）、DF（DBG 4：盒跳跃/未计算退化/v=2 退化）、云步数（DBG 5 A 通道）、
+//       着色占比（dda - dda[跳过 smoothLight]）。默认机位不含 uw（水下仰视），需 --views 显式指定。
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { launch } from './cdp.mjs';
@@ -26,6 +29,8 @@ const SCALE = opt('scale', null), [W, H] = opt('size', '1280x657').split('x').ma
 const VIEWS = opt('views', 'plain,canopy,cave,water').split(',');
 const SET = Object.fromEntries((opt('set', '') || '').split(',').filter(Boolean).map(kv => { const [k, v] = kv.split('='); return [k, +v]; }));
 if (SCALE) SET.scale = +SCALE;
+const PRESET = opt('preset', null);
+const PROBE = opt('probe', null);   // x,y（ddaRT 像素，y 从下数，同 refdiff）：打印该像素 DF 关/开的 tHit / tw / 命中格（DBG 7/8/9）
 const SHOTS = opt('shots', 'tools/out/bench'), SAVE = opt('save', null), CMP = opt('cmp', null), JSONF = opt('json', null);
 
 const b = await launch({ width: W, height: H, gpu: !flag('swiftshader'), headed: flag('headed'), tag: 'bench-v2' });
@@ -42,15 +47,24 @@ const init = await b.js(`(async () => {
   const VR = g.VR, B = g.B, EYE = 1.62, SEA = 40, CH = 96;
   g.setTestMode(true); g.startGame(); g.player.noclip = true; g.player.vel.set(0, 0, 0);
   g.settings.rd = ${RD};
-  Object.assign(VR.P, ${JSON.stringify(SET)});
+  const PR = ${JSON.stringify(PRESET)}, SETX = {};
+  if (PR) {
+    const pc = VR.presets && VR.presets.cloud[PR], pw = VR.presets && VR.presets.water[PR === 'vol' ? 'noise' : PR];
+    if (!pc && !pw) return { err: '未知预设 ' + PR };
+    Object.assign(SETX, pc || {}, pw || {});
+  }
+  Object.assign(SETX, ${JSON.stringify(SET)});
+  Object.assign(VR.P, SETX);
+  if (${flag('ref')}) VR.setRef(1);
   {   // 覆盖的参数走面板同一条副作用路由（风格/树叶宏需要重编译着色器）；vec2 行的两个键各自路由
     const fxOf = {}; for (const [, rows] of VR.panelSpec) for (const [k, t, o] of rows) { if (o && o.fx) { if (t && t.__vec2) { fxOf[t.kx] = o.fx; fxOf[t.ky] = o.fx; } else fxOf[k] = o.fx; } }
-    for (const k in ${JSON.stringify(SET)}) if (fxOf[k] && fxOf[k] !== 'tex') VR.apply(k, fxOf[k]);
+    for (const k in SETX) if (fxOf[k] && fxOf[k] !== 'tex') VR.apply(k, fxOf[k]);
   }
   g.freezeTime = true; g.worldTime = 0.12;
   VR.D.time = 10; VR.D.cloudX = 0;                    // 冻结水波/云，保证可比
   const settle = async () => {
-    for (let i = 0; i < 2000 && (i < 3 || g.pendingChunks > 0); i++) { g.updateChunks(40); VR.update(0.016); if (i % 3 == 0) await raf(); }
+    const dfp = () => VR.df ? VR.df.pending() : 0;   // P2：等距离场 Worker 回包（否则测到的是退化路径）
+    for (let i = 0; i < 2000 && (i < 3 || g.pendingChunks > 0 || dfp() > 0); i++) { g.updateChunks(40); VR.update(0.016); if (i % 3 == 0) await raf(); }
     g.mobs.length = 0; g.items.length = 0;
   };
   await settle();
@@ -105,17 +119,32 @@ const init = await b.js(`(async () => {
       if (!best || sc > best.sc) best = { sc, x, z };
     }
     if (best) views.water = { x: best.x + 0.5, y: SEA + 1 + 3 - EYE, z: best.z + 0.5, yaw: 0.6, pitch: -0.18 }; }
+  // 5) uw：水下仰视（§9.2-5）：离岸最远且水深 ≥ 5 的水柱，眼在水面下 ~2 格，仰视斜看水面（斯涅尔窗 + 光束 + 折射）
+  { let best = null;
+    for (let x = X0 - RAD; x <= X0 + RAD; x += 2) for (let z = Z0 - RAD; z <= Z0 + RAD; z += 2) {
+      let dz0 = 0; while (dz0 < 12 && gb(x, SEA - dz0, z) === B.WATER) dz0++;
+      if (dz0 < 5) continue;
+      let n = 0; for (let dx = -12; dx <= 12; dx += 3) for (let dz = -12; dz <= 12; dz += 3) if (gb(x + dx, SEA, z + dz) === B.WATER) n++;
+      const sc = n * 1000 + dz0 * 10 - ((x - X0) ** 2 + (z - Z0) ** 2) * 0.01;
+      if (!best || sc > best.sc) best = { sc, x, z };
+    }
+    if (best) views.uw = { x: best.x + 0.5, y: SEA - 1.2 - EYE, z: best.z + 0.5, yaw: 0.6, pitch: 0.35 }; }
 
   const gl = g.renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
   const gpuName = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
 
   const place = async (v) => {
     g.player.pos.set(v.x, v.y, v.z); g.player.yaw = v.yaw; g.player.pitch = v.pitch; g.player.vel.set(0, 0, 0);
+    if (VR.resetLag) VR.resetLag();
     await settle(); g.worldTime = 0.12;
     for (let i = 0; i < 4; i++) await raf();
+    // 宿主水下 FOV 是指数逼近（差 ≤0.05 即停），停在哪取决于帧时序 → 钉死到目标值，uw 机位才可复现
+    const cam = g.camera, wantFov = g.settings.fov * (g.player.eyeInWater ? 0.92 : 1);
+    if (cam.fov !== wantFov) { cam.fov = wantFov; cam.updateProjectionMatrix(); }
+    for (let i = 0; i < 2; i++) await raf();
   };
   const timeFrames = async (n) => {
-    const s = { scene: [], dda: [], comp: [], total: [], cpu: [] };
+    const s = { scene: [], cloud: [], dda: [], comp: [], total: [], cpu: [] };
     if (!VR.perf.hasTimer) { for (let i = 0; i < n; i++) { await raf(); s.cpu.push(VR.perf.cpuMs); } return s; }
     let last = VR.perf.gpuLast.frame, guard = 0;
     for (let i = 0; i < 3; i++) await raf();      // 丢掉切换后的前几组
@@ -123,7 +152,7 @@ const init = await b.js(`(async () => {
     while (s.dda.length < n && guard++ < n * 20) {
       g.worldTime = 0.12; await raf();
       const p = VR.perf; if (p.gpuLast.frame === last) continue; last = p.gpuLast.frame;
-      for (const k of ['scene', 'dda', 'comp', 'total']) s[k].push(p.gpuLast[k]);
+      for (const k of ['scene', 'cloud', 'dda', 'comp', 'total']) s[k].push(p.gpuLast[k] || 0);
       s.cpu.push(p.cpuMs);
     }
     return s;
@@ -162,7 +191,7 @@ if (init.err) fail(init.err);
 
 console.log(`GPU: ${init.gpuName}   timer: ${init.hasTimer ? '有' : '无（只有步数统计）'}`);
 console.log(`seed ${SEED}  rd ${RD}  视口 ${W}x${H}  scale ${init.P.scale}  steps ${init.P.steps}  shadowSteps ${init.P.shadowSteps}` +
-  (Object.keys(SET).length ? `  覆盖 ${JSON.stringify(SET)}` : ''));
+  (PRESET ? `  预设 ${PRESET}` : '') + (Object.keys(SET).length ? `  覆盖 ${JSON.stringify(SET)}` : ''));
 
 mkdirSync(SHOTS, { recursive: true });
 const refDir = n => `tools/out/ref/${n}`;
@@ -178,14 +207,16 @@ for (const name of VIEWS) {
     VR.setDebug(0, 0);
     const t = await timeFrames(${FRAMES});
     const ci = await compIso();
-    const it = await grab(1, 1), fe = await grab(2, 1), lv = await grab(5, 1);
+    const it = await grab(1, 1), fe = await grab(2, 1), lv = await grab(5, 1), tx = await grab(6, 1), dg = await grab(4, 1);
     const n = it.w * it.h, steps = VR.P.steps;
-    let sIt = 0, sSh = 0, exh = 0, sF = 0, lc = 0, lb = 0, lvx = 0;
+    let sIt = 0, sSh = 0, exh = 0, sF = 0, lc = 0, lb = 0, lvx = 0, sT = 0, sC = 0, dJ = 0, d0 = 0, d2 = 0;
     for (let i = 0; i < n; i++) {
       const o = i * 4, k = it.px[o] + it.px[o + 1] * 256;
       sIt += k; sSh += it.px[o + 2]; if (k >= steps) exh++;
       sF += fe.px[o] + fe.px[o + 1] * 256;
-      lc += lv.px[o]; lb += lv.px[o + 1]; lvx += lv.px[o + 2];
+      lc += lv.px[o]; lb += lv.px[o + 1]; lvx += lv.px[o + 2]; sC += lv.px[o + 3];
+      sT += tx.px[o] + tx.px[o + 1] * 256;
+      dJ += dg.px[o]; d0 += dg.px[o + 1]; d2 += dg.px[o + 2];
     }
     let tShade = null;
     if (${!flag('no-shade')} && VR.perf.hasTimer) { VR.setDebug(3, 0); tShade = await timeFrames(${Math.max(10, FRAMES >> 1)}); }
@@ -193,8 +224,9 @@ for (const name of VIEWS) {
     VR.setDebug(0, 0);
     // 正常画面像素（base64）供一致性比较
     let s = ''; const px = ref.px; for (let i = 0; i < px.length; i += 32768) s += String.fromCharCode.apply(null, px.subarray(i, i + 32768));
-    return { t, ci, tShade: tShade && tShade.dda, w: it.w, h: it.h, it: sIt / n, sh: sSh / n, exh: exh / n, fetch: sF / n,
-             lc: lc / n, lb: lb / n, lv: lvx / n, ref: btoa(s), stats: VR.stats() };
+    return { t, ci, tShade: tShade && tShade.dda, w: it.w, h: it.h, it: sIt / n, sh: sSh / n, exh: exh / n, fetch: sF / n, tex: sT / n, cl: sC / n,
+             dj: dJ / n, d0: d0 / n, d2: d2 / n, lc: lc / n,
+             dfUnc: (() => { if (!VR.df) return 0; const R = VR.ring; let u = 0; for (let s = 0; s < R.owner.length; s++) { const m = R.mir[s]; if (!R.owner[s] || !m) continue; for (let o = 3; o < m.length; o += 4) if (!(m[o] & 31)) { u++; break; } } return u + '/' + R.owner.filter(Boolean).length + ' pend ' + VR.df.pending(); })(), lb: lb / n, lv: lvx / n, ref: btoa(s), stats: VR.stats() };
   })()`);
   // 截图：正常 + 迭代热力图
   await b.js(`(async () => { const { VR, raf } = window.__bench; VR.setDebug(0, 0); for (let i = 0; i < 4; i++) await raf(); })()`);
@@ -216,9 +248,25 @@ for (const name of VIEWS) {
              diff = `${d} px` + (d ? ` (max Δ${mx})` : ''); }
     }
   }
-  const row = { view: name, pos: v, dda: med(r.t.dda), scene: med(r.t.scene), comp: med(r.t.comp), compIso: med(r.ci), total: med(r.t.total),
-    cpu: med(r.t.cpu), ddaNoSmooth: r.tShade ? med(r.tShade) : null, it: r.it, sh: r.sh, exh: r.exh, fetch: r.fetch,
-    lc: r.lc, lb: r.lb, lv: r.lv, res: `${r.w}x${r.h}`, diff };
+  if (PROBE) {
+    const pr = await b.js(`(async () => {
+      const { VR, grab } = window.__bench, [x, y] = ${JSON.stringify(PROBE.split(',').map(Number))}, out = {}, df0 = VR.P.df;
+      for (const df of [0, 1]) {
+        VR.P.df = df; VR.apply('df', 'def');
+        const f = async k => { const g = await grab(k, 1), o = (y * g.w + x) * 4; return [...g.px.subarray(o, o + 4)]; };
+        const fl = a => new Float32Array(new Uint8Array(a).buffer)[0];
+        const [a7, a8, a9] = [await f(7), await f(8), await f(9)];
+        out['df' + df] = { tHit: fl(a7), tw: fl(a8), hc: a9.slice(0, 3), kind: a9[3] & 7, hit: !!(a9[3] & 8), nAxis: a9[3] >> 4 };
+      }
+      VR.P.df = df0; VR.apply('df', 'def'); VR.setDebug(0, 0);
+      return out;
+    })()`);
+    console.log(`  probe ${PROBE}:`, JSON.stringify(pr));
+  }
+  if (r.dfUnc) console.log(`  [${name}] DF 未算槽位 ${r.dfUnc}`);
+  const row = { view: name, pos: v, dda: med(r.t.dda), scene: med(r.t.scene), cloud: med(r.t.cloud), comp: med(r.t.comp), compIso: med(r.ci), total: med(r.t.total),
+    cpu: med(r.t.cpu), ddaNoSmooth: r.tShade ? med(r.tShade) : null, it: r.it, sh: r.sh, exh: r.exh, fetch: r.fetch, tex: r.tex, cl: r.cl,
+    dj: r.dj, d0: r.d0, d2: r.d2, lc: r.lc, lb: r.lb, lv: r.lv, res: `${r.w}x${r.h}`, diff };
   row.shadeShare = row.ddaNoSmooth != null ? (row.dda - row.ddaNoSmooth) / row.dda : null;
   rows.push(row);
   console.log(`[${name}] @${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}  ${r.stats}`);
@@ -226,12 +274,12 @@ for (const name of VIEWS) {
 
 const f1 = x => x == null || isNaN(x) ? '-' : x.toFixed(1), f2 = x => x == null || isNaN(x) ? '-' : x.toFixed(2);
 const pc = x => x == null || isNaN(x) ? '-' : (x * 100).toFixed(1) + '%';
-const head = ['机位', 'DDA 分辨率', 'gpu scene', 'gpu dda', 'gpu comp*', 'comp 帧内', 's+d+comp*', '主射线迭代', '阴影迭代', '耗尽', 'fetch', '列跳/砖/体素', '平滑光照占比'];
+const head = ['机位', 'DDA 分辨率', 'gpu scene', 'gpu dda', 'gpu comp*', 'comp 帧内', 's+d+comp*', '主射线迭代', '阴影迭代', '耗尽', 'fetch', 'tex', '列跳/砖/体素', 'DF 跳/退0/退2', '云步', '平滑光照占比', 'gpu 云 pass'];
 if (CMP) head.push(`vs ${CMP}`);
 const lines = [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`];
 for (const r of rows) {
-  const c = [r.view, r.res, f2(r.scene), f2(r.dda), f2(r.compIso), f2(r.comp), f2(r.scene + r.dda + (isNaN(r.compIso) ? 0 : r.compIso)), f1(r.it), f1(r.sh), pc(r.exh), f1(r.fetch),
-    `${f1(r.lc)}/${f1(r.lb)}/${f1(r.lv)}`, pc(r.shadeShare)];
+  const c = [r.view, r.res, f2(r.scene), f2(r.dda), f2(r.compIso), f2(r.comp), f2(r.scene + (r.cloud || 0) + r.dda + (isNaN(r.compIso) ? 0 : r.compIso)), f1(r.it), f1(r.sh), pc(r.exh), f1(r.fetch), f1(r.tex),
+    `${f1(r.lc)}/${f1(r.lb)}/${f1(r.lv)}`, `${f1(r.dj)}/${f1(r.d0)}/${f1(r.d2)}`, f1(r.cl), pc(r.shadeShare), f2(r.cloud)];
   if (CMP) c.push(r.diff);
   lines.push(`| ${c.join(' | ')} |`);
 }

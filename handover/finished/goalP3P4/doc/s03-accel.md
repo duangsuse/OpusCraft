@@ -28,6 +28,8 @@
 
 ### 3.4 Chebyshev 距离场（重点）
 
+> ⚠ **已落地（goalP3P4，见 §6.5 第 6 步与 goal-renderapi.ts `[goalP3P4]` 注）**，与下文的差别：DF **只按本区块**计算、着色器把跳跃盒裁到当前区块 xz（区块间零依赖，下文「邻居到达后 8 邻标脏重算」「主线程跨槽位 min」都不需要）；DF 占据 = occupied ∪ **流体表皮**（否则盒跳跃越过水面）；Worker 无状态（主线程发占据数组 `{t:'occ'}`）；跳跃与普通步进是同一条代码（k = 0 即一步）、平面时间现算，DF 开 / 关 0 px。
+
 > ⚠ **已决定**（goal-renderapi.ts TODO-2）：DF 的 `occupied` = `kind ≠ 0 ∧ !fluid`，**不含流体**；流体靠 `uVox.A` 的 `FLUID` 位 + 首次入水 `maxD = min(maxD, tw + uWaterVis)` 截断。`uBrick` 砖占用仍按 `kind ≠ 0` 含流体（退化路径必须保守）。下文「含水」读作「不含水」。
 
 **定义与编码**：`d(p)` = 到最近「占据格」（`occupied[id]`，即 `kind != 0`，含水/花草/火把/树叶）的切比雪夫距离，截断 `T=16`。

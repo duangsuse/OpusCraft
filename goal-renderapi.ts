@@ -136,6 +136,8 @@ export interface BlockState {
   tint: num;                                                     // 染色组
 }
 // occupied（DF 占据位）定义：kind ≠ 0 ∧ !fluid  —— [meta.md §2.1]，覆盖 renderer-refactor §2.1/§3.4 的「kind≠0 含水」。
+// [goalP3P4 实现补充] DF 实际用的占据 = occupied ∪ 流体表皮。纯「不含流体」时盒跳跃会整个跳过水面（首次入水格、出水格都在盒里）→ 画面错；
+//   表皮保证入水 / 出水格必被逐格走到，内部流体照跳。v2 保留 id（halo 192..254、LEAVES_INNER 255）的 state.occupied = 1。
 // uBrick 砖占用仍按 kind ≠ 0（含流体）：它是 DF 未就绪时的退化路径，必须保守。[meta.md §2.4]
 
 /** 宿主 B `model` → kind 映射（renderer-refactor §11.2，覆盖 doc/xyzb/all.md 全部 11 种 model） */
@@ -155,11 +157,14 @@ export interface Env {
   fogColor: THREE.Color; fogNear: num; fogFar: num;
   cloud?: { tex: THREE.Texture; color: THREE.Color; offset: THREE.Vector2; y: num };   // 2D 云图（风格 0/1）；无则只有风格 2 可用
   time: num;
-  underwater?(flag: boolean): void;             // v2 通知宿主：相机在水中（宿主 B 自己决定要不要雾/遮罩）
+  underwater?(flag: boolean, fog?: { near: num; far: num }): void;   // v2 通知宿主：相机在水中（宿主 B 自己决定要不要雾/遮罩）
+                                                //   fog = v2 面板的水下雾近/远建议值（宿主 A 适配器照写进共享 U）；每帧调用一次  [goalP3P4 实现补充]
   hide?(what: 'clouds' | 'stars', flag: boolean): void;   // v2 接管了这些天空元素，请宿主别画
 }
 // 落地后 v2 对 U 的写入只剩 uFogNear/uFogFar，并通过 env.underwater 改为宿主自己写；
 // verify 加 grep 检查：v2.js 不再直接读 ctx.skyMat / cloudMat / clouds / stars / getBlock / document#water。
+// [已落地 goalP3P4 第 3 步] voxelCraftEnv 用 getter 包宿主状态；宿主 #water 遮罩隐藏也搬进 underwater()；相机格流体判定走 SRC.getBlocks。
+// GLSL 侧：bool isFluid(uvec4 vox)（读 uVox.A FLUID 位）、float fluidTop(uint lvl, bool above)（不需要格坐标 / id，TODO-4 公式）。
 
 // ───────────────────────────────────────────────────────────────────────────────
 // 4. GPU 侧数据布局  [meta.md §2]（已评审；renderer-refactor §3.4/§3.5/§9.2-3/§11.1 的 uDist/RGB8UI 方案作废）
@@ -172,6 +177,9 @@ export const UVOX = {
   B: 'meta',                           // 宿主 meta 原样（宿主 A 恒 0）；shader 只用 meta&15 选 uInfo 行
   A: {                                 // dist | flags
     DIST_MASK: 0x1f,                   // bit0–4：v = 0 未计算 / 1 本格占据 / v≥2 → d = v−1 / 上限 T+1（T=16，可到 30）
+                                       //   [goalP3P4 实现] d = 到「本区块」最近 DF 占据格的切比雪夫距离（区块外视为空，y<0 视为占据），
+                                       //   着色器把跳跃盒裁到当前区块 xz → 区块间零依赖（邻块加载 / 卸载不需要重算，也没有不安全窗口）。
+                                       //   DF 占据 = occupied ∪ 流体表皮（流体格且 6 邻有非流体；y 越界与跨区块邻格按非流体），见 TODO-2 补充
     OPAQUE: 1 << 5,                    // 冗余拷贝自 uInfo：smoothLight / 砖内判定省一次查表
     LEAF: 1 << 6,                      // 阴影档 / LOD 分支不查表
     FLUID: 1 << 7,                     // DF occupancy 不含流体；trace 用它走 fluidTop 相交
@@ -222,15 +230,15 @@ export const EDITQ = {
   overflow: '该帧降级：涉及的 slot 全部走 blocks 整块重传',
 } as const;
 
-/** DF Worker（v2-dist.worker.js）消息 */
+/** DF Worker 消息  [goalP3P4 实现：无状态 Worker，替代原 init/load/unload/edit 草案]
+ *  DF 只依赖本区块（见 UVOX.A），占据分类（含树叶后处理改写的 v2 id 与流体表皮）主线程扫描时本来就要算 →
+ *  主线程每次整块上传 / 编辑 flush 后发一份占据数组，Worker 只做截断切比雪夫变换（v2.js 的 dfTransform，toString 后进 Blob Worker）。
+ *  没有镜像、没有邻居重算队列；无 Worker 环境主线程同步算。 */
 export type ToWorker =
-  | { t: 'init'; height: num; occupied: U8 /*256×16: state(id,meta).occupied*/ }
-  | { t: 'load'; cx: num; cz: num; blocks: U8; meta?: U8 }   // copy，不要 transfer 掉宿主数组
-  | { t: 'unload'; cx: num; cz: num }                                         // 不重算邻居（边界 d 偏小，安全）
-  | { t: 'edit'; edits: Int32Array /*[x,y,z,occ]×n，一帧一条*/ };
+  | { t: 'occ'; cx: num; cz: num; seq: num; occ: U8 /*16·H·16，索引同 blocks，1 = DF 占据*/ };   // transfer（是主线程拷贝）
 export type FromWorker =
-  | { t: 'dist'; cx: num; cz: num; a: U8 /*16·H·16，只含 A 通道低 5 位*/ };  // transfer；主线程校验槽位归属后合并进镜像 A 通道
-// Worker 规则：edit 优先于 load；同区块入队去重；load 完成后把 8 个邻居入队重算；邻居未加载视为空气。
+  | { t: 'dist'; cx: num; cz: num; seq: num; a: U8 /*16·H·16，v = min(d,T)+1*/ };   // transfer；主线程校验槽位归属 + seq 是最新请求后合并进镜像 A 低 5 位
+// seq 全局递增：同一区块更新的请求作废旧回包；'light' 不发；'gone' 不发（回包按归属丢弃）。
 
 // ───────────────────────────────────────────────────────────────────────────────
 // 6. 目标数据流（伪代码）
@@ -277,10 +285,11 @@ function uploadChunk(slot: num, cx: num, cz: num, c: ChunkData) {
     const st = cachedState(id, m);                                    // 256×16 预解码
     /* mirror R = id (leafPost 可改写为 192..255)；G = packLight(...)；B = m；
        A.flags = st.opaque<<5 | st.leaf<<6 | st.fluid<<7；
-       A.dist  = keepDist && !becameOccupied ? 旧值 : (st.occupied ? 1 : 0)   // 新占据格写 1（偏小安全） */
+       A.dist  = keepDist && !becameOccupied ? 旧值 : (st.occupied ? 1 : 0)   // 新占据格写 1（偏小安全）
+       [goalP3P4] keepDist 时新占据格（旧值 ≥2）还要在本区块做 min 更新（> 24 个 → 整块退回未计算），否则周围格的旧 d 偏大 */
   }
   /* aux.maxY/sectEmpty/sectFull → uCol[slot]（缺省则扫描计算）；aux.brick → stBrick（缺省则按 kind≠0 置位）；
-     aux.dist → 直接写 A 通道低 5 位（跳过 Worker）；否则 WORKER.postMessage({t:'load', cx, cz, blocks: copy, meta: copy})
+     aux.dist → 直接写 A 通道低 5 位（跳过 Worker）；否则 WORKER.postMessage({t:'occ', cx, cz, seq, occ})（goalP3P4：占据在这遍扫描里顺手算）
      copyTextureToTexture3D(mirror[slot] → uVox[slot])；MIR.owner/rev 更新；worldMaxY 按需重算 */
 }
 declare function cachedState(id: num, meta: num): BlockState;
@@ -298,18 +307,21 @@ function onBlockChanged(x: num, y: num, z: num) {
   editQ[qLen++] = EDITQ.pack(slot, x & 15, z & 15, y);
 }
 function flushEdits() {
-  /* 1. 按 slot 分组 → 每槽位一个脏包围盒 lo/hi
-     2. 包围盒内每格：getChunk 读 id/meta/light → state() → 写镜像 RGBA（A.dist 保留，只改 flags 三位）
-     3. occupied 0→1（放置）：对 (2T+1)³ 盒子（跨槽位，仅已加载且归属正确）dist = min(dist, cheb+1)；主线程同步，不等 Worker
-     4. occupied 1→0（移除）：该格 dist 写 1（仍当占据 → shader 取 id 发现空 → 步进 1 格，安全）；等 Worker edit 回包覆盖
-     5. 每槽位一次 texSubImage3D（脏盒；≥半块时整块 copyTextureToTexture3D）；增量重算触及的砖 / 列高 / 段掩码
-     6. 本帧全部编辑打成一条 {t:'edit'} 发给 Worker；qLen = 0 */
+  /* 1. 按 slot 分组 → 每槽位一个脏包围盒 lo/hi（队列溢出的槽位 → 整块 uploadChunk）
+     2. 包围盒内每格：getChunk 读 id/meta/light → 写镜像 RGBA（A.dist 保留，只改 flags 三位）
+     3. 整块从镜像重算 DF 占据（含流体表皮）：新占据（旧 dist ≥2）→ 1 并在「本区块内」做 dist = min(dist, cheb+1)（DF 只按本区块，不跨槽位）；
+        新占据格 > 24 个 → 整块退回未计算（只留占据 = 1）
+     4. 变空的格保留旧值（必为 1，仍当占据 → shader 取 id 发现空 → 步进 1 格，安全）
+     5. 每槽位一次 copyTextureToTexture3D（脏盒外扩 1；有 min 更新或盒 ≥ 半块时整块）；砖 / 列高 / 段掩码从镜像整块重算（≈24K 查表）
+     6. 发 {t:'occ'} 给 Worker 精确重算；qLen = 0
+     [goalP3P4 实现] 树叶后处理开着（内部剔除 / halo 依赖 6 邻与邻区块）时该槽位直接整块 uploadChunk。
+     宿主 A 适配器不提供 onBlockChanged（宿主 setBlock 后自己 buildChunk → 'blocks'），整块路径同样保持 DF 安全（保留旧 dist + 新占据 min 更新） */
 }
 
 /** 6.6 Worker 回包 */
 function onWorkerDist(msg: FromWorker) {
   const slot = slotOf(msg.cx, msg.cz);
-  if (MIR.owner[slot] !== `${msg.cx},${msg.cz}`) return;             // 槽位已被别的区块占用 → 丢弃
+  if (MIR.owner[slot] !== `${msg.cx},${msg.cz}`) return;             // 槽位已被别的区块占用 → 丢弃（goalP3P4：另校验 seq 为最新请求）
   /* 合并：mirror[slot][i].A = (A & 0xe0) | (msg.a[i] & 0x1f)；整块 copyTextureToTexture3D */
 }
 
@@ -323,14 +335,15 @@ function update(dt: num) {
 /** 6.8 着色器主射线分派（伪 GLSL，trace 体素级；[meta.md §3] + [renderer-refactor §3.6]） */
 /*
 clip to ring AABB / maxD；天空早退 (uWorldMaxY)
-loop (≤512, 预算 uSteps):
-  换区块列 → uCol：cell.y ≥ maxY → 跳列出口；[#if SECT] 全空段跳 / 全实段命中入口
-  vox = texelFetch(uVox, cell)
-  v = vox.a & 0x1f
-    v == 0 → 退化：uBrick 砖级一步（现有）
-    v >= 3 → 盒跳跃 k = v-2：t = 出口；cell = floor(ro + r*(t+ε))
-    v == 2 → 体素步进 1 格（本格确定空，不取 id）
-    v == 1 → 命中候选：
+[goalP3P4 实现] 平面时间一律现算 (平面 − ro)·inv，不跨迭代保存 tM（任何路径到达同一平面的 t 逐位相同；少 3 个循环寄存器）
+loop (≤576, 预算 uSteps):
+  砖级：换区块列 → uCol：cell.y ≥ maxY → 跳列出口；[#if SECT] 全空段跳 / 全实段命中入口
+        入口格 vc = clamp(floor(ro + r·t), 砖)；[#if DF] voxAt(vc).a & 31 ≠ 0 → 进逐格层（dfm，本区块内不再回砖级）
+        否则 uBrick：非空砖 → 砖内逐格（旧路径）/ 空砖 → 砖级一步
+  逐格层：vox = texelFetch(uVox, cell)；v = vox.a & 0x1f
+    dfm ∧ v == 0 → 本区块 DF 尚未回包 → 退回砖内逐格
+    dfm ∧ v >= 3 → k = v−2（本格非占据，不看内容）
+    否则 → 命中候选（下面的分派，v == 1 / 2 与 v == 0 一样取 id 判断）：
       if (vox.a & FLUID)        → fluidTop(cell, id, meta, aboveSameFluid)；记录 tw；首次入水 maxD = min(maxD, tw + uWaterVis)   // [meta.md §4.3]
       else kind = info0.r & 15
         1 cube   → opaque ? 命中 : cutout alpha；translucent → transmit *= info2.rgb 继续
@@ -338,6 +351,10 @@ loop (≤512, 预算 uSteps):
         7 shape  → boxesHit(info1.r, info1.g, ro, r)：射线转 canonical（−facing·90°，flip y→1−y），≤4 AABB slab 取最近   [#if SHAPES]
         5/6      → v2 内部 halo / 卡片（现有）
       emissive > 0 → light = max(light, emissive/15)，不打阴影射线
+    步进 = 盒 [cell−k, cell+k+1)（xz 裁到本区块）的出口面：k = 0 即普通一步（走与跳同一条代码，SIMD 不分叉）；
+          出口轴平局优先级 z > y > x（= 原步进的 < 比较）；非出口轴落点 clamp(floor(ro + r·t), 盒)，出口轴直接给整数
+    dfm ∧ 落点换了区块 → 回砖级（列校验）
+  → DF 开/关画面 0 px：参考模式 VR.setRef(1)（全部预算 576 + 精确入格 REF_MODE）下；tools/verify-renderer.mjs / bench --ref / tools/df-seeds.mjs
 预算耗尽 → kind=4 全雾（现有）
 阴影射线复用同一循环（shadow=true：不记录水、不做 cutout 采样、nAlpha ≤ 2）
 */
@@ -379,6 +396,8 @@ export interface c_Veg {                                             // gls mesh
 /*
 TODO-1  ChunkSource.rev 必填（meta.md）还是可选（§10.1 已确认版）？         默认：可选
 TODO-2  DF occupied 是否含流体？§2.1/§3.4 含、meta.md 不含。                默认：不含（meta.md），配合 uWaterVis 截断；uBrick 仍含。DF 未就绪时的退化路径，必须保守，避免漏步进。
+        [goalP3P4 实现补充] state.occupied 不含流体照旧；DF 用的占据另加「流体表皮」（见 §2 注释），否则跳跃会越过水面。
+        uWaterVis 截断未做（会改画面，不满足 0 px 约束）。
 TODO-3  uInfo 位宽：meta.md RGBA8UI；宿主 B 资源包 tile 可能 > 255。        默认：布局不变、整表升 RGBA16UI（128 KB）；宿主 A 不受影响。
 TODO-4  fluidTop(meta 0)：§11.2 = 14/16；meta.md = 1 − level/9 + uFluidTop0 微调。  默认：meta.md 公式，uFluidTop0 使 meta 0 → 0.875（宿主 A 0 px 硬要求）。
 TODO-5  crop 的「四片平行面」几何：meta.md 没有该位。                         默认：按 cross 画（P4a/b 允许偏差）；不做

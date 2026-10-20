@@ -4,6 +4,21 @@
 > 接口单一真值：`../goal-renderapi.ts`（不复制；其 §9 的 TODO-1…7 已拍板，按默认值执行）。
 > 终点：v2 在宿主 A（`VoxelCraft.html?r=v2`）上达到 P2 + P3 验收，且接口形态与 `goal-renderapi.ts` §0–§7 一致 —— 这是 `goalP4P5`（宿主 B 接入）的入口条件。
 
+## ★ 完成状态（2026-10-20）
+
+| # | 步骤 | 结果 |
+|---|---|---|
+| 1 | 补基准 | ✔ DBG 6 / 云步 / `uw` / `--preset`；bench 可复现性修复；基准换成 `p1fx`（`p0` 早于效果期）；§6.4 |
+| 2 | 云门控 | ✔ 逐位精确（0 px，含 bliss）；bliss canopy 25.3 → 15.4 ms |
+| 3 | 字面量收口 + `Env` | ✔ 0 px；verify 静态检查 |
+| 4 | `what` / `rev` / `aux` | ✔ 0 px；三路径 + 去重 + aux 进 verify；CPU 镜像同步落地 |
+| 5 | `uVox` RGBA8UI + `uInfo` 256×64 | ✔ 0 px；fetch −5…−26/像素、28.4 MB；GPU 时间未降（寄存器压力，§8.7） |
+| 6 | P2 距离场 | ✔ DF 开/关 0 px（预算放大）、不变量 / 放置移除进 verify；迭代 ÷1.41–1.68（未到 2×）；dda −7…−15%；按区块 DF（ts 已先改） |
+| 7 | 其余 P3 | 阴影射线前移（门控会改画面，不做）；§4-5、§9.2-2 实现但默认关（理由见 §6.5）；**12 ms 未达成**（19.7 / 16.7 / 10.3 / 33.0） |
+| 8 | 收尾 | ✔ §6.4/§6.5、§0.2 索引、§5.1、§8.7、ts `[goalP3P4]` 注；verify v1/v2/bogus PASS |
+
+详见 `handover/renderer-refactor/s06-milestones.md` §6.4–§6.5（本目录 `doc/` 已同步）。回归命令改为 `node tools/bench-v2.mjs --views plain,canopy,cave,water,uw --cmp p1fx`。
+
 ## 0. 开工前必读（顺序）
 
 1. `doc/s08-lessons.md` —— 方法论：没有数字不动结构；搭便车不开新纹理；一条 `trace` 分支靠标志；§8.6 对 P2+ 的直接要求。
