@@ -28,6 +28,8 @@
 
 ### 3.4 Chebyshev 距离场（重点）
 
+> ⚠ **已落地（goalP3P4，见 §6.5 第 6 步与 goal-renderapi.ts `[goalP3P4]` 注）**，与下文的差别：DF **只按本区块**计算、着色器把跳跃盒裁到当前区块 xz（区块间零依赖，下文「邻居到达后 8 邻标脏重算」「主线程跨槽位 min」都不需要）；DF 占据 = occupied ∪ **流体表皮**（否则盒跳跃越过水面）；Worker 无状态（主线程发占据数组 `{t:'occ'}`）；跳跃与普通步进是同一条代码（k = 0 即一步）、平面时间现算，DF 开 / 关 0 px。
+
 > ⚠ **已决定**（goal-renderapi.ts TODO-2）：DF 的 `occupied` = `kind ≠ 0 ∧ !fluid`，**不含流体**；流体靠 `uVox.A` 的 `FLUID` 位 + 首次入水 `maxD = min(maxD, tw + uWaterVis)` 截断。`uBrick` 砖占用仍按 `kind ≠ 0` 含流体（退化路径必须保守）。下文「含水」读作「不含水」。
 
 **定义与编码**：`d(p)` = 到最近「占据格」（`occupied[id]`，即 `kind != 0`，含水/花草/火把/树叶）的切比雪夫距离，截断 `T=16`。
@@ -88,7 +90,7 @@ edit {x,y,z,occ}                          ─▶  更新镜像；局部重算（
 
 ### 3.5 逐面 AO 四角打包（最后做，先测再做）
 
-> ⚠ **已决定并前移**：本节「把 opaque/solid/kind 位塞进体素纹理」的替代方案已采纳为 `uVox` RGBA8UI（goal-renderapi.ts §4 `UVOX`：R id、G light、B meta、A = dist 低 5 位 | `OPAQUE<<5 | LEAF<<6 | FLUID<<7`；**solid 不进 A 通道**），与 P2 DF 同一次改动落地（§9.2-3）。P5 只剩 `faceAO` 一项，仍按「着色占比 >20% 才做」决策。
+> ⚠ **已决定并前移**：本节「把 opaque/solid/kind 位塞进体素纹理」的替代方案已采纳为 `uVox` RGBA8UI（goal-renderapi.ts §4 `UVOX`：R id、G light、B meta、A = dist 低 5 位 | `OPAQUE<<5 | LEAF<<6 | FLUID<<7`；**solid 不进 A 通道**），与 P2 DF 同一次改动落地（§9.2-3）。~~P5 只剩 `faceAO` 一项，仍按「着色占比 >20% 才做」决策。~~ ⚠ 再修正（`doc/dda-optim.md`、§6.5）：P5 改为**着色器拆 pass / 模块化**（见 §6 ⚠）；`faceAO` 降为可选项，只在拆 pass 之后、着色 pass 单独计时仍占大头时再议。
 
 - 来源：index.html `Mesher.greedy` 里 `k1` 的 bit 16–23 就是 4 角 AO（2 bit × 4），在合并前按 `(axis, side, s, i, j)` 写出即可；VoxelCraft 没有 mesher，要在 `uploadChunk` 里补一遍 6 面邻域扫描（+ 不止 3%）。
 - 存储难点：3D 纹理里「每面 1 B」= 6 B/格。可利用「相邻两格之间的那个边界面，最多只有一侧暴露」压成 **每格 3 B（RGB8UI：x/y/z 三个负向边界）**；rd=8 H=96 仍要 32 MB。

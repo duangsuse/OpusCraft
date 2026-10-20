@@ -265,6 +265,11 @@
     </div>
   </div>
 
+<script type="importmap">{"imports":{
+ "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+ "tweakpane":"https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js",
+ "jszip":"https://esm.sh/jszip@3.10.1",
+ "idb-keyval":"https://cdn.jsdelivr.net/npm/idb-keyval@6.2.1/+esm"}}</script>
 <script>
 /* ---- 1scr: TTFP first screen (runs while parsing, before fonts / three / modules) -------------------------------
    localStorage._1scr = { v, bg, html } written by Title.save1scr() on unload: bg = CSS gradient of the last sky dome
@@ -334,11 +339,6 @@ window.DecompressionStream = makeStream(brotli.DecompressStream, 'decompress');
   <div id="loading" class="hidden"><i class="spin"></i><span id="loadtext">Generating world…</span><div id="loadbar"><i></i></div></div>
 </div>
 
-<script type="importmap">{"imports":{
- "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
- "tweakpane":"https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js",
- "jszip":"https://esm.sh/jszip@3.10.1",
- "idb-keyval":"https://cdn.jsdelivr.net/npm/idb-keyval@6.2.1/+esm"}}</script>
 <script type="module">
 import * as THREE from 'three';
 import { Pane } from 'tweakpane';

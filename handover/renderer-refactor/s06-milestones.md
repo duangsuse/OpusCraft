@@ -19,7 +19,9 @@
 > - 实施顺序不是表序：**§9.2-7 测量补齐 → §9.2-1 云门控 → §10.5-1/2（Env、`what`/`rev`/`aux`）→ §9.2-3 `uVox` RGBA8UI → P2 DF → 其余 P3 项 → P4 → P5**。DF 写在 `uVox.A` 低 5 位，所以 RGBA8UI 必须先于 DF。
 > - 「flags 入体素纹理」从 P5 前移到 RGBA8UI 那一步（A 通道高 3 位 opaque/leaf/fluid）；P5 只剩 `faceAO`。
 > - P4 行的「位图（§3.2）作为退化路径」待定，默认不做（见 §3.2 ⚠）。
-> - 任务包：`goalP3P4/`（P2 + P3 + 接口定稿，宿主 A）、`goalP4P5/`（P4a/b/c + §12 + P5，宿主 B）。
+> - 任务包：`goalP3P4/`（P2 + P3 + 接口定稿，宿主 A，**已完成** → `handover/finished/goalP3P4/`）、`goalP4P5/`（P4a/b/c + §12 + P5，宿主 B）。
+>
+> ⚠ **P5 重定义（依 `doc/dda-optim.md` + §6.5 / §8.7）**：DF 把主射线迭代砍掉 35–40% 但 dda 时间只降 7–15%，**65–75% 的成本不随步数变**；步数 100 与 500 无感。步进侧到此为止（树剪枝 + DF 是最佳平衡）。P5 不再是 `faceAO`，而是**着色器模块化 / 拆 pass**：阴影射线、反射/折射、命中着色从单一 `DDA_FS` 拆成独立 pass（G-buffer：命中 t / 格 / 法线 / 光照），目标是降 spill（现 SIMD8 + ~230 spill）和解除「每加一段代码全局变慢」。**且须在 P4b 之前**：kind 7 / `uShape` / 分级 `fluidTop` 都是往 `trace` 里加代码，在没拆 pass 前加只会重演第 5 步「fetch 降了、时间涨了」。验收：`shader-stats` spill 显著下降 / SIMD 变宽；`--cmp p1fx` 除已知项外 0 px；阴影射线占比从 20–28% 降到可量化的独立 pass 时间。
 
 ### 6.1 P0 实测基线（`node tools/bench-v2.mjs --save p0`）
 

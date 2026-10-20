@@ -555,7 +555,7 @@ gg.ev(window, { pointerdown: audioInit, keydown: audioInit, touchstart: audioIni
 // Title-screen splash slogans (one picked per title open)
 const SPLASHES = [
   'Now with creepers!', 'Happy farming!', '100% procedural cave!', 'Water flows down now!', 'Punch zombies!',
-  'Not affiliated with Mojang!', 'Ctrl+C Copy worlds!', 'DDA graphics inside!', 'Lava is hot!'
+  'Not affiliated with Mojang!', 'Named by human, loved by authors!', 'DDA graphics inside!', 'CreatW mode: BBat, git diff & more', 'Lava is hot!'
 ];
 // Resource namespaces: .v visuals (textures), .m models/mob specs, .a audio, .t texts
 gg.res_vam = {

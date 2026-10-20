@@ -1,6 +1,6 @@
 <!-- handover/renderer-refactor/s00-status.md · 从 renderer-refactor.md 拆出（原文未改，只加 ⚠ 标注）· 索引见 ../renderer-refactor.md -->
 > **§0 现状 · 接口约定 · v2.js 结构索引 · 初始基线**
-> 状态：有效（结构索引基于 commit b6ac7fe 的 1752 行版本）
+> 状态：有效（§0.2 结构索引已按 goalP3P4 完成后的 2207 行版本更新）
 > 何时读：任何阶段开工前先读 §0.1/§0.2；§0.3 已被 §6.2 取代
 > 对应 goal-renderapi.ts：§0.1 ↔ goal-renderapi.ts §0（RendererCtx/Renderer）
 
@@ -10,7 +10,7 @@
 |---|---|
 | `VoxelCraft.html` | 宿主 A：世界/光照/实体/UI；`RCTX` 传给渲染器；`?r=v1`（默认）/ `?r=v2`；`RCTX.settings = settings`（L2346） |
 | `v1.js` | 光栅化基线（逐面网格 + 顶点 AO + 四角平滑光照），完成，**画面基准** |
-| `v2.js`（1752 行） | DDA 渲染器，M0–M2 + **P0（测量）+ P1（`ChunkSource`/`BlockTable`/段标记）** 完成（§6.1–6.3）。P1 之后（commit d32dad6 / b6ac7fe）按 `handover/finished/goals-trees.md` 加了一批**画面效果**：树叶（摇动 / 卡片叶簇 `LEAF_CARDS` / 内部剔除 id 255 / 外伸 halo id 192–254 / 阴影三档 / 距离 LOD）、水面三风格（`WATER_STYLE` 0 噪声 / 1 Reimagined / 2 Bliss：Seascape 高度场 + 真实反射射线 + 高光阴影射线）、岸边涌浪 + 岸壁水线、水下（吸收 / 焦散 / 光束 / 仰视波纹折射）、云三风格（`CLOUD_STYLE` 0 体积 2D-DDA / 1 MC 方块 / 2 Bliss 体积积云 3D 噪声）、程序化星空、滞后相机。**这些效果的开销尚未进基准**（§9）。优化仍停在 P1，下一步 P2 距离场（§3.4）；经验见 §8，接口预设计见 §10 |
+| `v2.js`（2207 行） | DDA 渲染器：M0–M2 + P0/P1 + 效果期（树叶 / 水面三风格 / 水下 / 云三风格 / 星空）+ **goalP3P4（宿主 A）**：测量补齐（DBG 4/6/7–9）、云门控、`Env` + 流体收口、`onChunkChanged(what)`/`rev`/`aux` + CPU 镜像、`uVox` RGBA8UI + `uInfo` 256×64、**P2 距离场**（按区块、无状态 Worker、编辑队列）、P3 部分项（阴影射线前移；§4-5 / §9.2-2 实现但默认关）。结果见 §6.4/§6.5；接口形态见 `goal-renderapi.ts`（已按实现补注 `[goalP3P4]`）。下一步：宿主 B 接入（`goalP4P5`）；性能主杠杆是寄存器压力（§8.7） |
 | `index.html` + `gls.js` | 宿主 B（bridge-mind 精简版，three r170）：`CHUNK_H=128`，`Mesher.greedy` 贪心合并，增量光照（`Lighting`）。**v2 尚未接入**，是 `ChunkSource` 接口的第二个消费者；特性边界与对接约束见 §11，宿主侧同步升级见 §12 |
 | `tools/verify-renderer.mjs` | 无头 Chromium 接口验证，v1/v2/bogus 三组 PASS（`node tools/verify-renderer.mjs`，需 `http://localhost:8765/`） |
 
@@ -28,43 +28,40 @@ export function createRenderer(ctx) → { name, buildChunk(c), disposeChunk(c), 
 
 ### 0.2 v2.js 结构索引
 
-（基于 1752 行版本，commit b6ac7fe；`#if` 分支在 `post.defines` 里切，`syncDefines()` L368 从 `P` 推导）
+（基于 goalP3P4 完成后的 2207 行版本；旧的 1752 行索引见 git `b6ac7fe`。`#if` 分支在 `post.defines` 里切，`syncDefines()` 从 `P` 推导）
 
 | 行 | 内容 |
 |---|---|
-| 1–48 | 面板 DSL（`clamp/R/V2/vec2/toN/fromN/fmt/buildPane`，handover 历史 §8） |
-| 49–85 | `P_VER=3`、`P_DEFAULTS`（含植被 / 水下 / 星空 / 云 / 水面风格参数）、`WATER_PRESETS`（noise/mc/bliss）、`CLOUD_PRESETS`（vol/mc/bliss）、`loadP/saveP` |
-| 86–164 | `createRenderer(ctx)` 入口、`P/D/S` 三桶、`PANEL` 声明（L92） |
-| 165–207 | **世界入口**：`SRC = ctx.source ‖ voxelCraftSource`、`BT = ctx.blockTable ‖ voxelCraftBlocks`，`H = SRC.height`；`uInfo` 打包（r = kind‖opaque<<4‖solid<<5‖cullSelf<<6‖leaf<<7，gba = tile）；树叶扩展 id 192–254 halo / 255 LEAVES_INNER（仅 `LEAF_OK`：宿主 id 全 <192）；`intTex3D` |
-| 208–240 | `rebuildRing`（N=2rd+5；`uVox` RG8UI、`uBrick` R8UI、`uCol` RGBA16UI = maxY+1 / 归属键 / 空段掩码 / 实段掩码）、`setColumn`（`worldMaxY` 仅最高列下降时重算） |
-| 241–284 | `leafPost`：读 4 邻区块 `getBlocks`，内部树叶 → 255、树叶旁空气 → halo id（6 方向掩码）；只在 cull/halo 开关翻转时整环重传 |
-| 285–332 | `uploadChunk`（CPU 单遍扫描：体素 + 砖 + 列高 + 段计数 + 树叶索引 → `copyTextureToTexture3D`）、`clearChunk`、`reuploadAll`、`SRC.onChunkChanged`（新区块进环且树叶后处理开启时重传 4 邻） |
-| 334–400 | `apply(key,fx)`（fx：rt/tex/sh/dbg/默认存盘）、`resetDefaults`、`setPreset`、**`syncDefines`**（LEAF_CARDS/CLOUD_STYLE/WATER_STYLE/LEAF_SH/LEAF_SH_LOD/LEAF_LOD）、Tweakpane 动态加载、F4 |
-| 401–460 | `DDA_FS` 开头：`#define H`、测量宏（`DBG` 1/2/3/5、`DBGRAW`、`DBG_HEAT`、`CNT`、计数器 `gFetch/gIt/gSIt/gLvC/gLvB/gLvV`）、uniform 声明、注入 `GLSL.light/mat/fog`、`hashU/ign` |
-| 461–537 | `#if CLOUD_STYLE==2`：`cloudDen`（64³ Perlin-Worley 3D 噪声 ×2 采样）、`hgPh`、**`cloudVol(nS,nL)`**（抖动步进 ≤64，朝光 ≤4 步，行星曲率） |
-| 538–592 | `cloudHit`：风格 2 转 `cloudVol(44,3)`；风格 0/1 用宿主 64² 云图做 2D DDA（≤96 步，每步 1 fetch） |
-| 597–652 | 数据访问：`voxAt`（环形取模）、`brickAt`、`colAt`（归属校验）、`infoR`、`cellLO`、**`smoothLight`**（9×(voxAt+infoR)=18 fetch）、`cellAt/faceUV/lodAt/solidAt` |
-| 653–692 | `crossHit`（花草，含高草摇动剪切）、`torchHit` |
-| 693–768 | **树叶**：`cellD/lhash/lodK/lodDither/lodSolid`（距离 LOD 抖动实心化）、`swayK/swayF`（摇动）、`leafFace`（入射面 alpha）、`#if LEAF_CARDS` `leafCards`（格内 2–4 张卡片，按哈希旋转/翻转/偏移，可外伸） |
-| 770–963 | **`trace(ro,r,maxD,maxSteps,shadow,…)`**：环 AABB 裁剪 + 天空早退（L781）；砖级循环：换区块列取 `colAt`、列高跳过（L797）、`#if SECT` 段跳/段实（L818）、进砖（L838）；体素级：出砖回砖级、出水点记录、`uInfo` fetch、树叶分支（阴影三档 / LOD / 卡片 / halo 外伸 ≤3 邻）、不透明 / 镂空 alpha（`nAlpha≤8`）、水入水点（lowerTop 1/8）、花草/火把；预算耗尽 → `kind=4` 全雾 |
-| 965–983 | `#if DBG_HEAT` `heat/dbgOut`（热力图 / `DBGRAW` 原始计数），`RET` 宏 |
-| 985–1005 | `starAt`：立方体贴图分格程序化星星（闪烁、地平线淡出） |
-| 1006–1033 | 水面辅助：`nB`（噪声高度）、`shoreH`（岸边涌浪相位）、**`shoreDist`**（水面层 5×5 邻格 ≤24 次 `voxAt`）、`skyDir` |
-| 1034–1054 | `#if WATER_STYLE==2` `seaOct/seaH`（Seascape 尖峰波，≤4 倍频 × 2 方向，每倍频 1 次 `nB`） |
-| 1055–1076 | 水下仰视波纹：`uwRip`（7 向余弦 ×8）、`uwRipple`（3 次 `uwRip` 差分） |
-| 1077–1128 | 水下光效：`causAt/uwField`（焦散场）、`uwSunC/uwLs`（折射阳光）、`uwAbsorb`（Beer 吸收）、`uwCaustic`（向上找水面 ≤8 `voxAt`）、`uwShafts`（6 采样 × 2 `nB` 光束） |
-| 1129–1163 | `reflHit`（反射：`trace(…,64 步)` + 简化着色，无 AO/阴影）、`#if WATER_STYLE==2` `reflScene`（未命中 → 天空 + `cloudVol(14,1)`/`cloudHit`） |
-| 1165–1438 | **`main`**：射线/深度/雾距裁剪 → `trace`（L1180）→ `camW/water/uwSurf` 判定 → 仰视波纹折射方向 `rc`（L1193）→ **`cloudHit` 每像素无条件调用（L1211）** → 天空分支（水下雾 / 夜空星星 / 云）→ 命中着色（L1232：`smoothLight`+AO、树叶卡片/花草本格光、**阴影射线 `trace(uSunDir, uShadowSteps)`** L1266、水下焦散、岸壁水线 L1287）→ **水面分支**（L1307：`shoreDist`、噪声法线、风格 2：`seaH`×3 + `reflScene` + 焦散 + **高光阴影射线** L1361；风格 0/1：正弦法线 + 贴图 + 天空色反射）→ **水下仰视分支**（L1392：`reflHit(rc, 96 步)` 折射重追踪、斯涅尔窗、水面贴图、吸收、光束）→ 雾 / 光束 / 云合成 → `gl_FragDepth` |
-| 1440–1474 | `waterNoiseTex`（128² 可平铺值噪声 bump，RG 斜率 B 高度） |
-| 1475–1520 | `makeCloudNoise`（64³ RG8：Perlin-Worley + Worley fbm，首次 `CLOUD_STYLE=2` 时生成） |
-| 1521–1547 | `uni`（≈60 个 uniform）、`post`（`defines` 初值全 0，`AlwaysDepth` + 写深度）、全屏 quad |
-| 1549–1562 | `comp`：ddaRT 与 sceneRT 逐像素比深度 |
-| 1564–1589 | `makeRT/freeRT/ensureRT`（`scale` + `maxMP` 像素上限 → `ddaScale`） |
-| 1591–1621 | 分 pass GPU 计时：`gpuPass(i)/gpuPoll`（scene/dda/comp 三查询一组，`gpu` EMA + `gpuLast` 原始值） |
-| 1623–1630 | `setDebug(view,raw)`（改 `DBG/DBGRAW` 重编译） |
-| 1632–1696 | **`render()`**：sceneRT（隐藏宿主星星）→ 局部坐标 / 滞后相机 `uRoLag` → 全部 uniform 回填（含从 `ctx.U.uSunDir`、`ctx.skyMat`、`ctx.cloudMat`、`ctx.clouds` 读宿主状态，隐藏宿主平面云）→ ddaRT → comp |
-| 1698–1723 | 导出：`name/P/P_DEFAULTS/panelSpec/paneReady/togglePanel/ring/reuploadAll/post/comp/D/setDebug/perf/sceneRT/ddaRT/source/blockTable/buildChunk/disposeChunk/update/render/stats`。`update` 里隐藏宿主 `#water` 遮罩、`rd` 变化重建环、相机在水中时改写 `U.uFogNear/uFogFar` |
-| 1725–1752 | **VoxelCraft 适配器**：`voxelCraftSource(ctx)`（`size/height/getBlocks/getChunk/forEachChunk/onChunkChanged/built/disposed`）、`voxelCraftBlocks(ctx)`（`kind/opaque/solid/occupied/cullSelf/tile*/waterId/leavesId/tallGrassId/tileCard`） |
+| 1–48 | 面板 DSL（`clamp/R/V2/vec2/toN/fromN/fmt/buildPane`） |
+| 49–92 | `P_VER=3`、`P_DEFAULTS`（新增 `df` 距离场开关、`cloudLowRes`、`sceneClip`）、`WATER_PRESETS`/`CLOUD_PRESETS`（导出为 `VR.presets`）、`loadP/saveP` |
+| 93–174 | `createRenderer(ctx)` 入口、`P/D/S` 三桶、`PANEL`（DBG 视图 0–6） |
+| 175–190 | **世界入口**：`SRC/BT/ENV`（`ctx.env ‖ voxelCraftEnv`），`isFluidId`、`blockAt`（相机格判定只经 `ChunkSource`） |
+| 191–211 | 环形状态 `ring`：`mir[]` CPU 镜像（goal-renderapi §5）、`rev`、`dfSeq/dfAck`、各路径计数（uploads / upMs / lightUploads / clears / dedup / dfSent / dfDone / dfDrop / dfMin / dfInval / edits）；`VB=4` |
+| 212–258 | **方块状态表**：`defaultState` / `v2State`（树叶扩展 192..255）→ `uInfo` 256×64（ts `UINFO`）+ `VFLAG`（A 高 3 位）/ `VCLS`（DF 分类）/ `VKIND` |
+| 259–292 | `rebuildRing`（`uVox` RGBA8UI、`uBrick`、`uCol` RGBA16UI）、`setColumn` |
+| 293–337 | `leafPost`（内部树叶 → 255、halo；写 flags 与 DF 占据） |
+| 338–413 | `pushVox`（镜像槽位 → `copyTextureToTexture3D`）、**`uploadChunk`**（单遍扫描：镜像 RGBA + 砖 + 列高 + 段 + DF 占据 / 旧 dist 保留与新占据检测；`aux.*` 有就用）、**`uploadLight`**（'light'：只改 G）、`clearChunk`、`reuploadAll` |
+| 414–496 | **P2 距离场**：`dfUpdate`（编辑路径从镜像重算占据）/ `dfApply` / `dfFix`（新占据本区块 min 更新或整块退回未计算）/ `dfMerge` / `dfSend`（`{t:'occ'}` transfer）/ `dfReceive`（归属 + seq 校验）/ `dfStartWorker`（Blob Worker 跑 `dfTransform`）/ `dfPending` |
+| 497–565 | **单格编辑队列**：`onBlockChanged` → `editQ`（ts `EDITQ` 打包）→ `flushEdits` → `editBox`（脏盒改镜像 + 只传脏盒）/ `rescanColumn` |
+| 566–586 | **事件入口 `onChunkEvent(cx,cz,what)`**：'gone' / rev 去重 / 'light' / 'blocks'（新区块进环时重传 4 邻） |
+| 587–653 | `apply(key,fx)`、`resetDefaults`、`setPreset`、**`syncDefines`**（DF / SCENE_CLIP / CLOUD_LR / LEAF_* / CLOUD_STYLE / WATER_STYLE，同步到云 pass 材质）、Tweakpane |
+| 654–714 | `DDA_FS` 开头：测量宏（DBG 1/2/3/4/5/6/7–9、`CNT/TEXC/CLC`、`matSampleLod` 计数宏）、uniform 声明 |
+| 715–720 | **流体收口**：`FLUID_TILE`、`isFluid(uvec4)`（A 通道 FLUID 位）、`fluidTop(lvl, above)`（TODO-4） |
+| 711–866 | 云：`cloudDen/hgPh/cloudVol(…, tLim)`（风格 2）、`cloudHit(…, tLim)`（风格 0/1 2D DDA；入口 ≥ tLim 直接返回 = 云门控） |
+| 867–933 | 数据访问：`voxAt`（uvec4）、`brickAt`、`colAt`、`vhm/infoOf`（hid = id \| meta<<8 选 uInfo 行；`META=0` 不读 B）、`cellLO`（1 fetch）、`smoothLight`（9 fetch） |
+| 934–1050 | `crossHit`、`torchHit`、树叶（`lodK/lodDither/swayK/leafFace/leafCards`） |
+| 1051–1292 | `cellIn`（入格：clamp(floor(ro + r·t))）、**`trace`**：平面时间现算；砖级（列跳 / SECT / DF 入口探测 → 逐格层 dfm / uBrick）；逐格层（dfm ∧ v==0 退化；camWater 出水点；k = v−2 ≥ 1 不看内容，否则命中分派：A 通道快速不透明 / 流体入水 / uInfo 通用分支）；**统一步进**（盒 [cell−k, cell+k+1) xz 裁到本区块的出口面，k = 0 即普通一步）；换区块 → 砖级 |
+| 1293–1314 | `heat/dbgOut`（DBG 4 = DF 跳跃 / 退化计数） |
+| 1315–1494 | `starAt`、水面辅助（`nB/shoreH/shoreDist/skyDir`、Seascape `seaH`）、水下（`uwRip/uwRipple/causAt/uwField/uwAbsorb/uwCaustic/uwShafts`）、`reflHit`、`reflScene` |
+| 1495–1813 | **`main`**：`#if CLOUD_PASS` 低分辨率云 pass 入口；射线 / §4-5 保守深度裁剪（`SCENE_CLIP`）→ 主射线 → DBG 7–9 探针 → 水面 / 水下判定 → 水下波纹 → **云门控**（`tCl`；`CLOUD_LR` 时采样低分辨率结果）→ 天空分支 → 命中着色（平滑光照 / ndl / G → **阴影射线先发**，贴图 / AO 其后）→ 岸壁水线 → 水面分支 → 水下仰视分支 → 合成 |
+| 1814–1894 | `waterNoiseTex`、`makeCloudNoise` |
+| 1895–1940 | `uni`、`post`（`defines` 初值）、云 pass 材质 ×2、`renderClouds`（¼×¼） |
+| 1941–1989 | `comp`、`makeRT/freeRT/ensureRT` |
+| 1990–2023 | GPU 分 pass 计时（`scene / cloud / dda / comp`）、`setDebug` |
+| 2024–2097 | **`render()`**：sceneRT → uniform 回填（`ENV.*`）→ 云 pass（CLOUD_LR）→ ddaRT → comp |
+| 2098–2125 | 导出：…`resetLag`、`ring/reuploadAll/onChunkEvent/onBlockChanged/flushEdits`、`df { T, pending, cls, transform }`、`presets`、`env`；`update()` = rd 变化重建环 → `flushEdits` → `ENV.underwater` |
+| 2126–2162 | **`dfTransform(occ, H, T)`**（模块级、自包含：截断切比雪夫三遍可分离变换） |
+| 2163–2207 | **适配器**：`voxelCraftSource`（rev = build 计数、`emit(c, what)`）、`voxelCraftEnv`、`voxelCraftBlocks` |
 
 ### 0.3 已测得的基线（Intel RPL-S 核显，ANGLE/GL，1280×657，rd=6，整帧 GPU 含 scene pass）
 

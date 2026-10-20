@@ -27,7 +27,7 @@
   #hearts.low img:nth-child(odd) { animation-delay: .17s; }
   @keyframes shake { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
   #modes { font-size: 22px; text-shadow: 2px 2px 0 #333; color: #ffe; }
-  #hotbar { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; background: rgba(0,0,0,.45);
+  #hotbar { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); display: flex; background: rgba(0,0,0,.45); z-index: 5;
     border: 3px solid #111; padding: 2px; }
   .hslot { width: 54px; height: 54px; position: relative; border: 3px solid; border-color: #5a5a5a #a0a0a0 #a0a0a0 #5a5a5a; }
   .hslot.sel::after { content: ''; position: absolute; inset: -7px; border: 4px solid #fff; box-shadow: 0 0 0 2px #000, inset 0 0 0 2px #000; z-index: 2; }
@@ -44,7 +44,8 @@
   #hurt { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(255,0,0,0) 40%, rgba(200,0,0,.55) 100%); }
 
   /* ---------- Menus ---------- */
-  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .screen { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; justify-content: safe center; gap: 10px; overflow-y: auto; }
+  .screen > * { flex-shrink: 0; }
   #menu { background: rgba(0,0,0,.42); }
   #title { font-family: 'Press Start 2P', monospace; font-size: clamp(28px, 6vw, 64px); color: #e8e8e8; letter-spacing: 2px;
     text-shadow: 5px 5px 0 #3f3f3f, 0 0 30px rgba(0,0,0,.4); margin-bottom: 4px; position: relative; }
@@ -94,6 +95,62 @@
   #palette .pslot { background: #9a9a9a; }
   #tooltip { position: fixed; background: rgba(16,0,16,.94); border: 2px solid #2a0a5e; color: #fff; padding: 1px 8px 3px; font-size: 23px; pointer-events: none; z-index: 60; white-space: nowrap; }
   #tooltip small { color: #aaa; font-size: 19px; display: block; }
+
+  /* ---------- Touch controls ---------- */
+  #touch { position: absolute; inset: 0; pointer-events: none; }
+  #touch .tz { position: absolute; top: 0; bottom: 0; pointer-events: auto; touch-action: none; }
+  #tmove { left: 0; width: 45%; }
+  #tlook { right: 0; width: 55%; }
+  #tstick { position: absolute; width: 128px; height: 128px; margin: -64px 0 0 -64px; border-radius: 50%;
+    border: 3px solid rgba(255,255,255,.4); background: rgba(255,255,255,.08); opacity: 0; transition: opacity .12s; pointer-events: none; }
+  #tstick.on { opacity: 1; }
+  #tknob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+    background: rgba(255,255,255,.32); border: 2px solid rgba(255,255,255,.55); }
+  #tbtns { position: absolute; inset: 0; pointer-events: none; }
+  .tbtn { position: absolute; border-radius: 50%; border: 3px solid rgba(255,255,255,.5); background: rgba(0,0,0,.4);
+    color: #fff; font: 20px/1 'VT323', monospace; display: flex; align-items: center; justify-content: center;
+    pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; text-shadow: 1px 1px 0 #000;
+    box-shadow: 0 2px 10px rgba(0,0,0,.3); transition: transform .06s, background .1s; }
+  .tbtn.on { background: rgba(120,180,255,.65); border-color: #fff; }
+  .tbtn:active { transform: scale(.94); }
+  /* 拇指热区：最大的跳跃键贴右下角，其余沿拇指弧线收小 */
+  #tjump { right: 14px; bottom: 96px; width: 80px; height: 80px; font-size: 30px; background: rgba(16,16,22,.5); border-color: rgba(255,255,255,.62); }
+  #tdown { right: 106px; bottom: 96px; width: 54px; height: 54px; font-size: 19px; }
+  #tfly  { right: 18px; bottom: 188px; width: 62px; height: 62px; font-size: 19px; letter-spacing: .5px; }
+  #tinv  { right: 96px; bottom: 198px; width: 44px; height: 44px; font-size: 21px; opacity: .9; }
+  body:not(.touch) .touch-only { display: none; }
+
+  @media (pointer: coarse) {
+    #bars { width: min(94vw, 494px); }
+    #hearts img { width: 18px; height: 18px; }
+    #modes { font-size: 18px; }
+    .hslot { width: 40px; height: 40px; }
+    .hslot .icon { inset: 3px; }
+    .hslot .count { font-size: 18px; }
+    .panel { width: min(98vw, 560px); flex-direction: column; gap: 10px; padding: 8px 10px; overflow-y: auto; }
+    .grid9, #palette { grid-template-columns: repeat(9, 1fr); }
+    .slot { width: auto; height: auto; aspect-ratio: 1; }
+    #palette { max-height: 34vh; }
+    #recipes { width: 100%; max-height: 28vh; }
+    #itemname { font-size: 22px; bottom: 152px; }
+  }
+
+  /* ---------- Compact menu (phones / short windows) ---------- */
+  @media (max-width: 560px), (max-height: 560px) {
+    #menu { gap: 8px; padding: 12px 0; }
+    #title { font-size: clamp(22px, 7.4vw, 34px); letter-spacing: 1px; }
+    #splash { font-size: 19px; right: -6px; bottom: -15px; }
+    #sub { font-size: 18px; margin-bottom: 6px; }
+    .btn { height: 40px; font-size: 23px; }
+    .row { width: min(86vw, 470px); gap: 8px; }
+    .row .btn { width: calc(50% - 4px); }
+    .setting { font-size: 19px; padding: 2px 8px; }
+    .setting input { width: 38%; }
+    #help { width: 86vw; grid-template-columns: 1fr; font-size: 17px; line-height: 1.2;
+      max-height: 26vh; overflow-y: auto; padding: 8px 12px; margin-top: 4px; }
+    #help > span { grid-column: 1 !important; }
+    #death h1 { font-size: 30px; }
+  }
 </style>
 <script type="importmap">
 { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
@@ -172,6 +229,17 @@ html::-webkit-scrollbar-corner {
   <div id="hotbar"><div class="hslot sel"><div class="icon" style="background-image:url(data:image/png;base64,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)"></div><span class="count">2</span></div><div class="hslot"><div class="icon" style="background-image:url(data:image/png;base64,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)"></div><span class="count">4</span></div><div class="hslot"></div><div class="hslot"></div><div class="hslot"></div><div class="hslot"></div><div class="hslot"></div><div class="hslot"></div><div class="hslot"></div></div>
   <div id="debug" class="hidden"></div>
   <div id="clickhint" class="hidden">Click to continue</div>
+  <div id="touch" class="hidden">
+    <div id="tmove" class="tz"></div>
+    <div id="tlook" class="tz"></div>
+    <div id="tstick"><div id="tknob"></div></div>
+    <div id="tbtns">
+      <div class="tbtn" id="tfly">FLY</div>
+      <div class="tbtn" id="tdown">▼</div>
+      <div class="tbtn" id="tjump">▲</div>
+      <div class="tbtn" id="tinv">E</div>
+    </div>
+  </div>
 </div>
 <div id="loading"></div>
 
@@ -192,6 +260,7 @@ html::-webkit-scrollbar-corner {
     <span><b>Q</b> drop item</span><span><b>Space×2</b> toggle flying</span>
     <span><b>N</b> noclip</span><span><b>F</b> pick block</span>
     <span><b>F3</b> debug info</span><span><b>Esc</b> pause</span>
+    <span class="touch-only" style="grid-column: span 2">Touch: left side = move · right side = look (tap: place / use, hold: mine / attack) · FLY / ▲ / ▼ / E buttons</span>
     <span style="grid-column: span 2; color: rgb(187, 187, 187); --darkreader-inline-color: var(--darkreader-text-bbbbbb, #bdb7af);" data-darkreader-inline-color="">Craft tools at a crafting table, smelt ore next to a furnace. Right-click TNT with an empty hand or torch to light it.</span>
   </div>
 </div>
@@ -1373,7 +1442,10 @@ let spawnPoint = new V3(0, 80, 0);
 const keys = {};
 const mouse = { left: false, right: false };
 let locked = false, uiMode = 'menu', gameStarted = false, testMode = false;
-const inputActive = () => uiMode === null && (locked || testMode) && !player.dead;
+// 触屏：不看 pointerlock，靠 touchLock 让输入生效（?touch=1 可强开）
+const TOUCH = /[?&]touch=1/.test(location.search) || matchMedia('(pointer: coarse)').matches;
+let touchLock = TOUCH;
+const inputActive = () => uiMode === null && (locked || testMode || touchLock) && !player.dead;
 
 function updatePlayer(dt) {
   const p = player;
@@ -2226,6 +2298,8 @@ function updateSky(dt) {
 //  UI: hotbar, hearts, inventory, menus
 // =====================================================================
 const hotbarEl = $('hotbar'), heartsEl = $('hearts');
+// 快照 HTML 里残留了序列化后的槽位/血量图，先清空再生成，否则会重复（手机上是 18 格热栏）
+hotbarEl.innerHTML = ''; heartsEl.innerHTML = '';
 for (let i = 0; i < 9; i++) { const d = document.createElement('div'); d.className = 'hslot'; hotbarEl.appendChild(d); }
 for (let i = 0; i < 10; i++) heartsEl.appendChild(document.createElement('img'));
 function slotHTML(s) {
@@ -2260,7 +2334,10 @@ const PALETTE = [...BLOCKS.filter(Boolean).map(b => b.id), ...ITEMS.filter(it =>
 paletteEl.innerHTML = PALETTE.map(id => `<div class="slot pslot" data-p="${id}">${slotHTML({ id, count: 1 })}</div>`).join('');
 function paletteClick(id, button, shift) {
   if (cursorStack) { cursorStack = null; }                       // dropping onto palette deletes the stack
-  else {
+  else if (TOUCH && !shift) {                                     // touch: tap = replace the held stack directly
+    inv.slots[inv.sel] = { id, count: maxStack(id), dur: ITEMS[id].tool?.dur };
+    showItemName(ITEMS[id].name);
+  } else {
     const n = button === 2 ? 1 : maxStack(id);
     if (shift) addItem(id, n); else cursorStack = { id, count: n, dur: ITEMS[id].tool?.dur };
   }
@@ -2387,6 +2464,11 @@ function openMenu() {
   saveGame();
 }
 $('btn-play').addEventListener('click', startGame);
+// 点菜单空白处（背景/标题等非控件区域）也能直接进游戏
+$('menu').addEventListener('click', e => {
+  if (e.target.closest('button, input, label, #help, .setting')) return;
+  if (uiMode === 'menu') startGame();
+});
 let newConfirm = false;
 $('btn-new').addEventListener('click', () => {
   if (!newConfirm) { newConfirm = true; $('btn-new').textContent = 'Sure? Click again'; setTimeout(() => { newConfirm = false; $('btn-new').textContent = 'New World'; }, 3000); return; }
@@ -2430,7 +2512,7 @@ addEventListener('keydown', e => {
   else if (e.code === 'KeyN') { player.noclip = !player.noclip; player.vel.set(0, 0, 0); showItemName(player.noclip ? 'Noclip enabled' : 'Noclip disabled'); }
   else if (e.code === 'Space') {
     const now = performance.now();
-    if (now - lastSpace < 300) { player.fly = !player.fly; player.vel.y = 0; lastSpace = 0; showItemName(player.fly ? 'Flying enabled' : 'Flying disabled'); }
+    if (now - lastSpace < 300) { lastSpace = 0; setFly(!player.fly); }
     else lastSpace = now;
   }
   else if (e.code === 'F3') $('debug').classList.toggle('hidden');
@@ -2442,6 +2524,134 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = hudCam.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); hudCam.updateProjectionMatrix();
 });
+
+// =====================================================================
+//  Touch controls: left thumb = move stick, right side = look / tap place / hold mine
+// =====================================================================
+const touchEl = $('touch'), stickEl = $('tstick'), knobEl = $('tknob'), flyBtn = $('tfly');
+const moveZone = $('tmove'), lookZone = $('tlook');
+const MOVE_KEYS = ['KeyW', 'KeyS', 'KeyA', 'KeyD'];
+const STICK_R = 56, STICK_DEAD = 12, HOLD_MS = 190, LOOK_SENS = 0.0042;
+let stickTouch = null, lookTouch = null;
+
+function setFly(v) {
+  document.body.requestFullscreen()
+  player.fly = v; player.vel.y = 0;
+  flyBtn.classList.toggle('on', v);
+  showItemName(v ? 'Flying enabled' : 'Flying disabled');
+}
+// clear all touch-held input (menu / inventory / death transition)
+function resetTouchInput() {
+  stickTouch = null; stickEl.classList.remove('on');
+  if (lookTouch) { clearTimeout(lookTouch.timer); lookTouch = null; }
+  for (const c of [...MOVE_KEYS, 'Space', 'ShiftLeft', 'ShiftRight']) keys[c] = false;
+  for (const el of document.querySelectorAll('#tbtns .tbtn.on')) el.classList.remove('on');
+  mouse.left = mouse.right = false;
+  flyBtn.classList.toggle('on', !!player.fly);
+}
+function stickUpdate(t) {
+  const dx = t.clientX - stickTouch.x, dy = t.clientY - stickTouch.y;
+  const d = Math.hypot(dx, dy), k = d > STICK_R ? STICK_R / d : 1;
+  knobEl.style.transform = `translate(${dx * k}px, ${dy * k}px)`;
+  keys.KeyW = dy < -STICK_DEAD; keys.KeyS = dy > STICK_DEAD;
+  keys.KeyA = dx < -STICK_DEAD; keys.KeyD = dx > STICK_DEAD;
+}
+function tapAction() {
+  if (targetMob) { mouse.left = true; setTimeout(() => { mouse.left = false; }, 120); }       // tap mob = attack
+  else { useCd = 0; mouse.right = true; setTimeout(() => { mouse.right = false; }, 90); }     // tap world = place / use
+}
+function bindHold(id, codes) {
+  const el = $(id);
+  const on = e => {
+    e.preventDefault(); e.stopPropagation();
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    for (const c of codes) keys[c] = true;
+    el.classList.add('on');
+  };
+  const off = e => {
+    e.preventDefault(); e.stopPropagation();
+    for (const c of codes) keys[c] = false;
+    el.classList.remove('on');
+  };
+  el.addEventListener('pointerdown', on);
+  el.addEventListener('pointerup', off);
+  el.addEventListener('pointercancel', off);
+}
+if (TOUCH) {
+  document.body.classList.add('touch');
+  $('sub').textContent = 'a tiny block game · tap anywhere to play';
+  // move stick appears wherever the left thumb lands
+  moveZone.addEventListener('touchstart', e => {
+    if (uiMode !== null || !gameStarted || stickTouch) return;
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    stickTouch = { id: t.identifier, x: t.clientX, y: t.clientY };
+    stickEl.style.left = t.clientX + 'px'; stickEl.style.top = t.clientY + 'px';
+    knobEl.style.transform = ''; stickEl.classList.add('on');
+    stickUpdate(t);
+  }, { passive: false });
+  moveZone.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) if (stickTouch && t.identifier === stickTouch.id) { e.preventDefault(); stickUpdate(t); }
+  }, { passive: false });
+  const stickEnd = e => {
+    for (const t of e.changedTouches) if (stickTouch && t.identifier === stickTouch.id) {
+      stickTouch = null; stickEl.classList.remove('on');
+      for (const c of MOVE_KEYS) keys[c] = false;
+    }
+  };
+  moveZone.addEventListener('touchend', stickEnd);
+  moveZone.addEventListener('touchcancel', stickEnd);
+
+  // right side: drag = look, tap = place/use, hold = mine/attack
+  lookZone.addEventListener('touchstart', e => {
+    if (uiMode !== null || !gameStarted || lookTouch) return;
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    lookTouch = { id: t.identifier, x: t.clientX, y: t.clientY, moved: false, held: false, timer: 0 };
+    lookTouch.timer = setTimeout(() => {
+      if (!lookTouch || lookTouch.moved) return;
+      lookTouch.held = true; mouse.left = true;
+    }, HOLD_MS);
+  }, { passive: false });
+  lookZone.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) {
+      if (!lookTouch || t.identifier !== lookTouch.id) continue;
+      e.preventDefault();
+      const dx = t.clientX - lookTouch.x, dy = t.clientY - lookTouch.y;
+      lookTouch.x = t.clientX; lookTouch.y = t.clientY;
+      if (!lookTouch.moved && Math.hypot(dx, dy) > 3) { lookTouch.moved = true; clearTimeout(lookTouch.timer); }
+      const s = LOOK_SENS * settings.sens;
+      player.yaw -= dx * s;
+      player.pitch = Math.max(-1.55, Math.min(1.55, player.pitch - dy * s));
+    }
+  }, { passive: false });
+  const lookEnd = e => {
+    for (const t of e.changedTouches) {
+      if (!lookTouch || t.identifier !== lookTouch.id) continue;
+      clearTimeout(lookTouch.timer);
+      if (lookTouch.held) mouse.left = false;
+      else if (!lookTouch.moved) tapAction();
+      lookTouch = null;
+    }
+  };
+  lookZone.addEventListener('touchend', lookEnd);
+  lookZone.addEventListener('touchcancel', lookEnd);
+
+  bindHold('tjump', ['Space']);
+  bindHold('tdown', ['ShiftLeft']);
+  flyBtn.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); setFly(!player.fly); });
+  $('tinv').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); resetTouchInput(); openInventory(); });
+
+  // tap hotbar to select a slot
+  hotbarEl.style.pointerEvents = 'auto';
+  hotbarEl.addEventListener('pointerdown', e => {
+    if (uiMode !== null) return;
+    const slot = e.target.closest('.hslot'); if (!slot) return;
+    e.preventDefault(); resetTouchInput();
+    const i = [...hotbarEl.children].indexOf(slot);
+    if (i >= 0) selectSlot(i);
+  });
+}
 
 // =====================================================================
 //  Save / load
@@ -2515,7 +2725,11 @@ function updateHUD(dt) {
   $('water').classList.toggle('hidden', !player.eyeInWater);
   $('hurt').style.opacity = player.dead ? 0.8 : Math.max(0, player.hurtT / 0.4) * 0.9 + (player.health <= 4 ? 0.25 : 0);
   $('modes').textContent = [player.noclip && 'NOCLIP', player.fly && !player.noclip && 'FLYING'].filter(Boolean).join(' ');
-  $('clickhint').classList.toggle('hidden', !(uiMode === null && !locked && !testMode));
+  $('clickhint').classList.toggle('hidden', !(uiMode === null && !locked && !testMode && !touchLock));
+  if (TOUCH) {
+    touchEl.classList.toggle('hidden', !gameStarted || uiMode !== null || player.dead);
+    flyBtn.classList.toggle('on', !!player.fly);
+  }
   $('loading').textContent = pendingChunks > 0 ? `Loading terrain… ${pendingChunks} chunks` : '';
   fpsN++; fpsT += dt; if (fpsT >= 0.5) { fps = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
   debugT -= dt;

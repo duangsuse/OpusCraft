@@ -39,11 +39,13 @@
 | TODO-7 | `BlockTable` 只加 `state()/boxes()` 方法，不加 `variants/shape` 数组 | §10.1、§11.2、§11.4 |
 | — | `uVox.A` 高 3 位 = `OPAQUE/LEAF/FLUID`（无 solid）；`uInfo` texel 分配以 ts `UINFO` 为准 | §3.5、§9.2-3、§11.1、§11.2 |
 | — | 位图 `uBits`（§3.2）未进 ts，默认不做 | §3.2、§6 P4 行、§7 |
+| — | **P5 = 着色器拆 pass / 模块化**（阴影 / 反射折射 / 着色独立 pass），不再是 faceAO；须在 P4b 之前（`doc/dda-optim.md`） | §3.5、§6 P5 行 |
+| — | DF 实际占据 = occupied ∪ 流体表皮；DF 按区块独立（goalP3P4 回写 ts） | §3.4、ts §2/§4/§5 |
 
 ## 任务包
 
-- `./goalP3P4/`：宿主 A 侧 —— 补基准、P3 开销削减、`uVox` RGBA8UI + 接口收口、P2 距离场；终点 = 宿主 B 可以接入（P4 入口）。
-- `./goalP4P5/`：宿主 B 接入 P4a/b/c + §12 同步升级 + P5 faceAO 决策。
+- `handover/finished/goalP3P4/`：**已完成**（宿主 A：补基准、云门控、接口收口、RGBA8UI、P2 距离场、P3 部分项；结果 §6.4/§6.5）。
+- `./goalP4P5/`：宿主 B 接入 P4a → **P5 着色器拆 pass（前置于 P4b）** → P4b/c + §12 同步升级。P5 重定义依据：[doc/dda-optim.md](../doc/dda-optim.md)（DF 后 65–75% 成本不随步数变；下一难点 = 阴影射线、GL 模块化、水与云）、§6.5「对后续阶段的影响」、§8.7。
 
 ## 验证入口
 
