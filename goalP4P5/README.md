@@ -1,6 +1,6 @@
 # goalP4P5 —— 宿主 B 接入（P4a）→ P5 着色器拆 pass → P4b/c + §12 同步升级
 
-> 任务包。`doc/` 是 `handover/renderer-refactor/`、`handover/tools.md`、`doc/dda-optim.md` 的**快照**（只含本任务要读的；真值在原处）。
+> 任务包。`doc/` 是 `handover/renderer-refactor/`、`handover/tools.md`、`doc/dda-optim.md` 的**快照**（只含本任务要读的；真值在原处；清单 `doc/SNAP`，改了真值后 `node tools/snap.mjs goalP4P5` 同步，`--check` 只报漂移）。
 > 接口单一真值：`../goal-renderapi.ts`（不复制；§9 TODO-1…7 已拍板；`[goalP3P4 实现]` 注释是已落地的修正，照它）。
 > 宿主 B 约定真值：`doc/xyzb/meta.md`（纹理/状态布局，已评审）、`doc/xyzb/all.md`（`BLOCK_DEFS`/`model`）、`doc/xyzb/chunks_dat.md`、`doc/mat/game-spec.md`（`c_*` / `gg.my` 约定、模式开关）、`doc/mat/world-gen.md`（tint 决策）——按步骤读，**以文档约定为准，代码只在实现时 `rg` 定位读对应处**。
 > 入口条件：`goalP3P4` 已完成（`handover/finished/goalP3P4/`）：v2 在宿主 A 上已是 RGBA8UI + `state()` + `Env` + 按区块 DF；回归基线 `p1fx`，5 机位 `plain,canopy,cave,water,uw`。
@@ -13,6 +13,7 @@
 - 下一难点 = 阴影射线、GL 参数化的模块化、水与云。做法 = **把阴影射线、反射/折射、命中着色拆成独立 shader / pass**（G-buffer：命中 t / 格 / 法线 / 光照），`DDA_FS` 只剩主射线。
 - P4b 的 kind 7 AABB、`uShape`、分级 `fluidTop`、door/ladder 全是往 `trace` 里加代码 → **拆 pass 之前加只会重演第 5 步**。所以顺序是 P4a（不碰 shader）→ P5 拆 pass → P4b/c。
 - `faceAO`（旧 P5）降为可选：拆 pass 后若「着色 pass」单独计时仍是大头再议。
+- **画面方向已定为 Veloren 风格**（`../doc/smooth-gls.md`）：硬边逐像素阴影改为低分辨率软阴影 pass。拆 pass 的具体做法、前置决策和「结构 / 风格」两条验收通道见 `../goal-glmod/README.md` §-1；第 4 步从 glmod §-1.B 的最小 spike 开始。
 
 **B. 测试分工（用户拍板，贯穿全包）**
 - **自动化只到截图**：`node tools/bench-v2.mjs --url index.html --save <tag>` / `--cmp <tag>`（机位来自 `c_Bench.poses`，§12.3）、`node tools/verify-renderer.mjs`、`node tools/shader-stats.mjs`（spill / SIMD）、`tools/df-seeds.mjs`（动 trace 后）。工具用法与参数见 `doc/tools.md`。截图对比对象：**gls 网格 vs v2** 同机位同冻结环境两张图（§12.1 热切换），以及 v2 自己的阶段回归。
@@ -33,10 +34,10 @@
 
 | # | 步骤 | 读什么 | 验收（自动 → 人工） |
 |---|---|---|---|
-| 1 | **宿主 B 前置**（§12.1–12.3）：`c_Render` 热切换 F6（`chunkGroup.visible`；XRay / solidWater / 标题预览强制 gls）、`c_Dbg.freeze`、`c_Bench.poses`（plain/canopy/cave/water/uw/models）+ `?pose=`；`bench-v2 --url index.html` 读这张表 | §12.1–12.3、ts §8、`doc/mat/game-spec.md` §9 | bench 能按 poses 出 gls 截图且同代码重复跑 0 px（§8.7-7）→ 人切 F6 / 冻结确认世界不漂移 |
+| 1 | **宿主 B 前置**（§12.1–12.3）：`c_Render` 热切换 F6（`chunkGroup.visible`；XRay / solidWater / 标题预览强制 gls）、`c_Dbg.freeze`、`c_Bench.poses`（plain/canopy/cave/water/uw/models）+ `?pose=`；`bench-v2 --url index.html` 读这张表。**另外从 panify §5 / glmod 步骤 6① 前移三件（两宿主都做，第 4 步的裁决要用）**：① `&gizmo=x,y,z,yaw,pitch,fov`（`&pose=名` 是它的别名表）+ F3 面板里可复制 / 粘贴的 6 数 Gizmo；② `tpause`（暂停菜单 / 生物 / 模拟 / 锁 1 帧，Esc 面板首文件夹按钮组 + `&tpause=`），`&xyzb=…&gizmo=…&tpause=…` 一条 URL 到位；③ 轨迹录制（`{t,pos,yaw,pitch,edits}` 10 Hz + seed → `tools/out/traj/*.jsonl`）+ `bench --replay`，以整帧吞吐为指标 | §12.1–12.3、ts §8、`doc/mat/game-spec.md` §9、`../goal-panify/README.md` §5、`../goal-glmod/README.md` 步骤 6 | bench 能按 poses 出 gls 截图且同代码重复跑 0 px（§8.7-7）；`--gizmo` 截图与同机位 `--views` 0 px；同一轨迹 `--replay` 两遍 0 px、吞吐抖动 < 3% → 人切 F6 / 冻结确认世界不漂移 |
 | 2 | **P4a 几何占位（不改 shader）**：`glsSource`（区块 Map；mesher 完成 → `'blocks'`、`Lighting` → `'light'`；`CHUNK_H=128`；`aux.dist` 可由宿主逐块产出直接 `dfMerge`）、`glsBlocks`（`state(id,meta)`：`MODEL_TO_KIND`，非 cube/cross/torch/liquid 先按 kind 1 整格；tiles 来自图集转 `DataArrayTexture` 第 0 帧；tint 用群系代表点；`uInfo` 升 RGBA16UI，TODO-3）、`glsEnv`；`rd` 钳 ≤10；流体表皮规则按 `state().fluid` 检查 | §11.1/§11.2/§11.4 P4a、§10.4、ts §7、`doc/xyzb/all.md` | verify：`state()` 256×16 可调用、`uInfo` 256×64 / `uShape` 8×256 尺寸、`height` 一致、DF 不变量 → `index.html?r=v2` 出图，5 机位 gls/v2 截图对；SECT 触发率统计（§11.4 末）决定开不开；`shader-stats` 记一次 P4a 基线 |
 | 3 | **请求验证世界**（人类搭）：按 §12.5 清单（11 种 model 各一排、8 档雪层、8 阶段小麦、门开关、4 向梯子/火把、半砖台阶、仙人掌、火、静水池 + 7 级流水、岩浆、1 格厚贴天空墙、每种树；玩家正对小麦，站在方块上退出） | §12.5 | 用户交付 `test/bw_models.webp`；`?xyzb=…&pose=models` 能进；存 gls 基准 `--save p4a-gls`、v2 基准 `--save p4a` |
-| 4 | **P5 着色器拆 pass**（宿主 A 上做、两宿主受益；每一小步 `shader-stats` + `--cmp p4a`/`p1fx`）：① G-buffer pass = 现 `trace` 主射线，输出命中 t / 格 id+meta / 法线+面 / 平滑光照（打包 int）；② 阴影射线独立 pass（读 G-buffer，只带它需要的变量）；③ 水面反射 / 水下折射 pass；④ 着色 pass（贴图 / AO / 雾 / 云合成）；⑤ `trace` 的 out 参数与循环状态再瘦（`nrm/wn` 合一 int、去 `bc`）。`#if` 保留单 pass 路径做 A/B 直到拆分版全面不慢 | §8.7、§6.5「对后续阶段的影响」、`doc/dda-optim.md`、`doc/s03-accel.md` §3.6、`doc/tools.md`（shader-stats、计时槽、§8.7-6 计时重叠坑） | `shader-stats`：主射线 pass spill 显著下降 / SIMD 变宽；5 机位 `--cmp` 0 px（预算放大 `--ref` 下；默认预算差异只允许已知项）；阴影 / 反射 / 着色各 pass 有独立计时槽；整帧不慢于 §6.5 最终行，目标重新逼近 12 ms → 人看 bliss 预设与水下 |
+| 4 | **P5 着色器拆 pass**（宿主 A 上做、两宿主受益；**先做 glmod §-1.B 最小 spike（只拆阴影射线 + 软阴影），按它的决策决定下面 ①–⑤ 做不做**；每一小步 `shader-stats` + `--cmp p4a`/`p1fx`/风格基准）：① G-buffer pass = 现 `trace` 主射线，输出命中 t / 格 id+meta / 法线+面 / 平滑光照（打包 int）；② 阴影射线独立 pass（读 G-buffer，只带它需要的变量）；③ 水面反射 / 水下折射 pass；④ 着色 pass（贴图 / AO / 雾 / 云合成）；⑤ `trace` 的 out 参数与循环状态再瘦（`nrm/wn` 合一 int、去 `bc`）。`#if` 保留单 pass 路径做 A/B 直到拆分版全面不慢 | §8.7、§6.5「对后续阶段的影响」、`doc/dda-optim.md`、`doc/s03-accel.md` §3.6、`doc/tools.md`（shader-stats、计时槽、§8.7-6 计时重叠坑） | `shader-stats`：主射线 pass spill 显著下降 / SIMD 变宽；5 机位 `--cmp` 0 px（预算放大 `--ref` 下；默认预算差异只允许已知项）；阴影 / 反射 / 着色各 pass 有独立计时槽；整帧不慢于 §6.5 最终行，目标重新逼近 12 ms → 人看 bliss 预设与水下 |
 | 5 | **P4b 状态表 + `uShape`**（在拆分后的主射线 pass 里加）：kind 7 ≤4 AABB slab 求交、`shapes.js` 共享模块（宿主 B `blockBoxes` 与适配器同源）、door/ladder/layer/box 状态行、torch facing、liquid 走 `fluidTop` 公式（TODO-4）、crop 按 cross（TODO-5）、fire = cross + emissive；`#if SHAPES` 让宿主 A 不编译 kind 7 | §11.2（以 ⚠ 后的 ts 为准）、ts `USHAPE`/§6.8、`doc/xyzb/meta.md` 形状节 | `cube/cross/torch/liquid(meta 0)` 与 `p4a` 0 px；`shader-stats` 对第 4 步无显著回退；`pose=models` 下 11 种 model 全部可见 → 人在冻结环境下目测与 gls 一致（§11.3 偏差除外） |
 | 6 | **P4c mesher 副产品 + 光照快路径 + tint**：`Mesher.greedy` 顺手产 `aux.maxY/sectEmpty/sectFull/brick`（DF 占据亦可顺手 → `aux.dist`）；`onChunkChanged('light')` 走 G 通道快路径；`uBio` RG8 + 3 张色图；`c_Veg` 面板 + `VR.apply(key)` 导出 | §10.4、§2.2、§11.3 tint 行、§12.4、`doc/mat/world-gen.md` §5.1 | `Mesher` 额外耗时 ≤5%（`upload-cost` 同类口径）；放火把只走 light 路径；tint `biome` 时 gls/v2 同硬缝 0 px → 人调 `c_Veg` 看两边同源 |
 | 7 | **收尾**：§6 加 P4/P5 结果（含各 pass 计时与 spill 表）；`goal-renderapi.ts` 与实现有出入先改 ts；s00 结构索引、`tools.md`（`--url` 用法）更新；`faceAO` 去留写明 | — | verify 三组 PASS；`bench --url index.html --cmp` 回归 |
@@ -48,12 +49,12 @@
 - XRay ghost/red、`solidWater` 半透明：强制回退 gls，不加 v2 分支。
 - 资源包动画帧（先第 0 帧）、流动水面斜面插值、gls 侧加 v2 效果、分屏合成。
 - 标题预览 / 屏保（`previewRd 16`）不接 v2。
-- 阴影射线的画面门控（只发顶面 / 棋盘格）：改画面，违反 0 px，已否决（§6.5 第 7 步）。
+- 阴影射线的画面门控（只发顶面 / 棋盘格）：已否决（§6.5 第 7 步），现在被 glmod §-1.B 的低分辨率软阴影 pass 取代。
 
 ## 4. 硬约束
 
 - 每次动 shader 先后各跑一次 `shader-stats`，spill 上升即回退（§8.7-1）；A/B 用编译期 `#if`，不用 uniform 分支。
-- 画面回归在参考模式（`--ref`）下 0 px；默认预算下的差异只允许 §6.5 列出的已知项。
+- 画面回归分两条通道（glmod §-1.A）：**结构**步骤在参考模式（`--ref`）下 0 px，默认预算下的差异只允许 §6.5 列出的已知项；**风格**步骤（按 smooth-gls 改画面）用 `#if STYLE_*` 保留旧路径，前后截图交人审，通过后另存基准。两类改动不混在同一次提交。
 - `rd ≤ 10`；`[confirmed §x]` 字段不改名；`BlockTable` 只加 `state()/boxes()`（TODO-7）；`shapes.js` 是形状唯一真值。
 - 读码范围：只读实现当前步骤所需的 `index.html`/`gls.js` 区段（先 `rg` 定位），不整文件通读。
 

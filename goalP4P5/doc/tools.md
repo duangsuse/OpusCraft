@@ -14,6 +14,7 @@
 | `node tools/df-seeds.mjs a b [gpu\|ss] [yaw,...]` | 种子 a..b 的随机世界 × 若干朝向，参考模式下比 DF 开 / 关 ddaRT | 动 `trace` / DF / 入格逻辑后 |
 | `node tools/refdiff.mjs A B view [n]` | 两组 bench 基准像素逐像素列出差异（坐标从下数、两边 RGB） | `--cmp` 报差异时定位 |
 | `node tools/upload-cost.mjs [url]` | 初次加载 rd 6：`ring.upMs / uploads`（整块上传主线程 CPU 部分）与 `updateChunks` 总耗时 | 动 `uploadChunk` / DF 占据 / Worker 后 |
+| `node tools/snap.mjs [goalDir] [--check]` | 按 `goalX/doc/SNAP` 清单把任务包快照同步成真值（`handover/…`、`doc/…`）；`--check` 只报漂移 | 改了 handover 真值后、交接任务包前 |
 | `tools/diag-water.mjs`、`tools/shots-sky.mjs` | 早期水面 / 天空截图诊断（历史） | 按需 |
 
 ## 2. bench-v2.mjs

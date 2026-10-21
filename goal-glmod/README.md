@@ -3,7 +3,41 @@
 > 立场：**不换框架**（three 持有 GL 上下文，regl / threepipe 都要么抢上下文要么再包一层 UI）。
 > 在 three 之上加一个 ~40 行的 `Pass` 工厂（移植 2D 项目的 ES6 模板写法），把 `DDA_FS` 切成 GLSL 模块 + 两个 program，
 > 参数表变成单一真值（面板 / uniform / 宏 / 预设 / URL / JS API / 性能采集全从它推导）。
-> 每一步都有 0 px 回归和 `shader-stats` 数字；拆 pass 之前先做 1 天 spike 决定要不要押注。
+> 每一步都有 0 px 回归（结构通道）或前后截图人审（风格通道）和 `shader-stats` 数字；开工前先过 §-1 两项前置决策。
+
+## -1. 前置决策（先于 §2 任何步骤）
+
+### -1.A 画面方向：Veloren 风格（已拍板）
+
+- 目标视觉以 `../doc/smooth-gls.md` 为准：低对比、高环境光、柔和体积感。现在的光效太扎眼，硬边逐像素阴影就是主要来源之一。
+- 后果：smooth-gls 第 5 条「**禁止硬边 DDA 投射阴影**，只允许低分辨率、强模糊阴影，强度 ≤ 0.35，边缘 ≥ 1.5 格」和现状直接冲突，而现状正好在这一项上花了 **22–30% 帧时间**（§6.4 `shadowSteps=0`：plain −22.5%、canopy −29.8%）。所以画面方向和性能是同一件事，要先定画面方向，再决定怎么拆 pass。
+- **0 px 约束拆成两条通道**：
+  | 通道 | 适用 | 验收 |
+  |---|---|---|
+  | 结构 | `Pass` 工厂、GLSL 切模块、G-buffer 拆分、参数表——**不应改画面**的步骤 | `--ref` 下 0 px（同现行规则） |
+  | 风格 | 按 smooth-gls 改画面：软阴影、贴图降级、面朝向明暗、AO 下限、逐块抖动、水 | 编译期 `#if STYLE_*` 保留旧路径做 A/B；5 机位前后截图（`--shots`）交人审；通过后**另存新基准**（`--save vel-N`），之后结构步骤对新基准 0 px |
+- 一个步骤只能走一条通道：风格改动和结构重构不混在同一次提交里。
+- 原来被否决的「阴影画面门控（只发顶面 / 棋盘格）」仍然不做：它要被 -1.B 的低分辨率软阴影 pass 整个取代，没有必要再做一个中间形态。
+
+### -1.B 最小 spike：只拆阴影射线（≤ 1 天，宿主 A，风格通道）
+
+在完整 G-buffer（§3）之前，先用最小改动回答「拆 pass 能不能降 spill、整帧能不能更快」。
+
+```
+pass A（主 pass，DDA 分辨率）  = 现 DDA_FS，`#if SHADOW_PASS` 下删掉阴影射线那份内联 trace
+   MRT0 = 不含直射项的颜色（环境 / 天光 / 雾 / 水 / 云，照常合成）
+   MRT1 = 直射项（太阳光 × 贴图 × ndl，已乘 (1 − 雾)），RGB
+   MRT2 = RG32UI：floatBitsToUint(tHit) | 法线轴+符号、树叶位（阴影三档要用）
+pass S（¼×¼ 或 ½×½）           = 读 MRT2 重建命中点 → trace(uSunDir, uShadowSteps) → R8 遮蔽
+pass C（comp 里顺手做）        = MRT0 + MRT1 × mix(1, blur(S), 强度≤0.35)
+```
+
+- 水面高光的阴影射线（风格 2）先留在 A 里，不动。
+- 模糊用深度感知的 3×3 / 5×5 双边滤波，边宽按世界尺度 ≥ 1.5 格换算。这是 smooth-gls 要的画面，不算副作用。
+- **验收数字**：A 的 spill / 指令数（预期去掉约 3000 指令）；A+S+C 整帧吞吐 vs 现状 vs `shadowSteps=0`（上界）；`bench --shots` 前后截图交人审。
+- **决策**：
+  - A+S+C 整帧明显快于现状（目标拿回 `shadowSteps=0` 收益的一半以上）→ 软阴影 pass 转正（= 风格通道第一步），再看 A 的 spill：仍 > 100 → 做 §2 步骤 0（完整 G-buffer spike）；≤ 100 → 完整拆分降级为可选。
+  - 不快 → 说明本驱动上多 pass / MRT 开销吃掉了收益，**放弃一切拆 pass**，只做 §2 步骤 1、2、5、6，P4b 直接在单 pass 里加 `#if SHAPES`；软阴影改用单 pass 内的低步数 + 抖动 + 时间累积（另议）。
 
 ## 0. 为什么是这个形态
 
@@ -85,16 +119,17 @@ def('leafShadow', 0,   { label: '树叶阴影',   group: '植被', options: {…
 
 | # | 步骤 | 验收 | 风险 / 退出条件 |
 |---|---|---|---|
-| 0 | **Spike（≤1 天，宿主 A）**：不做任何整理，直接在 `DDA_FS` 里 `#if SPLIT`：A = 现 `trace` 主射线 → 写 `RGBA32UI`（布局见 §3）；B = 现 `main` 从 `camW` 判定起读 G-buffer 继续。只跑 plain / water 两机位 | `shader-stats`：A 的 spill / SIMD；A+B 整帧吞吐 vs 单 pass；`--ref` 下 0 px（或列出差异像素原因） | A 不比单 pass 瘦（spill 没降一半以上）或 A+B 吞吐更慢 → **放弃拆 pass**，只做 1、2、5、6（它们本身就值），P4b 直接在单 pass 里加 `#if SHAPES` |
+| -1 | **§-1.B 最小 spike**（只拆阴影射线 + 软阴影，风格通道） | 见 §-1.B | 见 §-1.B 决策 |
+| 0 | **完整 G-buffer spike（≤1 天，宿主 A；只在 §-1.B 转正后、A 的 spill 仍 > 100 时做）**：不做任何整理，直接在 `DDA_FS` 里 `#if SPLIT`：A = 现 `trace` 主射线 → 写 `RGBA32UI`（布局见 §3）；B = 现 `main` 从 `camW` 判定起读 G-buffer 继续。只跑 plain / water 两机位 | `shader-stats`：A 的 spill / SIMD；A+B 整帧吞吐 vs 单 pass；`--ref` 下 0 px（或列出差异像素原因） | A 不比单 pass 瘦（spill 没降一半以上）或 A+B 吞吐更慢 → **放弃拆 pass**，只做 1、2、5、6（它们本身就值），P4b 直接在单 pass 里加 `#if SHAPES` |
 | 1 | `Pass` 工厂 + uniform 自动回填；`post / cloudMats / comp` 三个改走它 | 0 px；`render()` 回填段消失；`uni` 字面量消失 | 名字冲突（`P.scale` vs `D.scale`）→ 显式 `u()` |
 | 2 | GLSL 切模块（§1.2），仍单 pass | 预处理后文本相同、spill 相同、0 px | 无 |
 | 3 | **G-buffer 拆分**（spike 转正）：pass A `trace` → G-buffer；pass B 读回 → 阴影射线 / 水 / 水下 / 云 / 雾 / 深度。单 pass 路径保留在 `#if SPLIT==0` 做 A/B | 5 机位 `--ref` 0 px；`shader-stats` A/B 各自 spill；整帧吞吐 ≥ 单 pass；`df-seeds` 0 px | `uvl` 重算不逐位（见 §3）→ 允许 ≤ 1e-6 级差异并记录；RT 切换在本驱动上有未知开销（云 pass 旧案）→ spike 已排除 |
 | 4 | 可选：阴影射线再独立成 pass S（读 G-buffer，写 1 通道遮蔽）；只在 B 的 spill 仍 > 100 时做 | B spill 显著下降；0 px | 不做也能收尾 |
 | 5 | 参数表（= panify 第 1–3 步在 v2 侧的落地）+ tier + `gm.pane` API；面板从表生成；质量预设三档入表 | 面板行为不变（手测）；`&json=` / 预设 / bench `--set` 走同一条路；`tier 0` 默认视图 ≤ 8 行 | 现有 localStorage 预设迁移：键名不变即可 |
-| 6 | 性能钩子：① 轨迹录制（`{t,pos,yaw,pitch,edits}` 10 Hz + seed → `tools/out/traj/`）+ `bench --replay`；② `perf: true` 参数的交错 A/B（uniform 类开关每 2–3 s 自动翻转、配对记 fps；`#if` 类预编译两份 program 热切）；③ 落盘：localStorage 环形缓冲 + 可选 `sendBeacon` → `tools/perf-collect.mjs`（JSONL） | replay 同轨迹重复跑 0 px、吞吐抖动 < 3%；采集 JSONL 能被一个脚本聚合成「参数 → 影响」表（回灌 §1.3 排序） | 短期只做 ①（它直接替代 timer query 做裁决）；②③ 等试玩阶段 |
+| 6 | 性能钩子：① 轨迹录制（`{t,pos,yaw,pitch,edits}` 10 Hz + seed → `tools/out/traj/`）+ `bench --replay`；② `perf: true` 参数的交错 A/B（uniform 类开关每 2–3 s 自动翻转、配对记 fps；`#if` 类预编译两份 program 热切）；③ 落盘：localStorage 环形缓冲 + 可选 `sendBeacon` → `tools/perf-collect.mjs`（JSONL） | replay 同轨迹重复跑 0 px、吞吐抖动 < 3%；采集 JSONL 能被一个脚本聚合成「参数 → 影响」表（回灌 §1.3 排序） | ① 已前移到 `goalP4P5` 第 1 步（它直接替代 timer query 做裁决，§-1.B 就要用）；这里只剩 ②③，等试玩阶段 |
 | 7 | 回写：`handover/renderer-refactor` §6 / §8 / s00 索引；`goalP4P5` 第 4 步指向本目录 | verify 三组 PASS | — |
 
-步骤 1、2、5 不依赖 spike 结果，可以先做；3 等 spike。
+-1 最先做（它决定后面拆不拆）。步骤 1、2、5 不依赖 spike 结果，可以和 -1 并行；0、3 等 -1 的决策。
 
 ## 3. G-buffer 布局（一张 `RGBA32UI`，DDA 分辨率，Nearest，`texelFetch` 读）
 
@@ -112,9 +147,9 @@ def('leafShadow', 0,   { label: '树叶阴影',   group: '植被', options: {…
 ## 4. 不做
 
 - 换 regl / threepipe / 自写 GL 封装；改 v1 / gls；动 `ChunkSource/BlockTable/Env` 接口（`goal-renderapi.ts` 不变）。
-- 再追步数（§dda-optim）；阴影画面门控（改画面，已否决）。
+- 再追步数（§dda-optim）；阴影画面门控（只发顶面 / 棋盘格；被 §-1.B 软阴影 pass 取代）。
 - 面板换 UI 库：Tweakpane 留着，`buildPane` 改成从 `params.js` 生成即可。
-- 拆 pass 之外的任何「顺手优化」——每步只做一件事，0 px。
+- 拆 pass 之外的任何「顺手优化」——每步只做一件事；结构步骤 0 px，风格步骤走 §-1.A 的人审通道。
 
 ## 5. 命令
 

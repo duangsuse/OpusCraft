@@ -68,7 +68,8 @@ row   = [key, Pr|Dr|S, { label, ...R(), fx?, options?, bool? }]
 | `&xyzb=url` | index | bwebp 存档导入（覆盖其 seed 的槽位） |
 | `?tex=url` | index | 资源包 |
 | `?family= &display=` | index | 字体 |
-| `&pose=名` / `&gizmo=x,y,z,yaw,pitch,fov` | index | **计划**（goalP4P5 第 1 步 / panify §5）：机位 → agent 截图交接 |
+| `&pose=名` / `&gizmo=x,y,z,yaw,pitch,fov` / `&tpause=` | 两宿主 | **计划**（goalP4P5 第 1 步）：机位 + 暂停 → agent 截图交接 |
+| `{页面名}.json` | 两宿主 | **计划**（panify §3.2）：启动自动加载的默认预设；优先级 字面量 < json < 上次 < `&json=` |
 
 ## 5. `tools/*.mjs`（Node + 无头 Chromium，`tools/cdp.mjs` 零依赖；需 `http://localhost:8765/`；详见 `handover/tools.md`）
 
@@ -82,7 +83,8 @@ row   = [key, Pr|Dr|S, { label, ...R(), fx?, options?, bool? }]
 | `node tools/upload-cost.mjs [url]` | 区块上传主线程成本 |
 | `tools/shots-sky.mjs`、`tools/diag-water.mjs` | 截图诊断（历史） |
 | `tools/asm.mjs split.mjs extract.mjs tl.mjs` | **一次性**拆分脚本（acorn / eslint-scope，依赖在 `/tmp`），不维护 |
-| `tools/perf-collect.mjs` | **计划**（panify §4）：接收面板 `timeit` 投送的 JSONL |
+| `node tools/snap.mjs [goalDir] [--check]` | 任务包 `doc/` 快照 ← 真值（清单 `goalX/doc/SNAP`）；`--check` 只报漂移 |
+| `tools/perf-collect.mjs` | **计划**（panify §4）：接收面板 `timeit` 投送的 JSONL；`PUT /default?page=` 写 `{页面名}.json` |
 
 ## 6. 现状分叉（panify 要统一的）
 

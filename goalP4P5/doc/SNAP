@@ -1,0 +1,12 @@
+# goalP4P5/doc 快照清单（node tools/snap.mjs goalP4P5）
+handover/renderer-refactor/s00-status.md
+handover/renderer-refactor/s02-arch-v1.md
+handover/renderer-refactor/s03-accel.md
+handover/renderer-refactor/s05-tools.md
+handover/renderer-refactor/s06-milestones.md
+handover/renderer-refactor/s08-lessons.md
+handover/renderer-refactor/s10-interfaces.md
+handover/renderer-refactor/s11-hostB-bounds.md
+handover/renderer-refactor/s12-hostB-upgrade.md
+handover/tools.md
+doc/dda-optim.md
