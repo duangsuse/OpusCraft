@@ -42,9 +42,9 @@
 
 像素一致性：`--save NAME` 存每机位 ddaRT 原始像素到 `tools/out/ref/NAME/`，`--cmp NAME` 逐像素比较（同机重复运行 0 px 差异）。P1「画面与 P0 逐像素一致」即 `node tools/bench-v2.mjs --cmp p0` 四机位全 0 px。
 
-### 6.2 P0 基线（新默认参数，commit 036294b）
+### 6.2 P0 基线（新默认参数，commit 5d66059）
 
-036294b 改了 `P_DEFAULTS`（`scale 0.8` → DDA 1024×526，`shadowDist 6` 等），之后所有阶段都以这张表为准；`tools/out/ref/p0/` 已按它重新生成。其余环境同 §6.1。
+5d66059 改了 `P_DEFAULTS`（`scale 0.8` → DDA 1024×526，`shadowDist 6` 等），之后所有阶段都以这张表为准；`tools/out/ref/p0/` 已按它重新生成。其余环境同 §6.1。
 
 | 机位 | gpu dda | s+d+comp* | 主射线迭代 | 阴影迭代 | 耗尽 | fetch | 列跳/砖/体素 |
 |---|---|---|---|---|---|---|---|
@@ -83,7 +83,7 @@ P3 目标（`scale 0.8` 四机位 ≤ 12 ms 整帧）相对这张表：plain 需
 
 ### 6.4 效果期基准（goalP3P4 第 1 步，§9.3 的命令 + §9.2-7 测量补齐）
 
-**基准换成 `p1fx`**：`p0` 是加效果之前存的，HEAD（6cdf06c）的 v2.js 对 `p0` 已不是 0 px（plain 47716 px、canopy 39956 px、water 28294 px，云 / 星星 / 水面效果）。按 §9.3 第一条另存 `tools/out/ref/p1fx/`（HEAD 代码、5 机位），**之后每一步都 `--cmp p1fx`**。
+**基准换成 `p1fx`**：`p0` 是加效果之前存的，HEAD（b5bd4be）的 v2.js 对 `p0` 已不是 0 px（plain 47716 px、canopy 39956 px、water 28294 px，云 / 星星 / 水面效果）。按 §9.3 第一条另存 `tools/out/ref/p1fx/`（HEAD 代码、5 机位），**之后每一步都 `--cmp p1fx`**。
 
 测量补齐（`v2.js` + `tools/bench-v2.mjs`）：
 - `CNT` 之外加 `TEXC`/`gTex`：图集（`matSampleLod` 宏包一层计数）、水面噪声 `nB`/法线、云 3D 噪声都计入；**DBG 6 = texture() 采样热力图**，bench 列 `tex`。

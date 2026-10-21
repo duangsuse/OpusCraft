@@ -1,7 +1,7 @@
 # VoxelCraft 渲染器交接 · v2 DDA 性能阶段 —— 索引
 
 > 本文件只是索引。正文按 `## N.` 章节拆成 `handover/renderer-refactor/sNN-*.md`，每个文件头部有「状态 / 何时读 / 对应 goal-renderapi.ts」，**原文未改，只加 ⚠ 标注**（被取代或已拍板之处）。
-> 拆分前的整篇见 git：`git show HEAD:handover/renderer-refactor.md`；更早一版（M0–M2 实施记录、面板 DSL 规范）见 `git show 801c7e4:handover/renderer-refactor.md`。
+> 拆分前的整篇见 git：`git show HEAD:handover/renderer-refactor.md`；更早一版（M0–M2 实施记录、面板 DSL 规范）见 `git show ca978fa:handover/renderer-refactor.md`。
 > 接口的**整理后单一真值**是 `./goal-renderapi.ts`（§9「用户已经确认」= TODO-1…7 的默认值已拍板）。与正文冲突时：goal-renderapi.ts > §11 > §10 > §2/§3。
 
 ## 现状一句话

@@ -29,6 +29,6 @@
 | `node tools/df-seeds.mjs a b [gpu\|ss] [yaws]` | 随机世界 × 多个朝向的 DF 开/关对比（参考模式） |
 | `node tools/upload-cost.mjs [url]` | 初次加载 rd 6：`VR.ring.upMs/uploads`（整块上传的主线程 CPU 部分）与 `updateChunks` 总耗时 |
 | verify 新增项 | 静态检查（v2 主体不读宿主私有字段、waterId 注入 ≤1）、事件三路径 + rev 去重 + aux、DF Worker 回包、**DF 不变量 v−1 ≤ 真实距离**（独立重算，编辑前后各一次）、**1 格厚墙贴天空**放置 / 移除（宿主 setBlock 与 onBlockChanged 两条路径）、DF 开 / 关 0 px（steps 576） |
-| 基准 | `tools/out/ref/p1fx/`（效果期，HEAD 6cdf06c 代码、5 机位序列）替代 `p0`；`bliss1` = bliss 预设下的同代码基准 |
+| 基准 | `tools/out/ref/p1fx/`（效果期，HEAD b5bd4be 代码、5 机位序列）替代 `p0`；`bliss1` = bliss 预设下的同代码基准 |
 
 可复现性：bench 的 `place()` 钉死宿主水下 FOV、调用 `VR.resetLag()`；机位**访问顺序**会影响环边缘已加载的区块集合，DF 让射线在预算内走得更远后画面会依赖它 → 基准一律用完整 5 机位序列（§6.5「未达成项」）。

@@ -74,7 +74,7 @@ node tools/bench-v2.mjs --views uw --probe 632,144                           # �
 | 名称 | 内容 |
 |---|---|
 | `p0` | P0 时（加效果之前），**已不可比** |
-| `p1fx` | 效果期（HEAD 6cdf06c 代码）、5 机位 —— 当前回归基准 |
+| `p1fx` | 效果期（HEAD b5bd4be 代码）、5 机位 —— 当前回归基准 |
 | `bliss1` | 同上代码、`--preset bliss`（plain/canopy/water/uw） |
 | `ref0` / `dfoff576` 等 | 临时（DF 开/关对比用），可随时重建 |
 
