@@ -5,6 +5,8 @@
 > 参数表变成单一真值（面板 / uniform / 宏 / 预设 / URL / JS API / 性能采集全从它推导）。
 > 每一步都有 0 px 回归（结构通道）或前后截图人审（风格通道）和 `shader-stats` 数字；开工前先过 §-1 两项前置决策。
 
+> **平滑升级（2026-10-21 定）**：`?r=v2` = 单文件原版 `v2.js`，保持不动（回归基准、对照）；本目标的全部改动落在 `v2/` 文件夹，`?r=v2/gl` 加载 `v2/gl.js`（入口）+ `v2/pass.js` 等模块。工具用 `--r v2/gl`（bench）/ `?r=v2/gl`（shader-stats URL）；verify 两个都测。结构步骤的 0 px 对照 = 同配置下 `--r v2 --save X` 与 `--r v2/gl --cmp X`。
+
 ## -1. 前置决策（先于 §2 任何步骤）
 
 ### -1.A 画面方向：Veloren 风格（已拍板）
@@ -38,6 +40,25 @@ pass C（comp 里顺手做）        = MRT0 + MRT1 × mix(1, blur(S), 强度≤0
 - **决策**：
   - A+S+C 整帧明显快于现状（目标拿回 `shadowSteps=0` 收益的一半以上）→ 软阴影 pass 转正（= 风格通道第一步），再看 A 的 spill：仍 > 100 → 做 §2 步骤 0（完整 G-buffer spike）；≤ 100 → 完整拆分降级为可选。
   - 不快 → 说明本驱动上多 pass / MRT 开销吃掉了收益，**放弃一切拆 pass**，只做 §2 步骤 1、2、5、6，P4b 直接在单 pass 里加 `#if SHAPES`；软阴影改用单 pass 内的低步数 + 抖动 + 时间累积（另议）。
+
+### -1.B 结果（2026-10-21，已实现，待人审画面）
+
+- 代码在 `v2/gl.js`（`v2.js` 不含 spike）。开关：`P.softShadow`（面板「光影 / 软阴影 pass」→ 宏 `SHADOW_PASS`，默认关）；`softShRes 1|2|4`、`softShStr`（默认 0.35）、`softShBlur`（格，默认 1.5）、`softShCone`（太阳方向抖动锥，默认 0.06）。
+- 实际形态与上面草图的偏差：
+  - MRT2 用 `RGBA32F` 存**阴影射线起点 xyz + 标志**（不是 RG32UI 的 tHit）：不用重建射线、免掉整数附件的 clear 问题。
+  - MRT1「直射增量」= sh=1 与 sh=0 两种着色之差，沿 `col` 之后的每个仿射变换（水下焦散 / 岸壁水线 / 水面透射 / 水下仰视 / 吸收 / 雾 / 云）只乘系数 → 对照模式（`softShRes=1, softShBlur=0, softShStr=1, softShCone=0`）与硬阴影一致到 Δ1（重投影后 98%+ 差异像素为 Δ1，余下约 2k px 在硬阴影边缘）。
+  - **S + 模糊放在 DDA 之前、读上一帧几何**，C 在 comp 里做（本帧命中点投到上一帧屏幕取阴影）。原因（实测）：本机 DDA pass 之后每多一个 RT pass（哪怕是空的 1 次 draw）整帧 +5 ms，放在 DDA 之前几乎为 0；comp 本身不受影响。低分辨率云 pass 当年的「DDA 变慢」应是同一现象。
+  - bench 读 `VR.ddaRT` 时按需把同一合成写到 `ddaOut`（`--cmp` / `--save` 照常可用）。
+- 数字（Intel RPL-S，GPU 计时整帧 ms；墙钟同向但当时机器上有 450% CPU 的残留 SwiftShader 进程，噪声大）：
+
+| | A 指令 / spill | plain | canopy | water | cave |
+|---|---|---|---|---|---|
+| 现状 | 11260 / 239 | 19.5 | 17.0 | 33.3 | 10.7 |
+| 软阴影 A+S+C（S+模糊 ≈ 0.4–0.5 ms） | 9310 / 164 | 16.2 | 13.1 | 28.7 | 11.0 |
+| `shadowSteps=0`（上界） | — | 15.5 | 12.3 | 28.6 | — |
+
+- 决策：拿回上界收益 82–98% → 软阴影 pass **待人审画面后转正**；A spill 164 > 100 → 下一步是步骤 0（完整 G-buffer spike）。
+- bench 新增列：`gpu 软阴影`、`墙钟/帧`（关计时查询、≥40 帧连续提交后同步一次；查询本身会让 pass 串行化）。
 
 ## 0. 为什么是这个形态
 
@@ -130,6 +151,20 @@ def('leafShadow', 0,   { label: '树叶阴影',   group: '植被', options: {…
 | 7 | 回写：`handover/renderer-refactor` §6 / §8 / s00 索引；`goalP4P5` 第 4 步指向本目录 | verify 三组 PASS | — |
 
 -1 最先做（它决定后面拆不拆）。步骤 1、2、5 不依赖 spike 结果，可以和 -1 并行；0、3 等 -1 的决策。
+
+### 步骤 1 结果（2026-10-21，完成）
+
+- `v2/pass.js`（~100 行）：`passKit(THREE, { defs, ext })` → `Pass(opts)\`…\`` / `glsl\`…\``（可拼接模块）/ `u(name, fn)`；§1.1b 五条全部实现（`#` 行插值 = 宏、其余 = uniform；`DEFS` 每帧求值一次、各 pass 取源码引用到的子集；`#ifndef X → 0` 兜底；首次链接后双向自检；`pass.defineRefs`）。同一源码的变体用 `pass.variant({ defines })`（主 pass / 云 ×2 / 软阴影 S 共享 uniform）。
+- `v2/gl.js`：`uni` 字面量、`render()` 的 ~45 行回填、`syncDefines/syncAux`、`setRef/setDebug` 里的手工宏同步全部删除；uniform 在 GLSL 声明处绑定 getter；直接取 `P.xxx` 的 10 个 uniform 改名为参数名（`fogA1`、`exposure`…），打包向量 / 派生量用 `u('uWater0', …)` 保留原名。comp / 模糊 / 读回合成也走 `Pass`；`SOFT_VIS` 是第一个 `glsl` 模块（comp 与读回共用）。宿主共享 `U` 作 `ext` 透传。
+- 验收：`--r v2` 存 / `--r v2/gl` 比，参考模式 5 机位 × {默认, bliss, bliss+cloudLowRes, leafStyle=1, leafShadow=1} 全部 0 px；`shader-stats` 与原版逐项相同（默认 11260 / 239:366，软阴影 9310 / 164:232）；软阴影对照数字与拆分前一致；verify 全部通过（含 `?r=v2/gl` 组）。
+- 注意：DBG / REF_MODE 现在对所有 pass 同值（§1.1b-2），调试视图会顺带重编译云 / 阴影 pass（只在它们实际渲染时）。
+
+### 步骤 2 结果（2026-10-21，完成；GLSL3 转换未做）
+
+- `v2/glsl/{common,cloud,trace,dbg,water,uw,shade}.js`：每个导出 `({ BT, LEAF_OK, … }) => glsl\`…\``（只收静态常量）；`common` = head / util / data，`cloud` = vol / star，`water` = fn / refl，`shade` = `main()`。带 getter 的两段 uniform 声明（`U_MAIN`、`U_PASS` = 阴影 / 矩阵 uniform + `vUv` + MRT 输出）留在 `gl.js`（依赖它的状态），`DDA_FS` = 按原顺序拼接。`gl.js` 2481 → 1236 行。
+- 与表 §1.2 的偏差：水面 / 水下仰视分支仍在 `main()` 里（`shade`），没拆进 `water` / `uw`——拆它们要改 `main` 的控制流，不属于「纯搬运」，留到步骤 3 拆 pass 时一起做。
+- 验收：`tools/fsdump.mjs`（新，导出交给 three 的片元源码 + defines）切分前后 post / comp **逐字节相同** → 编译结果必然相同；bliss 5 机位 0 px；verify 全部通过。
+- 未做：§3 说的「`gl_FragColor` → GLSL3 `out vec4`」。MRT 在 three 的兼容前缀下已能用（spike 已验证），这一项改文本、不改逻辑，放到需要 `out uvec4` 的步骤 0 / 3 再做。
 
 ## 3. G-buffer 布局（一张 `RGBA32UI`，DDA 分辨率，Nearest，`texelFetch` 读）
 

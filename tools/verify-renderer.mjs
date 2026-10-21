@@ -268,23 +268,37 @@ const PAGE_CHECKS = `(async () => {
     const host = VR.pane.element.parentElement || VR.pane.element;
     ck('v2: 面板周期末仍可用', host.style.display !== 'none' && document.body.contains(host));
   }
+  // 着色器全部链接成功（three 编译失败只打日志、静默不画 → 软阴影 pass 坏了画面照样「能看」）；v2/gl 逐个阴影模式过一遍
+  {
+    const gl = g.renderer.getContext();
+    const bad = () => g.renderer.info.programs.filter(p => !gl.getProgramParameter(p.program, gl.LINK_STATUS)).length;
+    const modes = VR.name === 'v2/gl' ? [1, 2, 0] : [null], s0 = VR.P && VR.P.softShadow;
+    for (const m of modes) {
+      if (m != null) { VR.P.softShadow = m; VR.apply('softShadow', 'def'); for (let i = 0; i < 4; i++) { VR.update(0.016); g.renderer.clear(); VR.render(); } }
+      const n = bad();
+      ck('WebGL program 全部链接成功' + (m != null ? '（softShadow=' + m + '）' : ''), n === 0, n + ' 个失败 / ' + g.renderer.info.programs.length);
+    }
+    if (s0 != null && VR.name === 'v2/gl') { VR.P.softShadow = s0; VR.apply('softShadow', 'def'); }
+  }
   return out;
 })()`;
 
 let failed = 0;
 { // §10.5-1：v2 主体只经 Env / ChunkSource 读宿主（适配器在文件尾部，不算）；waterId 只在 isFluid() 注入一次
   const { readFileSync } = await import('node:fs');
-  const src = readFileSync(new URL('../v2.js', import.meta.url), 'utf8'), cut = src.indexOf('// ───────────────── VoxelCraft 适配器');
+  for (const f of ['v2.js', 'v2/gl.js']) {
+  const src = readFileSync(new URL('../' + f, import.meta.url), 'utf8'), cut = src.indexOf('// ───────────────── VoxelCraft 适配器');
   const body = cut > 0 ? src.slice(0, cut) : src;
   const bad = [...body.matchAll(/ctx\.(skyMat|cloudMat|clouds|stars|getBlock)\b|getElementById\(['"]water['"]\)/g)].map(m => m[0]);
   const nW = (body.match(/\$\{BT\.waterId\}u/g) || []).length;
-  console.log('=== v2.js 静态检查 ===');
+  console.log(`=== ${f} 静态检查 ===`);
   for (const [name, ok, info] of [['v2 主体不直接读 ctx.skyMat/cloudMat/clouds/stars/getBlock/#water', !bad.length, bad.join(',')],
                                   ['${BT.waterId}u 至多注入一次（isFluid 收口；RGBA8UI 后走 A 通道 FLUID 位 = 0 处）', nW <= 1, nW + ' 处']]) {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? '  (' + info + ')' : ''}`); if (!ok) failed++;
   }
+  }
 }
-for (const [r, expect] of [['v1', 'v1'], ['v2', 'v2'], ['bogus', 'v1']]) {
+for (const [r, expect] of [['v1', 'v1'], ['v2', 'v2'], ['v2/gl', 'v2/gl'], ['bogus', 'v1']]) {
   logs.length = 0;
   await send('Page.navigate', { url: `${BASE}?r=${r}` });
   await sleep(1500);

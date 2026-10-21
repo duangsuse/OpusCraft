@@ -1320,8 +1320,8 @@ function makeGeometry(mb) {
   return g;
 }
 
-// ----- renderer selection: ?r=v1 | ?r=v2 -----
-const RENDERER_ID = ['v1', 'v2'].includes(new URLSearchParams(location.search).get('r')) ? new URLSearchParams(location.search).get('r') : 'v1';
+// ----- renderer selection: ?r=v1 | ?r=v2 | ?r=v2/gl（v2 模块化 / 拆 pass 版，goal-glmod；v2 保持单文件原版） -----
+const RENDERER_ID = ['v1', 'v2', 'v2/gl'].includes(new URLSearchParams(location.search).get('r')) ? new URLSearchParams(location.search).get('r') : 'v1';
 const RCTX = { THREE, scene, camera, renderer, U, GLSL, MeshBuilder, makeGeometry, atlas,
   CS, CH, SEA, RS, RSCH, PS, B, BLOCKS, FACES, UVS, AO_CURVE, RB, RSKY, RBLK,
   SOLID, OPAQUE, LIGHT_PASS, RENDER, EMIT, T_TOP, T_BOT, T_SIDE, R_NONE, R_CUBE, R_CROSS, R_TORCH, R_WATER,
