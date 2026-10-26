@@ -1,7 +1,7 @@
 # 铜块与金属 / 宝石材质（步骤 10）
 
 > 整理自 `goodLiqPG/handover/lights.md` §2（真值在原处）。材质最终落在 goodGL 的 PBR 表里（render.md §1）：spec 贴图的 R = 光滑度，G = F0 字节，**G ≥ 230 表示金属（F0 取 albedo，漫反射为 0）**（L1596、L3574–3591）。
-> 前置：render.md 的 R3 已完成；新方块 id 走 layout.md §5 的 ADD 流程。
+> 前置：render.md 的 R6 已完成（铜块是宿主 B 的新方块，宿主 A 没有）；新方块 id 走 layout.md §5 的 ADD 流程。金属 / 宝石块里宿主 A 只有 gold_block，可以先在 A 上验材质行。
 
 ## 1. 现状
 

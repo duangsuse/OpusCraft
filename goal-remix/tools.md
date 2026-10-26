@@ -45,6 +45,7 @@
 | `--stats` | 群系占比；`pgen` 自报的特征列占比（例如石林） |
 | `--knob K=V` | 改 knob 后再出图，和 genscope 的滑杆用同一套参数 |
 | `--at x,z[,y]` | 打印 `sample` 和 `explain` 的 JSON，用来和探针、genscope 对数 |
+| `--coast` | 海岸剖面：无沙滩比例、沙滩带宽、离岸 4/8/16/32 格水深、内陆 4/8/16 格高出海面（沿 x 扫线，只算海岸、不算河岸；README §1 那一行的统计，脚本原型 `/tmp/remix/coast.mjs`） |
 
 - 输出目录从 `/tmp` 改为 `tools/out/gen/<tag>-*.png`。
 - Worker 并行沿用 `runRegions`：每个 worker 自己 `create` 一份，接缝检查在合并之后做。

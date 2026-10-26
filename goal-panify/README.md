@@ -33,7 +33,11 @@ o.it.stepLen         // Ref            —— 面板 / Pass DSL / API 用引用
 o.it.ao.strength     // 嵌套同样可用
 ```
 
-`Ref = { get(), set(v), path: 'Motion.stepLen', owner, key, meta }`，`it` 是惰性 Proxy，返回同一路径的同一个 Ref（可做 Map 键）。
+`Ref = getset(v?) 单函数`，`it` 是惰性 Proxy，返回同一路径的同一个 Ref（可做 Map 键）。
+
+key, meta 作为Symbol，在set的路径里检测。如果是就返回键名和meta
+
+> ⚠ 用户 2026-10-26 修正：**Ref 本身是 getter 函数**（`ref()` 即 `get()`），这样 Pass DSL 里 Ref 和 `() => x` 是同一种东西。Pass 里的 uniform 名取 `key`，不再是路径下划线化的 `Fog_a1`；冲突时用 `u('名字', ref)`。完整规格见 `../goal-remix/render.md` §4.1（rgl 先实现，再并进公共库）。
 
 - `meta` 由面板声明时写入（label / range / tier / fx / timeit），所以**面板行就是 `[ref, opts]`**，不需要 `[key, () => target]`。
 - Pass DSL：`uniform float ${c_.Fog.it.a1};` → 名字 `Fog_a1`（路径下划线化），每帧 `get()` 回填；仍兼容 `${_ => P.fogA1}`。

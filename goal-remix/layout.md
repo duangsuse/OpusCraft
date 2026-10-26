@@ -26,7 +26,7 @@
 ## 2. `remix/xlate.js` 的形状
 
 ```js
-// remix/xlate.js —— 供体 ⇄ 宿主 B 的唯一转换层。只放表 + 通用函数；别处不写 if (donor === …)。
+// remix/xlate.js —— 供体 ⇄ 宿主的唯一转换层。只放表 + 通用函数；别处不写 if (donor === …) / if (host === …)。
 export const LAYOUT = {             // idx(x, yi, z)：yi 是供体内部下标（0 起）
   host: { H: 256, idx: (x, y, z) => (x << 12) | (z << 8) | y, col: (x, z) => x * 16 + z },
   gp:   { H: 256, minY: 0,   idx: (x, y, z) => (y << 8) | (z << 4) | x,     col: (x, z) => z * 16 + x, dec: 'u8+meta' },
@@ -35,15 +35,23 @@ export const LAYOUT = {             // idx(x, yi, z)：yi 是供体内部下标�
 };
 export const YMAP = { gp: { shift: 0 }, liq: { shift: +64 }, gl: { shift: 0 } };   // 宿主 y = 供体 y + shift，越界裁掉（§4）
 export const WORLD = { old: { sea: 62 }, v1: { sea: 62 }, v2: { sea: 127 } };     // 存进存档头，宿主 SEA_LEVEL 由此而来
+export const HOST = {             // 渲染侧（render.md §3）：rgl 只认 renderapi，宿主差异全在这里
+  A: { H: 96,  sea: 40, ids: 'A', tint: 'const', weather: false },               // VoxelCraft.html；ids 按 B.* 名字（:659–661）
+  B: { H: 256, sea: 'WORLD', ids: 'B', tint: 'biome', weather: true },           // index.html；sea 随世界（old/v1 62，v2 127）
+};                                // 由 H / sea 推出 goodGL 帧对象里的绝对 y：cloudBase / cloudTop / caveY（render.md §3 海平面行）
 export const META = { keep: m => m, zero: () => 0, top: m => m & 1 /* 双格植物上半 */ , … };  // 命名规则，表里只写名字
 export const IDS = {               // [供体名, 宿主名 | '+'（步骤 4b 起新增宿主方块）, meta 规则]
   liq: [['stone', 'stone'], ['deepslate', 'stone'], ['tall_grass', 'short_grass', 'zero'], ['oak_log', 'oak_log', 'zero'], …],
   gp:  [['clay', 'gravel'], ['sugar_cane', 'air'], …],
 };
+export const GLID = {              // 渲染侧，方向相反：[宿主名, goodGL 名 | '+'（xlate 里追加 gl 行）]
+  A: [['GRASS', 'grass_block'], ['WATER', 'water'], ['TALL_GRASS', 'short_grass'], ['TNT', '+'], ['GOLD_BLOCK', '+'], …],   // 26 行
+  B: [['grass_block', 'grass_block'], ['water', 'water'], ['oak_door', 'hybrid' /* R6 混合路径 */], …],                   // 88 行
+};
 export const SOFT = [null, id => id === 0 || isLeaves(id), id => id === 0 || (DEF[id].replaceable && !DEF[id].fluid)];
 export const BIOME = { liq: [['meadow', { grass: …, foliage: …, water: …, snow: 0, dry: 0 }], …], gp: […] };
 export function remapChunk(donor, src, dst) {…}   // 一次遍历：解码 → 查 LUT → 平移 → 转置写宿主下标
-export function padded(source, cx, cy, cz, out) {…} // 渲染侧（render.md §3）：宿主块 → goodGL 18³ padded（id LUT + 光照打包 + 转置）
+export function padded(source, host, cx, cy, cz, out) {…} // 渲染侧（render.md §3）：ChunkData → goodGL 18³ padded（GLID LUT + 光照打包 + 转置）
 export function frame(env, host, out) {…}          // 渲染侧：宿主 Env/Sky/Weather → goodGL 帧对象 F（render.md §4 R5）
 ```
 

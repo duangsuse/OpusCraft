@@ -33,7 +33,7 @@
 | 成员 | v2/gl 现状 | rgl |
 |---|---|---|
 | `name` | `'v2/gl'` | `'gl'` |
-| `P / P_DEFAULTS / panelSpec / apply(k, fx) / presets` | 面板参数 + 副作用路由（bench 的 `--set / --preset` 走它） | goodGL `Game.settings` 的画质项（`shadowQ volumetric pbr pom taa clouds waving`，L5563）+ `Game.dbg` 的 `fog mist vol exp`（L6248）+ 本包新增的旋钮（PCSS 参数，§7）。`fx`：`def` = 宏重编译，`rt` = 重建渲染目标，缺省 = 只改 uniform。面板用 `buildPane`（`v2/gl.js:29`，已 export） |
+| `P / P_DEFAULTS / panelSpec / apply(k, fx) / presets` | 面板参数 + 副作用路由（bench 的 `--set / --preset` 走它） | R5 起 `P` = `c_.Gl`（`gg.vars` 对象，render.md §4.1），`apply(k)` 重放 `set`，`panelSpec` 由 Ref 的 `meta` 生成。内容：goodGL `Game.settings` 的画质项（`shadowQ volumetric pbr pom taa clouds waving`，L5563）+ `Game.dbg` 的 `fog mist vol exp`（L6248）+ 本包新增的旋钮：雾的各项（render.md §0，默认取去雾版）、`scale / maxMP`（与 v2 同名）、PCSS 参数（§7）。`fx`：`def` = 宏重编译，`rt` = 重建渲染目标，缺省 = 只改 uniform。面板用 `buildPane`（`v2/gl.js:29`，已 export） |
 | `&json=` | `v2/gl.js:138–143` 解析 | 同一个函数（改成 export，属于结构改动） |
 | `D` | `{ view, raw, time, cloudX, ref, noTimer }` | 同名：`time` 钉住 `F.time`、火把闪烁和水波相位；`cloudX` 钉住 `cloudTime`；`ref` → REF 宏；`noTimer` 关掉计时查询 |
 | `setRef(on) / setDebug(view, raw)` | REF_MODE / DBG 宏 | 同名，含义见 §4、§5 |
@@ -103,6 +103,7 @@ raw 输出给脚本求均值，热力色给人看（§8.1-⑤）。每个视图�
 | §8.3 | 渲染器只认接口；默认适配器放在文件尾 | rgl 只认 renderapi；宿主专属的东西（ID 名表、海平面、云底高度、绝对 y 常量）全部放在 `xlate` 的宿主行（render.md §3） |
 | §8.5 | 面板分 P / D / S 三桶，副作用走 `fx` 标签 | rgl 照用；以后随 goal-panify 一起换 |
 | §8.4 | `trace` 的寄存器压力、掠射角三件套 | 只对 DDA。gl 里相关的只有 SSR 和云的步进循环：循环里携带的变量越少越好 |
+| 用户（10-26） | glmod 后来把 DDA 的 spill 也解决了，但花了很大精力；可能是架构不如 goodGL | goodGL 的形态天然把活跃变量分散在多个 program 里：阴影是光栅阴影图而不是阴影射线，场景是前向 PBR，雾 / 云 / 体积光在合成 pass，TAA、bloom、final 各一个 program。这正是 glmod 拆 pass 想要的结果。rgl 的规则：**不把 pass 合并回去**；新效果优先做成独立 pass，加之前先按上面「+5 ms」那一行量一次 |
 | glmod §-1.A | 结构 / 风格两条验收通道，不混在一次提交里 | 照用：R1–R3 是结构（0 px）；换 LiqPG 水面、改 PCSS 参数、改色调是风格（人审后另存基准） |
 
 ## 7. 阴影：用户的结论怎么落在 gl 上
@@ -128,7 +129,7 @@ goodGL 为什么问题小（读码）：
 
 | 组 | 页面 | 怎么跑 |
 |---|---|---|
-| goodGL 原版（去雾） | `goodGL.html#auto&seed=1&rd=6&x=…&z=…&t=…`，载入后执行 `Game.dbg = { fog: 0, mist: 0 }`（L6248 的调试覆写） | `frametime.mjs --step 'Game.step(16.7)'`。它和宿主 A 不是同一个世界，机位只能挑相近的地形（平地远眺 / 树冠 / 水面） |
+| goodGL 原版（去雾） | `goodGL.html#auto&seed=1&rd=6&x=…&z=…&t=…`，载入后执行 `Game.dbg = { fog: 0, mist: 0 }`（L6248 的调试覆写）；分辨率记两档：原版的 2.1 MP 封顶，和与宿主 A 相同的像素数（`#auto&scale=`） | `frametime.mjs --step 'Game.step(16.7)'`。它和宿主 A 不是同一个世界，机位只能挑相近的地形（平地远眺 / 树冠 / 水面） |
 | 宿主 A v2/gl（软阴影开） | `VoxelCraft.html?r=v2/gl` | `bench-v2 --r v2/gl --set softShadow=1` |
 | 宿主 A v2 | `?r=v2` | `bench-v2 --r v2` |
 | 宿主 A gl | `?r=gl`（R3 之后） | `bench-v2 --r gl`：**同一世界、同一机位**，这才是严格的对比 |

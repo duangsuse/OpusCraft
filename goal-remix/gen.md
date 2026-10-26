@@ -55,7 +55,8 @@ export function create(seed /* 宿主字符串种子 */, W /* 宿主服务 */) {
 | 种子 | 宿主字符串种子 → `hashString` 得到整数。goodGP 的 `Noise` 与宿主逐位相同，但 `hashStr`（FNV）不同，要跟着 vendor | `util.js:40-113` |
 | 山高 | `world.js:106` 的 `mount * pk**2 * 45` 改成 `this.MOUNT_H`（`// remix:` 一词补丁），默认 45；升 256 后在 genscope 里试 70–95 | README §1：现状最高约 135 |
 | 群系判定 | `class V1 extends World` 覆写 `biomeOf`（`world.js:120-133`）。并入 gen.js 的海拔降温（`temp -= max(0, h-70)·k`，gen.js:52）：雪线随温度连续变化，取代 `h > 118` 这类硬阈值 | gen.js 评价"平原、沙滩较自然" |
-| 平原 / 沙滩 / 沙漠 / **海岸** | **后处理，不复制供体方法**：remap 之后在宿主布局里补 gen.js 的规则：沙漠和沙滩的砂岩垫层（gen.js:98）、海底沙 / 砂砾噪声（gen.js:82）。装饰概率改成按群系查表（`V1_DECO`：平原取 gen.js 的 `grassP .12 / flowerP .02 / pumpkinP .0008 / trees .002`）；只有 goodGP 的 `decorate`（`world.js:370-427`）不得不改时才在子类里覆写 | 用户（10-26）：**v1 的海岸体验不好** → 沙滩 / 海岸这几条是必做项。验收加一条：genscope 把 old 和 v1 的同一段海岸并排看（俯瞰 + 过海岸线的切片），由人判断 v1 是否达到 old 的水平 |
+| 平原 / 沙漠 | **后处理，不复制供体方法**：remap 之后在宿主布局里补 gen.js 的规则：沙漠的砂岩垫层（gen.js:98）、海底沙 / 砂砾噪声（gen.js:82）。装饰概率改成按群系查表（`V1_DECO`：平原取 gen.js 的 `grassP .12 / flowerP .02 / pumpkinP .0008 / trees .002`）；只有 goodGP 的 `decorate`（`world.js:370-427`）不得不改时才在子类里覆写 | — |
+| **海岸** | 用户（10-26）：gen.js 的沙滩太薄（每段海岸都有、只高出海面 0–2 格的一层），但它**近海约 10 格的落差更合理**；要一个参数调「海边没有沙滩」的概率。实测见下表。做法全在子类里，供体不改：① **离岸坡度**：`column()` 包一层，`h < SEA` 时按 `SHELF` 样条表把 goodGP 的浅水大陆架（world.js:99–101，cont −0.18…−0.06 → 55…62）压陡，目标是离岸 32 格水深中位数接近 gen.js 的 9；② **沙滩**：`biomeOf` 覆写里的沙滩条件改成 `h ≤ SEA + BEACH_H`，并由一张低频噪声按 `NO_BEACH_P` 切掉一部分海岸（这些地方草地 / 石头直接入水，水下铺砂砾）；③ **沙层厚度** `BEACH_DEPTH`（后处理，砂岩垫层照 gen.js:98）。四个都进 `knobs` | `genview --coast`（就是下表的统计）：`NO_BEACH_P` 的实测值与设定值差 < 3 个百分点；离岸 32 格水深中位数 ≥ 8 → 人在 genscope 里并排看 old / v1 同一段海岸，调 `BEACH_H / BEACH_DEPTH` |
 | 草色 | goodGP 用的 `grassMap/foliageMap` 来自 MC 资源 colormap 图（`render.js:229-230`，**版权问题**）。改为注入用 LiqPG `grassColormap/foliageColormap`（`biomes.js:24-36`，三角插值公式）生成的 256×256 表，goodGP 的 `tintFor`（`world.js:134-139`）原样不动 | 不碰资源文件 |
 | 渐变（5b） | 宿主区块加列级 `temp/hum`（Uint8 各 256，`goal-renderapi.ts` 的 `HostChunk.temp/hum` 已经预留）；`gls.js tintFor`（288）有这两项时按 colormap(temp, hum) 取色；存档加列 | world-gen.md §5.1 第 1 条（已确认）；消除群系硬缝 |
 | 树 | goodGP 不往邻块写，而是重算 3×3 邻块的树表（`treesFor` `world.js:305-335`），**保持原样**，v1 没有 outside。mobsim 的树苗要 `placeTree`：如果 goodGP 的 `placeTree`（337–368）是通过传入的 `set` 写方块，就包一层 `W.setBlockGen`；不是的话，v1 的 `placeTree` 退回 old 的实现 | 开工时看 :372–377 |
@@ -91,13 +92,14 @@ export function create(seed /* 宿主字符串种子 */, W /* 宿主服务 */) {
 
 **先诊断，再改。** 每一条都先在 genscope 里定位到具体是哪一项，把截图和项树贴进本节，再动手。
 
-goodGL 的草甸、平原：用户（10-26）试过，不好用，**不取**。goodGL 只取石林和拱。
+goodGL 的平原不取（用户 10-26 试过，不好用）；goodGL 的**草甸**作为 v2 平原的补充（用户 10-26：梯度较大，与 v2 不冲突），见表最后一行。
 
 | 问题 | 诊断（genscope） | 候选改法 |
 |---|---|---|
 | meadow 大型山出现得太频繁 | 在 meadow 区域看 `off / fac / jag` 的热力图：山是被样条抬升（off）撑起来的，还是被锯齿项（jag）撑起来的 | 改样条表（`spline.js:96/121/135`），或者降低 `PLATEAU / PLATEAU_V` 表里 meadow 的占比（`biomes.js:159-169`）。只改数据表 |
 | plains 上出现超大镂空 | plains 区切片，用"胜出项"着色：空腔是 `cheese`（L133–154）造成的，还是 `entrances`（L107–119）造成的；再看顶盖有多厚 | `// remix:` 补丁：在低 PV 区域按"距 `prelimG` 估算地表的深度"压低 cheese 或 entrances（`generator.js:103-111` 已经算出 `prelimG`），系数做成 knob |
 | 石林 / 拱（goodGL） | — | 移植成 `pgen/feat/spires.js`，约 40 行，**属于特征移植，不算 vendor**；注释里标明 goodGL 原行号：`cellPt` L334、石柱 L342–350、拱 L351–359、调用点 L466。在 remap 之后、宿主布局下运行，地表高度取宿主 heightmap。权重 `sw` 换成一张自己的低频噪声（goodGL 的 `sw` 依赖它自己的 column），只在白名单群系（plains、meadow、savanna）生效。尺寸缩小：石柱高 `14 + 26·sw`，拱半径 9–18 → 6–11；y 上限 252 → `H−4`。按 goodGL 原逻辑，每一列只写自己，块边界安全（开工时再核对一遍石柱分支）。条纹 `y%9<2` 用 andesite / granite。"少量"的标准：`genview --stats` 统计特征列占陆地列的比例，由人定（参考 1–2%） |
+| 草甸（goodGL）：平原的补充 | — | goodGL 的草甸是山脚的大坡（`biomeOf` L322：`mw > 0.2`），形状来自丘陵项 `fbm2(x/160, 4)·(5 + 16·hilly)·(1 − 0.6·mw) + noise2(x/37)·1.6`（L278–279）。移植成 `pgen/feat/meadow.js`，只输出一个 2D 高度增量 Δh(x, z)。**叠进 LiqPG 的办法**：`depth = 1.5 − (y+64)/128 + off`（terrain.js L73），地表在 `depth + jag ≈ −base3d/(4·fac)` 处，与 off 线性相关，所以 `off += Δh / 128` 恰好把地表抬高 Δh 格，3D 噪声、洞穴都跟着走。补丁是 terrain.js L53 一处 `// remix:` 钩子 `+ this.extraOff(x, z)`（默认返回 0）。**遮罩只能用连续量**：`smoothstep` 过的 ero / pv / weird × 一张自己的低频噪声（波长约 600），不能用离散的群系 id，否则群系边界上会出现 Δh 高的台阶。knob：`MEADOW_AMP`（默认 21 = 5 + 16）、`MEADOW_P`（平原面积里被补成草甸坡的比例）。植被先用 LiqPG 平原自己的；要 goodGL 草甸的花（30%）和稀疏桦树 / 大橡树（`decorateChunk` L647、L673）再改装饰表。`explain` 加一项 `extraOff` | genscope 的 `extraOff` 热力图只在平原一带非零、边界连续；`genview --hist` 地表 y 的 99% 分位不明显上升 → 人在 genscope 里看坡度 |
 
 ## 7. 文件
 

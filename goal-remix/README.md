@@ -13,19 +13,21 @@
 | `gen.js` | 平原和沙滩较自然，但整体太单调。**可以辅助 v1** | `?g=old`（原样保留，做回归基准）；平原 / 沙滩规则并入 v1 |
 | `goodGP/` | **作为 v1**。山体高度要往上兼容 256 | `?g=v1` |
 | `goodLiqPG/` | **作为 v2 生成器**。洞窟和内部镂空很好；meadow 大型山的频率过高；plains 上不该有超大镂空。代码库太大，不当主干 | `?g=v2`，只取 `src/world/gen/` 子树；渲染只取水面和水下 pass，以及铜块材质 |
-| `goodGL.html` | 整体地图 scale 太大，不适合游玩，作为世界不过关。草甸、平原、石林（尤其是拱）可以少量加入 v2（草甸、平原第二轮试过不好用，见下表）。**管线和 PBR 是移植要点**：用户实测比 v2/gl 快（只有 LiqPG 的水面 / 水下 pass 比它好） | 石林 / 拱移植到 v2；渲染管线做成 `?r=gl` |
+| `goodGL.html` | 整体地图 scale 太大，不适合游玩，作为世界不过关。草甸、平原、石林（尤其是拱）可以少量加入 v2（第二轮修正：平原不取，草甸作为平原的补充，见下表）。**管线和 PBR 是移植要点**：用户实测比 v2/gl 快（只有 LiqPG 的水面 / 水下 pass 比它好） | 石林 / 拱、草甸坡移植到 v2；渲染管线做成 `?r=gl` |
 
 第二轮（用户，2026-10-26）：
 
 | 事项 | 决定 | 落点 |
 |---|---|---|
 | v2 的 y 平移 | **+64**，v2 世界海平面 127 | layout.md §4 |
-| v1 海岸 | 体验不好 → gen.js 的沙滩 / 海岸规则在 v1 里是必做项，不再"待指认" | gen.md §4 |
-| goodGL 的草甸、平原 | 试过，不好用 → 不取；只取石林和拱 | gen.md §6 |
+| 海岸 | gen.js 的沙滩太薄（每段海岸都有、只是贴着海面的一层），但它近海约 10 格的落差更合理 → v1 取 gen.js 的离岸坡度，沙滩高度 / 厚度可调，并加「海边没有沙滩」的概率参数（数据见 §1） | gen.md §4 海岸行 |
+| goodGL 的草甸、平原 | 平原不取；**草甸**梯度较大、与 v2 不冲突，作为平原的补充（10-26 第二条消息修正） | gen.md §6 最后一行 |
 | 宿主 B 的 `?json=` 等 URL | 以后会加，不急：所有东西先在宿主 A 上试玩 | tools.md §1、步骤 0 缩小 |
 | 重点 | **goodGL 渲染器移植** | render.md、bench.md |
 | 测量与经验 | renderer-refactor 的 bench、`--ref`、0 px、分 pass 计时、`shader-stats`、s08 各条经验**不能因为换管线丢掉** | bench.md（逐条对照） |
 | 阴影 | 地形用软阴影，草和花要精确阴影（v2 上 DF 砍掉约 30% DDA 开销、整帧只降约 10%，大头是阴影） | bench.md §7：goodGL 的 alpha-test 阴影图 + PCSS 已满足 |
+| goodGL 的缺点 | 只有三条：雾太重、水面和水下差、默认分辨率偏低 | render.md §0：雾参数默认按「去雾版」、水换 LiqPG、分辨率交给宿主 + `scale / maxMP` |
+| glmod 的 spill | 后来解决了，但花了很大精力；可能是架构不如 goodGL | bench.md §6：保持 goodGL 多 program 分散的形态，新效果优先做成独立 pass |
 
 ## 1. 本包实测（2026-10-26，Node，不进游戏）
 
@@ -35,9 +37,10 @@
 | LiqPG 洞穴空气按 y 分布 | **y < 0 占 38–41%**；y < −32 占 10–13%；y ≥ 128 不到 0.5% | 截掉 y<0 等于丢掉 LiqPG 最好的那部分洞窟 → 平移 +64 正好无损装进 0…255（layout.md §4） |
 | LiqPG 生成速度 | 1600 块 4.5 s ≈ **2.8 ms/块**（单线程） | 可以放在主线程 6 ms 预算里跑，Worker 不急 |
 | goodGP `column().h`（3 个种子 × 14400 列） | 中位 62，99% 111，99.9% 122–125，**最高 128–135** | ⚠ 上一轮说"山顶约 190"是按山体系数 95 估的；工作区里 `world.js:106` 现在是 `mount * pk**2 * 45`（已经压过），所以实际很少超过 128。升 256 的理由是让这个系数能调回去（`MOUNT_H`，给登山的人）、让 v2 能无损平移，不是 goodGP 现状会溢出 |
+| 海岸剖面（3 个种子，沿 x 扫 400 条线，只算海岸、不算河岸） | gen.js：**每段海岸都有沙滩**，沙滩带宽中位 12 格；内陆 16 格只高出海面 3 格；**离岸 32 格水深中位 9（p75 15）**。goodGP：27% 的海岸没有沙滩，带宽中位 10；内陆 16 格高 1；离岸 32 格水深中位 4（浅水大陆架） | 用户说的"gen.js 沙滩太薄、近海 10 格落差更合理"对得上：gen.js 的落差在水下，陆上两边都很平。v1 取 gen.js 的离岸坡度（gen.md §4） |
 | goodGL `column().h`（未加石林 / 浮岛） | 中位 73，99% 162，99.9% 191，**最高 237**，海平面 63 | 证实"scale 太大"：只借地貌特征，尺度按 gen.md §6 缩小 |
 
-脚本在 `/tmp/remix/{liqy,gpy,gly}.mjs`（临时文件，步骤 3 的 `genview --hist` 会取代它们）。
+脚本在 `/tmp/remix/{liqy,gpy,gly,coast}.mjs`（临时文件，步骤 3 的 `genview --hist` 会取代它们）。
 
 ## 2. 约定（贯穿全包）
 
@@ -57,8 +60,8 @@
 | 2 | **pgen 骨架 + xlate + `old.js`**：抽出 `Noise / Rand / hashString` 为 ESM；`gen.js` 改 ESM（依赖注入）；`setBlockGen` 的 soft 规则表化；`gg.Terrain / BIOMES` 原地替换 | gen.md §1–3 | 1 | `?g=old` 与改造前 `gen.js` 逐块哈希 0 差异（同种子 32×32 块） |
 | 3 | **工具**：`tools/genview.mjs`（由 `preview_world.mjs` 改成与生成器无关）+ `tools/genscope.html` + `pgen/mapcolors.js` | tools.md §2–3 | 2 | `genview --g old,v2` 出同种子并排图；genscope 点格子出项树、切换热力图 → 人用它调一轮参数 |
 | 4 | **v2 = LiqPG**：vendor `liq/`；xlate 加 `liq` 行（平移 +64、u16 解码、轴序转置、ID 先 SUB 后 ADD、48 个群系追加）；`explain` | gen.md §5 | 2、3 | 接缝检查 4 项为 0；`--hist` 与本文件 §1 一致（平移后）→ 人进 `?g=v2` 看洞窟 |
-| 5 | **v1 = goodGP + gen.js 群系**：vendor `gp/`；子类覆写 `biomeOf / decorate`；程序化 colormap 替换 MC 资源图；`MOUNT_H` 可调；列级 temp/hum 落盘（world-gen.md §5.1 已确认） | gen.md §4 | 2、3 | goodGP 原版与 vendor 版同种子字节相等（不加覆写时）；接缝 0 → 人看群系渐变和登山落差 |
-| 6 | **v2 调参 + goodGL 地貌**：meadow 大山频率、plains 大镂空、石林和拱（缩尺、低频、群系白名单） | gen.md §6 | 4 | genscope 热力图定位到具体项，再改；`genview --stats` 给出石林占陆地比例 → 人确认"少量" |
+| 5 | **v1 = goodGP + gen.js 群系**：vendor `gp/`；子类覆写 `biomeOf / decorate`；海岸取 gen.js 的离岸坡度，沙滩高度 / 厚度 / 无沙滩概率可调；程序化 colormap 替换 MC 资源图；`MOUNT_H` 可调；列级 temp/hum 落盘（world-gen.md §5.1 已确认） | gen.md §4 | 2、3 | goodGP 原版与 vendor 版同种子字节相等（不加覆写时）；接缝 0 → 人看群系渐变和登山落差 |
+| 6 | **v2 调参 + goodGL 地貌**：meadow 大山频率、plains 大镂空、石林和拱（缩尺、低频、群系白名单）、goodGL 草甸坡作为平原的补充（`off` 钩子，连续遮罩） | gen.md §6 | 4 | genscope 热力图定位到具体项，再改；`genview --stats` 给出石林占陆地比例 → 人确认"少量" |
 | 7 | **探针面板**：准星处的方块 id/meta、光照、群系、气候字段、tint、生成态 id；强制天气；群系色叠加 | tools.md §4 | 2 | 探针字段与 `genview` 同坐标输出一致 → 人用它回答"这里为什么是这个群系" |
 | 8 | **`?r=gl`：goodGL 管线 + PBR（主线，先接宿主 A）**：R0 基线 → R0b bench 契约与工具泛化 → R1 vendor 抽取 → R2 空帧 → R3 区块 / PBR → R4 实体合成 → R5 Env→帧对象 → R6 接宿主 B + 特殊模型 → R7 设置、uniform 改宏、复测 | render.md、bench.md | 无（宿主 A 上随时可开工；R6 等 goalP4P5 步骤 2） | 宿主 A 5 机位与 `?r=v2/gl` 同机位对比；结构步骤 `--ref` 0 px；整帧墙钟写进 render.md §6 → 人看画面 |
 | 9 | **水面 / 水下换 LiqPG pass**，并修 LiqPG 的已知 bug（Snell 窗口、`refract` NaN、水雾色从未赋值） | water.md | 8 | water / uw 两个机位前后截图；水下仰视无黑圈 → 人看 |

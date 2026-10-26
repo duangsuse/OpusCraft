@@ -1,7 +1,7 @@
 # 水面 / 水下：LiqPG 的 pass 换进 goodGL 管线（步骤 9）
 
 > 整理自 `goodLiqPG/handover/waterface.md`（原文是真值；表里数值都按代码逐行核对过，§5.1 黑圈成因是读码推导）。LiqPG 文件：顶点 / 片元 `src/render/shaders/water.js`，水下介质 `src/render/shaders/post.js`，调度 `src/render/pipeline.js`，几何 `src/world/mesher.js:267-334`。
-> 前置：render.md 的 R3–R5 已完成（goodGL pass 4 的槽位、copyC/copyD、天空 LUT、阴影都已就位）。
+> 前置：render.md 的 R3–R5 已完成（goodGL pass 4 的槽位、copyC/copyD、天空 LUT、阴影都已就位）。先在宿主 A 上做（它有水，bench 的 `water / uw` 机位现成）；属于风格通道，前后截图交人审（bench.md §6 最后一行）。
 
 ## 0. 取舍
 
@@ -9,7 +9,7 @@
 |---|---|
 | `WATER_FS` 的光学部分：波高场法线、Fresnel、折射"镜头"、吸收与内散射、SSR、太阳 GGX、雨涟漪、风（water.js:107–253） | 水的网格：角点高度 + 水面背面（L1026–1061）。⚠ 要核对两条行为与 LiqPG 一致：只有正面顶面做顶点波；在水上时丢弃背面（water.js:144 的修复） |
 | 水下看水面的分支 `fromBelow`（water.js:191–202），**修好再用**（§3） | 岸边泡沫和瀑布泡沫（L3745–3753 的 `shoreline` 补丁） |
-| 水下介质：体积光的 `uw` 分支（post.js:229–256）；composite 在水下跳过空气透视和边界雾（:311、:322）；final 的屏幕扰动（:450） | MRT 补丁 L3756（`o2 = vec4(0)`，goodGL 的 composite 要读 gbuf） |
+| 水下介质：体积光的 `uw` 分支（post.js:229–256）；composite 在水下跳过空气透视和边界雾（:311、:322）；final 的屏幕扰动（:450）。goodGL 自己的水下雾一起去掉：`compositeFS` L3395–3397、`F.waterFog`（L6249）、水下 `fogCol`（L6278）——用户评价 goodGL 水面和水下都差 | MRT 补丁 L3756（`o2 = vec4(0)`，goodGL 的 composite 要读 gbuf） |
 | 顶点波（water.js:21–24） | 冰（MAT 3）也走水 shader：LiqPG 的冰有单独分支（water.js:121–139），一起搬过来 |
 
 不取：LiqPG 的 Classic 水风格（:204–226，以后要再加）；LiqPG 的 `meshFluid` 几何（除非 goodGL 的水网格在 R3 暴露出问题）。
@@ -62,5 +62,5 @@
 
 ## 4. 验收
 
-- 自动：`water`、`uw` 两个机位，加一个新机位"水下仰视 60°"（加进 `c_Bench.poses`），换 pass 前后各截一张；同 URL 重复截图 0 px。
+- 自动：`water`、`uw` 两个机位，加一个新机位"水下仰视 60°"（宿主 A 加进 `bench-v2.mjs` 的机位搜索规则，宿主 B 加进 `c_Bench.poses`），换 pass 前后各截一张；同代码重复截图 0 px；`gpu water` 列和墙钟前后对比。
 - 人看：俯视能透过 2–4 格深的水看到沙底且偏青绿；平视远处几乎全是反射；低太阳角有一路通向太阳的碎金光带；水下仰视在 48.75° 处出现全反射边缘，**没有黑圈**；雨天水面有涟漪，洞里的水不反射天空。
