@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# Minecraft game files (never commit the jar)
+*.jar
+
+# Editors / OS
+.vscode/
+.idea/
+.claude/
+Thumbs.db
+Desktop.ini
+.DS_Store
