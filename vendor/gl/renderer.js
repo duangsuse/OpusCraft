@@ -15,7 +15,7 @@ export class Renderer {
     this.mk('vanilla', GLSL.chunkVS, GLSL.vanillaFS);
     /* remix: R5 fancy */
     /* remix: R5 water */
-    /* remix: R5 shadow / shadowS 由 rgl/pass.js 提供（rgl/shaders/shadow.js；R3b 的 shadowS 现在是同一份 VS 的宏变体） */
+    /* remix: R5 shadow / shadowS 由 rgl/pass.js 提供（rgl/terrain.js；R3b 的 shadowS 现在是同一份 VS 的宏变体） */
     this.mk('skyV', GLSL.fsqVS, GLSL.skyVanillaFS);
     /* remix: R5 skyF */
     /* remix: R5 comp */
@@ -255,14 +255,14 @@ export class Renderer {
     const gl = this.gl; const T = this.targets;
     // 0. sky-view LUT
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.lutFBO); gl.viewport(0, 0, 192, 108); gl.disable(gl.DEPTH_TEST); gl.disable(gl.BLEND); gl.depthMask(false);
-    this.passes.skyLut.use();   // remix: R5（uniform 在 rgl/shaders/skylut.js 用处内联）
+    this.passes.skyLut.use();   // remix: R5（uniform 在 rgl/long/sky.js 用处内联）
     gl.bindVertexArray(this.emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.depthMask(true);
     // 1. shadow map
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.shadowFBO); gl.viewport(0, 0, this.shadowRes, this.shadowRes);
     gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.CULL_FACE); gl.disable(gl.BLEND);
     gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.2, 2.0);
     if (F.lightDir[1] > 0.0) {
-      const SP = this.passes.shadow; SP.use();   // remix: R5（rgl/shaders/shadow.js；offset / origin 每次 draw 重传）
+      const SP = this.passes.shadow; SP.use();   // remix: R5（rgl/terrain.js；offset / origin 每次 draw 重传）
       for (const e of F.all) {
         const m = e.sec.opaque; if (!m || !m.n || e.dist > F.shadowDist + 24) continue;
         this.setDraw(SP, e.ox - F.shadowOrigin[0], e.oy - F.shadowOrigin[1], e.oz - F.shadowOrigin[2], e.ox, e.oy, e.oz);
@@ -291,7 +291,7 @@ export class Renderer {
     this.passes.skyF.use(); /* remix: R5 */
     gl.bindVertexArray(this.emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.enable(gl.CULL_FACE);
-    this.fm.hand = false; this.passes.fancy.use();   // remix: R5（rgl/shaders/fancy.js + common.js）
+    this.fm.hand = false; this.passes.fancy.use();   // remix: R5（rgl/long/fancy.js + common.js）
     gl.drawBuffers(DB2);
     this.drawSections(F, 'opaque', 'fancy', F.camPos);
     this.drawSections(F, 'plant', 'fancy', F.camPos);   // remix: R3b 植物单独一个网格
@@ -304,7 +304,7 @@ export class Renderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, T.scene);
     // 3. water (opaque output using copies) & other translucent
     gl.enable(gl.CULL_FACE);
-    this.passes.water.use();   // remix: R5（rgl/shaders/water.js）
+    this.passes.water.use();   // remix: R5（rgl/long/water.js）
     this.drawSections(F, 'trans', 'water', F.camPos);
     gl.drawBuffers(DB1);
     gl.enable(gl.CULL_FACE);
@@ -313,17 +313,17 @@ export class Renderer {
     this.drawOverlays(F);
     // 3b. volumetric clouds at 1/3 resolution
     gl.bindFramebuffer(gl.FRAMEBUFFER, T.cloud); gl.viewport(0, 0, T.cw, T.ch); gl.disable(gl.DEPTH_TEST);
-    if (F.clouds) { this.passes.clouds.use(); /* remix: R5（uniform 在 rgl/shaders/clouds.js 用处内联） */ gl.bindVertexArray(this.emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+    if (F.clouds) { this.passes.clouds.use(); /* remix: R5（uniform 在 rgl/long/clouds.js 用处内联） */ gl.bindVertexArray(this.emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3); }
     else { gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); }
     gl.viewport(0, 0, F.w, F.h);
     // 4. composite
     gl.bindFramebuffer(gl.FRAMEBUFFER, T.comp); gl.disable(gl.DEPTH_TEST); gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
-    this.passes.comp.use();   // remix: R5（rgl/shaders/comp.js）
+    this.passes.comp.use();   // remix: R5（rgl/long/comp.js）
     gl.bindVertexArray(this.emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3);
     // 4b. temporal anti-aliasing (before the hand, which does not move with the world)
     if (F.taa) {
       const dst = T.hist[T.histI], src = T.histC[1 - T.histI];
-      gl.bindFramebuffer(gl.FRAMEBUFFER, dst); this.passes.taa.use();   // remix: R5（贴图 / uniform 在 rgl/shaders/taa.js 用处内联）
+      gl.bindFramebuffer(gl.FRAMEBUFFER, dst); this.passes.taa.use();   // remix: R5（贴图 / uniform 在 rgl/post.js 用处内联）
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, dst); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, T.comp);
       gl.blitFramebuffer(0, 0, F.w, F.h, 0, 0, F.w, F.h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
@@ -350,7 +350,7 @@ export class Renderer {
     gl.disable(gl.BLEND);
     // 6. final
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, F.w, F.h);
-this.passes.final.use();   // remix: R5（rgl/shaders/final.js）
+this.passes.final.use();   // remix: R5（rgl/post.js）
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
   drawEntities(F, prog) {

@@ -1,10 +1,11 @@
-// 渲染器接口验证：node tools/verify-renderer.mjs [baseURL] [--only 组名[,组名]]（组：v1 v2 v2/gl gl bogus；--only 时跳过静态检查）
+// 渲染器接口验证：node tools/verify-renderer.mjs [baseURL] [--only 组名[,组名]]（组：static v1 v2 v2/gl gl bogus；--only 时跳过静态检查；--fast 跳过放/移方块、REF 重复、rd 重建等慢项，只验契约 + 画面 + 确定性，目标 <15s）
 // 用无头 Chromium + CDP（Node 内置 WebSocket）加载 ?r=v1 / ?r=v2 / ?r=bogus，逐项检查 handover/renderer-refactor.md 中约定的接口。
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const BASE = (process.argv[2] || '').startsWith('http') ? process.argv[2] : 'http://localhost:8765/VoxelCraft.html';
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].split(',') : null;
+const FAST = process.argv.includes('--fast');
 const PORT = 9333 + (process.pid % 500);
 const chrome = spawn('chromium', ['--headless=new', '--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
   `--remote-debugging-port=${PORT}`, '--window-size=960,600', '--user-data-dir=/tmp/vr-prof-' + PORT, 'about:blank'], { stdio: 'ignore' });
@@ -35,6 +36,7 @@ await send('Runtime.enable'); await send('Network.enable'); await send('Network.
 
 // 在页面内执行的检查（返回 [{name, ok, info}]）
 const PAGE_CHECKS = `(async () => {
+  const FAST = ${FAST};
   const out = []; const ck = (name, ok, info = '') => out.push({ name, ok: !!ok, info: String(info) });
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   for (let i = 0; i < 300 && !(window.game && window.game.VR); i++) await sleep(100);
@@ -246,7 +248,7 @@ const PAGE_CHECKS = `(async () => {
   ck('VR.render() 无 GL 错误', err === 0, 'glError=' + err);
   if (VR.readOut && !VR.df) ck('绘制调用（直接走 GL 的渲染器不经 three，info.render.calls 恒 0，改由下面的 gl 组检查画面）', true, 'calls=' + g.renderer.info.render.calls);
   else ck('绘制调用 > 0', g.renderer.info.render.calls > 0, 'calls=' + g.renderer.info.render.calls);
-  if (VR.ring) {
+  if (VR.ring && !FAST) {
     // rd 6→8：重建环形纹理并重传，render 正常
     const rd0 = g.settings.rd; g.settings.rd = 8;
     for (let i = 0; i < 400 && (i < 2 || g.pendingChunks > 0); i++) { g.updateChunks(50); VR.update(0.016); if (i % 4 == 0) await sleep(5); }
@@ -289,9 +291,9 @@ const PAGE_CHECKS = `(async () => {
     ck('gl: resetLag 后同一序列两次读回逐像素一致（0 px）', nd === 0, nd + ' px 不同 / ' + (a.w * a.h));
     g.renderer.clear(); VR.render(); g.renderer.clearDepth(); g.renderer.render(g.scene, g.camera);
     ck('gl: three 在 goodGL 之后还能画（resetState 生效，无 GL 错误）', gl.getError() === 0);
-    VR.setRef(1); const c1 = shot(4), c2 = shot(4); let nr = 0; for (let i = 0; i < c1.px.length; i++) if (c1.px[i] !== c2.px[i]) nr++; VR.setRef(0);
-    ck('gl: REF 模式（TAA 关、曝光固定）重复 0 px', nr === 0, nr + ' 字节不同');
-    {   // 放一个方块：相机前 4 格放 5×5×5 石头，网格化完成后读回应变；移除后应恢复（宿主 setBlock → buildChunk → Worker 网格 → 上传）
+    if (!FAST) { VR.setRef(1); const c1 = shot(4), c2 = shot(4); let nr = 0; for (let i = 0; i < c1.px.length; i++) if (c1.px[i] !== c2.px[i]) nr++; VR.setRef(0);
+    ck('gl: REF 模式（TAA 关、曝光固定）重复 0 px', nr === 0, nr + ' 字节不同'); }
+    if (!FAST) {   // 放一个方块：相机前 4 格放 5×5×5 石头，网格化完成后读回应变；移除后应恢复（宿主 setBlock → buildChunk → Worker 网格 → 上传）
       const settle = async () => { for (let i = 0; i < 400 && (g.pendingChunks > 0 || VR.pending() > 0 || i < 3); i++) { g.updateChunks(40); VR.update(0.016); if (i % 3 === 0) await raf(); } };
       await settle();
       const aim = () => { g.camera.rotation.x = 0.6; g.camera.updateMatrixWorld(true); };   // 抬头约 35°：方块放在天空里；宿主主循环会覆盖朝向，所以每次读回前重设
@@ -329,7 +331,7 @@ const PAGE_CHECKS = `(async () => {
 })()`;
 
 let failed = 0;
-if (!ONLY) { // §10.5-1：v2 主体只经 Env / ChunkSource 读宿主（适配器在文件尾部，不算）；waterId 只在 isFluid() 注入一次
+if (!ONLY || ONLY.includes('static')) { // §10.5-1：v2 主体只经 Env / ChunkSource 读宿主（适配器在文件尾部，不算）；waterId 只在 isFluid() 注入一次
   const { readFileSync } = await import('node:fs');
   for (const f of ['v2.js', 'v2/gl.js']) {
   const src = readFileSync(new URL('../' + f, import.meta.url), 'utf8'), cut = src.indexOf('// ───────────────── VoxelCraft 适配器');
@@ -343,9 +345,9 @@ if (!ONLY) { // §10.5-1：v2 主体只经 Env / ChunkSource 读宿主（适配�
   }
   }
 }
-if (!ONLY) { // render.md §4.1 验收：rgl（不含 vendor/）里不再有 uniform 上传调用；pass / vars 单元测试
+if (!ONLY || ONLY.includes('static')) { // render.md §4.1 验收：rgl（不含 vendor/）里不再有 uniform 上传调用；pass / vars 单元测试
   const { readFileSync, readdirSync } = await import('node:fs'), { spawnSync } = await import('node:child_process');
-  const files = ['rgl', 'rgl/shaders'].flatMap(d => readdirSync(new URL('../' + d, import.meta.url), { withFileTypes: true }).filter(e => e.isFile() && e.name.endsWith('.js')).map(e => d + '/' + e.name));
+  const files = ['rgl', 'rgl/long'].flatMap(d => readdirSync(new URL('../' + d, import.meta.url), { withFileTypes: true }).filter(e => e.isFile() && e.name.endsWith('.js')).map(e => d + '/' + e.name));
   const bad = files.flatMap(f => [...readFileSync(new URL('../' + f, import.meta.url), 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n').matchAll(/\.(u1f|u1i|u2f|u3f|u3v|u4v|m4)\(/g)].map(m => f + ':' + m[1]));
   console.log('=== rgl 静态检查 ===');
   const t = f => spawnSync('node', [new URL('../tools/' + f, import.meta.url).pathname], { encoding: 'utf8' });

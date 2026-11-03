@@ -1,6 +1,5 @@
 // rgl/shaders/fancy.js —— goodGL fancyFS + chunkVS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
-import { u, glsl } from '../pass.js';
-import { F } from '../frameref.js';
+import { glsl, Fps } from '../pass.js';
 import { NOISE, SHORE } from '../../water/glsl.js';
 const lib = x => glsl([x]);
 export const fancy = (Pass, X = {}) => Pass({ tag: 'fancy', vs: glsl`#version 300 es
@@ -18,7 +17,7 @@ void main(){
   vec3 wp = p + ${X.origin};
   float wave = floor(a_tint.a*255.0+0.5);
   if (wave > 0.5 && ${X.wind} > 0.0) {
-    float t = ${() => F.time};
+    float t = ${Fps.time};
     vec3 off = vec3(sin(t*1.6 + wp.x*0.55 + wp.z*0.3 + wp.y*0.4), 0.0, cos(t*1.25 + wp.z*0.6 + wp.x*0.25));
     off += 0.45*vec3(sin(t*3.3 + wp.x*1.7 + wp.y), 0.0, sin(t*2.9 + wp.z*1.9));
     float amp = wave < 1.5 ? 0.03 : 0.085;
@@ -62,15 +61,15 @@ float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.005
 
 const float CB = 185.0, CT = 262.0;
 float cloudMap(vec2 xz){
-  vec2 p = xz * (1.0 / 520.0) + vec2(${() => F.cloudTime} * 0.0045, ${() => F.cloudTime} * 0.0016);
+  vec2 p = xz * (1.0 / 520.0) + vec2(${Fps.cloudTime} * 0.0045, ${Fps.cloudTime} * 0.0016);
   float s = 0.0, a = 0.5;
   for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.07 + vec2(3.1, 1.7); a *= 0.5; }
   return s / 0.9375;
 }
-float cloudCover(float n){ return clamp((n - (1.0 - ${() => F.cov})) * 2.6, 0.0, 1.0); }
+float cloudCover(float n){ return clamp((n - (1.0 - ${Fps.cov})) * 2.6, 0.0, 1.0); }
 
 float shadowAt(vec3 wp){
-  vec4 sp = ${() => F.shadowMat} * vec4(wp, 1.0);
+  vec4 sp = ${Fps.shadowMat} * vec4(wp, 1.0);
   float df = length(sp.xy) * 0.9 + 0.1;
   sp.xy /= df;
   vec3 c = sp.xyz * 0.5 + 0.5;
@@ -91,11 +90,11 @@ float shadowAt(vec3 wp){
   return s / 8.0;
 }
 float sharpAt(vec3 wp){   // remix: R3b：锐图只有花草；影子边缘是像素画 alpha 剪影 + 阴影图 texel，直接单 tap 会是方块锯齿。
-  // 这里在 ~${() => F.sharpSoft} 个 texel 的圆盘里取 8 次比较（每次硬件 2x2 PCF），IGN 逐像素旋转，TAA 把噪声积分掉；不做遮挡物搜索，所以细草叶不漏
-  vec3 c = (${() => F.sharpMat} * vec4(wp, 1.0)).xyz * 0.5 + 0.5;
+  // 这里在 ~${Fps.sharpSoft} 个 texel 的圆盘里取 8 次比较（每次硬件 2x2 PCF），IGN 逐像素旋转，TAA 把噪声积分掉；不做遮挡物搜索，所以细草叶不漏
+  vec3 c = (${Fps.sharpMat} * vec4(wp, 1.0)).xyz * 0.5 + 0.5;
   if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0) return 1.0;
   float a = ign(gl_FragCoord.xy + 17.0) * 6.2831; mat2 R = mat2(cos(a), sin(a), -sin(a), cos(a));
-  float r = ${() => F.sharpSoft} / ${X.sharpRes}, s = 0.0;
+  float r = ${Fps.sharpSoft} / ${X.sharpRes}, s = 0.0;
   for (int i = 0; i < 8; i++) { float fi = float(i); vec2 o2 = R * vec2(cos(fi * 2.4), sin(fi * 2.4)) * sqrt((fi + 0.5) / 8.0) * r; s += texture(${X.sharp}, vec3(c.xy + o2, c.z)); }
   return s / 8.0;
 }
@@ -151,7 +150,7 @@ void main(){
   o2 = vec4(0.0);
   vec3 uv = v_uv;
   int mat = v_flags & 3; int tm = (v_flags >> 2) & 3;
-  if ((v_flags & 256) != 0) uv.xy += vec2(sin(${() => F.time}*0.3 + v_world.z*0.1)*0.03, ${() => F.time}*0.02);
+  if ((v_flags & 256) != 0) uv.xy += vec2(sin(${Fps.time}*0.3 + v_world.z*0.1)*0.03, ${Fps.time}*0.02);
   // derivatives & tangent frame (computed before any divergent branch)
   vec2 gdx = dFdx(uv.xy), gdy = dFdy(uv.xy);
   if ((v_flags & 24576) != 0) uv.xy = clamp(uv.xy, vec2(0.002), vec2(0.998));   // remix: 植物贴图 v = 1.0 恰在边上，REPEAT 会绕回顶行（花瓣出现在底边）
@@ -166,7 +165,7 @@ void main(){
     vec4 c = texture(${X.atlas}, uv);
     vec3 albedo = pow(c.rgb * ${X.colorMul}.rgb, vec3(2.2));
     float blk = v_light.y;
-    vec3 lc = ${() => F.ambCol} * 0.9 + ${X.lightCol} * 0.08 + ${() => F.torchCol} * lb(blk) * 0.3;
+    vec3 lc = ${Fps.ambCol} * 0.9 + ${X.lightCol} * 0.08 + ${Fps.torchCol} * lb(blk) * 0.3;
     o = vec4(lc * mix(vec3(0.8, 0.85, 0.95), albedo, 0.5), c.a * 0.2); return;
   }
   vec3 V = normalize(-v_rel);
@@ -243,8 +242,8 @@ void main(){
   if (wet > 0.0 && N0.y > 0.5 && !foliage) puddle = smoothstep(0.52, 0.72, vnoise(v_world.xz * 0.22) + (0.55 - hgt) * 0.35 - (tm != 0 ? 0.08 : 0.0)) * wet;
   albedo *= mix(1.0, 1.0 - 0.5 * (0.35 + por * 0.65), max(wet, puddle));
   smooth_ = mix(smooth_, 0.88, wet * (1.0 - por * 0.75) * (1.0 - sss * 0.9) * (foliage ? 0.3 : 1.0));
-  if (puddle > 0.0) { float t = ${() => F.time} * 2.0; vec2 rp = v_world.xz * 3.0;
-    vec2 rr = ripples(v_world.xz * 2.2, ${() => F.time}) * 0.35 * ${X.rain};
+  if (puddle > 0.0) { float t = ${Fps.time} * 2.0; vec2 rp = v_world.xz * 3.0;
+    vec2 rr = ripples(v_world.xz * 2.2, ${Fps.time}) * 0.35 * ${X.rain};
     vec3 Np = normalize(vec3((vnoise(rp + t) - 0.5) * 0.08 + rr.x, 1.0, (vnoise(rp.yx - t) - 0.5) * 0.08 + rr.y));
     N = normalize(mix(N, Np, puddle)); smooth_ = mix(smooth_, 0.98, puddle); cav = mix(cav, 1.0, puddle); }
   float rough = max(pow(1.0 - smooth_, 2.0), 0.02);
@@ -261,11 +260,11 @@ void main(){
   float gate = smoothstep(0.35, 0.8, sky);
   if (diffG > 0.0 && ${X.lightDir}.y > -0.05) {
     float slope = foliage ? 0.5 : clamp(1.0 - NdotL0, 0.0, 1.0);
-    vec3 wp = v_rel + ${() => F.camToShadow} + N0 * (foliage ? 0.02 : 0.03 + 0.06 * slope);
-    if (SHADOW_ON > 0 && d < ${() => F.shadowDist}) { sh = shadowAt(wp); sh = mix(sh, gate, smoothstep(${() => F.shadowDist} * 0.8, ${() => F.shadowDist}, d)); }
+    vec3 wp = v_rel + ${Fps.camToShadow} + N0 * (foliage ? 0.02 : 0.03 + 0.06 * slope);
+    if (SHADOW_ON > 0 && d < ${Fps.shadowDist}) { sh = shadowAt(wp); sh = mix(sh, gate, smoothstep(${Fps.shadowDist} * 0.8, ${Fps.shadowDist}, d)); }
     else sh = gate;
-    if (SHADOW_ON > 0 && (v_flags & 8192) == 0 && d < ${() => F.sharpDist})   // remix: R3b；8192 = 草（不接收锐阴影），花自遮挡
-      sh = min(sh, mix(sharpAt(wp + ${X.lightDir} * ((v_flags & 16384) != 0 ? 0.012 : 0.04)), 1.0, smoothstep(${() => F.sharpDist} * 0.85, ${() => F.sharpDist}, d)));
+    if (SHADOW_ON > 0 && (v_flags & 8192) == 0 && d < ${Fps.sharpDist})   // remix: R3b；8192 = 草（不接收锐阴影），花自遮挡
+      sh = min(sh, mix(sharpAt(wp + ${X.lightDir} * ((v_flags & 16384) != 0 ? 0.012 : 0.04)), 1.0, smoothstep(${Fps.sharpDist} * 0.85, ${Fps.sharpDist}, d)));
     sh *= smoothstep(0.1, 0.5, sky);
     sh *= cloudShadow(v_world);
   }
@@ -283,15 +282,15 @@ void main(){
   vec3 specD = min(vec3(D * G / (4.0 * NoV)) * Fs, vec3(60.0)) * clamp(NdotL0 * 8.0, 0.0, 1.0);
   vec3 lightI = ${X.lightCol} * shL;
   vec3 direct = lightI * diff * (1.0 - Fs * 0.5);
-  if (under) { float ca = caustic(v_world.xz + v_world.y * 0.3, ${() => F.time}); direct *= vec3(0.35, 0.6, 0.75) * (0.25 + ca * 1.6); specD *= 0.2; }
+  if (under) { float ca = caustic(v_world.xz + v_world.y * 0.3, ${Fps.time}); direct *= vec3(0.35, 0.6, 0.75) * (0.25 + ca * 1.6); specD *= 0.2; }
   // ---------------- ambient: sky irradiance, ground bounce, torch
   float up = N.y * 0.5 + 0.5;
   float occl = (0.22 + 0.78 * ao) * cav * fh;   // remix: 花的体积感，fh = 1 时与原版一致
-  vec3 amb = ${() => F.ambCol} * (0.45 + 0.55 * up) * sky * sky * occl;
+  vec3 amb = ${Fps.ambCol} * (0.45 + 0.55 * up) * sky * sky * occl;
   vec3 bounce = ${X.lightCol} * max(${X.lightDir}.y, 0.0) * vec3(0.5, 0.55, 0.42) * 0.045 * (1.0 - up) * sky * occl;
   if (under) amb *= vec3(0.5, 0.75, 0.9);
   float b = lb(blk);
-  vec3 torch = ${() => F.torchCol} * b * b * 2.4 * ${() => F.flicker} * (0.45 + 0.55 * ao) * mix(1.0, cav, 0.6);
+  vec3 torch = ${Fps.torchCol} * b * b * 2.4 * ${Fps.flicker} * (0.45 + 0.55 * ao) * mix(1.0, cav, 0.6);
   vec3 minL = vec3(0.004, 0.005, 0.007) * (0.4 + 0.6 * ao);
   vec3 col = diffAlb * (direct + amb + bounce + torch + minL);
   // subsurface transmission (leaves, grass, snow, skin)
@@ -303,27 +302,27 @@ void main(){
   // specular: sun/moon + sky reflection (split-sum approximation)
   vec3 R = reflect(-V, N);
   vec3 env = skyEnv(R);
-  vec3 envRough = ${() => F.ambCol} * (0.9 + 0.6 * max(R.y, 0.0));
+  vec3 envRough = ${Fps.ambCol} * (0.9 + 0.6 * max(R.y, 0.0));
   env = mix(env, envRough, smoothstep(0.15, 0.75, rough));
   float horizon = smoothstep(-0.25, 0.15, R.y);
-  env = mix(${() => F.ambCol} * 0.25 * (0.3 + 0.7 * ao), env, horizon);
+  env = mix(${Fps.ambCol} * 0.25 * (0.3 + 0.7 * ao), env, horizon);
   float specOcc = smoothstep(0.35, 0.95, sky) * clamp(pow(NoV + ao * cav, 1.5) - 1.0 + ao * cav, 0.0, 1.0);
   vec3 eb = envBRDF(F0, sqrt(rough), NoV) * specOcc * mix(0.5, 1.0, pbr);
   vec3 envS = env * eb / mix(0.5, 1.0, pbr);
   float ssrW = dot(eb, vec3(0.3, 0.59, 0.11)) * (1.0 - smoothstep(0.08, 0.22, rough)) * float(!under);
   o2 = vec4(octEnc(N), rough, ssrW);
-  envS += ${() => F.torchCol} * b * b * 0.08 * envBRDF(F0, sqrt(rough), NoV);
+  envS += ${Fps.torchCol} * b * b * 0.08 * envBRDF(F0, sqrt(rough), NoV);
   col += (lightI * specD + envS) * mix(0.5, 1.0, pbr);
   // 岸壁水线（v2/gl shade.js:227–248）：紧邻水面格的侧面上，水线随涌浪升降（shoreH 在 d = 0 处），线下盖半透明水色，上方留湿痕。邻格是否为「最上面一格水」读岸线场（water/surfacefield.js）
-  if (!under && abs(N0.y) < 0.5 && ${() => F.foamWidth} > 0.0 && ${() => F.shoreAmp} > 0.0 && length(v_rel) < 96.0) {
+  if (!under && abs(N0.y) < 0.5 && ${Fps.foamWidth} > 0.0 && ${Fps.shoreAmp} > 0.0 && length(v_rel) < 96.0) {
     int wy = int(floor(v_world.y - 0.001));
     uvec2 fv = texelFetch(${X.shoreFld}, ivec2(floor(v_world.xz + N0.xz * 0.01)) & (${X.shoreN} - 1), 0).rg;
     if (fv.r == 1u && int(fv.g) == wy) {
-      float dy = v_world.y - (float(wy) + 8.0 / 9.0), top = ${() => F.shoreAmp} * 1.6;
+      float dy = v_world.y - (float(wy) + 8.0 / 9.0), top = ${Fps.shoreAmp} * 1.6;
       if (dy > -0.02 && dy < top) {
-        float hh = shoreH(${X.wnoise}, v_world.xz, 0.0, ${() => F.foamWidth}, ${() => F.shoreSpd}, ${() => F.time}) * ${() => F.shoreAmp};
+        float hh = shoreH(${X.wnoise}, v_world.xz, 0.0, ${Fps.foamWidth}, ${Fps.shoreSpd}, ${Fps.time}) * ${Fps.shoreAmp};
         float aw = 0.02 + length(v_rel) * 0.002, band = 1.0 - smoothstep(hh - aw, hh + aw, dy);
-        vec3 wl = ${() => F.ambCol} * sky * sky * 1.5 + ${X.lightCol} * max(${X.lightDir}.y, 0.0) * sh * 0.1;
+        vec3 wl = ${Fps.ambCol} * sky * sky * 1.5 + ${X.lightCol} * max(${X.lightDir}.y, 0.0) * sh * 0.1;
         col *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, top, dy));
         vec3 wv = mix(col * vec3(0.55, 0.8, 0.85), vec3(0.12, 0.38, 0.55) * wl, 0.45);
         wv += wl * 0.35 * (1.0 - smoothstep(0.0, aw * 3.0, abs(dy - hh)));

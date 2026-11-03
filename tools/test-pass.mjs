@@ -1,6 +1,6 @@
 // rgl/pass.js 的纯函数部分（flatten / buildSource / nameOf / headerSplit）：node tools/test-pass.mjs；GL 部分由 verify-renderer 的 pass 检查覆盖
 import assert from 'node:assert/strict';
-import { glsl, u, nameOf, flatten, buildSource, headerSplit } from '../rgl/pass.js';
+import { glsl, u, named, nameOf, flatten, buildSource, headerSplit, Fps, Fpv, setFrame } from '../rgl/pass.js';
 import { vars } from '../rgl/vars.js';
 const C = vars({ pbr: true, ao: { strength: 0.6 }, n: 3, sun: [1, 2, 3] }), F = { sunDir: [0, 1, 0], k: 2 };
 const ao = C.ao.it;
@@ -8,6 +8,9 @@ const ao = C.ao.it;
 assert.equal(nameOf(ao.strength), 'strength');
 assert.equal(nameOf(() => F.sunDir), 'sunDir'); assert.equal(nameOf(_ => C.n), 'n'); assert.equal(nameOf(() => softStr), 'softStr');
 assert.equal(nameOf(u('x', () => 1)), 'x');
+assert.equal(nameOf(texel => [1, 2]), 'texel'); assert.equal(nameOf((reset) => 1 + 2), 'reset'); assert.equal(nameOf(() => Fpv.w), 'w');   // 形参名优先；无参 / `_` 取末尾标识符
+setFrame({ sunDir: [0, 1, 0], w: 4 }); assert.equal(nameOf(Fps.sunDir), 'sunDir'); assert.deepEqual(Fps.sunDir(), [0, 1, 0]); assert.equal(Fps.sunDir, Fps.sunDir); assert.equal(Fpv.w, 4);
+assert.equal(nameOf(named({ wnoise: () => 1 }).wnoise), 'wnoise'); assert.equal(nameOf(named({ k: u('real', () => 1) }).k), 'real');
 assert.throws(() => nameOf(() => 1 + 2), /无法推断/);
 assert.throws(() => nameOf(5), /只允许/);
 // 位置 → 种类

@@ -7,30 +7,18 @@ import { Renderer } from '../vendor/gl/renderer.js';
 import { Textures } from '../vendor/gl/textures.js';
 import { PBR } from '../vendor/gl/pbr.js';
 import { createFrameBuilder } from './frame.js';
-import { idLUT } from './xlate.js';
-import { waterNoiseData } from '../water/noise.js';
 import { createPanel } from './panel.js';
-import { SurfaceField } from '../water/surfacefield.js';
-import { createPassKit, u } from './pass.js';
+import { createPassKit, named, setFrame, Fpv } from './pass.js';
 import { vars } from './vars.js';
-import { clouds } from './shaders/clouds.js';
-import { skyF } from './shaders/skyf.js';
-import { taa } from './shaders/taa.js';
-import { bdown } from './shaders/bdown.js';
-import { bup } from './shaders/bup.js';
-import { final } from './shaders/final.js';
-import { comp } from './shaders/comp.js';
-import { shadow } from './shaders/shadow.js';
-import { fancy } from './shaders/fancy.js';
-import { water } from './shaders/water.js';
-import { commonX } from './shaders/common.js';
-import { depthOut } from './shaders/depthout.js';
-import { entComp } from './shaders/entcomp.js';
-import { setFrame, F as FH } from './frameref.js';
-import { createEntityLight } from './entlight.js';
-import { createBlobShadows } from './blobshadow.js';
-import { skyLut } from './shaders/skylut.js';
-import { createWorld } from './world.js';
+import { idLUT, createWorld, shadow, commonX } from './terrain.js';
+import { skyLut, skyF, clouds } from './long/sky.js';
+import { taa, bdown, bup, final, depthOut } from './post.js';
+import { createEntityLight, createBlobShadows, entComp } from './entity.js';
+import { fancy } from './long/fancy.js';
+import { water } from './long/water.js';
+import { comp } from './long/comp.js';
+import { waterNoiseData } from '../water/noise.js';
+import { SurfaceField } from '../water/surfacefield.js';
 import { voxelCraftSource, voxelCraftEnv, voxelCraftBlocks } from '../v2/gl.js';   // 宿主 A 的三个适配器，直接 import 不复制（bench.md §1）
 
 // 分 pass 计时的名字（render.md §1 的 pass 表）。goodGL 没有逐 pass 的钩子：按「绑定到哪个 FBO」切段（见 timeFrame）
@@ -81,16 +69,17 @@ export function createRenderer(ctx) {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, N, N, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
     for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.REPEAT], [gl.TEXTURE_WRAP_T, gl.REPEAT], [gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
     gl.bindTexture(gl.TEXTURE_2D, null); return t; })();   // v2/gl 同一张水面噪声（water/noise.js）
-  const X = {
-    wnoise: u('wnoise', () => tex(wnoise)),
-    shoreFld: u('shoreFld', () => tex(fieldTex, 'usampler2D')), shoreN: u('shoreN', Object.assign(() => field.N, { meta: { glsl: 'int' } })),
-    skyLut: u('skyLut', () => tex(R.lutTex)),
-    taaCur: u('curTex', () => tex(T().compC)), taaHist: u('histTex', () => tex(T().histC[1 - T().histI])), taaDepth: u('depthTex', () => tex(T().sceneD)), histValid: () => T().histValid,
-    blSrc: u('src', () => tex(R.bl.src)), blTexel: u('texel', () => [1 / R.bl.w, 1 / R.bl.h]), blFirst: u('first', () => R.bl.first),   // 当前 bloom 层（vendor 的循环在调用 use() 前写 R.bl）
-    cColor: u('color', () => tex(T().sceneC)), cDepth: u('depth', () => tex(T().sceneD)), cShadow: u('shadow', () => tex(R.shadowTex, 'sampler2DShadow')), cClouds: u('clouds', () => tex(T().cloudC)), cGbuf: u('gbuf', () => tex(T().gbufC)),
-    atlas: u('tex', () => tex(R.tex, 'sampler2DArray')), offset: u('offset', () => dr.offset), origin: u('origin', () => dr.origin),   // 每次 draw 都变的量（见 R.setDraw）
-    finalSrc: u('src', () => tex(T().compC)), finalBloom: u('bloom', () => tex(T().bloom[0].t)),
-  };
+  const X = named({
+    wnoise: () => tex(wnoise),
+    shoreFld: () => tex(fieldTex, 'usampler2D'), shoreN: Object.assign(() => field.N, { meta: { glsl: 'int' } }),
+    skyLut: () => tex(R.lutTex),
+    taaCur: () => tex(T().compC), taaHist: () => tex(T().histC[1 - T().histI]), taaDepth: () => tex(T().sceneD),
+    blSrc: () => tex(R.bl.src), blTexel: () => [1 / R.bl.w, 1 / R.bl.h], blFirst: () => R.bl.first,   // 当前 bloom 层（vendor 的循环在调用 use() 前写 R.bl）
+    cColor: () => tex(T().sceneC), cDepth: () => tex(T().sceneD), cShadow: () => tex(R.shadowTex, 'sampler2DShadow'), cClouds: () => tex(T().cloudC), cGbuf: () => tex(T().gbufC),
+    atlas: () => tex(R.tex, 'sampler2DArray'), offset: () => dr.offset, origin: () => dr.origin,   // 每次 draw 都变的量（见 R.setDraw）
+    finalSrc: () => tex(T().compC), finalBloom: () => tex(T().bloom[0].t),
+  });
+  X.histValid = () => T().histValid;                                             // JS 里调用（taa 的 reset），不是 uniform
   Object.assign(X, commonX(R, tex, T));
   R.passes = { skyLut: skyLut(kit.Pass), clouds: clouds(kit.Pass, X), skyF: skyF(kit.Pass, X), taa: taa(kit.Pass, X), bdown: bdown(kit.Pass, X), bup: bup(kit.Pass, X), final: final(kit.Pass, X), comp: comp(kit.Pass, X), shadow: shadow(kit.Pass, X), shadowS: shadow(kit.Pass, X, true), fancy: fancy(kit.Pass, X), water: water(kit.Pass, X) };
   // 适配器（宿主 A）：ChunkSource / Env / BlockTable。R2 只用 Env 的 dayTime
@@ -98,12 +87,11 @@ export function createRenderer(ctx) {
   const tx = Textures.build(); R.uploadTextures(tx); R.uploadPBR(PBR.build(tx), tx.count);
   // R4 方案 B：goodGL 画完（final 之后）把它的深度换算成 three 相机的深度写进默认帧缓冲，three 再直接画 scene（实体、粒子、选框）
   //   goodGL 的 near / far 与宿主相机的不同 → 先还原线性视深再按宿主投影重新映射。实体不走 tonemap / TAA（方案 A 才走）。
-  const sceneDepth = u('sceneDepth', () => tex(R.targets.sceneD));
-  R.passes.depthOut = depthOut(kit.Pass, { sceneDepth, hostNear: u('hostNear', () => camera.near), hostFar: u('hostFar', () => camera.far) });
+    R.passes.depthOut = depthOut(kit.Pass, named({ sceneDepth: () => tex(R.targets.sceneD), hostNear: () => camera.near, hostFar: () => camera.far }));
   // 方案 A：宿主实体画进离屏目标（RGBA16F + 深度纹理），scene pass 里 drawEntities 之后合并（vendor 补丁 onEntities）；P.entScene = false 回到方案 B
   let entRT = null;
   const entTex = t => ({ texture: renderer.properties.get(t).__webglTexture, glslType: 'sampler2D' });
-  R.passes.entComp = entComp(kit.Pass, { entColor: u('entColor', () => entTex(entRT.texture)), entDepth: u('entDepth', () => entTex(entRT.depthTexture)), hostNear: u('hostNear', () => camera.near), hostFar: u('hostFar', () => camera.far) });
+  R.passes.entComp = entComp(kit.Pass, named({ entColor: () => entTex(entRT.texture), entDepth: () => entTex(entRT.depthTexture), hostNear: () => camera.near, hostFar: () => camera.far }));
   function ensureEntRT(w, h) {
     if (entRT && entRT.width === w && entRT.height === h) return;
     if (entRT) { entRT.depthTexture.dispose(); entRT.dispose(); }
@@ -133,7 +121,9 @@ export function createRenderer(ctx) {
   // 参数：只列已经接上的。fog / mist 默认 0 = 去雾版（render.md §0，goodGL 的缺点之一）；scale / maxMP 等 R5 接上 pass.js / vars.js 后再加
   const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 6 /* 每帧最多提交的网格任务 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
   // P = vars 对象（读写值照旧，bench 契约不变）；meta.folder 给面板分文件夹：雾、云隙光各一组（render.md 备忘「天空 / 雾 / 云隙光」），面板本身 R7 才建
-  const FOLDER = (f, o = {}) => ({ folder: f, ...o });
+  // root：面板顶层分两个并排的 Pane（rgl/panel.js）：v2 = 沿用 v2/goodGL 的项，v3 = remix 新增（花草 / 水 / 水下 / 实体）；整理文件夹时按 root 各管各的
+  const V3_FOLDERS = new Set(['花草锐阴影', '水', '水下', '实体']);
+  const FOLDER = (f, o = {}) => ({ folder: f, root: V3_FOLDERS.has(f) ? 'v3' : 'v2', ...o });
   const P = vars(P_DEFAULTS, {
     rd: FOLDER('渲染', { min: 0, max: 16, step: 1, label: '视距（0 = 取宿主）' }), waving: FOLDER('渲染'), clouds: FOLDER('渲染'), gamma: FOLDER('渲染', { min: 0, max: 1 }), shadowQ: FOLDER('渲染', { min: 1, max: 2, step: 1 }),
     pbr: FOLDER('渲染'), pom: FOLDER('渲染'), taa: FOLDER('渲染'), flare: FOLDER('渲染'),
@@ -186,7 +176,7 @@ export function createRenderer(ctx) {
   let W = 0, H = 0, cpuMs = 0, lastT = 0, nFrames = 0;
   const v2 = new THREE.Vector2();
   const blobs = !('shadowCasters' in ctx) ? null : createBlobShadows(THREE, ctx.scene, {
-    casters: () => ctx.shadowCasters, getF: () => (nFrames ? FH : null), strength: () => P.blobShadow,
+    casters: () => ctx.shadowCasters, getF: () => (nFrames ? Fpv : null), strength: () => P.blobShadow,
     groundY: (x, y, z) => { const ix = Math.floor(x), iz = Math.floor(z); for (let k = Math.floor(y + 0.5), lo = Math.max(0, k - 8); k >= lo; k--) if (ctx.SOLID[ctx.getBlock(ix, k, iz)]) return k + 1; return null; },
   });
   function drawThree(F) {
@@ -260,7 +250,7 @@ export function createRenderer(ctx) {
     readOut: () => { const px = new Uint8Array(W * H * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px); return { w: W, h: H, px }; },
     get programs() { const o = { ...R.src }; for (const [k, p] of Object.entries(R.passes)) { const x = p.source(); o[k] = { vs: x.vs, fs: x.fs, defines: {} }; } return o; },
     pending: () => world.pending(),
-    entityLight: createEntityLight(() => (nFrames ? FH : null), { scene: () => P.entScene, gain: () => P.entExposure }),                 // 宿主 lightColor() 的钩子：实体在 final 之后画，光照走 CPU（entlight.js）
+    entityLight: createEntityLight(() => (nFrames ? Fpv : null), { scene: () => P.entScene, gain: () => P.entExposure }),                 // 宿主 lightColor() 的钩子：实体在 final 之后画，光照走 CPU（entlight.js）
     source: SRC, blockTable: BT, env: ENV, R, world,
   };
 }

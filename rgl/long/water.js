@@ -1,6 +1,5 @@
 // rgl/shaders/water.js —— goodGL waterFS + chunkVS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
-import { u, glsl } from '../pass.js';
-import { F } from '../frameref.js';
+import { glsl, Fps } from '../pass.js';
 import { NOISE, CAUSTIC, SHORE } from '../../water/glsl.js';
 const lib = x => glsl([x]);
 export const water = (Pass, X = {}) => Pass({ tag: 'water', vs: glsl`#version 300 es
@@ -18,7 +17,7 @@ void main(){
   vec3 wp = p + ${X.origin};
   float wave = floor(a_tint.a*255.0+0.5);
   if (wave > 0.5 && ${X.wind} > 0.0) {
-    float t = ${() => F.time};
+    float t = ${Fps.time};
     vec3 off = vec3(sin(t*1.6 + wp.x*0.55 + wp.z*0.3 + wp.y*0.4), 0.0, cos(t*1.25 + wp.z*0.6 + wp.x*0.25));
     off += 0.45*vec3(sin(t*3.3 + wp.x*1.7 + wp.y), 0.0, sin(t*2.9 + wp.z*1.9));
     float amp = wave < 1.5 ? 0.03 : 0.085;
@@ -61,15 +60,15 @@ float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.005
 
 const float CB = 185.0, CT = 262.0;
 float cloudMap(vec2 xz){
-  vec2 p = xz * (1.0 / 520.0) + vec2(${() => F.cloudTime} * 0.0045, ${() => F.cloudTime} * 0.0016);
+  vec2 p = xz * (1.0 / 520.0) + vec2(${Fps.cloudTime} * 0.0045, ${Fps.cloudTime} * 0.0016);
   float s = 0.0, a = 0.5;
   for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.07 + vec2(3.1, 1.7); a *= 0.5; }
   return s / 0.9375;
 }
-float cloudCover(float n){ return clamp((n - (1.0 - ${() => F.cov})) * 2.6, 0.0, 1.0); }
+float cloudCover(float n){ return clamp((n - (1.0 - ${Fps.cov})) * 2.6, 0.0, 1.0); }
 
 float shadowAt(vec3 wp){
-  vec4 sp = ${() => F.shadowMat} * vec4(wp, 1.0);
+  vec4 sp = ${Fps.shadowMat} * vec4(wp, 1.0);
   float df = length(sp.xy) * 0.9 + 0.1;
   sp.xy /= df;
   vec3 c = sp.xyz * 0.5 + 0.5;
@@ -114,7 +113,7 @@ vec3 skyBase(vec3 d){ vec3 c = texture(${X.skyLut}, skyUV(d)).rgb; float l = dot
 in vec3 v_uv; in vec4 v_tint; in vec3 v_light; in vec3 v_rel; in vec3 v_normal; in vec3 v_world;
 flat in int v_flags;
 layout(location=0) out vec4 o; layout(location=1) out vec4 o2;
-float linZ(float d){ float z = d * 2.0 - 1.0; return 2.0 * ${() => F.near} * ${() => F.far} / (${() => F.far} + ${() => F.near} - z * (${() => F.far} - ${() => F.near})); }
+float linZ(float d){ float z = d * 2.0 - 1.0; return 2.0 * ${Fps.near} * ${Fps.far} / (${Fps.far} + ${Fps.near} - z * (${Fps.far} - ${Fps.near})); }
 // ---- 水面光学：LiqPG（goodLiqPG/src/render/shaders/water.js）的波高场 / 折射 / 吸收 / SSR / GGX，goal-remix/water.md §0–§3
 float hash22x(vec2 p){ return hash12(p + 17.3); }
 vec2 hash22(vec2 p){ return vec2(hash12(p), hash12(p + 41.7)); }
@@ -138,16 +137,16 @@ float V_Smith(float NdotV, float NdotL, float a){ float k = a*0.5; return 0.25 /
 // 屏幕空间反射（视空间步进；LiqPG：首步 0.6、×1.22、IGN 抖动、二分 5 次、边缘淡出 0.08）；${X.sceneDepth} 里没有云和体积光
 vec3 ssr(vec3 vp, vec3 vr, float jit, out float hit){
   hit = 0.0; float stepL = 0.6; vec3 pp = vp;
-  for (int i = 0; i < int(${() => F.ssrSteps}); i++) {
+  for (int i = 0; i < int(${Fps.ssrSteps}); i++) {
     pp += vr * stepL * (1.0 + jit * 0.5); stepL *= 1.22;
-    if (pp.z > -${() => F.near}) break;
-    vec4 cp = ${() => F.proj} * vec4(pp, 1.0); vec2 uv = cp.xy / cp.w * 0.5 + 0.5;
+    if (pp.z > -${Fps.near}) break;
+    vec4 cp = ${Fps.proj} * vec4(pp, 1.0); vec2 uv = cp.xy / cp.w * 0.5 + 0.5;
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
     float d0 = texture(${X.sceneDepth}, uv).r, sd = linZ(d0), pz = -pp.z;
     if (pz > sd && pz - sd < stepL * 2.5 + 0.5 && d0 < 0.99999) {
       vec3 a = pp - vr * stepL, b = pp;
-      for (int j = 0; j < 5; j++) { vec3 m = (a + b) * 0.5; vec4 mc = ${() => F.proj} * vec4(m, 1.0); vec2 mu = mc.xy / mc.w * 0.5 + 0.5; if (-m.z > linZ(texture(${X.sceneDepth}, mu).r)) b = m; else a = m; }
-      vec4 hc = ${() => F.proj} * vec4(b, 1.0); vec2 huv = hc.xy / hc.w * 0.5 + 0.5;
+      for (int j = 0; j < 5; j++) { vec3 m = (a + b) * 0.5; vec4 mc = ${Fps.proj} * vec4(m, 1.0); vec2 mu = mc.xy / mc.w * 0.5 + 0.5; if (-m.z > linZ(texture(${X.sceneDepth}, mu).r)) b = m; else a = m; }
+      vec4 hc = ${Fps.proj} * vec4(b, 1.0); vec2 huv = hc.xy / hc.w * 0.5 + 0.5;
       vec2 ed = smoothstep(vec2(0.0), vec2(0.08), huv) * smoothstep(vec2(1.0), vec2(0.92), huv); hit = ed.x * ed.y;
       return texture(${X.sceneColor}, huv).rgb;
     }
@@ -160,16 +159,16 @@ void main(){
   bool falling = (v_flags & 2048) != 0;
   bool underFace = v_normal.y < -0.5;
   bool fromBelow = underFace || UNDER_ON > 0;
-  float t = ${() => F.time};
+  float t = ${Fps.time};
   vec3 N = v_normal;
   float dist = length(v_rel);
   float sky = v_light.x;
   float sd = 9.0, sh0 = 0.0, sg = 0.0; vec2 sdir = vec2(0.0);                 // 岸边波纹（v2/gl 版：到岸距离 + 离岸方向 → 涌浪起伏 sh0 与沿离岸方向的斜率 sg）
-  bool shore = top && !fromBelow && dist < 96.0 && ${() => F.foamWidth} > 0.0 && ${() => F.shoreAmp} > 0.0;
+  bool shore = top && !fromBelow && dist < 96.0 && ${Fps.foamWidth} > 0.0 && ${Fps.shoreAmp} > 0.0;
   if (shore) {
-    sd = shoreDist(${X.shoreFld}, ${X.shoreN}, vec3(v_world.x, v_world.y - 0.15, v_world.z), min(${() => F.foamWidth}, 2.0), sdir);
-    sh0 = shoreH(${X.wnoise}, v_world.xz, sd, ${() => F.foamWidth}, ${() => F.shoreSpd}, t);
-    sg = (shoreH(${X.wnoise}, v_world.xz, sd + 0.05, ${() => F.foamWidth}, ${() => F.shoreSpd}, t) - shoreH(${X.wnoise}, v_world.xz, max(sd - 0.05, 0.0), ${() => F.foamWidth}, ${() => F.shoreSpd}, t)) / 0.1;
+    sd = shoreDist(${X.shoreFld}, ${X.shoreN}, vec3(v_world.x, v_world.y - 0.15, v_world.z), min(${Fps.foamWidth}, 2.0), sdir);
+    sh0 = shoreH(${X.wnoise}, v_world.xz, sd, ${Fps.foamWidth}, ${Fps.shoreSpd}, t);
+    sg = (shoreH(${X.wnoise}, v_world.xz, sd + 0.05, ${Fps.foamWidth}, ${Fps.shoreSpd}, t) - shoreH(${X.wnoise}, v_world.xz, max(sd - 0.05, 0.0), ${Fps.foamWidth}, ${Fps.shoreSpd}, t)) / 0.1;
   }
   if (top || underFace) {                                                   // 波法线：上下表面共用同一个波高场，水下看到的全反射边缘才会跟着起伏
     float strength = mix(0.25, 0.55, ${X.rain}) * (fromBelow ? 0.6 : 1.0);
@@ -181,7 +180,7 @@ void main(){
       float ring = sin((r - ph * 0.6) * 40.0) * smoothstep(0.0, 0.1, ph) * (1.0 - ph) * smoothstep(0.35, 0.0, r);
       wn = normalize(wn + vec3(f.x, 0.0, f.y) * ring * 0.8 * ${X.wet} * smoothstep(0.8, 1.0, sky));
     }
-    if (shore) wn = normalize(wn - vec3(sdir.x, 0.0, sdir.y) * sg * ${() => F.shoreAmp} * 1.5);
+    if (shore) wn = normalize(wn - vec3(sdir.x, 0.0, sdir.y) * sg * ${Fps.shoreAmp} * 1.5);
     N = fromBelow ? -wn : wn;
   }
   vec3 V = normalize(-v_rel);
@@ -198,9 +197,9 @@ void main(){
   vec3 behind0 = behind;
   vec3 wcol = pow(v_tint.rgb, vec3(2.2)) * vec3(0.55, 0.85, 1.0);
   float sh = 1.0;
-  if (SHADOW_ON > 0 && dist < ${() => F.shadowDist}) sh = shadowAt(v_rel + ${() => F.camToShadow} + vec3(0.0, 0.05, 0.0)); else sh = smoothstep(0.8, 1.0, sky);
+  if (SHADOW_ON > 0 && dist < ${Fps.shadowDist}) sh = shadowAt(v_rel + ${Fps.camToShadow} + vec3(0.0, 0.05, 0.0)); else sh = smoothstep(0.8, 1.0, sky);
   sh *= cloudShadow(v_world);
-  vec3 scatterLight = (${X.lightCol} * max(${X.lightDir}.y, 0.0) * 0.6 * sh + ${() => F.ambCol} * 0.9) * sky * sky + ${() => F.torchCol} * pow(lb(v_light.y), 2.0) * 0.3;
+  vec3 scatterLight = (${X.lightCol} * max(${X.lightDir}.y, 0.0) * 0.6 * sh + ${Fps.ambCol} * 0.9) * sky * sky + ${Fps.torchCol} * pow(lb(v_light.y), 2.0) * 0.3;
   vec3 inscatter = wcol * scatterLight * 0.18;
   vec3 col;
   if (fromBelow) {
@@ -213,28 +212,28 @@ void main(){
       vec3 rf = refract(I, N, 1.33); vec2 auv = suv + N.xz * 0.04; float ad = texture(${X.sceneDepth}, auv).r;
       abv = ad >= 0.99999 ? skyBase(normalize(rf)) : texture(${X.sceneColor}, auv).rgb;
       abv *= 1.97;                                                            // 进入水体辐亮度 × n²：水下仰视的窗口应当比周围水体亮得多
-      if (ad >= 0.99999) abv += ${() => F.sunCol} * smoothstep(0.99985, 0.99997, dot(normalize(rf), ${() => F.sunDir})) * 16.0 * (1.0 - ${X.rain}) * float(${() => F.useSun});
+      if (ad >= 0.99999) abv += ${Fps.sunCol} * smoothstep(0.99985, 0.99997, dot(normalize(rf), ${Fps.sunDir})) * 16.0 * (1.0 - ${X.rain}) * float(${Fps.useSun});
     }
     vec3 rd = reflect(I, N), deep = scatterLight * wcol * 0.6;
     float hit = 0.0; vec3 tr = vec3(0.0);
-    if (win < 1.0 && ${() => F.camDepth} > ${() => F.uwWindow}) { vec3 vp = (${() => F.view} * vec4(v_rel, 1.0)).xyz, vr = normalize((${() => F.view} * vec4(rd, 0.0)).xyz); tr = ssr(vp, vr, ign(gl_FragCoord.xy), hit); }
+    if (win < 1.0 && ${Fps.camDepth} > ${Fps.uwWindow}) { vec3 vp = (${Fps.view} * vec4(v_rel, 1.0)).xyz, vr = normalize((${Fps.view} * vec4(rd, 0.0)).xyz); tr = ssr(vp, vr, ign(gl_FragCoord.xy), hit); }
     col = mix(mix(deep, tr, hit), abv, win);
     // 离水面近（桶、瀑布、浅池）时窗口只有 ~2 格宽，抬头会被全反射的暗色遮满：深度不够就不用 Snell 窗口，按带扭曲的透视直接看水面上方的场景；足够深（uwWindowDepth 起渐变到 +3 格）才切到窗口 + 全反射
-    float deepK = smoothstep(${() => F.uwWindow}, ${() => F.uwWindow} + 3.0, ${() => F.camDepth});
+    float deepK = smoothstep(${Fps.uwWindow}, ${Fps.uwWindow} + 3.0, ${Fps.camDepth});
     if (deepK < 1.0) col = mix(texture(${X.sceneColor}, suv + N.xz * 0.05).rgb * 1.97, col, deepK);
   } else {
     if (rD < 0.99999 && top) {                                                // 池底花纹：v2/gl 的版本（shade.js:293）：图样直接落在透过水面看到的点上，× 太阳高度 × 水面天空光 × exp(−水中路径·0.12)
-      vec4 fw = ${() => F.invViewProj} * vec4(ruv * 2.0 - 1.0, rD * 2.0 - 1.0, 1.0);
-      behind *= 1.0 + causticSeen(${X.wnoise}, ${() => F.camPos} + fw.xyz / fw.w, thick, t) * ${() => F.uwCaustic} * smoothstep(-0.05, 0.12, ${() => F.sunDir}.y) * sky;
+      vec4 fw = ${Fps.invViewProj} * vec4(ruv * 2.0 - 1.0, rD * 2.0 - 1.0, 1.0);
+      behind *= 1.0 + causticSeen(${X.wnoise}, ${Fps.camPos} + fw.xyz / fw.w, thick, t) * ${Fps.uwCaustic} * smoothstep(-0.05, 0.12, ${Fps.sunDir}.y) * sky;
     }
     vec3 T = exp(-vec3(0.45, 0.075, 0.035) * 1.2 * thick);
     vec3 refr = behind * T + inscatter * (1.0 - T);
     vec3 R = reflect(-V, N);
     if (R.y < 0.0 && top) R.y = -R.y * 0.3;
     float skyOcc = smoothstep(0.5, 1.0, sky);
-    vec3 refl = skyBase(normalize(vec3(R.x, max(R.y, 0.0), R.z))) * skyOcc + ${() => F.torchCol} * lb(v_light.y) * 0.02;
+    vec3 refl = skyBase(normalize(vec3(R.x, max(R.y, 0.0), R.z))) * skyOcc + ${Fps.torchCol} * lb(v_light.y) * 0.02;
     float hit = 0.0;
-    if (!falling) { vec3 vp = (${() => F.view} * vec4(v_rel + N * 0.05, 1.0)).xyz, vr = normalize((${() => F.view} * vec4(R, 0.0)).xyz); vec3 sc = ssr(vp, vr, ign(gl_FragCoord.xy), hit); refl = mix(refl, sc, hit); }
+    if (!falling) { vec3 vp = (${Fps.view} * vec4(v_rel + N * 0.05, 1.0)).xyz, vr = normalize((${Fps.view} * vec4(R, 0.0)).xyz); vec3 sc = ssr(vp, vr, ign(gl_FragCoord.xy), hit); refl = mix(refl, sc, hit); }
     vec3 L = ${X.lightDir}, H = normalize(L + V);
     float NdotH = max(dot(N, H), 0.0), NdotL = max(dot(N, L), 0.0);
     vec3 sun = ${X.lightCol} * D_GGX(NdotH, 0.012) * V_Smith(NdotV, NdotL, 0.012) * NdotL * (0.02 + 0.98 * pow(1.0 - max(dot(H, V), 0.0), 5.0)) * sh;
@@ -242,11 +241,11 @@ void main(){
     if (shore) {                                                              // 浪峰略亮（水体增厚）+ 岸边软化（边缘随涌浪进退），v2/gl shade.js:370–371
       col += scatterLight * wcol * sh0 * 0.25 * (1.0 - smoothstep(0.0, 1.0, sd));
       float vd = thick * max(V.y, 0.15);
-      if (${() => F.shoreFade} > 0.0) col = mix(behind0, col, smoothstep(0.0, ${() => F.shoreFade}, vd + sh0 * ${() => F.shoreAmp} * 2.0));
+      if (${Fps.shoreFade} > 0.0) col = mix(behind0, col, smoothstep(0.0, ${Fps.shoreFade}, vd + sh0 * ${Fps.shoreAmp} * 2.0));
     }
     if (falling && !top) {
       float s = vnoise(vec2(v_world.x * 3.0 + v_world.z * 3.0, v_world.y * 1.2 + t * 6.0)), foam = smoothstep(0.35, 0.8, s);
-      vec3 fc = (${() => F.ambCol} * sky * 1.3 + ${X.lightCol} * 0.35 * max(${X.lightDir}.y, 0.0)) * vec3(0.9, 0.95, 1.0);
+      vec3 fc = (${Fps.ambCol} * sky * 1.3 + ${X.lightCol} * 0.35 * max(${X.lightDir}.y, 0.0)) * vec3(0.9, 0.95, 1.0);
       col = mix(mix(refr, refl, 0.3), fc, 0.35 + foam * 0.5);
     }
   }

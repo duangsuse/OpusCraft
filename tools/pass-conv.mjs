@@ -1,3 +1,4 @@
+// ⚠ 历史工具：R5 一次性迁移用，输出仍是旧写法（${() => F.x} / u('名', …)）；新写法见 rgl/pass.js 头部（Fps / Fpv / named / 形参名）。不再维护。
 // 把 goodGL 的一个 GLSL 条目转成 rgl/shaders/*.js 的模板 Pass（R5 的机械部分；转完要人看一遍，并 --ref 0 px）：
 //   node tools/pass-conv.mjs <GLSL键> <导出名> <文件名> [u_name=表达式 ...] [--vs <VS 的 GLSL 键>]   （不给 --vs = 默认全屏三角形 VS）
 //   未给表达式的 uniform 默认 `() => F.<去掉 u_ 的名字>`（每帧量）；表达式里可写 u('名', …)，或引用 X（调用方传入的外部量，如纹理：X.skyLut）。
@@ -29,9 +30,9 @@ const unseen = Object.keys(map).filter(k => !fs.names.includes(k) && !(vs && vs.
 if (unseen.length) throw new Error('映射里有源码没用到的名字：' + unseen.join(','));
 const head = `// rgl/shaders/${file} —— goodGL ${key}${vsKey ? ' + ' + vsKey : ''}（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
 import { u${vs ? ', glsl' : ''} } from '../pass.js';
-import { F } from '../frameref.js';
+import { F } from '../pass.js';
 `;
 const tmpl = t => '`' + t + '`';
 const body = `export const ${exp} = (Pass, X = {}) => Pass({ tag: '${exp}'${vs ? ', vs: glsl' + tmpl(vs.s) : ''} })${tmpl(fs.s)};\n`;
-writeFileSync(new URL('../rgl/shaders/' + file, import.meta.url), head + body);
+writeFileSync(new URL('../rgl/long/' + file, import.meta.url), head + body);
 console.log(file, '名字：', fs.names.join(' '));

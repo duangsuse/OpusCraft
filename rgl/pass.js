@@ -7,20 +7,33 @@
 //   纯函数部分（flatten / buildSource / headerSplit）不碰 GL，tools/test-pass.mjs 在 node 里直接测。
 import { glslTypeOf } from './vars.js';
 
+// ---- 帧对象（原 frameref.js）：每帧开头 setFrame(F)。两个句柄：
+//   Fps.sunDir —— 模板里用：`${Fps.sunDir}` 是名叫 sunDir 的 uniform 引用（同一个键总是同一个函数，名字就是键）
+//   Fpv.w      —— JS 里读值：`Fpv.w`、`Fpv.underwater`
+let cur = null;
+export const setFrame = f => { cur = f; };
+export const Fpv = new Proxy({}, { get: (_, k) => cur[k] });
+const fps = new Map();
+export const Fps = new Proxy({}, { get: (_, k) => { let r = fps.get(k); if (!r) { r = () => cur[k]; r.key = k; r.owner = Fpv; fps.set(k, r); } return r; } });
+
 const GLSL_TAG = Symbol('glsl'), NAMED = Symbol('u');
 export const glsl = (strings, ...vals) => ({ [GLSL_TAG]: true, strings, vals });
 export const u = (name, f) => ({ [NAMED]: true, name, f });
+// 一组 uniform 来源按键名自动命名：`named({ wnoise: () => tex(wnoise) })` ≡ `{ wnoise: u('wnoise', …) }`（已经是 u() 的原样保留）
+export const named = o => Object.fromEntries(Object.entries(o).map(([k, f]) => [k, f && f[NAMED] ? f : u(k, f)]));
 
 const isFrag = x => x && x[GLSL_TAG];
 const isNamed = x => x && x[NAMED];
 
-// ---- 名字：Ref → key；箭头函数 → 源码末尾标识符（`() => softStr` → softStr，`_ => C.bru` → bru，`() => F.sunDir` → sunDir）
+// ---- 名字：Ref → key；箭头函数 → 形参名（`texel => …`），否则源码末尾标识符（`() => softStr` → softStr，`_ => C.bru` → bru，`() => F.sunDir` → sunDir）
 export function nameOf(f) {
   if (isNamed(f)) return f.name;
   if (typeof f !== 'function') throw new Error('pass: ${} 里只允许 glsl 片段和函数（Ref / 箭头函数）：' + String(f));
   if (f.key && f.owner) return f.key;                                        // Ref
   const src = Function.prototype.toString.call(f);
   const i = src.indexOf('=>'); if (i < 0) throw new Error('pass: 无法推断 uniform 名，请用 u(\'名字\', f)：' + src);
+  const prm = src.slice(0, i).trim().replace(/^\(|\)$/g, '').trim();                    // `texel => …` / `(texel) => …`：形参名就是 uniform 名（`_` 和无参不算）
+  if (/^[A-Za-z$][\w$]*$/.test(prm) && prm !== 'async') return prm;
   const m = src.slice(i + 2).trim().replace(/[\s;)}]+$/, '').match(/([A-Za-z_$][\w$]*)$/);
   if (!m) throw new Error('pass: 无法推断 uniform 名，请用 u(\'名字\', f)：' + src);
   return m[1];

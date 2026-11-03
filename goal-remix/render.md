@@ -403,3 +403,48 @@ goodGL 原版的效果上界（每项单独关，ms / 占比）：
 - **方块碎屑与掉落物（用户反馈：碎屑和环境光融入差、悬浮方块 / 素材没有影子）**：① 碎屑原先在生成时按「被打碎那一格」的光照烘进颜色（该格刚变成空气，光照还是实心格的旧值，偏暗且之后不再变）。现在粒子带 `lit` 标记，存未打光的反照率，`updateParticles` 每帧按**当前所在格**的 `lightColor` 上色（同格粒子共用一次查询，每帧一张 Map）；烟 / 火星仍是自发光，不打光。对所有渲染器生效。② `RCTX.shadowCasters` 除生物外加入掉落物（半径 0.2，悬浮高度按 `mesh.y − 0.2` 算，越高越淡）和点燃的 TNT（半径 0.49）。验证：昼 / 夜各打碎一块石头，碎屑昼间浅灰、夜里偏蓝灰且比地面略亮；TNT 进了 casters；`verify --only gl` 通过。**没验证**：掉落物实际出现的画面（测试里石头在测试模式下没掉出物品，只验证了 casters 的结构）；夜里碎屑偏蓝紫、比周围地面亮，是石头反照率 × 蓝色夜间环境光，没有遮蔽，要人看。
 - **A 下悬浮物没有影子（用户反馈）**：原因是合并 pass 靠 entRT 的深度判定「这个像素有没有实体」（深度 = 1 视为空），脚下软影是透明材质、`depthWrite: false`，深度没写 → 整个被丢掉。改：影子 `depthWrite: true`；合并 pass 里把深度往相机方向偏 `max(4 cm, 0.2%·距离)`（影子贴地 3 cm，不偏会和地面 z-fight）；`blobs.update()` 挪到 `renderFancy` 之前（A 下实体在 renderFancy 里画，原先晚一帧）。验证：同帧开 / 关 `blobShadow` 差异像素 A 与 B 同量级（≈1.9 万 px，原先 A 为 0），平地上掉落物下面能看到暗斑。
 - **实体亮度缓动 + 滑块**：`lightAt` 是整数格，实体走过格界亮度会跳。宿主 `easeLight(o, target, dt)`：每个生物 / 掉落物 / TNT 自带 `lc`，按时间常数 ~0.2 s 追目标（对所有渲染器生效）。`P.entExposure`（面板「实体」，0.3–3，默认 1）乘进 `entlight.js` 的 E（A 和 B 两个模式都生效；改 2 → 材质色 ×1.37，与 E^(1/2.2) 一致）。**缓动只验证了数值逻辑，没拍走过格界的连续帧**。
+
+### R7 第一步：uniform 开关 → 宏（pbr / pom / shadow / cloudShadow / underwater / ssr / clouds / vol）
+- `fancy / water / comp` 里这些开关改成 `#define XXX_ON ${…}`（`common.js` 的 `shadowM / pbrM / pomM / cloudShM / underM`），切换靠 `pass.js` 编译缓存；`comp` 里恒为 1 的 `shadowOn` 判断直接删。
+- 验收：`--ref` 六机位（plain / canopy / water / shore / uw / flora）对改前 `r7base` **0 px**；`test-pass`、`test-pass-gl`、`verify-renderer --only gl` 通过。
+- `shader-stats`（前 → 后，按指令数排序，无法对应到具体 program）：最大一条 4223 → 4312 ins（spill 73:80 → 81:97，+2%，**未回退验收通过，原因没查**）；两条 loops 2 的 2028 / 2023 → 1721 / 1717 ins 且 loops 1（分支被折叠）。
+- 墙钟：改后的一轮 water / shore / flora 的 gpu 时间被 GPU 占用拉高（water 146 ms vs 36），**不可用**，复测要在空闲 GPU 上交替跑。
+- 未做：宏来回切换在真实页面的缓存命中检查、PCSS 参数化 / `vel` 预设、整帧墙钟对 R0 的复测。
+
+### 面板：两个并排 root（v2 / v3）
+- `P` 的 meta 多一个 `root`（`FOLDER()` 按 `V3_FOLDERS` 自动给：花草锐阴影 / 水 / 水下 / 实体 = `v3`，其余 = `v2`；单项可在 meta 里覆盖）。`rgl/panel.js` 每个 root 一个 Tweakpane（各自标题条、折叠、「重置默认」），并排放在一个固定容器里，F4 一起开关；缺省 root = `v3`。
+- 验证（无头）：`?r=gl` 两个 Pane（v2 · goodGL：渲染 / 云隙光 / 雾 / 调试；v3 · remix：花草锐阴影 / 水 / 水下 / 实体），`togglePanel` / `panelVisible` / `P.it.uwWindow.set` 正常。
+- 没做：参数持久化；v2/gl 自己的面板（`?r=v2/gl`）没动，仍是单 Pane。
+
+### 文件整理（按玩家视角 + 行数）
+`rgl/shaders/` 撤掉，23 个文件 → 8 个模块 + `long/`（`index.js` 的 import 从 30 行降到 17 行）：
+| 文件 | 行 | 内容（玩家看到的） |
+|---|---|---|
+| `index.js` | 257 | 装配：参数、帧循环、计时、实体合成钩子 |
+| `terrain.js` | 242 | 地形与阴影：ID 翻译 / 方块分类 / 区块网格调度 / 阴影图 pass / fancy·water 共用 uniform |
+| `sky.js` | 140 | 天空：大气 LUT、天空球 |
+| `post.js` | 306 | 画面后期：comp（体积光 / 反射 / 水下）、TAA、泛光、色调映射、深度写回 |
+| `entity.js` | 99 | 实体：CPU 光照、脚下软影、合并进场景 |
+| `long/fancy.js` `water.js` `clouds.js` | 337 / 254 / 90 | 三个长 GLSL 各自成文件 |
+| `pass.js` `vars.js` `frameref.js` `frame.js` `panel.js` | — | 框架（不变；测试脚本按这些路径引用） |
+GLSL 一字未改，合并只去掉重复 import。验证：`verify-renderer` 全过，`vendor.mjs gl --check` OK，`--ref` 六机位对 `r7base` 0 px。`tools/pass-conv.mjs` 输出目录改为 `rgl/long/`，旧 render.md 正文里的 `rgl/shaders/xxx.js` 路径是历史记录，对应关系见上表。
+
+### DSL 收口：`Fps` / `Fpv` / `named` / 形参命名（rgl/pass.js）
+- **`frameref.js` 并进 `pass.js`**：`import { glsl, Fps, Fpv, named, setFrame } from './pass.js'`。`Fps.sunDir` = 模板里的命名引用（同键同函数，名字就是键）；`Fpv.w` = JS 里读值。`${() => F.x}`（222 处）→ `${Fps.x}`。
+- **形参名即 uniform 名**：`${texel => [1 / Fpv.w, 1 / Fpv.h]}`、`${reset => (Fpv.taaReset || …) ? 1 : 0}`；无参或 `_` 仍取末尾标识符。`u('名', f)` 保留作逃生口，rgl 内已无使用。
+- **`named({ wnoise: () => tex(wnoise), … })`**：一组来源按键名自动命名，`X` 与 `commonX` 里 31 处 `u('同名', …)` 去掉；14 处「键名 ≠ goodGL 原 uniform 名」的（`blSrc → src`、`atlas → tex` 等）一律改用键名，GLSL 里已不依赖旧名。
+- **文件归类**：云并进 `sky.js`（天空 + 云）；`comp` 移入 `long/`（`long/` = `fancy` `water` `comp` 三个最长的着色器）；`post.js` 只剩 TAA / 泛光 / 色调映射 / 深度写回。
+- 验证：`test-pass`（新增形参名、`Fps`、`named` 断言）、`test-pass-gl`、`verify-renderer` 全过，`vendor.mjs gl --check` OK，`--ref` 六机位对 `r7base` 0 px。`tools/pass-conv.mjs` 仍输出旧写法，已标注为历史工具。
+- GLSL 工具函数去重（`hash12` / `vnoise` / `skyUV` 等各 3–5 份）按用户决定**不做**。
+
+### 验证分层 + `sky.js` 入 `long/`（R7 收尾）
+- **文件**：`sky.js`（229 行，天空 + 云）移入 `rgl/long/`；`long/` 现为 `fancy` 336 / `water` 253 / `comp` 169 / `sky` 229，`rgl/` 顶层只剩 `index` `terrain` `post` `entity` `pass` `vars` `frame` `panel`。`vendor.mjs` 注释路径与 `vendor/gl/renderer.js` 已重新生成，`--check` OK。上面「文件整理」表里 `sky.js` 的位置以本节为准。
+- **验证分三层，互不耦合**（之前一条命令里既跑 verify 又跑 bench，改一行也要等几分钟）：
+  | 层 | 命令 | 回答什么 | 耗时 |
+  |---|---|---|---|
+  | 闸门 | `node tools/check.mjs` | 还对不对：单元（pass / vars）→ vendor 一致 → pass GL 自检 → `?r=gl` 契约 + 画面非黑 + 0 px 确定性 + 无 GL 错误 + program 全链接 | ~11 s（预算 30 s，超了会提示） |
+  | 全量 | `node tools/verify-renderer.mjs [--only 组]` | 四个渲染器的完整契约；gl 组含放 / 移方块、REF 重复、rd 重建 | gl 组 ~30 s，全部 ~2 min |
+  | 像素 / 性能 | `node tools/bench-v2.mjs --r gl --generic --ref --views … --save/--cmp NAME` | 和基线逐像素一致吗 / 快了还是慢了 | 按机位数，且需要空闲 GPU |
+- 约定：**改代码 → `check.mjs`；动 shader 或管线 → 再加 `--ref --cmp`；动性能 → bench（空闲 GPU）；提交前 / 动宿主接口 → 全量 verify。** `verify-renderer.mjs` 新增 `--fast`（跳过慢项）和组名 `static`（单独跑静态检查），`check.mjs` 就是它们加其它快测试的编排。
+- 故意弄坏 `long/sky.js` 的 import 验证过：`check.mjs` 在 5 s 内报红（renderer 回退 v1 + 动态 import 失败）。
+- 没覆盖：`check.mjs` 不跑 v1 / v2 / v2/gl 组（宿主改动时请跑全量）；不看画面内容是否「正确」，只看非黑、非单色、可重复——画面回归靠 `--ref --cmp`。
