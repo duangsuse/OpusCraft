@@ -903,8 +903,8 @@ function cornerHeight(pb, pm, p, id, cx, cz) {
   return cnt > 0 ? sum / cnt : 8 / 9;
 }
 
-function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB) {
-  OB.reset(); TB.reset();
+function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB, PB, CLS) {   // remix: PB 植物网格、CLS[id] 额外 flags（草 = 8192）
+  OB.reset(); TB.reset(); if (PB) PB.reset();
   const lightAt = (q) => pl[q];
   for (let y = 0; y < 16; y++) for (let z = 0; z < 16; z++) {
     let p = (y + 1) * 324 + (z + 1) * 18 + 1;
@@ -917,8 +917,8 @@ function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB) {
       if (ts === TINT_GRASS) { tr = tintG[col * 3]; tg = tintG[col * 3 + 1]; tb = tintG[col * 3 + 2]; }
       else if (ts === TINT_FOLIAGE) { tr = tintF[col * 3]; tg = tintF[col * 3 + 1]; tb = tintF[col * 3 + 2]; }
       else if (ts >= 3) { const c = FIXED_TINT[ts]; tr = c[0]; tg = c[1]; tb = c[2]; }
-      const fl = FLAGS[id];
-      const B = MAT[id] >= 2 ? TB : OB;
+      const fl = FLAGS[id] | (CLS ? CLS[id] : 0);   // remix
+      const B = MAT[id] >= 2 ? TB : (PB && (rt === RT_CROSS || rt === RT_CROP) ? PB : OB);   // remix
       if (rt === RT_CUBE || rt === RT_CHEST || rt === RT_CACTUS || rt === RT_LOW) {
         const wave = WAVE[id] === 1 ? 1 : 0;
         const meta = pm[p];
@@ -1051,7 +1051,7 @@ function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB) {
       }
     }
   }
-  return { opaque: OB.n ? OB.take() : null, on: OB.n, trans: TB.n ? TB.take() : null, tn: TB.n };
+  return { opaque: OB.n ? OB.take() : null, on: OB.n, trans: TB.n ? TB.take() : null, tn: TB.n, plant: PB && PB.n ? PB.take() : null, pn: PB ? PB.n : 0 };   // remix
 }
 
 return { H, SEA, LEAVES, LOGS, mulberry32, hash3, rand3, smoothstep, lerp, clamp, Simplex, TEX_NAMES, TEX, tex,

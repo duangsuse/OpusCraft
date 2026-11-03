@@ -4,7 +4,7 @@
 //     --r ID            渲染器（?r=，默认 v2 单文件原版；v2/gl = goal-glmod 模块化 / 拆 pass 版）
 //     --seed N          世界种子（默认 20240607）      --rd N        视距（默认 6）
 //     --scale S         DDA 分辨率（默认 = v2 默认）   --size WxH    视口（默认 1280x657）
-//     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,water,uw）
+//     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,water,uw,flora）
 //     --set k=v,...     覆盖 VR.P 参数（如 shadowSteps=0）
 //     --preset NAME     云 + 水面预设（VR.presets.cloud/water 同名项：vol|noise|mc|bliss）；--set 在其后覆盖
 //     --ref             VR.setRef(1) 参考模式：主射线 / 阴影 / 反射折射步数预算全放到 576 + 精确入格（DF 开/关 0 px 对比用）
@@ -17,10 +17,10 @@
 //     --swiftshader     用软件渲染（无 GPU 计时，仅步数/fetch 统计）
 // 输出：每机位 GPU 分 pass 时间（scene/dda/comp，中位数）、主射线平均迭代、阴影平均迭代、
 //       预算耗尽占比、平均 fetch、平均 texture() 采样（DBG 6）、层级（列跳/砖步/体素步）、DF（DBG 4：盒跳跃/未计算退化/v=2 退化）、云步数（DBG 5 A 通道）、
-//       着色占比（dda - dda[跳过 smoothLight]）。默认机位不含 uw（水下仰视），需 --views 显式指定。
+//       着色占比（dda - dda[跳过 smoothLight]）。默认机位不含 uw（水下仰视）、flora（花近景），需 --views 显式指定。
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { launch } from './cdp.mjs';
+import { launch, killStray } from './cdp.mjs';
 import { encodePNG } from './png.mjs';
 
 const argv = process.argv.slice(2);
@@ -36,6 +36,7 @@ const PRESET = opt('preset', null);
 const PROBE = opt('probe', null);   // x,y（ddaRT 像素，y 从下数，同 refdiff）：打印该像素 DF 关/开的 tHit / tw / 命中格（DBG 7/8/9）
 const SHOTS = opt('shots', 'tools/out/bench'), SAVE = opt('save', null), CMP = opt('cmp', null), JSONF = opt('json', null);
 
+killStray();   // 先清掉残留的无头 Chromium（会抢 GPU，让墙钟作废）
 const b = await launch({ width: W, height: H, gpu: !flag('swiftshader'), headed: flag('headed'), tag: 'bench-v2' });
 const fail = (m) => { console.error(m); if (b.logs.length) console.error(b.logs.slice(-8).join('\n')); b.close(); process.exit(1); };
 await b.send('Page.navigate', { url: `${URL0}?r=${RID}&seed=${SEED}` });
@@ -135,6 +136,16 @@ const init = await b.js(`(async () => {
     }
     if (best) views.uw = { x: best.x + 0.5, y: SEA - 1.2 - EYE, z: best.z + 0.5, yaw: 0.6, pitch: 0.35 }; }
 
+  // 6) flora：离出生点最近、前方无遮挡的花（POPPY/DANDELION），玩家在其东南 1.1 格、眼高 +0.8，俯视花头（R3b 锐阴影/花体积感；人眼验收用）
+  { let best = null;
+    for (let x = X0 - RAD; x <= X0 + RAD; x++) for (let z = Z0 - RAD; z <= Z0 + RAD; z++) {
+      const h = surf(x, z) + 1, id = gb(x, h, z); if (id !== B.POPPY && id !== B.DANDELION) continue;
+      const px = x + 0.5 + 1.1, pz = z + 0.5 + 0.33, ey = h + 0.8;
+      if (gb(Math.floor(px), Math.floor(ey), Math.floor(pz)) !== 0 || gb(Math.floor(px), Math.floor(ey) - 1, Math.floor(pz)) !== 0) continue;
+      const d2 = (x - X0) ** 2 + (z - Z0) ** 2; if (!best || d2 < best.d2) best = { d2, x, z, h, px, pz, ey };
+    }
+    if (best) { const dx = best.x + 0.5 - best.px, dz = best.z + 0.5 - best.pz;
+      views.flora = { x: best.px, y: best.ey - EYE, z: best.pz, yaw: Math.atan2(-dx, -dz), pitch: -Math.atan2(0.5, Math.hypot(dx, dz)) }; } }
   const gl = g.renderer.getContext(), dbg = gl.getExtension('WEBGL_debug_renderer_info');
   const gpuName = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
 
@@ -178,7 +189,11 @@ const init = await b.js(`(async () => {
   // 同步渲染一帧并读回 ddaRT（RGBA8）
   const grab = async (view, raw) => {
     VR.setDebug(view, raw); await raf(); await raf();            // 让着色器编译
-    g.worldTime = 0.12; VR.update(0); g.renderer.clear(); VR.render();
+    g.worldTime = 0.12;
+    // 规范帧序列（bench.md §4）：非 DDA 的渲染器带时间累积（TAA 抖动序号、历史、曝光），读回前的帧数不能取决于前面测了什么
+    // → resetLag 归零后同步固定渲染 16 帧（两轮 Halton）再读。DDA 路径保持原样（基线 r0b-* 就是按原样存的）
+    if (!DDA && VR.readOut && VR.resetLag) { VR.resetLag(); for (let i = 0; i < 16; i++) { VR.update(0); g.renderer.clear(); VR.render(); } return VR.readOut(); }
+    VR.update(0); g.renderer.clear(); VR.render();
     if (VR.readOut) return VR.readOut();
     const rt = VR.ddaRT, px = new Uint8Array(rt.width * rt.height * 4);
     g.renderer.readRenderTargetPixels(rt, 0, 0, rt.width, rt.height, px);
@@ -215,7 +230,8 @@ console.log(`seed ${SEED}  rd ${RD}  视口 ${W}x${H}  scale ${init.P.scale}` + 
 mkdirSync(SHOTS, { recursive: true });
 const refDir = n => `tools/out/ref/${n}`;
 if (SAVE) mkdirSync(refDir(SAVE), { recursive: true });
-const med = a => { if (!a.length) return NaN; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+const med = a => { if (!a || !a.length) return NaN;   // 通用表：渲染器没有的 pass（如 rgl 没有 dda）按 NaN 处理
+   const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
 const rows = [];
 for (const name of VIEWS) {
   const v = init.views[name];

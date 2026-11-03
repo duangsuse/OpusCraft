@@ -17,7 +17,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { launch } from './cdp.mjs';
+import { launch, killStray } from './cdp.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -34,6 +34,7 @@ if (!url) {
 }
 url += `#auto&seed=${SEED}&rd=${RD}` + (SCALE !== 1 ? `&scale=${SCALE}` : '');
 
+killStray();   // 先清掉残留的无头 Chromium（会抢 GPU，让墙钟作废）
 const c = await launch({ width: W, height: H, headed: flag('headed'), tag: 'frametime' });
 const fail = e => { console.error(e); c.logs.slice(-10).forEach(l => console.error('  ' + l)); c.close(); srv?.close(); process.exit(1); };
 try {

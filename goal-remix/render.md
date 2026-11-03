@@ -27,7 +27,7 @@
 | 1 | 阴影图：单级，正交 ±150（`shadowQ≥2`）/ ±100，深度 ±320，带畸变，polygon offset 1.2/2；cutout 做 alpha test。**rgl 加第二张锐图（花草，±64），软图里不再画花草**（R3b） | 2048² DEPTH24 + 比较模式（×2） | `shadowVS/FS` L2652–2681；原点对齐 L6238–6243 |
 | 2 | 场景：全屏天空，然后不透明段 + 实体，**前向 PBR，MRT 输出** | sceneC RGBA16F + gbuf RGBA16F（八面体法线、粗糙度、ssrW）+ DEPTH24 纹理 | `skyFancyFS` L3021–3083、`chunkVS` L2325–2359、`fancyFS` L3454–3654 |
 | 3 | 把颜色和深度拷一份 | copyC / copyD | L4126–4128 |
-| 4 | 水 / 冰（不混合）：从拷贝里取折射、Beer 吸收、SSR、GGX 太阳高光、岸边和瀑布泡沫 | scene | `waterFS` → **换成 LiqPG 的**（water.md） |
+| 4 | 水 / 冰（不混合）：从拷贝里取折射、Beer 吸收、SSR、GGX 太阳高光、岸边和瀑布泡沫 | scene | `waterFS` → **换成 LiqPG 的光学，泡沫和水底纹路用 v2/gl 的版本**（water.md §0.1，用户 11-03） |
 | 5 | 体积云（y 185–262，16 步 + 3 步光照） | 1/3 分辨率 RGBA16F | `cloudsFS` L3086–3142、`cloudCommon` L2945 |
 | 6 | 合成：不透明面的 SSR、云、按地平线色的指数高度雾、晨雾、体积光（14 次阴影采样）、径向日光、闪电 | compC RGBA16F | `compositeFS` L3360–3449 + L3758–3788 |
 | 7 | TAA：Halton(2,3) 8 点抖动（L6181–6189），YCoCg 方差裁剪 | 2× RGBA16F 乒乓 | `taaFS` L3657–3696 |
@@ -117,6 +117,7 @@ rgl/index.js：createRenderer(RCTX) → { name: 'gl', buildChunk, disposeChunk, 
 7. **自检**（同 glmod §1.1b-4）：链接后枚举活跃 uniform：活跃但没绑定就报错；绑定了但不活跃就警告一次（被 `#if` 剔掉是正常的）。goodGL `u1f` 那种名字写错就静默跳过的问题（L3882–3888）随之消失。
 8. **几何 pass**：`Pass({ vs, attribs })` 同样模板化顶点着色器，VS 和 FS 共用一张 uniform 表（同名即同一个引用）。goodGL 的属性位置（`a_pos` 0、`a_uvl` 1……，L859–873）写进 `attribs`。
 9. **糖的判据是声明式**（用户 11-03）：`it` 代理、`#` 行宏、uniform 自动前置这些简化，实现上用 Proxy、模板标签甚至猴子补丁都行，但**必须做成声明式**：位置决定种类，名字、类型、默认值、`meta` 都在声明处一次给全，不靠运行时猜、不靠事后再登记。做不到声明式的地方不做糖，退回显式写法（`u('名字', ref)`、`#define X ${() => v}`）；半吊子的糖比没有更糟：fsdump 里看不出它是什么、面板和 bench 枚举不到、A/B 切不了。验收里的两条静态检查（正文里没有裸值、rgl 里没有 `u1f(` 一类调用）就是这条的底线。
+10. **参照物：`ref/ripple-regl.js` 的 Pass 工厂**（用户 11-03）：`Pass({ tag, ...regl选项 })\`GLSL ${_ => C.bru} ...\`` 是 tagged template，`${}` 里的箭头函数按源码里的 `.xxx` 取 uniform 名（`_ => C.bru` → `bru`），在 `U` 表里登记，名字、类型声明、取值都在用处一次给全。我们的 `rgl/pass.js` 是它的加强版：位置决定种类（`#` 行 = 宏，其他 = uniform）、类型从默认值推（它靠手写 `uniform float` 前置）、编译缓存、链接后自检；**它的写法可以直接当第 1–4 条的验收样例**（声明式、一处写全）。
 
 **goodGL 的 GLSL 怎么转**：
 - 一个 program 一个 program 地转：删掉 `uniform … u_x;` 声明，把用到它的地方改成 `${() => F.x}`（每帧算出来的量）或 `${c_.Gl.it.x}`（可调参数）；同时删掉 `Renderer` 里对应的 `u1f / u3v / m4` 调用（共 172 处，约 96 个名字）。R5 本来就要重写"宿主 Env → 帧对象 F"，上传代码反正要动。
@@ -134,14 +135,16 @@ goodGL 里没有这组函数：类别散落在几张表里，调用点各自写�
 |---|---|---|
 | `isOpaqueCube(id)` | `OCC[id] && RT[id] === RT_CUBE && MAT[id] === 0` | 软图、AO、遮挡 |
 | `isLeaf(id)` | `LEAVES[id]` | 软图（cutout）、树叶的次表面散射和摇动 |
-| `isPlant(id)` | `RT[id] ∈ {RT_CROSS, RT_CROP}`（草、花、树苗、小麦…）；**不含**树叶和仙人掌 | 锐图、不进软图、接收端跳过锐图 |
+| `isPlant(id)` | `RT[id] ∈ {RT_CROSS, RT_CROP}`（草、花、树苗、小麦…）；**不含**树叶和仙人掌 | 锐图、不进软图 |
+| `isGrass(id)` | `isPlant` 里的草：`short_grass`、`fern`、`dead_bush`、`wheat`（宿主 A 的 `TALL_GRASS` 映到第一个）；其余 CROSS / CROP（花、树苗、蘑菇、作物）一律算 `isFlower`，要改在表里改 | **接收端是草时跳过锐图（草不用自阴影）**；`isFlower` = `isPlant && !isGrass`：**花渲染自体阴影**（用户 11-03） |
 | `isCutout(id)` | `MAT[id] === 1` | 阴影 pass 的 alpha test |
-| `isTranslucent(id)` | `MAT[id] === 3` | 玻璃、冰：goodGL 现状是半透明网格不进阴影图，**不投影**；要不要改由人定 |
+| `isTranslucent(id)` | `MAT[id] >= 2 && !isLiquid(id)` | 玻璃、冰：goodGL 现状是半透明网格不进阴影图，**不投影**；要不要改由人定 |
 | `isLiquid(id)` | `MAT[id] === 2` | 水（换成 LiqPG 之后仍由它自己的 pass 画） |
-| `shadowClass(id)` | 0 不投影 / 1 软（`isOpaqueCube` ∪ `isLeaf`）/ 2 锐（`isPlant`） | mesher 分流（R3b）、`flags` 的类别位 |
+| `shadowClass(id)` | `null` 不投影（空气、液体、半透明）/ `'soft'`（其余，含树叶和不透明整块）/ `'sharp'`（`isPlant`） | mesher 分流（R3b）；代码里没有再套一层数字 |
+| `flagTable()` | 256 项 `Uint16`：草 = `8192`（`NO_SHARP`），其余 0 | 经 Worker 消息的 `cls` 进 `meshSection`，OR 进顶点 `flags` |
 
 易踩的点：
-- **`FOLIAGE` 位不等于 `isPlant`**：它在 `def()` 里是手写的 `foliage: true`（15 处），顶层方块统计里它同时覆盖了草和树叶；它在着色器里的确切含义 R3b 开工时读清楚再决定能不能复用，**不要拿它当 `isPlant`**。
+- **`FOLIAGE` 位不等于 `isPlant`**：它在 `def()` 里是手写的 `foliage: true`（15 处），同时覆盖草和树叶；着色器里它只管漫反射的双面光照（`abs(NdotL)`）和法线偏置（0.02），和阴影分流无关。R3b 没用它，`isPlant` 直接按 `RT`。
 - **宿主新增方块**（GLID 里 `'+'` 的 ADD 行，goodGL 没有对应 RT）：类别在 ADD 行里显式写 `cls`；缺省按宿主 `BlockDef` 的 opaque / cutout 推。门、梯子、雪层、火走 R6 的混合路径，**暂不投影**。
 - **按 id 不按 meta**：双格高草的上下半、台阶、流体液位都是同一个类别。
 - **宿主 A 的 `TALL_GRASS`** 等在 GLID 里映到 `short_grass`，类别随 gl id 走，不单独判。
@@ -221,6 +224,102 @@ goodGL 原版的效果上界（每项单独关，ms / 占比）：
   - `fsdump`：`v2/gl` 和 `v2` 两个目录与改前 `diff -r` 无差异（逐字节相同）。
   - `verify-renderer`：186 项 PASS、0 FAIL，与改前相同（唯一的文本差异是 `VR.stats()` 字符串里的毫秒数）。
   - `--generic` 在 v2/gl 上能出通用表（列 = `perf.passes` + 合计 + 墙钟），plain 与基线 0 px。
-- **发现 / 未达成项**：`--generic` 的 `water` 机位与基线差了 3983 px（max Δ106），但通用路径自己连跑两次是 0 px。差异来自**帧历史不同**：标准路径在最终读回前多跑了 `compIso`（约 18 帧）和五次调试视图 `grab`，通用路径没有。也就是说 v2/gl 的 `water` 机位有随帧数变化的状态（没有查到是哪一项：候选是滞后相机 / LOD 渐变、水面时间相关项），bench.md §4 的「同一份代码重复跑 0 px」**只在同一条帧序列下成立**。
-- **对后续阶段的影响**：① rgl 的 bench 必须有一条固定的规范帧序列（`resetLag` → 固定帧数 → 读回），`--save` 和 `--cmp` 用同一条，不能因为开关不同的测量项而改变读回前的帧数；② `gl` 的结构步骤（R1、R3、R5、R7）验收「0 px」时要先用同一条序列自比一次；③ 通用表的 pass 列由渲染器的 `perf.passes` 决定，rgl 的名字用 render.md §1 的 pass 列表。
+- **发现 / 未达成项**：`--generic` 的 v2/gl `water` 机位与基线差了 3983 px（max Δ106），但通用路径自己连跑两次是 0 px。当时的判断是「帧历史不同（标准路径多跑了 `compIso` 和五次调试视图 `grab`）」。**R2 更正：这个判断不对。**R2 给非 DDA 路径加了规范帧序列（`resetLag` + 固定 16 帧）后重测，差异仍然是**同样的 3983 px、max Δ106**，一个像素没变：它不随帧数变，是确定性的状态差异。候选是标准路径读回前跑过的 DDA 调试视图 / `compIso` 改了某个只有它们会碰的状态，最可疑的是 v2/gl 的读回路径（`ddaOut / resolveSoft`，「只在被读时画」）。只影响 `water` 机位，没有继续查，不影响 R0b 验收（标准路径与基线 0 px）。
+- **对后续阶段的影响**：① rgl 的 bench 要有固定的规范帧序列（`resetLag` → 固定帧数 → 读回），`--save` 和 `--cmp` 用同一条（R2 已落实，见下；对带 TAA 的 gl 它确实是必须的）；② `gl` 的结构步骤（R1、R3、R5、R7）验收「0 px」时要先用同一条序列自比一次；③ 通用表的 pass 列由渲染器的 `perf.passes` 决定，rgl 的名字用 render.md §1 的 pass 列表。
+
+### R2 空帧（已完成，2026-11-03）
+
+- **实现要点**：`?r=gl` 载入 `rgl/index.js`，用 `vendor/gl` 的 `Renderer` 在 three 的画布上跑 goodGL 整条管线，**零几何**（`F.visible = []`、`dyn.n = 0`）：天空 LUT、阴影（空）、天空、复制、水（空）、体积云、合成、TAA、bloom、final。宿主随后用 three 画 HUD，`VoxelCraft.html` 的主循环没动。
+  - `rgl/frame.js`：`Game.render`（L6142–6300）fancy 路径的逐行搬运（保留行号注释），宿主输入作为参数；差异都标了 `// remix:`（宿主相机的 up、无世界时 `eyeSky = 1`、`aurora` 取常量、REF 口子）。R5 再整理成 `xlate.frame`。
+  - `rgl/index.js`：**共享上下文**：`new Renderer(canvas)` 里的 `getContext('webgl2', …)` 拿到 three 已建好的上下文（实测 `antialias:false`、`samples 0`）；每帧开头 `resetGLState` 显式设一遍 goodGL 依赖的状态，画完 `renderer.resetState()`；`Renderer` 子类只为记下每个 program 的源码（16 个，`programs` / fsdump 用）；`mk()` 编译或链接失败会抛异常 → 宿主回落 v1。
+  - **分 pass 计时**：goodGL 没有逐 pass 钩子，所以在 `renderFancy` 期间临时包一层 `gl.bindFramebuffer`，按目标 FBO 切段（lut / shadow / scene / water / cloud / comp / taa / bloom / final），之后删掉。踩过的坑：必须等上一组查询读完再开始下一组（GPU 结果晚一两帧才可用，每帧都覆盖就永远读不到，`frame` 只推进过 2 次）；现在隔约 3 帧采一组。
+  - 宿主侧：`VoxelCraft.html` 的渲染器白名单改成表（`RENDERERS`，加 `gl: './rgl/index.js'`）；`RCTX` 加惰性 `get worldTime`；`voxelCraftEnv` 加 `dayTime`（= `worldTime`，0 = 06:00 = goodGL 的 tick 0）；`goal-renderapi.ts` 的 `Env` 加 `dayTime?`。
+  - 契约：`readOut`（读默认帧缓冲，要在 `render()` 的同一任务里读）、`programs`、`pending`、`resetLag`（TAA 序号 / 历史 / 曝光 / 环境光缓存归零）、`setRef`（TAA 关、曝光每帧取目标值）、`D.time / D.cloudX` 钉点、`perf.passes`。`setDebug` 只记下，DBG 宏还没接（bench.md §5）；`P` 只列已接上的项，`fog / mist` 默认 0（去雾版）；`scale / maxMP` 等 R5 接上 `vars.js` 再加。
+  - 工具：verify 加 `gl` 组（`--only` 可单跑）；`bench-v2` 的 `grab` 对非 DDA 渲染器走规范序列（`resetLag` + 同步固定 16 帧），`med` 容忍渲染器没有的 pass。
+- **结果**：
+  - `verify-renderer` 全量 **229 项全 PASS、0 FAIL**（含 `gl` 组 ：契约成员、读回尺寸、不是单色（471 种颜色）、无 GL 错误、`resetLag` 后同序列两次读回 0 px、three 在 goodGL 之后还能画、REF 模式重复 0 px、宿主主循环下无 GL 错误）。
+  - 回归：`bench-v2 --r v2` 与 `--r v2/gl` 对 R0b 基线 **`--cmp` 全部 0 px**；`fsdump v2/gl` 与 R0b 逐字节相同。
+  - `bench-v2 --r gl`（4 机位，`--save` → `--cmp`）：**0 px**。未加规范序列时是 ±1（plain 36315 px，其余 < 60 px）：来源是读回前的帧数随 `timeFrames` 采样了多少宿主帧而变，TAA 抖动序号 8 帧一循环，相位跟着变。
+  - `fsdump gl --vs` 导出 16 个程序（`fancy / water / skyF / comp / final / taa / clouds …`）的片元和顶点着色器。
+- **整帧墙钟（空帧，Intel RPL-S 核显，1280×657）**：gl 在宿主 A 的 4 个机位 43–70 ms（plain 52、canopy 51、cave 50、water 53，各机位差异不大；一次较吵的运行到过 72）；分 pass：scene 8–13、cloud 7–10、comp 12–22、taa 10–15、其余 < 1。**比 R0 里 goodGL 带地形的 25–28 ms 还慢，原因不是共享上下文**：同一内容的 A/B（相机抬到 y=200、仰视 0.3，全是天空）——rgl 50.7 ms（min 44.4）对 goodGL 原版 46.0 ms（min 44.9），基本一致。也就是说**全天空的帧本身就最贵**（云、体积光、合成对天空像素更重；地形像素不用走这一套），空帧是这条管线的最坏情形，不能拿它和 R0 的带地形数字比。
+- **未达成项**：没有区块 / 实体 / 手 / 天气粒子（R3 / R4）：宿主的 three 场景在 `?r=gl` 下完全不画（生物、粒子、选框、手持物暂时看不到，HUD 照常）；`water` 与 `underwater` 恒为假（`Env` 还没接水下通知，R5）；`scale / maxMP` 没接（final 直接写默认帧缓冲，内部目标 = 绘制缓冲大小）；`setDebug` 的 DBG 宏没接；goodGL 的 `renderFancy` 里 `F.visible` 为空所以 `cull` 还没用上。
+- **对后续阶段的影响**：① R3 一接上区块，第一件事是用同机位重测整帧墙钟，和 R0 的 goodGL 原版（带地形）对比才是严格的；② 云 / comp / taa 三项合计占空帧的 70% 以上，R7 的优化顺序应该先看它们在**天空占比高的机位**上的成本（体积云 16+3 步在 1/3 分辨率，comp 的体积光 14 次采样在全分辨率）；③ 规范帧序列是 gl 的结构验收（R3、R5、R7 的 0 px）的前提，`--save` 与 `--cmp` 必须走同一条；④ 宿主 B 接入时 `dayTime` 要由适配器给（`Sky.time / 24000`）。
+
+### R3 区块（宿主 A）（已完成，2026-11-03）
+
+- **实现要点**：宿主 A 的区块经 `padded → Worker 网格化 → 段缓冲 → 视锥剔除` 画出来，用 goodGL 自己的程序化贴图和 PBR。
+  - `rgl/xlate.js`：`GLID_A`（宿主 `B.*` 26 个 → goodGL 方块名，按键名查）、`idLUT`（256 项，表外 id 当石头）、`padded`（宿主 `blocks[(lx*16+lz)*H+y]`、`sky / blk` 两个数组 → goodGL 18³，`p = (y+1)*324 + (z+1)*18 + (x+1)`，光照打成 `sky<<4|blk`；邻块缺失 = 石头 + 无光，`y<0` 基岩，`y≥H` 空气 + 满天空光，规则同 goodGL `buildPadded`）、`sectionHasBlocks`。
+  - `rgl/world.js`：区块记录、脏段、Worker 调度、上传。宿主 A 只发「某区块 blocks 变了 / 没了」，所以：新区块 = 自己 + 8 个邻居的段脏；重建 = 自己 + 4 个边邻居；一个区块的 3×3 邻居都有了才网格化（同 goodGL 的 `neighborsAtLeast`，否则初始加载每块要被重做好几遍）；每帧按离相机距离、最多 `P.meshJobs`（6）个；回包带版本号，过期的丢弃；`pending()` = 在途 + 已可提交的脏段（环边缘邻居永远不全的区块不算）。
+  - tint：宿主 A 没有群系，整块用平原的草 / 叶色常量（0x91bd59 / 0x77ab2f，256 列 × RGB）。第一版我把数组填成了 `140`，三个通道相同 = 灰色，草和树叶是灰的，已改。
+  - `tools/vendor.mjs`：renderer.js 里 `cull` 用到 `ST_LIT`，它在 world.js 里和另外两个名字写在同一行（`const ST_TERRAIN = 1, ST_DECOR = 2, ST_LIT = 3`），顶层扫描只认第一个名字，所以 R1 没发现它缺出处，到 R3 才在运行时暴露。现在 vendor.mjs 有一张 `CONSTS` 表，自动给用到它们的模块加前导声明。
+- **结果**：
+  - `verify-renderer` 全量 **230 项全 PASS、0 FAIL**；`gl` 组新增「放置方块后画面改变（网格化 + 上传生效）」「移除后画面恢复到放置前 0 px」（在相机前 4 格放 5×5×5 石头，等 `pending() == 0`）。
+  - `bench-v2 --r gl`（plain / canopy / cave / water）`--save → --cmp`：**0 px**。
+  - `vendor.mjs gl --check` OK。
+  - 冒烟（出生点附近）：137 个区块、120 段、62620 个四边形；水面（折射 / 泡沫 / 反射）、阴影、PBR、树叶镂空、云都正确；截图见 `/tmp/r2/gl.png`。
+- **整帧墙钟**（宿主 A，1280×657，Intel RPL-S 核显，`bench-v2 --r gl`，单次运行；用户 11-03 要求 bench 脚本开头自动清残留无头 Chromium，已加 `killStray`，并让 `launch` 的 Chromium 自成进程组、`close()` 杀整组）：
+
+  | 机位 | shadow | scene | water | cloud | comp | taa | 其余 | gpu 合计 | **墙钟/帧** | 同分辨率 v2/gl（R0） |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | plain | 13.9 | 26.2 | 4.4 | 2.0 | 10.1 | 8.1 | 2.4 | 71.4 | **65.3** | 26.6 |
+  | canopy | 5.3 | 15.5 | 0.1 | 2.5 | 4.3 | 2.2 | 1.1 | 31.6 | **33.9** | 21.2 |
+  | cave | 3.0 | 10.7 | 0.1 | 1.6 | 4.3 | 2.2 | 1.1 | 23.8 | **25.2** | 未测 |
+  | water | 3.6 | 8.7 | 11.1 | 1.5 | 4.5 | 2.2 | 1.1 | 33.4 | **36.0** | 45.1 |
+
+  ⚠ **plain 一行（65.3 ms）在 R3b 时无法复现**：同一会话里 R3b 前的版本（`git checkout-index` 导出的暂存区）重测 plain 27.2 ms、canopy 32.7 ms，R3b 后 26.3 / 33.1（见 R3b 记录）。R3 表里的 plain 71.4 gpu 应是那次运行的异常（原因没查清，单次运行、当时没有留 `--json`）。下面「plain 最差」的推论和「先量顶点占比」的待办**撤回**，canopy / cave / water 三行同一天内未重测，按原样保留。
+
+  gl 比 v2/gl：plain 慢 2.5 倍、canopy 慢 1.6 倍、water 快 20%（plain 一项作废，见上）。plain 最差：远景大量地形，shadow 13.9 + scene 26.2 占一半以上（goodGL 不做 greedy，每个可见面一个四边形，见 §1 网格器；`world.stat()` 给出 120 段 / 62620 四边形是出生点冒烟的数）。R0 里 goodGL 原版（带地形，另一个世界）是 25–28 ms，所以 plain 的 65 ms 比它高很多，**不能直接归因为世界不同**：下一步先量 plain 的顶点阶段占比（DBG 2 的下界加顶点数，bench.md §6 第 1 行）再决定做不做 greedy / 预深度。
+- **未达成项**：
+  - ~~整帧墙钟被残留进程污染~~ 已重测，见上面的「整帧墙钟」。
+  - 宿主 A 的 `TNT` / `GOLD_BLOCK` 是**暂代**（红砖 / 黄色陶瓦）：goodGL 没有这两个方块，ADD 行要给 `SH` 加方块定义和贴图，属于供体补丁（`// remix:`），R3 没做。
+  - 实体、手、天气粒子（R4）；宿主 A 水面高度：goodGL 的水按 meta 算液面（meta 0 = 8/9 格高），宿主 A 的水没有 meta，所以水面比宿主自己的低约 1/9 格。
+  - `Env` 水下通知（R5）、`scale / maxMP`、DBG 宏仍未接。
+- **对后续阶段的影响**：① R3 的「与 `?r=v2/gl` 同机位并排交人看」要人看一眼截图（`bench-v2 --shots`）；② 第一个可信的整帧墙钟必须在没有残留 Chromium 的干净环境里测，并和 R0 的 goodGL 原版对比；③ 花草锐阴影（R3b）和分类函数（§4.2）现在可以开工：区块已经在 `rgl/world.js` 里分段，mesher 补丁的落点就是 `meshSection` 的输出分流。
+
+### R3b 花草锐阴影（已完成，2026-11-03）
+
+- **实现要点**：
+  - **PATCHES 机制落地**：`tools/vendor.mjs` 新增按文件 / GLSL 键的替换表，原文必须恰好出现一次，否则构建失败；补丁处都带 `// remix:`；`--cdp` 比较的是未打补丁的 GLSL 原文（补丁后的 `glsl.js` 按设计与运行时不同）。补丁清单在 vendor.mjs 的 `PATCH_FILES` / `GLSL.fancyFS` 段（`vendor/PATCHES.md` 还没单独建，等 R5 补丁变多再拆）。
+  - **mesher**：`meshSection(..., OB, TB, PB, CLS)`：`RT_CROSS / RT_CROP` 的面写进 `PB`（其余进 `OB / TB`）；`CLS[id]` OR 进顶点 `flags`。返回值多 `plant / pn`；Worker 和主线程回退路径都带 `PB`；`cls` 随每个网格任务发（256 项 Uint16，数据量可忽略）。
+  - **renderer**：每段多一个 `plant` VAO（`uploadSection / freeChunk / cull / renderFancy` 的 scene pass 都认它）；软阴影 pass 只画 `opaque`，所以**花草不再进软图**；新增 `shadowS` 程序（`shadowVS` 去掉 `df` 畸变）和 `sharpFBO`（2048² DEPTH24 + 比较采样器，clamp）；锐图 pass 画 `plant`，同一光向、同一原点（`shadowOrigin` / `camToShadow` 共用），正交 ±`sharpDist`（默认 64，每格 16 texel，正好等于 16 px 贴图密度）。
+  - **fancyFS**：`sharpAt()` 一次比较（硬件 2×2 PCF，没有遮挡物搜索，所以细草叶不漏）；`sh = min(sh, mix(sharpAt(wp + L·0.04), 1, smoothstep(0.85·D, D, d)))`，`(v_flags & 8192)`（草）跳过，花照常读（含自己的，靠 polygon offset 1.2/2 + 沿光向 0.04 格的偏移，目测无条纹）；超过 `sharpDist` 在最后 15% 平滑过渡到 1。
+  - `rgl/blockclass.js`（§4.2）：函数集合 + `flagTable()`；`P.sharpDist`（0 = 关接收，pass 本身仍画）。
+- **结果**：
+  - 同机位开 / 关对比（`/tmp/r2/flora.mjs`，机位挑在空旷地上，低太阳）：关时花下没有影子，开时地面上出现花的剪影形影子，花瓣本身没有条纹（看了一张截图）。草不带自阴影这一条**没验证**：草那张机位贴脸、没有可比的草丛，要换机位重拍。截图 `/tmp/r2/flora-{flower,flower-off,grass,grass-off}.png`。**第 5 条（4 倍放大看影子边缘 ≤ 1 贴图像素、草摇动时影子同步、`sharpDist` 处无硬切边）还没做，要人看**。
+  - `verify-renderer --only gl` 全 PASS（含 0 px 重复、REF 0 px、放置 / 移除、无 GL 错误）；`vendor.mjs gl --check` OK。
+  - 成本（`bench-v2 --r gl --generic`，同一会话 A/B：R3b 前 = 暂存区导出）：
+
+    | 机位 | shadow（前 → 后） | scene | 墙钟/帧（前 → 后） |
+    |---|---|---|---|
+    | plain | 4.37 → 4.51 | 9.94 → 10.25 | 27.2 → 26.3 |
+    | canopy | 5.26 → 5.38 | 15.54 → 16.07 | 32.7 → 33.1 |
+
+    锐图 pass + 接收端的代价在噪声量级以内（≤ +0.5 ms gpu）。`sharpDist=0`（pass 画但不接收）对 `64` 的差也在噪声内，说明成本主要在 pass 本身 + 多一个 VAO 的 draw。**花草顶点占比、`shader-stats` 的 `fancyFS` 前后对比没记**（成本小到不影响决策，留给 R7 做宏化时一起量）。
+- **未达成项**：
+  - 验收 ①④⑤ 要人看（边缘宽度、摇动同步、`sharpDist` 边界）；② 细草叶不闪：没验证（没看连续帧，也没做逐帧差分）。
+  - **近地面黑底白斑块状噪点（R3b 前后同机位截图逐像素一样，与 R3b 无关）**：用户 11-03 说明这是已知问题，和特定方块类型 / 树干有关，或出现在网格器还没更新的短暂间隔。我对 **`flora` 脚本里复现的那一张**的二分结果：白斑 = 透出的天空（几何缺失），不是着色噪点；关 POM / PBR / TAA / 体积光 / 云 / 阴影、跳过 trans / plant、关视锥剔除，亮斑数都不变（37441 ± 30）；原因是脚本把相机放在 `目标 y + 1.6`，而该处地面更高，相机落在 (7,48,4) 的草方块**内部**，背面剔除透出方块内侧。相机抬到 y 50.6 后降到 92 px。所以**这一张是测试机位错误，不是渲染器 bug**；用户说的那个游戏内已知问题（树干 / 网格器间隔）是另一回事，我没复现、没验证。`flora.mjs` 要补一项「相机点所在方块必须是空气」。
+  - 体积光（compositeFS）只读软图，花草不挡光柱，按设计。
+- **对后续阶段的影响**：① 补丁机制可用，R5 的 `pass.js` 生成 GLSL 时沿用 `once()` 的「必须恰好一次」规则；② R4 的实体走 `dyn` 缓冲，不经 `meshSection`，其 `flags` 没有 8192，会接收锐图（符合预期：实体不是草）；③ 水（步骤 9）的 `waterFS` 没接锐图，花草影子不落在水面；要接的话 `setFancyUniforms` 已经绑好 `u_sharp`（TEXTURE9），只需要 `waterFS` 里照抄 `sharpAt`。
+
+**R3b 补充（用户 11-03 反馈）**
+- **花的立体感**：花瓣是贴图平面，自阴影只能落在另一片十字面上，立体感先天不足。补丁：`CLS` 给花加位 `16384`（`blockclass.FLOWER`），`fancyFS` 里 `fh = mix(0.55, 1, smoothstep(0, 0.75, 1 - v_uv.y))`，直射光乘 `fh`、环境遮蔽乘 `mix(0.5, 1, fh)`：花瓣受光足、茎和叶根偏暗；非花 `fh = 1`，与原版一致。同机位截图里黄花 / 红花从花瓣到茎有明暗梯度，地面影子仍在；**是否"够立体"要人看**（强度 0.55 / 0.5 是我定的，可调）。
+- **草花影子 LOD（walk / fly）**：`Env.flying`（宿主 A = `player.fly || player.noclip`，`goal-renderapi.ts` 已加可选字段）。walk：`P.sharpDist = 48`（比之前 64 更密，约 21 texel/格）；fly：`P.sharpFly = 0`，`sharpDist < 1` 时**整个锐图 pass 不画**、接收端也关。两者之间按 ~0.3 s 缓动，切换不跳变。验证了：`Env.flying` 随 `player.fly` 翻转、walk→fly→walk 无 GL 错误；fly 时锐图 pass 省了多少 ms **没量**（计时被平滑，差异在噪声内）。
+- 验证：`verify-renderer --only gl` 全 PASS，`vendor.mjs --check` OK。
+
+**R3b 补充 2（用户 11-03：影子太像方块，antialias 没调好）**
+- 原因：锐图接收端是单 tap（只有硬件 2×2 PCF），影子边缘 = 像素画 alpha 剪影 × 阴影图 texel（walk 时约 21 texel/格），台阶感明显。
+- 改：`sharpAt` 改成 8 tap 圆盘（每 tap 仍是硬件 PCF），IGN 逐像素旋转，TAA 积分；半径 `P.sharpSoft`（texel，默认 **0.8**，0 = 回到单 tap）。同机位低太阳对比：0 → 台阶感；0.7 → 边缘平滑、细茎影子还在；**1.5 / 2.5 把细茎的影子稀释到几乎看不见**（它只有 1–2 texel 宽），所以不取。默认 0.8 是我看了 0 / 0.7 / 1.0 / 1.5 / 2.5 的截图挑的，**要人对着自己的机位再确认**；花瓣大块影子（用户截图里的那种）我这次机位里没有，没直接验证。
+- 「花有很强折纸感」：我读成对现状的认可（两片十字面一亮一暗），**没改花的着色**；如果其实是嫌弃，告诉我，`fh` 的 0.55 / 0.5 两个系数在 vendor.mjs 里。
+
+**R3b 补充 3（用户 11-03：折纸感 = 花自阴影要开大、顶部 30% 总有阴影；部分花顶部回环到底部）**
+- **回环 bug**：植物的 UV 在贴图边上取到恰好 1.0，贴图是 `REPEAT`，`fract(1.0) = 0` 就取到了顶行 → 花瓣像素出现在底边。补丁：`fancyFS` 和 `shadowFS`（alpha test 同理）里对植物把 `uv.xy` 夹到 `[0.002, 0.998]`。只对带 8192 / 16384 位的方块生效。**这是供体自带的 bug（goodGL 原版同样会）**。
+- **折纸感**：我上一版方向反了（顶亮底暗）。现在 `fh = 1 − 0.8·smoothstep(0.35, 0.6, 1 − v)`：花头段压暗到 0.2。⚠ 「顶 30%」不是按几何，是按贴图：花头画在贴图 ~40%–85% 的高度，不是整张图的最上 30%，所以阈值是实测的（0.55–0.8 完全没效果）。`fh` 同时乘直射、环境遮蔽和**透射项**（逆光时它才是花瓣亮度的主要来源，最初漏了这一项）。
+- 自阴影：花接收锐图的偏置从 0.04 降到 0.012 格，让花瓣更容易落影在茎和另一片十字面上。
+- 验证：同机位（逆光）截图里花头由亮黄变成带橙的暗面，两片十字面能分出来；回环：底边没有花瓣像素了。**没做左右 / 正光向对比，也没量化**；系数（0.8 / 0.35–0.6 / 0.012）是我目测挑的，在 vendor.mjs 里。
+
+**R3b 补充 4（用户 11-03：花贴图随时间向上飘，直到变成绿杆子）**
+- **原因是我的笔误**：`blockclass.js` 里 `FLOWER` 常量被写成了 `19384`（应为 `16384`）。多出来的位里有 `256`——着色器里「岩浆 UV 滚动」的标志（`uv.y += u_time * 0.02`），所以花的贴图随时间上移，花头滑出画面、只剩茎。补充 3 的截图是固定时间（`D.time = 10`）拍的，**看不出任何随时间变化的问题**，这是验证漏洞。
+- 修：改回 `16384`；`flagTable()` 加了**位冲突断言**（额外位不得与供体 `FLAGS` 重叠、`NO_SHARP / FLOWER` 必须是 8192 / 16384），写错常量会在建表时直接抛错，不会再静默画错。
+- 验证：同机位在 `D.time = 10 / 300 / 1000` 三个时间点拍，修前花头逐步上移直到只剩茎（t=300、t=1000 两张），修后三个时间点位置一致。`verify-renderer --only gl` 全 PASS。
+- 教训：涉及着色器 flags 位的改动，验证要包含「时间推进」这一维；`flora.mjs` 现在默认拍三个时间点。
 

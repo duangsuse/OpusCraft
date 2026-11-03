@@ -1,8 +1,12 @@
 // 极简 CDP 客户端：启动 Chromium（无头或有头），连接第一个 page，提供 send / js / screenshot / close。
 // 用 Node 内置 WebSocket，无 npm 依赖。
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+
+// 清掉残留的无头 Chromium（只匹配 --headless，不碰用户自己开的浏览器）。残留进程会和测量抢 GPU，墙钟数字作废（goal-remix R3 踩过）。
+// 注意：会连带杀掉别处正在跑的无头测量，所以只在 bench / frametime 这类要测时间的脚本开头调，不要并行跑两个。
+export function killStray() { spawnSync('pkill', ['-f', 'chromium.*--headless'], { stdio: 'ignore' }); spawnSync('sleep', ['1']); }
 
 export async function launch({ width = 1280, height = 657, gpu = true, headed = false, tag = 'cdp' } = {}) {
   const port = 9700 + (process.pid % 200);
@@ -14,7 +18,7 @@ export async function launch({ width = 1280, height = 657, gpu = true, headed = 
     ...(gpu ? ['--use-gl=angle', '--use-angle=gl', '--enable-gpu', '--ignore-gpu-blocklist']
             : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']),
     'about:blank'].filter(Boolean);
-  const proc = spawn('chromium', args, { stdio: 'ignore' });
+  const proc = spawn('chromium', args, { stdio: 'ignore', detached: true });   // 自成进程组：close() 杀整组，不留 gpu / renderer 子进程
   let url = null;
   for (let i = 0; i < 75 && !url; i++) {
     try { const l = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); url = l.find(t => t.type === 'page')?.webSocketDebuggerUrl; } catch {}
@@ -40,6 +44,6 @@ export async function launch({ width = 1280, height = 657, gpu = true, headed = 
   await send('Runtime.enable'); await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   const screenshot = async () => Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64');
-  const close = () => { try { ws.close(); } catch {} proc.kill(); };
+  const close = () => { try { ws.close(); } catch {} try { process.kill(-proc.pid, 'SIGKILL'); } catch { proc.kill(); } };
   return { send, js, screenshot, close, logs };
 }

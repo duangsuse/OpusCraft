@@ -21,7 +21,7 @@ export class WorkerPool {
     if (this.mode === 'local') return;
     for (const w of this.workers) try { w.terminate(); } catch (e) { }
     this.workers = []; this.mode = 'local';
-    this.gen = new SH.Generator(this.seed); this.OB = new SH.MeshBuilder(16384); this.TB = new SH.MeshBuilder(4096);
+    this.gen = new SH.Generator(this.seed); this.OB = new SH.MeshBuilder(16384); this.TB = new SH.MeshBuilder(4096); this.PB = new SH.MeshBuilder(4096);   // remix
   }
   get pendingCount() { return this.jobs.size; }
   submit(msg, transfer, cb) {
@@ -39,7 +39,7 @@ export class WorkerPool {
     while (this.queue.length && performance.now() - t0 < budgetMs) {
       const [d] = this.queue.shift(); let r;
       if (d.type === 'gen') r = this.gen.generate(d.cx, d.cz);
-      else r = SH.meshSection(d.pb, d.pm, d.pl, d.tg, d.tf, d.wx, d.wy, d.wz, this.OB, this.TB);
+      else r = SH.meshSection(d.pb, d.pm, d.pl, d.tg, d.tf, d.wx, d.wy, d.wz, this.OB, this.TB, this.PB, d.cls);   // remix
       const cb = this.jobs.get(d.id); this.jobs.delete(d.id); if (cb) cb(r);
     }
   }

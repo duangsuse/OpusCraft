@@ -1320,16 +1320,19 @@ function makeGeometry(mb) {
   return g;
 }
 
-// ----- renderer selection: ?r=v1 | ?r=v2 | ?r=v2/gl（v2 模块化 / 拆 pass 版，goal-glmod；v2 保持单文件原版） -----
-const RENDERER_ID = ['v1', 'v2', 'v2/gl'].includes(new URLSearchParams(location.search).get('r')) ? new URLSearchParams(location.search).get('r') : 'v1';
+// ----- renderer selection: ?r=v1 | ?r=v2 | ?r=v2/gl（v2 模块化 / 拆 pass 版，goal-glmod；v2 保持单文件原版）| ?r=gl（goodGL 管线，goal-remix）-----
+const RENDERERS = { v1: './v1.js', v2: './v2.js', 'v2/gl': './v2/gl.js', gl: './rgl/index.js' };
+const RENDERER_ID = Object.hasOwn(RENDERERS, new URLSearchParams(location.search).get('r')) ? new URLSearchParams(location.search).get('r') : 'v1';
 const RCTX = { THREE, scene, camera, renderer, U, GLSL, MeshBuilder, makeGeometry, atlas,
   CS, CH, SEA, RS, RSCH, PS, B, BLOCKS, FACES, UVS, AO_CURVE, RB, RSKY, RBLK,
   SOLID, OPAQUE, LIGHT_PASS, RENDER, EMIT, T_TOP, T_BOT, T_SIDE, R_NONE, R_CUBE, R_CROSS, R_TORCH, R_WATER,
   chunks, ck, getBlock, settings: null, TEX,
+  get flying() { return !!(player.fly || player.noclip); },   // Env.flying（同样惰性）
+  get worldTime() { return worldTime; },   // Env.dayTime 的来源（0..1，0 = 06:00）；getter 惰性读，createRenderer 期间不要碰（TDZ）
   clouds, cloudMat,   // 云层（v2 隐藏平面云，改为在 DDA 中绘制体积云）
   stars, skyMat };    // 星星（v2 默认隐藏宿主星、在 DDA 天空分支程序化绘制）/ 天空球（天顶色给水面反射）
 let VR;
-try { VR = (await import(`./${RENDERER_ID}.js?t=${Date.now()}`)).createRenderer(RCTX); }
+try { VR = (await import(`${RENDERERS[RENDERER_ID]}?t=${Date.now()}`)).createRenderer(RCTX); }
 catch (e) { console.error(`renderer ${RENDERER_ID} failed, falling back to v1`, e); VR = (await import('./v1.js')).createRenderer(RCTX); }
 console.log('[VoxelCraft] renderer', VR.name);
 // 光照在主文件计算（共享），网格/绘制交给渲染器

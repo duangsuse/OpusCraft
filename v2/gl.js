@@ -1225,6 +1225,8 @@ export function voxelCraftEnv(ctx) {
     cloud: cloudMat ? { get tex() { return cloudMat.uniforms.uTex.value; }, get color() { return cloudMat.uniforms.uColor.value; },
                         get offset() { return cloudMat.uniforms.uOffset.value; }, get y() { return clouds.position.y; } } : undefined,
     get time() { return (performance.now() / 1000) % 3600; },
+    get flying() { return !!ctx.flying; },     // goal-remix R3b：rgl 的花草锐阴影 LOD；v2 / v2/gl 不读
+    get dayTime() { return ctx.worldTime; },   // 0..1，0 = 06:00（goal-remix：rgl 用它定日月；v2 / v2/gl 不读）
     // 宿主的水下 CSS 蓝色遮罩由着色器内的水体吸收代替（每帧隐藏）；水下雾按 v2 面板建议值写进共享 U（主程序是近 0.5 / 远 18，很浑）
     underwater(flag, fog) {
       if (typeof document !== 'undefined') { const wEl = document.getElementById('water'); if (wEl && wEl.style.display !== 'none') wEl.style.display = 'none'; }

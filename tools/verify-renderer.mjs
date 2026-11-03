@@ -1,9 +1,10 @@
-// 渲染器接口验证：node tools/verify-renderer.mjs [baseURL]
+// 渲染器接口验证：node tools/verify-renderer.mjs [baseURL] [--only 组名[,组名]]（组：v1 v2 v2/gl gl bogus；--only 时跳过静态检查）
 // 用无头 Chromium + CDP（Node 内置 WebSocket）加载 ?r=v1 / ?r=v2 / ?r=bogus，逐项检查 handover/renderer-refactor.md 中约定的接口。
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const BASE = process.argv[2] || 'http://localhost:8765/VoxelCraft.html';
+const BASE = (process.argv[2] || '').startsWith('http') ? process.argv[2] : 'http://localhost:8765/VoxelCraft.html';
+const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].split(',') : null;
 const PORT = 9333 + (process.pid % 500);
 const chrome = spawn('chromium', ['--headless=new', '--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
   `--remote-debugging-port=${PORT}`, '--window-size=960,600', '--user-data-dir=/tmp/vr-prof-' + PORT, 'about:blank'], { stdio: 'ignore' });
@@ -243,7 +244,8 @@ const PAGE_CHECKS = `(async () => {
   VR.update(0.016); g.renderer.clear(); VR.render();
   const gl = g.renderer.getContext(); const err = gl.getError();
   ck('VR.render() 无 GL 错误', err === 0, 'glError=' + err);
-  ck('绘制调用 > 0', g.renderer.info.render.calls > 0, 'calls=' + g.renderer.info.render.calls);
+  if (VR.readOut && !VR.df) ck('绘制调用（直接走 GL 的渲染器不经 three，info.render.calls 恒 0，改由下面的 gl 组检查画面）', true, 'calls=' + g.renderer.info.render.calls);
+  else ck('绘制调用 > 0', g.renderer.info.render.calls > 0, 'calls=' + g.renderer.info.render.calls);
   if (VR.ring) {
     // rd 6→8：重建环形纹理并重传，render 正常
     const rd0 = g.settings.rd; g.settings.rd = 8;
@@ -268,6 +270,49 @@ const PAGE_CHECKS = `(async () => {
     const host = VR.pane.element.parentElement || VR.pane.element;
     ck('v2: 面板周期末仍可用', host.style.display !== 'none' && document.body.contains(host));
   }
+  // 光栅管线（有 readOut、没有距离场；rgl）：契约成员、画面、确定性、与 three 共享上下文的状态安全（goal-remix/render.md R2）
+  if (VR.readOut && !VR.df) {
+    for (const k of ['readOut', 'pending', 'resetLag', 'setRef', 'setDebug']) ck('gl: VR.' + k + ' 是函数', typeof VR[k] === 'function');
+    ck('gl: perf.passes / programs / D', Array.isArray(VR.perf.passes) && VR.perf.passes.length > 0 && VR.programs && Object.keys(VR.programs).length >= 10 && VR.D, VR.perf.passes + ' | ' + Object.keys(VR.programs || {}).length + ' programs');
+    const gl = g.renderer.getContext(), raf = () => new Promise(r => requestAnimationFrame(r));
+    g.freezeTime = true; g.worldTime = 0.12; VR.D.time = 10; VR.D.cloudX = 0;   // 钉死时间相关项（bench.md §4 第 4 行）
+    for (let i = 0; i < 4; i++) await raf();
+    const shot = n => { VR.resetLag(); for (let i = 0; i < n; i++) { g.renderer.clear(); VR.render(); } return VR.readOut(); };
+    const a = shot(8), top = i => [...a.px.subarray(i, i + 3)];
+    const at = (x, y) => (y * a.w + x) * 4; let sum = 0; for (let i = 0; i < a.px.length; i += 4) sum += a.px[i] + a.px[i + 1] + a.px[i + 2];
+    ck('gl: 读回尺寸 = 绘制缓冲', a.w === g.renderer.domElement.width && a.h === g.renderer.domElement.height, a.w + 'x' + a.h);
+    ck('gl: 画面不是黑的（天空）', sum / (a.w * a.h * 3) > 20, '均值 ' + (sum / (a.w * a.h * 3)).toFixed(1));
+    const cols = new Set(); for (let i = 0; i < a.px.length; i += 64) cols.add((a.px[i] << 16) | (a.px[i + 1] << 8) | a.px[i + 2]);
+    ck('gl: 画面不是单色（天空 LUT / 云在起作用）', cols.size > 64, '采样 ' + (a.px.length / 64 | 0) + ' 点，' + cols.size + ' 种颜色');
+    ck('gl: 渲染后无 GL 错误', gl.getError() === 0);
+    const b = shot(8); let nd = 0; for (let i = 0; i < a.px.length; i += 4) if (a.px[i] !== b.px[i] || a.px[i + 1] !== b.px[i + 1] || a.px[i + 2] !== b.px[i + 2]) nd++;
+    ck('gl: resetLag 后同一序列两次读回逐像素一致（0 px）', nd === 0, nd + ' px 不同 / ' + (a.w * a.h));
+    g.renderer.clear(); VR.render(); g.renderer.clearDepth(); g.renderer.render(g.scene, g.camera);
+    ck('gl: three 在 goodGL 之后还能画（resetState 生效，无 GL 错误）', gl.getError() === 0);
+    VR.setRef(1); const c1 = shot(4), c2 = shot(4); let nr = 0; for (let i = 0; i < c1.px.length; i++) if (c1.px[i] !== c2.px[i]) nr++; VR.setRef(0);
+    ck('gl: REF 模式（TAA 关、曝光固定）重复 0 px', nr === 0, nr + ' 字节不同');
+    {   // 放一个方块：相机前 4 格放 5×5×5 石头，网格化完成后读回应变；移除后应恢复（宿主 setBlock → buildChunk → Worker 网格 → 上传）
+      const settle = async () => { for (let i = 0; i < 400 && (g.pendingChunks > 0 || VR.pending() > 0 || i < 3); i++) { g.updateChunks(40); VR.update(0.016); if (i % 3 === 0) await raf(); } };
+      await settle();
+      const aim = () => { g.camera.rotation.x = 0.6; g.camera.updateMatrixWorld(true); };   // 抬头约 35°：方块放在天空里；宿主主循环会覆盖朝向，所以每次读回前重设
+      aim();
+      const cp = g.camera.position, dir = new g.THREE.Vector3(); g.camera.getWorldDirection(dir);
+      const cx = Math.floor(cp.x + dir.x * 4), cy = Math.floor(cp.y + dir.y * 4), cz = Math.floor(cp.z + dir.z * 4), cells = [];
+      for (let x = -2; x <= 2; x++) for (let y = -2; y <= 2; y++) for (let z = -2; z <= 2; z++) cells.push([cx + x, cy + y, cz + z]);
+      if (cells.some(([x, y, z]) => y < 1 || y > 90 || g.getBlock(x, y, z) !== 0)) ck('gl: 放置 / 移除方块下一帧可见（相机前不是空气，跳过）', true);
+      else {
+        const base = (aim(), shot(8));
+        for (const [x, y, z] of cells) g.setBlock(x, y, z, g.B.STONE); await settle();
+        const on = (aim(), shot(8)); let d1 = 0; for (let i = 0; i < base.px.length; i += 4) if (base.px[i] !== on.px[i] || base.px[i + 1] !== on.px[i + 1]) d1++;
+        for (const [x, y, z] of cells) g.setBlock(x, y, z, 0); await settle();
+        const off = (aim(), shot(8)); let d2 = 0; for (let i = 0; i < base.px.length; i += 4) if (base.px[i] !== off.px[i] || base.px[i + 1] !== off.px[i + 1] || base.px[i + 2] !== off.px[i + 2]) d2++;
+        ck('gl: 放置方块后画面改变（网格化 + 上传生效）', d1 > 2000, d1 + ' px 变化');
+        ck('gl: 移除方块后画面恢复到放置前（0 px）', d2 === 0, d2 + ' px 不同');
+      }
+    }
+    for (let i = 0; i < 6; i++) await raf();                      // 回到宿主自己的循环（它会连着调 VR.render + 画 HUD）
+    ck('gl: 宿主主循环下连续渲染无 GL 错误', gl.getError() === 0);
+  }
   // 着色器全部链接成功（three 编译失败只打日志、静默不画 → 软阴影 pass 坏了画面照样「能看」）；v2/gl 逐个阴影模式过一遍
   {
     const gl = g.renderer.getContext();
@@ -284,7 +329,7 @@ const PAGE_CHECKS = `(async () => {
 })()`;
 
 let failed = 0;
-{ // §10.5-1：v2 主体只经 Env / ChunkSource 读宿主（适配器在文件尾部，不算）；waterId 只在 isFluid() 注入一次
+if (!ONLY) { // §10.5-1：v2 主体只经 Env / ChunkSource 读宿主（适配器在文件尾部，不算）；waterId 只在 isFluid() 注入一次
   const { readFileSync } = await import('node:fs');
   for (const f of ['v2.js', 'v2/gl.js']) {
   const src = readFileSync(new URL('../' + f, import.meta.url), 'utf8'), cut = src.indexOf('// ───────────────── VoxelCraft 适配器');
@@ -298,7 +343,8 @@ let failed = 0;
   }
   }
 }
-for (const [r, expect] of [['v1', 'v1'], ['v2', 'v2'], ['v2/gl', 'v2/gl'], ['bogus', 'v1']]) {
+for (const [r, expect] of [['v1', 'v1'], ['v2', 'v2'], ['v2/gl', 'v2/gl'], ['gl', 'gl'], ['bogus', 'v1']]) {
+  if (ONLY && !ONLY.includes(r)) continue;
   logs.length = 0;
   await send('Page.navigate', { url: `${BASE}?r=${r}` });
   await sleep(1500);

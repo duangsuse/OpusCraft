@@ -324,6 +324,7 @@ uniform mat4 u_shadowMat; uniform vec3 u_camToShadow; uniform float u_shadowOn; 
 uniform vec3 u_lightDir; uniform vec3 u_lightCol; uniform vec3 u_ambCol; uniform vec3 u_torchCol;
 uniform float u_time; uniform float u_flicker; uniform float u_shadowDist; uniform float u_shadowRange;
 uniform float u_wet; uniform float u_cloudShadowOn;
+uniform sampler2DShadow u_sharp; uniform mat4 u_sharpMat; uniform float u_sharpDist; uniform float u_sharpSoft; uniform float u_sharpRes;   // remix: R3b 锐阴影图
 
 float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float hash13(vec3 p3){ p3 = fract(p3 * 0.1031); p3 += dot(p3, p3.zyx + 31.32); return fract((p3.x + p3.y) * p3.z); }
@@ -365,6 +366,15 @@ float shadowAt(vec3 wp){
   float s = 0.0;
   for (int i = 0; i < 8; i++) { float fi = float(i); vec2 o2 = R * vec2(cos(fi * 2.4), sin(fi * 2.4)) * sqrt((fi + 0.5) / 8.0) * pen;
     s += texture(u_shadow, vec3(c.xy + o2, c.z)); }
+  return s / 8.0;
+}
+float sharpAt(vec3 wp){   // remix: R3b：锐图只有花草；影子边缘是像素画 alpha 剪影 + 阴影图 texel，直接单 tap 会是方块锯齿。
+  // 这里在 ~u_sharpSoft 个 texel 的圆盘里取 8 次比较（每次硬件 2x2 PCF），IGN 逐像素旋转，TAA 把噪声积分掉；不做遮挡物搜索，所以细草叶不漏
+  vec3 c = (u_sharpMat * vec4(wp, 1.0)).xyz * 0.5 + 0.5;
+  if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0) return 1.0;
+  float a = ign(gl_FragCoord.xy + 17.0) * 6.2831; mat2 R = mat2(cos(a), sin(a), -sin(a), cos(a));
+  float r = u_sharpSoft / u_sharpRes, s = 0.0;
+  for (int i = 0; i < 8; i++) { float fi = float(i); vec2 o2 = R * vec2(cos(fi * 2.4), sin(fi * 2.4)) * sqrt((fi + 0.5) / 8.0) * r; s += texture(u_sharp, vec3(c.xy + o2, c.z)); }
   return s / 8.0;
 }
 float cloudShadow(vec3 wp){
@@ -425,6 +435,7 @@ void main(){
   if ((v_flags & 256) != 0) uv.xy += vec2(sin(u_time*0.3 + v_world.z*0.1)*0.03, u_time*0.02);
   // derivatives & tangent frame (computed before any divergent branch)
   vec2 gdx = dFdx(uv.xy), gdy = dFdy(uv.xy);
+  if ((v_flags & 24576) != 0) uv.xy = clamp(uv.xy, vec2(0.002), vec2(0.998));   // remix: 植物贴图 v = 1.0 恰在边上，REPEAT 会绕回顶行（花瓣出现在底边）
   vec3 dp1 = dFdx(v_rel), dp2 = dFdy(v_rel);
   vec3 N0 = v_normal;
   vec3 dp2p = cross(dp2, N0), dp1p = cross(N0, dp1);
@@ -534,10 +545,14 @@ void main(){
     vec3 wp = v_rel + u_camToShadow + N0 * (foliage ? 0.02 : 0.03 + 0.06 * slope);
     if (u_shadowOn > 0.5 && d < u_shadowDist) { sh = shadowAt(wp); sh = mix(sh, gate, smoothstep(u_shadowDist * 0.8, u_shadowDist, d)); }
     else sh = gate;
+    if (u_shadowOn > 0.5 && (v_flags & 8192) == 0 && d < u_sharpDist)   // remix: R3b；8192 = 草（不接收锐阴影），花自遮挡
+      sh = min(sh, mix(sharpAt(wp + u_lightDir * ((v_flags & 16384) != 0 ? 0.012 : 0.04)), 1.0, smoothstep(u_sharpDist * 0.85, u_sharpDist, d)));
     sh *= smoothstep(0.1, 0.5, sky);
     sh *= cloudShadow(v_world);
   }
-  float shL = sh * pomSh;
+  float fh = 1.0;   // remix: 花的体积感（折纸感）：花头在贴图的约 40%–85% 高度（不是整张图的顶 30%），这一段总带一层阴影，直射光和环境光一起压暗
+  if ((v_flags & 16384) != 0) fh = 1.0 - 0.8 * smoothstep(0.35, 0.6, 1.0 - v_uv.y);
+  float shL = sh * pomSh * fh;
   bool under = (v_flags & 1024) != 0;
   float NoV = max(dot(N, V), 1e-3);
   vec3 H = normalize(u_lightDir + V);
@@ -552,7 +567,7 @@ void main(){
   if (under) { float ca = caustic(v_world.xz + v_world.y * 0.3, u_time); direct *= vec3(0.35, 0.6, 0.75) * (0.25 + ca * 1.6); specD *= 0.2; }
   // ---------------- ambient: sky irradiance, ground bounce, torch
   float up = N.y * 0.5 + 0.5;
-  float occl = (0.22 + 0.78 * ao) * cav;
+  float occl = (0.22 + 0.78 * ao) * cav * fh;   // remix: 花的体积感，fh = 1 时与原版一致
   vec3 amb = u_ambCol * (0.45 + 0.55 * up) * sky * sky * occl;
   vec3 bounce = u_lightCol * max(u_lightDir.y, 0.0) * vec3(0.5, 0.55, 0.42) * 0.045 * (1.0 - up) * sky * occl;
   if (under) amb *= vec3(0.5, 0.75, 0.9);
@@ -564,7 +579,7 @@ void main(){
   float sssAmt = foliage ? max(sss, 0.6) : sss;
   if (sssAmt > 0.0 && diffG > 0.0) {
     float fw = pow(max(dot(-V, u_lightDir), 0.0), 6.0);
-    col += albedo * sqrt(max(albedo, 0.0)) * u_lightCol * sh * sssAmt * (0.1 + 0.65 * fw);
+    col += albedo * sqrt(max(albedo, 0.0)) * u_lightCol * sh * fh * sssAmt * (0.1 + 0.65 * fw);
   }
   // specular: sun/moon + sky reflection (split-sum approximation)
   vec3 R = reflect(-V, N);
@@ -613,7 +628,7 @@ shadowFS: `#version 300 es
 precision highp float; precision highp sampler2DArray;
 uniform sampler2DArray u_tex;
 in vec3 v_uv; flat in int v_flags;
-void main(){ if ((v_flags & 3) == 1) { if (texture(u_tex, v_uv).a < 0.5) discard; } }`,
+void main(){ if ((v_flags & 3) == 1) { if (texture(u_tex, vec3(clamp(v_uv.xy, vec2(0.002), vec2(0.998)), v_uv.z)).a < 0.5) discard; } }`,
 waterFS: `#version 300 es
 
 precision highp float;

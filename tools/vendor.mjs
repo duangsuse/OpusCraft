@@ -60,14 +60,14 @@ const pool = (() => {
 })();
 // 模块 Worker：消息协议与原 Blob 字符串里的一致（init / gen / mesh）
 const worker = `import { SH } from './shared.js';
-let GEN = null; const OB = new SH.MeshBuilder(16384), TB = new SH.MeshBuilder(4096);
+let GEN = null; const OB = new SH.MeshBuilder(16384), TB = new SH.MeshBuilder(4096), PB = new SH.MeshBuilder(4096);
 onmessage = function (e) {
   const d = e.data;
   if (d.type === 'init') { GEN = new SH.Generator(d.seed); postMessage({ ready: 1 }); return; }
   if (d.type === 'gen') { const r = GEN.generate(d.cx, d.cz); postMessage({ id: d.id, r }, [r.blocks.buffer, r.meta.buffer]); }
   else if (d.type === 'mesh') {
-    const r = SH.meshSection(d.pb, d.pm, d.pl, d.tg, d.tf, d.wx, d.wy, d.wz, OB, TB);
-    const tr = []; if (r.opaque) tr.push(r.opaque); if (r.trans) tr.push(r.trans);
+    const r = SH.meshSection(d.pb, d.pm, d.pl, d.tg, d.tf, d.wx, d.wy, d.wz, OB, TB, PB, d.cls);
+    const tr = []; if (r.opaque) tr.push(r.opaque); if (r.trans) tr.push(r.trans); if (r.plant) tr.push(r.plant);
     postMessage({ id: d.id, r }, tr);
   }
 };
@@ -76,6 +76,82 @@ onmessage = function (e) {
 // ---- glsl.js：按原顺序求值（只自引用 GLSL.*，没有别的外部名）
 const glslText = seg.shaders + seg.shaders2 + seg.shaders3;
 const GLSL = new Function(glslText + '\nreturn GLSL;')();
+const GLSL0 = { ...GLSL };                // --cdp 与运行时比较的是未打补丁的原文
+// ---- PATCHES：对供体的改动。每条 [文件或 GLSL 键, 原文, 新文]，原文必须恰好出现一次；改动处都带 // remix:
+//   R3b（render.md §4 / bench.md §7）：植物（RT_CROSS / RT_CROP）单独一个网格 `plant`，不进软阴影图；
+//   往 ±64 的锐阴影图画植物；fancyFS 取 min(软, 锐)，带 8192 标记的（草）不接收锐阴影。
+const once = (text, from, what) => { const n = text.split(from).length - 1; if (n !== 1) throw new Error(`PATCH ${what}: 原文出现 ${n} 次\n  ${from.slice(0, 80)}`); };
+const patch = (text, list, name) => { for (const [from, to] of list) { once(text, from, name); text = text.replace(from, () => to); } return text; };
+const SHARP_RES = 2048, SHARP_DIST = 64;
+GLSL.fancyFS = patch(GLSL.fancyFS, [
+  ['uniform float u_wet; uniform float u_cloudShadowOn;', 'uniform float u_wet; uniform float u_cloudShadowOn;\nuniform sampler2DShadow u_sharp; uniform mat4 u_sharpMat; uniform float u_sharpDist; uniform float u_sharpSoft; uniform float u_sharpRes;   // remix: R3b 锐阴影图'],
+  ['float cloudShadow(vec3 wp){', `float sharpAt(vec3 wp){   // remix: R3b：锐图只有花草；影子边缘是像素画 alpha 剪影 + 阴影图 texel，直接单 tap 会是方块锯齿。
+  // 这里在 ~u_sharpSoft 个 texel 的圆盘里取 8 次比较（每次硬件 2x2 PCF），IGN 逐像素旋转，TAA 把噪声积分掉；不做遮挡物搜索，所以细草叶不漏
+  vec3 c = (u_sharpMat * vec4(wp, 1.0)).xyz * 0.5 + 0.5;
+  if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0) return 1.0;
+  float a = ign(gl_FragCoord.xy + 17.0) * 6.2831; mat2 R = mat2(cos(a), sin(a), -sin(a), cos(a));
+  float r = u_sharpSoft / u_sharpRes, s = 0.0;
+  for (int i = 0; i < 8; i++) { float fi = float(i); vec2 o2 = R * vec2(cos(fi * 2.4), sin(fi * 2.4)) * sqrt((fi + 0.5) / 8.0) * r; s += texture(u_sharp, vec3(c.xy + o2, c.z)); }
+  return s / 8.0;
+}
+float cloudShadow(vec3 wp){`],
+  ['  float shL = sh * pomSh;\n', `  float fh = 1.0;   // remix: 花的体积感（折纸感）：花头在贴图的约 40%–85% 高度（不是整张图的顶 30%），这一段总带一层阴影，直射光和环境光一起压暗
+  if ((v_flags & 16384) != 0) fh = 1.0 - 0.8 * smoothstep(0.35, 0.6, 1.0 - v_uv.y);
+  float shL = sh * pomSh * fh;
+`],
+  ['u_lightCol * sh * sssAmt', 'u_lightCol * sh * fh * sssAmt'],   // remix: 透射项也吃 fh（逆光时它是花瓣亮度的主要来源）
+  ['  float occl = (0.22 + 0.78 * ao) * cav;\n', '  float occl = (0.22 + 0.78 * ao) * cav * fh;   // remix: 花的体积感，fh = 1 时与原版一致\n'],
+  ['    else sh = gate;\n', `    else sh = gate;
+    if (u_shadowOn > 0.5 && (v_flags & 8192) == 0 && d < u_sharpDist)   // remix: R3b；8192 = 草（不接收锐阴影），花自遮挡
+      sh = min(sh, mix(sharpAt(wp + u_lightDir * ((v_flags & 16384) != 0 ? 0.012 : 0.04)), 1.0, smoothstep(u_sharpDist * 0.85, u_sharpDist, d)));
+`],
+  ['  vec2 gdx = dFdx(uv.xy), gdy = dFdy(uv.xy);\n', '  vec2 gdx = dFdx(uv.xy), gdy = dFdy(uv.xy);\n  if ((v_flags & 24576) != 0) uv.xy = clamp(uv.xy, vec2(0.002), vec2(0.998));   // remix: 植物贴图 v = 1.0 恰在边上，REPEAT 会绕回顶行（花瓣出现在底边）\n'],
+], 'fancyFS');
+GLSL.shadowFS = patch(GLSL.shadowFS, [
+  ['texture(u_tex, v_uv).a < 0.5', 'texture(u_tex, vec3(clamp(v_uv.xy, vec2(0.002), vec2(0.998)), v_uv.z)).a < 0.5'],   // remix: 同上，阴影的 alpha test 也不绕回
+], 'shadowFS');
+const PATCH_FILES = {
+  'shared.js': [
+    ['function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB) {\n  OB.reset(); TB.reset();', 'function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB, PB, CLS) {   // remix: PB 植物网格、CLS[id] 额外 flags（草 = 8192）\n  OB.reset(); TB.reset(); if (PB) PB.reset();'],
+    ['      const fl = FLAGS[id];\n      const B = MAT[id] >= 2 ? TB : OB;', '      const fl = FLAGS[id] | (CLS ? CLS[id] : 0);   // remix\n      const B = MAT[id] >= 2 ? TB : (PB && (rt === RT_CROSS || rt === RT_CROP) ? PB : OB);   // remix'],
+    ['  return { opaque: OB.n ? OB.take() : null, on: OB.n, trans: TB.n ? TB.take() : null, tn: TB.n };', '  return { opaque: OB.n ? OB.take() : null, on: OB.n, trans: TB.n ? TB.take() : null, tn: TB.n, plant: PB && PB.n ? PB.take() : null, pn: PB ? PB.n : 0 };   // remix'],
+  ],
+  'pool.js': [
+    ['this.TB = new SH.MeshBuilder(4096);', 'this.TB = new SH.MeshBuilder(4096); this.PB = new SH.MeshBuilder(4096);   // remix'],
+    ['d.wx, d.wy, d.wz, this.OB, this.TB);', 'd.wx, d.wy, d.wz, this.OB, this.TB, this.PB, d.cls);   // remix'],
+  ],
+  'renderer.js': [
+    ["    this.mk('shadow', GLSL.shadowVS, GLSL.shadowFS);\n", "    this.mk('shadow', GLSL.shadowVS, GLSL.shadowFS);\n    this.mk('shadowS', GLSL.shadowVS.replace('float df = length(sp.xy) * 0.9 + 0.1;', 'float df = 1.0;'), GLSL.shadowFS);   // remix: R3b 锐阴影图不做 df 扭曲\n"],
+    ['this.shadowRes = 2048;', `this.shadowRes = 2048; this.sharpRes = ${SHARP_RES};   // remix`],
+    ['      this.shadowFBO = this.fbo(null, this.shadowTex);\n', `      this.shadowFBO = this.fbo(null, this.shadowTex);
+      this.sharpTex = this.makeTex(this.sharpRes, this.sharpRes, gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, gl.LINEAR);   // remix: R3b
+      gl.bindTexture(gl.TEXTURE_2D, this.sharpTex);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.sharpFBO = this.fbo(null, this.sharpTex);
+`],
+    ["    set('opaque', r.opaque, r.on); set('trans', r.trans, r.tn);", "    set('opaque', r.opaque, r.on); set('trans', r.trans, r.tn); set('plant', r.plant, r.pn);   // remix"],
+    ["for (const k of ['opaque', 'trans']) { const m = sec[k];", "for (const k of ['opaque', 'trans', 'plant']) { const m = sec[k];"],
+    ['if (!sec.opaque && !sec.trans) continue;', 'if (!sec.opaque && !sec.trans && !sec.plant) continue;   // remix'],
+    ['    gl.disable(gl.POLYGON_OFFSET_FILL);\n    // 2. scene', `    // 1b. remix: R3b 锐阴影图（只画植物；同一光向、同一原点，所以和软图共用 camToShadow）
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sharpFBO); gl.viewport(0, 0, this.sharpRes, this.sharpRes);
+    gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
+    if (F.lightDir[1] > 0.0 && F.sharpDist >= 1) {   // sharpDist < 1 = 飞行 LOD：整个锐图 pass 不画
+      this.use('shadowS'); this.m4('u_shadowMat', F.sharpMat); this.u1f('u_time', F.time); this.u1f('u_wind', F.waving ? 1 : 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.tex); this.u1i('u_tex', 0);
+      for (const e of F.all) {
+        const m = e.sec.plant; if (!m || !m.n || e.dist > F.sharpDist + 24) continue;
+        this.u3f('u_offset', e.ox - F.shadowOrigin[0], e.oy - F.shadowOrigin[1], e.oz - F.shadowOrigin[2]); this.u3f('u_origin', e.ox, e.oy, e.oz);
+        gl.bindVertexArray(m.vao); gl.drawElements(gl.TRIANGLES, (m.n >> 2) * 6, gl.UNSIGNED_INT, 0);
+      }
+    }
+    gl.disable(gl.POLYGON_OFFSET_FILL);
+    // 2. scene`],
+    ["    this.drawSections(F, 'opaque', 'fancy', F.camPos);\n", "    this.drawSections(F, 'opaque', 'fancy', F.camPos);\n    this.drawSections(F, 'plant', 'fancy', F.camPos);   // remix: R3b 植物单独一个网格\n"],
+    ["this.u1f('u_shadowRange', F.shadowDist);", "this.u1f('u_shadowRange', F.shadowDist);\n    this.m4('u_sharpMat', F.sharpMat); this.u1f('u_sharpDist', F.sharpDist); this.u1f('u_sharpSoft', F.sharpSoft); this.u1f('u_sharpRes', this.sharpRes); gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, this.sharpTex); this.u1i('u_sharp', 9);   // remix: R3b\n"],
+  ],
+};
+
 const esc = s => s.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
 const glsl = `export const GLSL = {\n` + Object.entries(GLSL).map(([k, v]) => `${k}: \`${esc(v)}\`,\n`).join('') + `};\n`;
 
@@ -91,11 +167,13 @@ const PROVIDES = {                       // 全局名 → 提供它的模块
   SH: 'shared.js', M4: 'mathx.js', rotX: 'mathx.js', rotY: 'mathx.js', rotZ: 'mathx.js', m3mul: 'mathx.js', m3v: 'mathx.js',
   Textures: 'textures.js', PBR: 'pbr.js', Atmos: 'atmos.js', GLSL: 'glsl.js', Renderer: 'renderer.js', WorkerPool: 'pool.js',
 };
+// world.js 里一行声明多个名字（`const ST_TERRAIN = 1, ST_DECOR = 2, ST_LIT = 3;`），顶层扫描只认第一个；renderer.js 的 cull 用到 ST_LIT
+const CONSTS = { ST_TERRAIN: 1, ST_DECOR: 2, ST_LIT: 3 };
 const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\])\/\/.*$/gm, '$1');
 const idents = s => new Set(strip(s).replace(/\.\s*[A-Za-z_$][\w$]*/g, '.').match(/[A-Za-z_$][\w$]*/g));   // 属性访问（S.tex）不算引用
 
 // 供体里所有顶层名（用来发现"用了但没提供"的全局，例如 Game / World）
-const toplevel = new Set([...code.replace(seg.shared, '').matchAll(/^(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm)].map(r => r[1]));
+const toplevel = new Set([...code.replace(seg.shared, '').matchAll(/^(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/gm)].map(r => r[1]).concat(Object.keys(CONSTS)));
 const unresolved = [];
 
 const files = { 'shared.js': HEAD + shared, 'mathx.js': HEAD + mathx.replace(/^const M4 =/m, 'export const M4 =').replace(/^function (rotX|rotY|rotZ|m3mul|m3v)\(/gm, 'export function $1('), 'glsl.js': HEAD + glsl, 'worker.js': HEAD + worker };
@@ -103,9 +181,10 @@ for (const [file, { text, exp }] of Object.entries(mods)) {
   const ids = idents(text);
   const need = {};
   for (const [name, from] of Object.entries(PROVIDES)) if (from !== file && ids.has(name)) (need[from] ||= []).push(name);
-  const imports = Object.entries(need).map(([from, names]) => `import { ${names.join(', ')} } from './${from}';\n`).join('');
+  const imports = Object.entries(need).map(([from, names]) => `import { ${names.join(', ')} } from './${from}';\n`).join('')
+    + Object.entries(CONSTS).filter(([k]) => ids.has(k)).map(([k, v]) => `const ${k} = ${v};   // goodGL world.js:1735\n`).join('');
   // 供体里的顶层名没有被提供、却被引用：记下来
-  for (const t of toplevel) if (!(t in PROVIDES) && ids.has(t) && !new RegExp(`^(?:const|let|var|function|class)\\s+${t}\\b`, 'm').test(text) && !exp.includes(t)) unresolved.push(`${file}: ${t}`);
+  for (const t of toplevel) if (!(t in PROVIDES) && !(t in CONSTS && ids.has(t)) && ids.has(t) && !new RegExp(`^(?:const|let|var|function|class)\\s+${t}\\b`, 'm').test(text) && !exp.includes(t)) unresolved.push(`${file}: ${t}`);
   // 顶层声明加 export（const X = … / class X {…}）
   let body = text;
   for (const n of exp) {
@@ -115,6 +194,7 @@ for (const [file, { text, exp }] of Object.entries(mods)) {
   }
   files[file] = HEAD + imports + body;
 }
+for (const [f, list] of Object.entries(PATCH_FILES)) files[f] = files[f].slice(0, files[f].indexOf('\n') + 1) + patch(files[f].slice(files[f].indexOf('\n') + 1), list, f);
 files['index.js'] = HEAD + ['shared', 'mathx', 'glsl', 'textures', 'pbr', 'atmos', 'pool', 'renderer'].map(f => `export * from './${f}.js';\n`).join('');
 
 if (unresolved.length) { console.error('自由变量没有出处（要补 PROVIDES 或评估是否取）：\n  ' + unresolved.join('\n  ')); process.exit(1); }
@@ -145,7 +225,7 @@ if (args.includes('--cdp')) {
     await c.send('Page.navigate', { url: `http://127.0.0.1:${srv.address().port}/goodGL.html#auto&seed=1` });
     for (let i = 0; i < 50; i++) { if (await c.js(`typeof GLSL === 'object' && !!GLSL.fancyFS`).catch(() => false)) break; await new Promise(r => setTimeout(r, 200)); }
     const live = JSON.parse(await c.js('JSON.stringify(GLSL)'));
-    const disk = (await import(pathToFileURL(resolve(OUT, 'glsl.js')).href)).GLSL;
+    const disk = GLSL0;   // 与未打补丁的原文比（补丁后的 glsl.js 按设计不同）
     const ks = new Set([...Object.keys(live), ...Object.keys(disk)]); let bad = 0;
     for (const k of ks) if (live[k] !== disk[k]) { console.error('GLSL 不同:', k, live[k]?.length, disk[k]?.length); bad++; }
     console.log(bad ? `FAIL ${bad}/${ks.size}` : `OK GLSL ${ks.size} 项与运行时逐字符相等`);
