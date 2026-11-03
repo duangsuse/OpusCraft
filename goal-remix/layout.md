@@ -44,7 +44,7 @@ export const IDS = {               // [供体名, 宿主名 | '+'（步骤 4b �
   liq: [['stone', 'stone'], ['deepslate', 'stone'], ['tall_grass', 'short_grass', 'zero'], ['oak_log', 'oak_log', 'zero'], …],
   gp:  [['clay', 'gravel'], ['sugar_cane', 'air'], …],
 };
-export const GLID = {              // 渲染侧，方向相反：[宿主名, goodGL 名 | '+'（xlate 里追加 gl 行）]
+export const GLID = {              // 渲染侧，方向相反：[宿主名, goodGL 名 | '+'（xlate 里追加 gl 行）, cls?]；'+' 行的 cls（0 不投影 / 1 软 / 2 锐）显式写，缺省按宿主 BlockDef 的 opaque / cutout 推（render.md §4.2）
   A: [['GRASS', 'grass_block'], ['WATER', 'water'], ['TALL_GRASS', 'short_grass'], ['TNT', '+'], ['GOLD_BLOCK', '+'], …],   // 26 行
   B: [['grass_block', 'grass_block'], ['water', 'water'], ['oak_door', 'hybrid' /* R6 混合路径 */], …],                   // 88 行
 };

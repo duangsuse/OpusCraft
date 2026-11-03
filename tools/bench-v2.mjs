@@ -12,6 +12,7 @@
 //     --shots DIR       保存每机位截图（正常 + 迭代热力图），默认 tools/out/bench
 //     --save NAME       保存每机位 ddaRT 原始像素到 tools/out/ref/NAME/（画面一致性基准）
 //     --cmp NAME        与已保存的 NAME 逐像素比较，报告差异像素数；有差异 → tools/out/bug/<NAME>-<机位>.png（上 基准 / 中 本次 / 下 差异×8，红 = 有差）
+//     --generic         不跑 DDA 专属测量，按 perf.passes 出通用表（rgl 走这条；对 v2/gl 加它可以验这条路径）
 //     --json FILE       结果另存为 JSON          --headed      有头模式（核显实测更可信）
 //     --swiftshader     用软件渲染（无 GPU 计时，仅步数/fetch 统计）
 // 输出：每机位 GPU 分 pass 时间（scene/dda/comp，中位数）、主射线平均迭代、阴影平均迭代、
@@ -45,8 +46,10 @@ const init = await b.js(`(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const raf = () => new Promise(r => requestAnimationFrame(r));
   for (let i = 0; i < 300 && !(window.game && window.game.VR); i++) await sleep(100);
-  const g = window.game; if (!g || !g.VR.name.startsWith('v2')) return { err: 'v2 未加载: ' + (g && g.VR && g.VR.name) };
+  const g = window.game; if (!g || !g.VR || !g.VR.perf || !g.VR.setDebug || !g.VR.D) return { err: '渲染器不符合 bench 契约（bench.md §2: perf / setDebug / D）: ' + (g && g.VR && g.VR.name) };
   const VR = g.VR, B = g.B, EYE = 1.62, SEA = 40, CH = 96;
+  const DDA = !!VR.df && !${flag('generic')};            // DDA 专属测量（DBG 1/2/4/5/6、compIso、DF）只在有距离场时跑
+  const PASS = VR.perf.passes || ['scene', 'cloud', 'dda', 'comp', 'shadow'];
   g.setTestMode(true); g.startGame(); g.player.noclip = true; g.player.vel.set(0, 0, 0);
   g.settings.rd = ${RD};
   const PR = ${JSON.stringify(PRESET)}, SETX = {};
@@ -65,7 +68,7 @@ const init = await b.js(`(async () => {
   g.freezeTime = true; g.worldTime = 0.12;
   VR.D.time = 10; VR.D.cloudX = 0;                    // 冻结水波/云，保证可比
   const settle = async () => {
-    const dfp = () => VR.df ? VR.df.pending() : 0;   // P2：等距离场 Worker 回包（否则测到的是退化路径）
+    const dfp = () => VR.pending ? VR.pending() : VR.df ? VR.df.pending() : 0;   // 等异步工作回包（DDA：距离场 Worker，否则测到的是退化路径）
     for (let i = 0; i < 2000 && (i < 3 || g.pendingChunks > 0 || dfp() > 0); i++) { g.updateChunks(40); VR.update(0.016); if (i % 3 == 0) await raf(); }
     g.mobs.length = 0; g.items.length = 0;
   };
@@ -146,15 +149,15 @@ const init = await b.js(`(async () => {
     for (let i = 0; i < 2; i++) await raf();
   };
   const timeFrames = async (n) => {
-    const s = { scene: [], cloud: [], dda: [], comp: [], shadow: [], total: [], cpu: [], wall: [] };
+    const s = { total: [], cpu: [], wall: [] }; for (const k of PASS) s[k] = [];
     if (!VR.perf.hasTimer) { for (let i = 0; i < n; i++) { await raf(); s.cpu.push(VR.perf.cpuMs); } return s; }
     let last = VR.perf.gpuLast.frame, guard = 0;
     for (let i = 0; i < 3; i++) await raf();      // 丢掉切换后的前几组
     last = VR.perf.gpuLast.frame;
-    while (s.dda.length < n && guard++ < n * 20) {
+    while (s.total.length < n && guard++ < n * 20) {
       g.worldTime = 0.12; await raf();
       const p = VR.perf; if (p.gpuLast.frame === last) continue; last = p.gpuLast.frame;
-      for (const k of ['scene', 'cloud', 'dda', 'comp', 'shadow', 'total']) s[k].push(p.gpuLast[k] || 0);
+      for (const k of [...PASS, 'total']) s[k].push(p.gpuLast[k] || 0);
       s.cpu.push(p.cpuMs);
     }
     // 整帧墙钟（glmod §1.1 裁决指标）：同步渲染 + 读 1 像素（强制等 GPU 做完），不受计时查询重叠影响
@@ -176,6 +179,7 @@ const init = await b.js(`(async () => {
   const grab = async (view, raw) => {
     VR.setDebug(view, raw); await raf(); await raf();            // 让着色器编译
     g.worldTime = 0.12; VR.update(0); g.renderer.clear(); VR.render();
+    if (VR.readOut) return VR.readOut();
     const rt = VR.ddaRT, px = new Uint8Array(rt.width * rt.height * 4);
     g.renderer.readRenderTargetPixels(rt, 0, 0, rt.width, rt.height, px);
     return { w: rt.width, h: rt.height, px };
@@ -199,13 +203,13 @@ const init = await b.js(`(async () => {
     qs.forEach(q => gl.deleteQuery(q)); rt.dispose();
     return r;
   };
-  window.__bench = { g, VR, views, place, timeFrames, grab, raf, compIso };
-  return { views, gpuName, P: VR.P, steps: VR.steps ?? VR.P.steps, hasTimer: VR.perf.hasTimer, spawn: [X0, Z0] };
+  window.__bench = { g, VR, views, place, timeFrames, grab, raf, compIso, DDA };
+  return { views, gpuName, P: VR.P, steps: VR.steps ?? VR.P.steps, hasTimer: VR.perf.hasTimer, spawn: [X0, Z0], dda: DDA, passes: PASS, name: VR.name };
 })()`);
 if (init.err) fail(init.err);
 
 console.log(`GPU: ${init.gpuName}   timer: ${init.hasTimer ? '有' : '无（只有步数统计）'}`);
-console.log(`seed ${SEED}  rd ${RD}  视口 ${W}x${H}  scale ${init.P.scale}  steps ${init.steps}  shadowSteps ${init.P.shadowSteps}` +
+console.log(`seed ${SEED}  rd ${RD}  视口 ${W}x${H}  scale ${init.P.scale}` + (init.dda ? `  steps ${init.steps}  shadowSteps ${init.P.shadowSteps}` : `  [${init.name} 通用表]`) +
   (PRESET ? `  预设 ${PRESET}` : '') + (Object.keys(SET).length ? `  覆盖 ${JSON.stringify(SET)}` : ''));
 
 mkdirSync(SHOTS, { recursive: true });
@@ -217,31 +221,33 @@ for (const name of VIEWS) {
   const v = init.views[name];
   if (!v) { console.log(`[${name}] 未找到合适机位，跳过`); continue; }
   const r = await b.js(`(async () => {
-    const { VR, place, timeFrames, grab, compIso } = window.__bench;
+    const { VR, place, timeFrames, grab, compIso, DDA } = window.__bench;
     await place(${JSON.stringify(v)});
     VR.setDebug(0, 0);
     const t = await timeFrames(${FRAMES});
-    const ci = await compIso();
-    const it = await grab(1, 1), fe = await grab(2, 1), lv = await grab(5, 1), tx = await grab(6, 1), dg = await grab(4, 1);
-    const n = it.w * it.h, steps = VR.steps ?? VR.P.steps;
-    let sIt = 0, sSh = 0, exh = 0, sF = 0, lc = 0, lb = 0, lvx = 0, sT = 0, sC = 0, dJ = 0, d0 = 0, d2 = 0;
-    for (let i = 0; i < n; i++) {
-      const o = i * 4, k = it.px[o] + it.px[o + 1] * 256;
-      sIt += k; sSh += it.px[o + 2]; if (k >= steps) exh++;
-      sF += fe.px[o] + fe.px[o + 1] * 256;
-      lc += lv.px[o]; lb += lv.px[o + 1]; lvx += lv.px[o + 2]; sC += lv.px[o + 3];
-      sT += tx.px[o] + tx.px[o + 1] * 256;
-      dJ += dg.px[o]; d0 += dg.px[o + 1]; d2 += dg.px[o + 2];
+    const ci = DDA ? await compIso() : [];
+    let m = { it: 0, sh: 0, exh: 0, fetch: 0, tex: 0, cl: 0, dj: 0, d0: 0, d2: 0, lc: 0, lb: 0, lv: 0 }, tShade = null;
+    if (DDA) {     // DDA 专属：迭代 / fetch / DF / 云步 / tex 五张 raw 热力图的均值
+      const it = await grab(1, 1), fe = await grab(2, 1), lv = await grab(5, 1), tx = await grab(6, 1), dg = await grab(4, 1);
+      const n = it.w * it.h, steps = VR.steps ?? VR.P.steps;
+      let sIt = 0, sSh = 0, exh = 0, sF = 0, lc = 0, lb = 0, lvx = 0, sT = 0, sC = 0, dJ = 0, d0 = 0, d2 = 0;
+      for (let i = 0; i < n; i++) {
+        const o = i * 4, k = it.px[o] + it.px[o + 1] * 256;
+        sIt += k; sSh += it.px[o + 2]; if (k >= steps) exh++;
+        sF += fe.px[o] + fe.px[o + 1] * 256;
+        lc += lv.px[o]; lb += lv.px[o + 1]; lvx += lv.px[o + 2]; sC += lv.px[o + 3];
+        sT += tx.px[o] + tx.px[o + 1] * 256;
+        dJ += dg.px[o]; d0 += dg.px[o + 1]; d2 += dg.px[o + 2];
+      }
+      m = { it: sIt / n, sh: sSh / n, exh: exh / n, fetch: sF / n, tex: sT / n, cl: sC / n, dj: dJ / n, d0: d0 / n, d2: d2 / n, lc: lc / n, lb: lb / n, lv: lvx / n };
+      if (${!flag('no-shade')} && VR.perf.hasTimer) { VR.setDebug(3, 0); tShade = await timeFrames(${Math.max(10, FRAMES >> 1)}); }
     }
-    let tShade = null;
-    if (${!flag('no-shade')} && VR.perf.hasTimer) { VR.setDebug(3, 0); tShade = await timeFrames(${Math.max(10, FRAMES >> 1)}); }
     const ref = await grab(0, 0);
     VR.setDebug(0, 0);
     // 正常画面像素（base64）供一致性比较
     let s = ''; const px = ref.px; for (let i = 0; i < px.length; i += 32768) s += String.fromCharCode.apply(null, px.subarray(i, i + 32768));
-    return { t, ci, tShade: tShade && tShade.dda, w: it.w, h: it.h, it: sIt / n, sh: sSh / n, exh: exh / n, fetch: sF / n, tex: sT / n, cl: sC / n,
-             dj: dJ / n, d0: d0 / n, d2: d2 / n, lc: lc / n,
-             dfUnc: (() => { if (!VR.df) return 0; const R = VR.ring; let u = 0; for (let s = 0; s < R.owner.length; s++) { const m = R.mir[s]; if (!R.owner[s] || !m) continue; for (let o = 3; o < m.length; o += 4) if (!(m[o] & 31)) { u++; break; } } return u + '/' + R.owner.filter(Boolean).length + ' pend ' + VR.df.pending(); })(), lb: lb / n, lv: lvx / n, ref: btoa(s), stats: VR.stats() };
+    return { t, ci, tShade: tShade && tShade.dda, w: ref.w, h: ref.h, ...m,
+             dfUnc: (() => { if (!VR.df || !DDA) return 0; const R = VR.ring; let u = 0; for (let s = 0; s < R.owner.length; s++) { const m = R.mir[s]; if (!R.owner[s] || !m) continue; for (let o = 3; o < m.length; o += 4) if (!(m[o] & 31)) { u++; break; } } return u + '/' + R.owner.filter(Boolean).length + ' pend ' + VR.df.pending(); })(), ref: btoa(s), stats: VR.stats() };
   })()`);
   // 截图：正常 + 迭代热力图
   await b.js(`(async () => { const { VR, raf } = window.__bench; VR.setDebug(0, 0); for (let i = 0; i < 4; i++) await raf(); })()`);
@@ -293,7 +299,8 @@ for (const name of VIEWS) {
   if (r.dfUnc) console.log(`  [${name}] DF 未算槽位 ${r.dfUnc}`);
   const row = { view: name, pos: v, dda: med(r.t.dda), scene: med(r.t.scene), cloud: med(r.t.cloud), shadow: med(r.t.shadow), wall: med(r.t.wall), comp: med(r.t.comp), compIso: med(r.ci), total: med(r.t.total),
     cpu: med(r.t.cpu), ddaNoSmooth: r.tShade ? med(r.tShade) : null, it: r.it, sh: r.sh, exh: r.exh, fetch: r.fetch, tex: r.tex, cl: r.cl,
-    dj: r.dj, d0: r.d0, d2: r.d2, lc: r.lc, lb: r.lb, lv: r.lv, res: `${r.w}x${r.h}`, diff };
+    dj: r.dj, d0: r.d0, d2: r.d2, lc: r.lc, lb: r.lb, lv: r.lv, res: `${r.w}x${r.h}`, diff,
+    gp: Object.fromEntries(init.passes.map(k => [k, med(r.t[k])])) };
   row.shadeShare = row.ddaNoSmooth != null ? (row.dda - row.ddaNoSmooth) / row.dda : null;
   rows.push(row);
   console.log(`[${name}] @${v.x.toFixed(1)},${v.y.toFixed(1)},${v.z.toFixed(1)}  ${r.stats}`);
@@ -301,17 +308,19 @@ for (const name of VIEWS) {
 
 const f1 = x => x == null || isNaN(x) ? '-' : x.toFixed(1), f2 = x => x == null || isNaN(x) ? '-' : x.toFixed(2);
 const pc = x => x == null || isNaN(x) ? '-' : (x * 100).toFixed(1) + '%';
-const head = ['机位', 'DDA 分辨率', 'gpu scene', 'gpu dda', 'gpu comp*', 'comp 帧内', 's+d+comp*', '主射线迭代', '阴影迭代', '耗尽', 'fetch', 'tex', '列跳/砖/体素', 'DF 跳/退0/退2', '云步', '平滑光照占比', 'gpu 云 pass', 'gpu 软阴影', '墙钟/帧'];
+const head = init.dda ? ['机位', 'DDA 分辨率', 'gpu scene', 'gpu dda', 'gpu comp*', 'comp 帧内', 's+d+comp*', '主射线迭代', '阴影迭代', '耗尽', 'fetch', 'tex', '列跳/砖/体素', 'DF 跳/退0/退2', '云步', '平滑光照占比', 'gpu 云 pass', 'gpu 软阴影', '墙钟/帧']
+  : ['机位', '输出分辨率', ...init.passes.map(k => 'gpu ' + k), 'gpu 合计', '墙钟/帧'];   // 通用表：列由 perf.passes 生成（rgl 的 pass 名见 render.md §1）
 if (CMP) head.push(`vs ${CMP}`);
 const lines = [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`];
 for (const r of rows) {
-  const c = [r.view, r.res, f2(r.scene), f2(r.dda), f2(r.compIso), f2(r.comp), f2(r.scene + (r.cloud || 0) + (r.shadow || 0) + r.dda + (isNaN(r.compIso) ? 0 : r.compIso)), f1(r.it), f1(r.sh), pc(r.exh), f1(r.fetch), f1(r.tex),
+  const c = !init.dda ? [r.view, r.res, ...init.passes.map(k => f2(r.gp[k])), f2(r.total), f2(r.wall)] : [r.view, r.res, f2(r.scene), f2(r.dda), f2(r.compIso), f2(r.comp), f2(r.scene + (r.cloud || 0) + (r.shadow || 0) + r.dda + (isNaN(r.compIso) ? 0 : r.compIso)), f1(r.it), f1(r.sh), pc(r.exh), f1(r.fetch), f1(r.tex),
     `${f1(r.lc)}/${f1(r.lb)}/${f1(r.lv)}`, `${f1(r.dj)}/${f1(r.d0)}/${f1(r.d2)}`, f1(r.cl), pc(r.shadeShare), f2(r.cloud), f2(r.shadow), f2(r.wall)];
   if (CMP) c.push(r.diff);
   lines.push(`| ${c.join(' | ')} |`);
 }
 console.log('\n' + lines.join('\n'));
-console.log(`\n* comp* = 合成 pass 独立计时；「comp 帧内」含等交换链/vsync，不代表合成本身成本。gpu 各项为 ${FRAMES} 帧中位数（ms）。`);
+console.log(init.dda ? `\n* comp* = 合成 pass 独立计时；「comp 帧内」含等交换链/vsync，不代表合成本身成本。gpu 各项为 ${FRAMES} 帧中位数（ms）。`
+  : `\n* gpu 各项为 ${FRAMES} 帧中位数（ms），相邻 pass 的计时查询在本机会重叠，只作参考；裁决看「墙钟/帧」。`);
 console.log(`截图: ${SHOTS}/<机位>.png / <机位>-iter.png` + (SAVE ? `   基准像素: ${refDir(SAVE)}/` : ''));
 if (JSONF) writeFileSync(JSONF, JSON.stringify({ seed: SEED, rd: RD, size: [W, H], gpu: init.gpuName, P: init.P, rows }, null, 1));
 const errs = b.logs.filter(l => l.startsWith('EXCEPTION') || l.startsWith('error'));

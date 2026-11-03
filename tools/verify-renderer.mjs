@@ -46,7 +46,7 @@ const PAGE_CHECKS = `(async () => {
   ck('U.uSunDir 已共享', VR && g.RCTX.U.uSunDir && g.RCTX.U.uSunDir.value.isVector3);
   ck('GLSL.mat 提供 matSampleLod()', g.RCTX.GLSL.mat.includes('matSampleLod('));
   ck('RCTX.settings 指向主设置', g.RCTX.settings === g.settings);
-  if (VR.name.startsWith('v2')) {
+  if (VR.df) {   // DDA 系（有距离场；按契约成员判断，不按名字）
     // §8.4 / §8.5：参数 P、面板 DSL 往返、Tweakpane 可用、F4 开关
     const KEYS = ['scale','steps','shadowSteps','shadowStrength','shadowDist','waterClarity','reflStrength','fogA1','sun','exposure',
       'sunAz','sunEl','aoStrength','aoCurve','waterA2','waterA1','waterD2','waterD1','waveStrength','foamWidth'];
@@ -264,7 +264,7 @@ const PAGE_CHECKS = `(async () => {
   ck('全方块面板含所有方块', document.querySelectorAll('#palette .pslot').length >= g.BLOCKS.filter(Boolean).length,
      document.querySelectorAll('#palette .pslot').length + ' 格');
   key('Escape'); ck('Esc 关闭背包', g.uiMode !== 'inv');
-  if (VR.name.startsWith('v2') && VR.pane) {
+  if (VR.df && VR.pane) {
     const host = VR.pane.element.parentElement || VR.pane.element;
     ck('v2: 面板周期末仍可用', host.style.display !== 'none' && document.body.contains(host));
   }
@@ -272,13 +272,13 @@ const PAGE_CHECKS = `(async () => {
   {
     const gl = g.renderer.getContext();
     const bad = () => g.renderer.info.programs.filter(p => !gl.getProgramParameter(p.program, gl.LINK_STATUS)).length;
-    const modes = VR.name === 'v2/gl' ? [1, 2, 0] : [null], s0 = VR.P && VR.P.softShadow;
+    const s0 = VR.P && VR.P.softShadow, modes = s0 != null ? [1, 2, 0] : [null];   // 有 softShadow 参数的逐个模式过一遍
     for (const m of modes) {
       if (m != null) { VR.P.softShadow = m; VR.apply('softShadow', 'def'); for (let i = 0; i < 4; i++) { VR.update(0.016); g.renderer.clear(); VR.render(); } }
       const n = bad();
       ck('WebGL program 全部链接成功' + (m != null ? '（softShadow=' + m + '）' : ''), n === 0, n + ' 个失败 / ' + g.renderer.info.programs.length);
     }
-    if (s0 != null && VR.name === 'v2/gl') { VR.P.softShadow = s0; VR.apply('softShadow', 'def'); }
+    if (s0 != null) { VR.P.softShadow = s0; VR.apply('softShadow', 'def'); }
   }
   return out;
 })()`;

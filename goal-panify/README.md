@@ -40,6 +40,8 @@ key, meta 作为Symbol，在set的路径里检测。如果是就返回键名和m
 > ⚠ 用户 2026-10-26 修正：**Ref 本身是 getter 函数**（`ref()` 即 `get()`），这样 Pass DSL 里 Ref 和 `() => x` 是同一种东西。Pass 里的 uniform 名取 `key`，不再是路径下划线化的 `Fog_a1`；冲突时用 `u('名字', ref)`。完整规格见 `../goal-remix/render.md` §4.1（rgl 先实现，再并进公共库）。
 
 - `meta` 由面板声明时写入（label / range / tier / fx / timeit），所以**面板行就是 `[ref, opts]`**，不需要 `[key, () => target]`。
+- **Ref = Tweakpane 绑定的 `(owner, key)`**（用户 2026-11-03）：`c_.Gl.it.softStr` 就是 `pane.addBinding(c_.Gl, 'softStr')` 的两个参数，嵌套表时 `it` 挂在持有该键的对象上（`c_.Gl.ao.it.strength` ≡ `addBinding(c_.Gl.ao, 'strength')`）。Ref 要能直接给出 `owner` 与 `key`，面板、Pass、`set` 副作用路由用同一个对象，不经过路径字符串解析。⚠ 书写位置（`it` 在 key 前一级，还是本节开头的 `o.it.ao.strength`）待用户定，见 `../goal-remix/render.md` §4.1 第 2 条。
+- **糖要声明式**：`it` 代理、模板标签、猴子补丁都可以用来实现简化，但判据是声明式（位置决定种类，名字 / 类型 / 默认值 / meta 在声明处一次给全）；做不到就退回显式写法，半吊子的糖效果比没有更差（`../goal-remix/render.md` §4.1 第 9 条）。
 - Pass DSL：`uniform float ${c_.Fog.it.a1};` → 名字 `Fog_a1`（路径下划线化），每帧 `get()` 回填；仍兼容 `${_ => P.fogA1}`。
 - `set()` 带副作用路由：`meta.fx` 对应 v2 的 `apply(key, fx)`（`def/rt/tex/dbg/leaf/sh`），宿主 B 的 `onChange` 同样挂在 `meta.fx` 上 → `HUD.syncs` 退役。
 - 订阅：`ref.As(u=>u+1)` ，API 写入和面板写入走同一条，面板用它刷新自己。如果是 =>{} 语法且不含"return"就纯on监听

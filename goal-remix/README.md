@@ -25,7 +25,7 @@
 | 宿主 B 的 `?json=` 等 URL | 以后会加，不急：所有东西先在宿主 A 上试玩 | tools.md §1、步骤 0 缩小 |
 | 重点 | **goodGL 渲染器移植** | render.md、bench.md |
 | 测量与经验 | renderer-refactor 的 bench、`--ref`、0 px、分 pass 计时、`shader-stats`、s08 各条经验**不能因为换管线丢掉** | bench.md（逐条对照） |
-| 阴影 | 地形用软阴影，草和花要精确阴影（v2 上 DF 砍掉约 30% DDA 开销、整帧只降约 10%，大头是阴影） | bench.md §7：goodGL 的 alpha-test 阴影图 + PCSS 已满足 |
+| 阴影 | 地形用软阴影，草和花要精确阴影（v2 上 DF 砍掉约 30% DDA 开销、整帧只降约 10%，大头是阴影） | ⚠ 11-03 更正：**goodGL 没有做到花草的精确阴影**（不在「三个缺点」里，是要加的功能，实现容易踩坑）。bench.md §7：软图（地形 + 树叶，现有 PCSS）+ 锐图（花草，近处单 tap），分类靠 render.md §4.2 的 `blockclass.js`；步骤 R3b |
 | goodGL 的缺点 | 只有三条：雾太重、水面和水下差、默认分辨率偏低 | render.md §0：雾参数默认按「去雾版」、水换 LiqPG、分辨率交给宿主 + `scale / maxMP` |
 | glmod 的 spill | 后来解决了，但花了很大精力；可能是架构不如 goodGL | bench.md §6：保持 goodGL 多 program 分散的形态，新效果优先做成独立 pass |
 

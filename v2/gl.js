@@ -1129,9 +1129,16 @@ ${G.head(K)}${U_MAIN}${G.util(K)}${GC.vol(K)}${U_PASS}${G.data(K)}${GT.trace(K)}
     resetLag: () => { lagW = null; },   // bench：机位切换后滞后相机直接对齐（否则树叶 LOD 渐变取决于帧时序）
     ring, reuploadAll, onChunkEvent, onBlockChanged, flushEdits, post: ddaPass.mat, comp, D,
     df: { T: DF_T, pending: dfPending, cls: (id, m = 0) => VCLS[((m & 15) << 8) | id], transform: dfTransform }, setDebug, setRef, apply, presets: { cloud: CLOUD_PRESETS, water: WATER_PRESETS },   // apply(key,fx)：bench --set 覆盖参数后走同一条副作用路由（def/leaf 宏重编译）
-    get perf() { return { gpu: { ...gpu }, gpuLast: { ...gpuLast }, hasTimer: !!qExt, cpuMs: ddaMs, scale: ddaScale,
+    get perf() { return { gpu: { ...gpu }, gpuLast: { ...gpuLast }, hasTimer: !!qExt, cpuMs: ddaMs, scale: ddaScale, passes: PASSES,
                           ddaW: ddaRT ? ddaRT.width : 0, ddaH: ddaRT ? ddaRT.height : 0 }; }, get sceneRT() { return sceneRT; }, get ddaRT() { return ddaOut ? resolveSoft() : ddaRT; },
     source: SRC, blockTable: BT, env: ENV,
+    // bench 契约（goal-remix/bench.md §2；rgl 同名）：
+    //   readOut() → { w, h, px }：最终画面（HUD 之前）的 RGBA8 读回，bench 的 --save / --cmp、verify 的贴天空墙都走它
+    //   programs → { 名字: { vs, fs, defines } }：fsdump 用；pending() → 未完成的异步工作数（settle 等它归零）
+    readOut: () => { const rt = ddaOut ? resolveSoft() : ddaRT, px = new Uint8Array(rt.width * rt.height * 4);
+      renderer.readRenderTargetPixels(rt, 0, 0, rt.width, rt.height, px); return { w: rt.width, h: rt.height, px }; },
+    get programs() { const m = x => ({ vs: x.vertexShader, fs: x.fragmentShader, defines: x.defines }); return { post: m(ddaPass.mat), comp: m(comp) }; },
+    pending: dfPending,
     // VoxelCraft 适配器：宿主的 build/dispose 就是 onChunkChanged 的事件源（其它宿主由自己的适配器发事件，这两个可为空操作）
     buildChunk: c => { c.mesh = c.waterMesh = null; if (SRC.built) SRC.built(c); },
     disposeChunk: c => { if (SRC.disposed) SRC.disposed(c); c.mesh = c.waterMesh = null; },
