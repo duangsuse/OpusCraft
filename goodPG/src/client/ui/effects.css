@@ -1,0 +1,90 @@
+/* Efectos de estado: iconos arriba a la derecha con el tiempo restante. */
+#effects-hud {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+
+#effects-hud .fx {
+  width: 40px;
+  padding: 4px 0 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: rgba(20, 22, 30, 0.72);
+  border: 2px solid #4f7fd0;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+#effects-hud .fx.bad {
+  border-color: #c04848;
+}
+
+#effects-hud .fx.blink {
+  opacity: 0.45;
+}
+
+#effects-hud .fx i {
+  width: 22px;
+  height: 22px;
+  background-size: 22px 22px;
+  image-rendering: pixelated;
+}
+
+#effects-hud .fx span {
+  font-size: 11px;
+  line-height: 1;
+  color: #f2f2f2;
+  text-shadow: 0 1px 1px #000;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Corazones dorados de la absorción: encima de los rojos; la armadura sube una fila. */
+#absorb {
+  position: absolute;
+  left: 6px;
+  bottom: 22px;
+  display: flex;
+}
+
+#absorb i {
+  width: 18px;
+  height: 18px;
+  margin-right: -1px;
+  background-size: 18px 18px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
+#survival-hud.absorbing #armor-bar {
+  bottom: 44px;
+}
+
+/* Fase 7 (efectos): Salud mejorada. Los corazones de más van en filas encima (algo solapadas, como en
+   Minecraft) y la absorción y la armadura suben con ellas. */
+#hearts .hrow {
+  display: flex;
+}
+
+#hearts:has(.hrow) {
+  flex-direction: column-reverse;
+}
+
+#hearts .hrow + .hrow {
+  margin-bottom: -8px;
+}
+
+#survival-hud.hp-rows-2 #absorb,
+#survival-hud.hp-rows-2 #armor-bar {
+  translate: 0 -10px;
+}
+
+#survival-hud.hp-rows-3 #absorb,
+#survival-hud.hp-rows-3 #armor-bar {
+  translate: 0 -20px;
+}

@@ -1,0 +1,24 @@
+/* Fase 7.5 (océano): la cara fantasmal del guardián anciano al lanzar su maldición. */
+#elder-curse {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: min(62vmin, 520px);
+  height: min(62vmin, 520px);
+  pointer-events: none;
+  image-rendering: pixelated;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.55);
+  z-index: 5;
+}
+
+#elder-curse.show {
+  animation: elder-curse 2.4s ease-in-out forwards;
+}
+
+@keyframes elder-curse {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.55) rotate(-4deg); }
+  25% { opacity: 0.78; transform: translate(-50%, -50%) scale(0.95) rotate(0deg); }
+  70% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.05) rotate(2deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.25) rotate(4deg); }
+}

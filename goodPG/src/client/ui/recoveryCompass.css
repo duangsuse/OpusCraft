@@ -1,0 +1,27 @@
+/* Fase 7.5 (abismo): esfera de la brújula de recuperación (pizarra oscura con aguja turquesa). */
+#recovery-compass-view {
+  position: fixed;
+  right: 24px;
+  bottom: 108px;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #2c4a50, #0f2226);
+  border: 3px solid #56646c;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45), inset 0 0 12px rgba(80, 220, 225, 0.25);
+  pointer-events: none;
+  z-index: 5;
+  display: none;
+}
+
+#recovery-compass-view .needle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 28px;
+  border-radius: 2px;
+  background: linear-gradient(#6ff0f0 0 60%, #33454c 60%);
+  box-shadow: 0 0 6px rgba(111, 240, 240, 0.7);
+  transform-origin: 50% 100%;
+}

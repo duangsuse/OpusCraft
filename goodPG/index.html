@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d1522" />
+    <title>VoxelCraft</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="crosshair"></div>
+      <div id="underwater-vignette"></div>
+      <div id="hurt-overlay"></div>
+      <div id="sleep-overlay"><div id="sleep-hint">Durmiendo… · Mayús para levantarte</div></div>
+      <div id="survival-hud" class="hidden">
+        <div id="armor-bar"></div>
+        <div id="absorb"></div>
+        <div id="hearts"></div>
+        <div id="air"></div>
+        <div id="hunger"></div>
+        <div id="xp-bar"><div id="xp-fill"></div><span id="xp-level"></span></div>
+      </div>
+      <div id="hotbar"></div>
+      <div id="blockname"></div>
+      <div id="effects-hud"></div>
+      <div id="debug" class="hidden"></div>
+      <div id="nametags"></div>
+      <div id="status"></div>
+      <div id="chat">
+        <div id="chatlog"></div>
+        <input id="chatinput" maxlength="200" autocomplete="off" spellcheck="false" placeholder="Escribe un mensaje o /ayuda…" />
+      </div>
+      <div id="playerlist" class="hidden"></div>
+    </div>
+
+    <!-- Inventario de supervivencia, mesa de trabajo, cofre y horno -->
+    <div id="invscreen" class="overlay hidden">
+      <div class="panel inv2"></div>
+    </div>
+    <div id="cursor-stack" class="hidden"><div class="ico"></div><span class="cnt"></span></div>
+
+    <!-- Muerte -->
+    <div id="death" class="overlay hidden">
+      <div class="death-box">
+        <h1>¡Has muerto!</h1>
+        <p id="death-msg"></p>
+        <button id="btn-respawn" class="btn primary">Reaparecer</button>
+        <button id="btn-death-quit" class="btn ghost">Salir al menú principal</button>
+      </div>
+    </div>
+
+    <!-- Inventario creativo -->
+    <div id="inventory" class="overlay hidden">
+      <div class="panel inv-panel">
+        <div class="inv-head">
+          <h2>Creativo</h2>
+          <input id="invsearch" placeholder="Buscar…" autocomplete="off" spellcheck="false" />
+        </div>
+        <div id="invtabs"></div>
+        <div id="invgrid"></div>
+        <p class="hint">Haz clic en un bloque u objeto para ponerlo en la ranura seleccionada · Pasa el ratón y pulsa 1–9 para asignarlo · <b>E</b> para cerrar</p>
+        <div id="invhotbar"></div>
+      </div>
+    </div>
+
+    <!-- Pausa -->
+    <div id="pause" class="overlay hidden">
+      <div class="panel menu-panel">
+        <h2>Juego en pausa</h2>
+        <button id="btn-resume" class="btn primary">Volver al juego</button>
+        <button id="btn-invite" class="btn">Copiar enlace de invitación</button>
+        <button id="btn-settings2" class="btn">Ajustes gráficos y controles</button>
+        <button id="btn-fullscreen" class="btn two-line">Pantalla completa<span class="btn-hint">Ctrl + W no cierra la pestaña</span></button>
+        <button id="btn-quit" class="btn ghost">Salir al menú principal</button>
+        <p id="pause-info" class="hint"></p>
+      </div>
+    </div>
+
+    <!-- Ajustes -->
+    <div id="settings" class="overlay hidden">
+      <div class="panel settings-panel">
+        <div class="settings-head">
+          <h2>Ajustes</h2>
+          <button id="btn-settings-close" class="btn small">Listo</button>
+        </div>
+        <div class="settings-body">
+          <section>
+            <h3>Calidad gráfica</h3>
+            <div id="presets" class="seg"></div>
+            <div id="settings-render" class="grid"></div>
+          </section>
+          <section>
+            <h3>Juego y controles</h3>
+            <div id="settings-controls" class="grid"></div>
+          </section>
+          <section>
+            <h3>Teclas</h3>
+            <div id="settings-keys" class="keys"></div>
+            <button id="btn-keys-reset" class="btn small">Restablecer teclas</button>
+          </section>
+          <section>
+            <h3>Sonido</h3>
+            <div id="settings-audio" class="grid"></div>
+          </section>
+          <p id="gpu-info" class="hint"></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Carga -->
+    <div id="loading" class="overlay hidden">
+      <div class="loading-box">
+        <div class="logo small">VoxelCraft</div>
+        <div id="loading-text">Cargando…</div>
+        <div class="bar"><div id="loading-bar"></div></div>
+      </div>
+    </div>
+
+    <!-- Menú principal -->
+    <div id="menu">
+      <canvas id="menu-bg"></canvas>
+      <div class="menu-content">
+        <header class="menu-head">
+          <div class="logo">VoxelCraft</div>
+          <p class="tagline">Construye un mundo infinito con tus amigos</p>
+          <div id="live-stats" class="live-stats hidden" title="Mundos usados en las últimas 48 horas y jugadores conectados ahora">
+            <span class="live-dot"></span>
+            <span><b id="stat-servers">0</b> <span id="stat-servers-label">servidores activos</span></span>
+            <span class="live-sep"></span>
+            <span><b id="stat-players">0</b> <span id="stat-players-label">conectados</span></span>
+          </div>
+        </header>
+        <div class="menu-grid">
+          <section class="panel menu-card main-card">
+            <h3 class="card-title">Jugar</h3>
+            <label class="field">
+              <span>Tu nombre</span>
+              <div class="row">
+                <input id="in-name" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Steve" />
+                <label class="color-pick" title="Color de tu camiseta">
+                  <input id="in-color" type="color" value="#3a7bd5" />
+                </label>
+              </div>
+            </label>
+            <label class="field">
+              <span>Mundo <em>· comparte el nombre o el enlace con tus amigos</em></span>
+              <div class="row">
+                <input id="in-room" maxlength="32" autocomplete="off" spellcheck="false" />
+                <button id="btn-random" class="btn icon" title="Nombre aleatorio">⟳</button>
+              </div>
+            </label>
+            <div id="recent-worlds" class="recent hidden"></div>
+            <button id="btn-play" class="btn primary big" disabled>Preparando…</button>
+            <div class="row">
+              <button id="btn-copy" class="btn">Copiar invitación</button>
+              <button id="btn-settings" class="btn">Ajustes</button>
+            </div>
+            <p id="menu-error" class="error"></p>
+          </section>
+          <section class="panel menu-card side-card">
+            <h3 class="card-title">Mundo nuevo</h3>
+            <div class="field">
+              <span>Modo de juego</span>
+              <div id="mode-seg" class="seg">
+                <button data-mode="s" class="active">Supervivencia</button>
+                <button data-mode="c">Creativo</button>
+              </div>
+            </div>
+            <label class="field">
+              <span>Semilla</span>
+              <input id="in-seed" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Aleatoria" />
+            </label>
+            <label class="check">
+              <input id="in-offline" type="checkbox" />
+              <span>Jugar sin conexión <em>(el mundo se guarda en este navegador)</em></span>
+            </label>
+            <p class="side-note">El modo y la semilla sólo cuentan al crear un mundo; si ya existe, se entra en el suyo. Un mundo sin nadie durante 48 horas se borra.</p>
+          </section>
+        </div>
+        <div class="controls-help">
+          <span><kbd>WASD</kbd> moverse</span>
+          <span><kbd>Espacio</kbd> saltar · doble = volar</span>
+          <span><kbd>Shift</kbd> agacharse</span>
+          <span><kbd>Ctrl</kbd> correr</span>
+          <span><kbd>Clic izq.</kbd> romper · atacar</span>
+          <span><kbd>Clic der.</kbd> colocar · usar</span>
+          <span><kbd>E</kbd> inventario</span>
+          <span><kbd>T</kbd> chat</span>
+          <span><kbd>V</kbd> hablar</span>
+          <span><kbd>F5</kbd> cámara</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast"></div>
+    <script type="module" src="/src/client/main.ts"></script>
+  </body>
+</html>

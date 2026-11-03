@@ -1,0 +1,28 @@
+{
+  "name": "voxelcraft",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "npm run build && vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "build:vps": "WRANGLER_CONFIG=wrangler.vps.jsonc vite build",
+    "deploy:vps": "npm run build:vps && ocd wrangler deploy",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.test.json",
+    "cf-typegen": "wrangler types",
+    "test": "tsx --test \"tests/*.test.ts\""
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.58.0",
+    "@types/node": "^24.13.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "wrangler": "^4.137.0"
+  },
+  "dependencies": {
+    "gl-matrix": "^3.4.4"
+  }
+}

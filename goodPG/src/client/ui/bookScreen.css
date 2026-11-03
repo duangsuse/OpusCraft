@@ -1,0 +1,177 @@
+/* Fase 6.5 (libros y estandartes): pantalla del libro (escribir, firmar y leer). */
+#book-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#book-screen.hidden {
+  display: none;
+}
+
+#book-screen .book {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px;
+  background: rgba(14, 17, 24, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+#book-screen .book-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+#book-screen .book-head b {
+  font: 700 16px var(--font);
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+#book-screen .book-head span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* La hoja: papel claro con letra oscura (14 líneas de 256 caracteres como mucho). */
+#book-screen .book-page {
+  position: relative;
+  height: 330px;
+  padding: 18px 20px;
+  background: linear-gradient(90deg, #e9dfc4 0, #f6efdc 14px, #f6efdc calc(100% - 10px), #e4d8ba 100%);
+  border-radius: 6px 10px 10px 6px;
+  box-shadow: inset 0 0 0 1px rgba(90, 60, 30, 0.25), 0 2px 0 #7a5230;
+}
+
+#book-screen textarea,
+#book-screen .book-view {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font: 500 15px/21px 'Georgia', 'Times New Roman', serif;
+  color: #2b2118;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+}
+
+#book-screen textarea::selection {
+  background: rgba(124, 205, 79, 0.45);
+}
+
+#book-screen [hidden] {
+  display: none !important;
+}
+
+#book-screen .book-sign {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  color: #2b2118;
+}
+
+#book-screen .book-sign label {
+  font: 700 14px var(--font);
+  text-align: center;
+}
+
+#book-screen .book-sign input {
+  padding: 10px 12px;
+  font: 600 16px 'Georgia', 'Times New Roman', serif;
+  color: #2b2118;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(90, 60, 30, 0.35);
+  border-radius: 8px;
+  outline: none;
+}
+
+#book-screen .book-sign input:focus {
+  border-color: #5aa83a;
+}
+
+#book-screen .book-sign-note {
+  margin: 0;
+  font-size: 12.5px;
+  text-align: center;
+  color: #6b5a44;
+}
+
+#book-screen .book-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+#book-screen .book-num {
+  flex: 1;
+  text-align: center;
+  color: #d8e0ea;
+}
+
+#book-screen .book-count {
+  min-width: 56px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#book-screen .book-count:empty {
+  display: none;
+}
+
+#book-screen .book-arrow {
+  width: 38px;
+  height: 32px;
+  font: 700 22px/1 var(--font);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#book-screen .book-arrow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+#book-screen .book-arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+#book-screen .book-actions {
+  display: flex;
+  gap: 8px;
+}
+
+#book-screen .btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+#book-screen .book-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}

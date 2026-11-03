@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "voxelcraft",
+  "main": "./src/server/index.ts",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "GAME_WORLDS", "class_name": "GameWorld" },
+      { "name": "WORLD_DIRECTORY", "class_name": "WorldDirectory" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["WorldRoom"] },
+    // 2026-09-24: borrar todos los mundos guardados (pedido por el dueño) y empezar de cero.
+    { "tag": "v2", "deleted_classes": ["WorldRoom"], "new_sqlite_classes": ["GameWorld"] },
+    // 2026-09-27: el directorio de mundos (cuántos hay activos y cuánta gente conectada).
+    { "tag": "v3", "new_sqlite_classes": ["WorldDirectory"] }
+  ],
+  "observability": { "enabled": true }
+}

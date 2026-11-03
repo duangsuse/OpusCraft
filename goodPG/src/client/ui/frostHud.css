@@ -1,0 +1,22 @@
+/* Fase 6.5 (materiales): escarcha al congelarse y la vista dentro de la nieve polvo. */
+#frost-overlay,
+#frost-powder {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#frost-overlay {
+  background-size: 100% 100%;
+  filter: blur(0.7px);
+  transition: opacity 0.25s linear;
+}
+
+#frost-powder {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(236, 244, 252, 0.72) 0, rgba(226, 238, 250, 0.9) 60%, rgba(214, 228, 244, 0.97) 100%);
+}
+
+#frost-powder.hidden {
+  display: none;
+}

@@ -1,0 +1,96 @@
+/* Fase 6.5 (libros y estandartes): telar. Huecos a la izquierda, lista de dibujos, vista previa y salida. */
+.loom {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.loom .arrow {
+  width: 44px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.12);
+  clip-path: polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%);
+}
+
+.loom-in {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Qué va en cada hueco, mientras está vacío. */
+.loom-in .slot2::after {
+  content: attr(data-hint);
+  position: absolute;
+  inset: auto 0 3px;
+  font-size: 9.5px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+.loom-in .slot2:has(.ico[style*='url'])::after {
+  content: none;
+}
+
+.loom-list {
+  display: grid;
+  grid-template-columns: repeat(5, 28px);
+  grid-auto-rows: 48px;
+  gap: 4px;
+  width: 172px;
+  height: 172px;
+  padding: 4px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+.loom-list.off {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.loom-pat {
+  position: relative;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.loom-pat:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.loom-pat.sel {
+  border-color: #f2d25a;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.loom-pat i {
+  position: absolute;
+  inset: 3px 4px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+.loom-preview {
+  width: 50px;
+  height: 100px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+.loom-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.loom-preview.empty img {
+  visibility: hidden;
+}

@@ -1,0 +1,63 @@
+/* ------------------------------------------------------------ armadura */
+
+/* Barra del HUD: encima de los corazones, a la izquierda. */
+#armor-bar {
+  position: absolute;
+  left: 6px;
+  bottom: 22px;
+  display: flex;
+  gap: 0;
+}
+
+#armor-bar i {
+  width: 18px;
+  height: 18px;
+  margin-right: -1px;
+  background-size: 18px 18px;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
+/* Inventario del jugador: columna de armadura a la izquierda de la fabricación. */
+.inv2-top.with-armor {
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 36px;
+}
+
+.armor-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.armor-craft {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.slot2.armor-slot.empty::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  background: var(--sil) center / contain no-repeat;
+  image-rendering: pixelated;
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .inv2-top.with-armor {
+    gap: 18px;
+  }
+  .slot2.armor-slot.empty::before {
+    inset: 5px;
+  }
+}
+
+/* Mano secundaria: bajo la armadura, algo separada. */
+.armor-col .off-slot {
+  margin-top: 8px;
+}

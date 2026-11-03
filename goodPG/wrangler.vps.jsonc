@@ -1,0 +1,25 @@
+{
+  // Configuración para desplegar VoxelCraft en un VPS propio con open-compute (https://open-compute.dev).
+  // Es la misma que wrangler.jsonc, salvo lo que open-compute no admite o no necesita:
+  // - sin rutas ni workers_dev (el dominio público lo pone su Gateway: https://voxelcraft.<base_domain>);
+  // - migraciones limpias para una instalación nueva (las de Cloudflare arrastran una clase ya borrada).
+  // Uso: npm run deploy:vps   (ver docs/despliegue-vps.md)
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "voxelcraft",
+  "main": "./src/server/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "GAME_WORLDS", "class_name": "GameWorld" },
+      { "name": "WORLD_DIRECTORY", "class_name": "WorldDirectory" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameWorld", "WorldDirectory"] }
+  ]
+}

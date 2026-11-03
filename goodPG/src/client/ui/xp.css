@@ -1,0 +1,56 @@
+/* Barra de experiencia (como Minecraft): verde, entre la barra rápida y los corazones, con el nivel
+   en el centro en verde con contorno oscuro. */
+
+/* Sube el HUD de supervivencia para dejar sitio a la barra (div# gana a la regla de style.css). */
+div#survival-hud {
+  bottom: 92px;
+}
+
+#xp-bar {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: -11px;
+  height: 5px;
+  background: #1c1c1c;
+  border: 1px solid #000;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  image-rendering: pixelated;
+}
+
+#xp-bar.off {
+  display: none;
+}
+
+#xp-fill {
+  width: 0;
+  height: 100%;
+  background: linear-gradient(#b4ff5a 0 40%, #80ff20 40% 70%, #4fa015 70%);
+  transition: width 0.15s ease-out;
+}
+
+#xp-level {
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  transform: translateX(-50%);
+  font-family: var(--pixel);
+  font-size: 16px;
+  line-height: 1;
+  color: #80ff20;
+  text-shadow:
+    2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000,
+    2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+#xp-level.up {
+  animation: xpLevelUp 0.45s ease-out;
+}
+
+@keyframes xpLevelUp {
+  0% { transform: translateX(-50%) scale(1); }
+  35% { transform: translateX(-50%) scale(1.35); color: #eaff9a; }
+  100% { transform: translateX(-50%) scale(1); }
+}

@@ -1,0 +1,172 @@
+/* Fase 7 (pociones): alambique alquímico. Combustible a la izquierda; ingrediente arriba con las
+   burbujas y la flecha de progreso; los tres frascos abajo unidos por tubos. */
+.brew {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.brew-fuel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.brew-blaze {
+  width: 52px;
+  height: 8px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.brew-blaze i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #d8641a, #ffd05a);
+}
+
+.brew-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.brew-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Burbujas que suben mientras destila. */
+.brew-bubbles {
+  position: relative;
+  width: 22px;
+  height: 44px;
+}
+
+.brew-bubbles i {
+  position: absolute;
+  bottom: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(190, 230, 255, 0.85);
+  opacity: 0;
+}
+
+.brew-bubbles i:nth-child(1) {
+  left: 1px;
+}
+
+.brew-bubbles i:nth-child(2) {
+  left: 8px;
+}
+
+.brew-bubbles i:nth-child(3) {
+  left: 14px;
+}
+
+.brew-bubbles.on i {
+  animation: brew-bubble 1.35s linear infinite;
+}
+
+.brew-bubbles.on i:nth-child(2) {
+  animation-delay: 0.45s;
+}
+
+.brew-bubbles.on i:nth-child(3) {
+  animation-delay: 0.9s;
+}
+
+@keyframes brew-bubble {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-38px) scale(1);
+    opacity: 0;
+  }
+}
+
+/* Flecha hacia abajo que se llena con el progreso. */
+.brew-arrow {
+  position: relative;
+  width: 18px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.12);
+  clip-path: polygon(30% 0, 70% 0, 70% 62%, 100% 62%, 50% 100%, 0 62%, 30% 62%);
+}
+
+.brew-arrow i {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 0;
+  background: #f4f4f4;
+}
+
+/* Tubos del ingrediente a cada frasco. */
+.brew-pipes {
+  position: relative;
+  width: 180px;
+  height: 18px;
+}
+
+.brew-pipes i {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.brew-pipes i:nth-child(1) {
+  left: 26px;
+  right: 26px;
+  top: 0;
+  height: 3px;
+}
+
+.brew-pipes i:nth-child(2) {
+  left: 26px;
+  top: 0;
+  width: 3px;
+  height: 18px;
+}
+
+.brew-pipes i:nth-child(3) {
+  right: 26px;
+  top: 0;
+  width: 3px;
+  height: 18px;
+}
+
+.brew-bottles {
+  display: flex;
+  gap: 12px;
+}
+
+.brew-bottles .low {
+  margin-top: 14px;
+}
+
+/* Qué va en cada hueco, mientras está vacío. */
+.brew .slot2::after {
+  content: attr(data-hint);
+  position: absolute;
+  inset: auto 0 3px;
+  font-size: 9px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+.brew .slot2:has(.ico[style*='url'])::after {
+  content: none;
+}

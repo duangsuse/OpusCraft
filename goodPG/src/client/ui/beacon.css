@@ -1,0 +1,112 @@
+/* Fase 8.5 (lo que da el Nether): pantalla del faro. */
+.bcn {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 10px 22px;
+  align-items: start;
+}
+
+.bcn-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bcn-title {
+  margin: 0 0 2px;
+  font: 700 12px/1.2 var(--pixel);
+  color: #e8e0c8;
+  text-shadow: 1px 1px 0 #3a3020;
+}
+
+.bcn-tier {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.bcn-tier.off {
+  opacity: 0.35;
+}
+
+.bcn-pyr {
+  width: 44px;
+  font-size: 9px;
+  letter-spacing: -1px;
+  color: #7fe8f0;
+  text-shadow: 0 0 4px rgba(127, 232, 240, 0.7);
+}
+
+.bcn-fx {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 2px solid #1f2a36;
+  border-radius: 3px;
+  background: linear-gradient(#3d5f7a, #2a4257);
+  cursor: pointer;
+}
+
+.bcn-fx i {
+  position: absolute;
+  inset: 5px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+.bcn-fx b {
+  position: absolute;
+  right: 1px;
+  bottom: -1px;
+  font: 700 9px/1 var(--pixel);
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.bcn-fx.sel {
+  border-color: #b8f4ff;
+  background: linear-gradient(#5fa4c4, #3c7896);
+  box-shadow: 0 0 8px rgba(140, 230, 255, 0.7);
+}
+
+.bcn-fx.dis {
+  cursor: default;
+  filter: grayscale(1) brightness(0.55);
+}
+
+.bcn-pay {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.bcn-coins {
+  display: flex;
+  gap: 2px;
+}
+
+.bcn-coins i {
+  width: 18px;
+  height: 18px;
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+}
+
+.bcn-ok {
+  width: 30px;
+  height: 30px;
+  border: 2px solid #1f3a1f;
+  border-radius: 3px;
+  background: linear-gradient(#4f9a4f, #2f6a2f);
+  color: #e8ffe0;
+  font: 700 16px/1 var(--pixel);
+  cursor: pointer;
+}
+
+.bcn-ok.dis {
+  filter: grayscale(1) brightness(0.55);
+  cursor: default;
+}

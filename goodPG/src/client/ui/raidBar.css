@@ -1,0 +1,51 @@
+/* Fase 6 (asaltos): barra del asalto, arriba en el centro. */
+#raid-bar {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 70vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  font-size: 13px;
+  color: #f2f2f2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  transition: opacity 0.4s;
+}
+
+#raid-bar.hidden {
+  display: none;
+}
+
+#raid-bar .track {
+  width: 100%;
+  height: 8px;
+  background: rgba(30, 8, 8, 0.75);
+  border: 1px solid rgba(0, 0, 0, 0.8);
+  border-radius: 2px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+#raid-bar .fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(#ff6a5c, #c8261b 60%, #8e1510);
+  transition: width 0.35s ease-out;
+}
+
+/* Calma entre oleadas: la barra se llena hasta que llega la siguiente. */
+#raid-bar.waiting .fill {
+  background: linear-gradient(#ffd27a, #d88a1c 60%, #9a5c10);
+}
+
+#raid-bar.won span {
+  color: #9dff8a;
+}
+
+#raid-bar.lost span {
+  color: #ff8a80;
+}

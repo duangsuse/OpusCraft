@@ -1,0 +1,43 @@
+/* Descripción de los objetos: nombre en blanco y datos en líneas, con colores por tipo. */
+.tooltip b {
+  display: block;
+  color: #fff;
+}
+
+.tooltip span {
+  display: block;
+  font-weight: 500;
+}
+
+.tooltip .tt-gap {
+  height: 6px;
+}
+
+.tooltip .tt-dim {
+  color: #b9c0cc;
+}
+
+.tooltip .tt-good {
+  color: #6ee07a;
+}
+
+.tooltip .tt-bad {
+  color: #ff7b72;
+}
+
+.tooltip .tt-armor {
+  color: #7fb4ff;
+}
+
+/* Fase 7 (encantamientos): objetos encantados (turquesa) y raros (amarillo), como en Minecraft. */
+.tooltip .tt-ench {
+  color: #6ff0ec;
+}
+
+.tooltip .tt-rare {
+  color: #ffe36e;
+}
+
+.tooltip b i {
+  font-style: italic;
+}

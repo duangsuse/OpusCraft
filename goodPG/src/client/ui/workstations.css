@@ -1,0 +1,102 @@
+/* Cortapiedras: la piedra, la lista de lo que se puede cortar y el resultado. */
+.cutter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cutter .arrow {
+  width: 44px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.12);
+  clip-path: polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%);
+}
+
+.cut-list {
+  display: grid;
+  grid-template-columns: repeat(4, 38px);
+  grid-auto-rows: 38px;
+  gap: 4px;
+  width: 172px;
+  min-height: 80px;
+  max-height: 124px;
+  padding: 4px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+.cut {
+  position: relative;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.cut:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.cut.sel {
+  border-color: #f2d25a;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.cut i {
+  position: absolute;
+  inset: 4px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.cut span {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+}
+
+/* Huecos por los que pasa un arrastre (se reparte la pila al soltar). */
+.slot2.drag {
+  outline: 2px solid rgba(255, 255, 255, 0.65);
+  outline-offset: -2px;
+}
+
+/* Ajustes: lista de teclas (acción y tecla asignada). */
+.keys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 6px 18px;
+  margin-bottom: 10px;
+}
+
+.keyrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.keyrow .key {
+  min-width: 110px;
+}
+
+.keyrow .key.waiting {
+  border-color: #f2d25a;
+  color: #f2d25a;
+}
+
+/* Fase 7.6: mesa de cartografía: el mapa y el material uno sobre otro, y el resultado. */
+.cutter.carto {
+  justify-content: center;
+}
+
+.carto-in {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

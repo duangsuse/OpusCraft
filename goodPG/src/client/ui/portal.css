@@ -1,0 +1,11 @@
+/* Fase 8 (dimensiones): el velo violeta de estar dentro de un portal (crece durante los 4 s). */
+#portal-veil {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse at center, rgba(160, 60, 255, 0.15) 0%, rgba(110, 20, 200, 0.55) 55%, rgba(60, 0, 130, 0.9) 100%);
+  mix-blend-mode: screen;
+}

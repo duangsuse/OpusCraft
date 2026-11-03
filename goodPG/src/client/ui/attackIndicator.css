@@ -1,0 +1,22 @@
+/* Barra de recarga del ataque, justo debajo de la mira. */
+#attack-bar {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 14px);
+  width: 22px;
+  height: 4px;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 24, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+#attack-bar.hidden {
+  display: none;
+}
+
+#attack-bar i {
+  display: block;
+  height: 100%;
+  background: #f2f2f2;
+}

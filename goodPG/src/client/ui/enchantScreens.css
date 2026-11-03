@@ -1,0 +1,293 @@
+/* Fase 7 (encantamientos): mesa de encantamientos, yunque y afiladora. */
+
+/* ---- mesa ---- */
+.ench {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+}
+
+.ench-left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.ench-in {
+  display: flex;
+  gap: 6px;
+}
+
+/* Qué va en cada hueco, mientras está vacío. */
+.ench-in .slot2::after {
+  content: attr(data-hint);
+  position: absolute;
+  inset: auto 0 3px;
+  font-size: 9px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.28);
+  pointer-events: none;
+}
+
+.ench-in .slot2:has(.ico[style*='url'])::after {
+  content: none;
+}
+
+/* Libro que se abre al poner algo en la mesa (y pasa una hoja de vez en cuando). */
+.ench-book {
+  position: relative;
+  width: 76px;
+  height: 46px;
+  margin-top: 4px;
+  perspective: 180px;
+}
+
+.ench-book i {
+  position: absolute;
+  top: 6px;
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(90deg, #ece2c6, #f6f0dc);
+  border: 2px solid #6a2e7e;
+  box-shadow: inset 0 0 6px rgba(120, 80, 30, 0.35);
+  transition: transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.ench-book .p1 {
+  left: 2px;
+  border-radius: 3px 0 0 3px;
+  transform-origin: right center;
+  transform: rotateY(-78deg);
+}
+
+.ench-book .p2 {
+  right: 2px;
+  border-radius: 0 3px 3px 0;
+  transform-origin: left center;
+  transform: rotateY(78deg);
+}
+
+.ench-book .flip {
+  right: 2px;
+  opacity: 0;
+  border-color: transparent;
+  transform-origin: left center;
+}
+
+.ench-book.open .p1,
+.ench-book.open .p2 {
+  transform: rotateY(0);
+}
+
+.ench-book.open .flip {
+  animation: ench-flip 3.6s ease-in-out infinite;
+}
+
+@keyframes ench-flip {
+  0%, 70% {
+    opacity: 0;
+    transform: rotateY(0);
+  }
+
+  72% {
+    opacity: 1;
+  }
+
+  92% {
+    opacity: 1;
+    transform: rotateY(-180deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotateY(-180deg);
+  }
+}
+
+.ench-offers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 250px;
+}
+
+.ench-offer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px 0 6px;
+  background: linear-gradient(180deg, rgba(120, 72, 160, 0.34), rgba(70, 36, 100, 0.34));
+  border: 1px solid rgba(206, 160, 255, 0.35);
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ench-offer:not(.off):hover {
+  background: linear-gradient(180deg, rgba(160, 100, 214, 0.5), rgba(96, 52, 138, 0.5));
+  border-color: rgba(230, 200, 255, 0.7);
+}
+
+.ench-offer.off {
+  cursor: default;
+  background: rgba(0, 0, 0, 0.28);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.ench-offer.empty {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.ench-runes {
+  flex: 1;
+  min-width: 0;
+  height: 16px;
+  object-fit: contain;
+  object-position: left center;
+  image-rendering: pixelated;
+}
+
+.ench-cost {
+  font: 700 14px/1 var(--pixel);
+  color: #8cff48;
+  text-shadow: 1px 1px 0 #1b3a08;
+}
+
+.ench-cost.no {
+  color: #6d7b5e;
+  text-shadow: none;
+}
+
+/* Cuántos lapislázulis pide (1, 2 o 3 gemas). */
+.ench-lapis {
+  position: relative;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  background: radial-gradient(circle at 35% 30%, #6d9bff, #1d3fa8 70%);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+}
+
+.ench-lapis b {
+  position: absolute;
+  right: 1px;
+  bottom: -1px;
+  font: 700 11px/1 var(--pixel);
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.ench-offer.off .ench-lapis {
+  filter: grayscale(0.8) brightness(0.7);
+}
+
+/* ---- yunque ---- */
+.anvil {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.anvil-name {
+  width: 260px;
+  padding: 6px 8px;
+  font: 600 13px/1.2 system-ui, sans-serif;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  outline: none;
+}
+
+.anvil-name:focus {
+  border-color: rgba(255, 226, 110, 0.7);
+}
+
+.anvil-name:disabled {
+  opacity: 0.5;
+}
+
+.anvil-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.anvil-plus {
+  font: 700 18px/1 var(--pixel);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.anvil .arrow {
+  width: 44px;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.12);
+  clip-path: polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%);
+}
+
+.anvil-cost {
+  min-height: 16px;
+  margin: 0;
+  font: 700 12px/1.2 var(--pixel);
+  color: #8cff48;
+  text-shadow: 1px 1px 0 #1b3a08;
+}
+
+.anvil-cost.no {
+  color: #ff6b5e;
+  text-shadow: 1px 1px 0 #3a0e08;
+}
+
+.slot2.locked .ico {
+  opacity: 0.45;
+}
+
+/* ---- afiladora ---- */
+.grind {
+  display: grid;
+  grid-template-columns: auto auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 16px;
+}
+
+.grind-in {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.grind-wheel {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(from 0deg, #8e8a84 0 12deg, #6e6a64 12deg 24deg);
+  box-shadow: inset 0 0 0 3px #4b3a26, 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+
+.grind:has(.slot2[data-s='out'] .ico[style*='url']) .grind-wheel {
+  animation: grind-spin 1.2s linear infinite;
+}
+
+@keyframes grind-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.grind-xp {
+  grid-column: 1 / -1;
+  min-height: 16px;
+  margin: 6px 0 0;
+  text-align: center;
+  font: 700 12px/1.2 var(--pixel);
+  color: #8cff48;
+  text-shadow: 1px 1px 0 #1b3a08;
+}

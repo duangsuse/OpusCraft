@@ -1,0 +1,39 @@
+/* Fase 7 (encantamientos): brillo de los objetos encantados en las ranuras (una franja violeta que
+   recorre el icono en diagonal, recortada con la forma del propio icono). */
+.slot .ico.glint,
+.slot2 .ico.glint,
+.invitem .ico.glint,
+#cursor-stack .ico.glint {
+  position: relative;
+}
+
+.glint::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  -webkit-mask: var(--glint-mask) center / contain no-repeat;
+  mask: var(--glint-mask) center / contain no-repeat;
+  background:
+    linear-gradient(118deg, transparent 0 30%, rgba(196, 128, 255, 0.62) 38%, rgba(255, 170, 255, 0.34) 44%, transparent 52% 100%),
+    linear-gradient(104deg, transparent 0 58%, rgba(150, 110, 255, 0.5) 66%, transparent 74% 100%);
+  background-size: 320% 100%, 260% 100%;
+  mix-blend-mode: screen;
+  animation: ico-glint 3.2s linear infinite;
+}
+
+@keyframes ico-glint {
+  from {
+    background-position: 130% 0, 150% 0;
+  }
+
+  to {
+    background-position: -190% 0, -110% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glint::after {
+    animation-duration: 12s;
+  }
+}

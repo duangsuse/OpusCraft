@@ -1,0 +1,233 @@
+/* Libro de recetas (Fase 9): el panel de al lado de la mesa de trabajo, el inventario y los hornos. */
+#invscreen {
+  gap: 12px;
+}
+
+.rbook {
+  width: 292px;
+  flex: none;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 10px;
+  min-height: 420px;
+}
+
+.rb-head {
+  display: flex;
+  gap: 6px;
+}
+
+.rb-search {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  color: var(--text);
+  font: 600 13px/1 var(--font);
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: none;
+}
+
+.rb-search:focus {
+  border-color: var(--accent);
+}
+
+.rb-only,
+.rb-foot button {
+  height: 32px;
+  padding: 0 10px;
+  color: var(--text);
+  font: 700 12px/1 var(--font);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.rb-only:hover,
+.rb-foot button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.rb-only.on {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.rb-foot button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.rb-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.rb-tab {
+  flex: 1;
+  height: 36px;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+  border-radius: 7px 7px 3px 3px;
+  cursor: pointer;
+}
+
+.rb-tab:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.rb-tab.sel {
+  background: rgba(124, 205, 79, 0.22);
+  border-color: rgba(124, 205, 79, 0.7);
+}
+
+.rb-tab i,
+.rb-cell i,
+.rb-ing i {
+  display: block;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  image-rendering: pixelated;
+}
+
+.rb-tab i {
+  width: 24px;
+  height: 24px;
+  margin: 0 auto;
+}
+
+.rb-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, 48px);
+  grid-auto-rows: 48px;
+  gap: 4px;
+  justify-content: center;
+  align-content: start;
+  min-height: 204px;
+}
+
+.rb-cell {
+  position: relative;
+  border-radius: 7px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45);
+}
+
+.rb-cell i {
+  position: absolute;
+  inset: 6px;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.45));
+}
+
+.rb-cell.can {
+  border-color: rgba(124, 205, 79, 0.65);
+  background: rgba(124, 205, 79, 0.14);
+}
+
+.rb-cell.no {
+  background: rgba(120, 30, 30, 0.22);
+}
+
+.rb-cell.no i {
+  opacity: 0.55;
+}
+
+.rb-cell:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.rb-empty {
+  grid-column: 1 / -1;
+  margin: 24px 6px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.rb-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rb-page {
+  color: var(--muted);
+  font: 700 12px/1 var(--font);
+}
+
+.rb-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+/* El botón del libro, junto a la cuadrícula. */
+.rb-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.rb-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(124, 205, 79, 0.7);
+}
+
+/* Descripción de una receta: ingredientes, en rojo los que faltan. */
+.rb-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rb-ing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.rb-ing i {
+  width: 18px;
+  height: 18px;
+}
+
+.rb-ing.miss {
+  color: #ff8a7a;
+}
+
+@media (max-width: 960px) {
+  #invscreen {
+    flex-direction: column;
+    overflow-y: auto;
+    justify-content: flex-start;
+  }
+  .rbook {
+    width: min(560px, 100%);
+    min-height: 0;
+  }
+  .rb-grid {
+    grid-template-columns: repeat(auto-fill, 48px);
+    min-height: 0;
+  }
+}

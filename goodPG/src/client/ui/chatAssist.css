@@ -1,0 +1,173 @@
+/* Asistente del chat: ventanita de sugerencias encima de la línea, firma del comando y texto fantasma. */
+#chat-assist {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(14, 17, 24, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  backdrop-filter: blur(6px);
+  animation: chat-assist-in 0.12s ease-out;
+}
+
+#chat-assist.hidden,
+#chat-assist .hidden {
+  display: none;
+}
+
+@keyframes chat-assist-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+#chat-assist .list {
+  max-height: min(264px, 34vh);
+  overflow-y: auto;
+  padding: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+#chat-assist .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 14px;
+  line-height: 1.3;
+  color: #d9e1ea;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#chat-assist .row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+#chat-assist .row.sel {
+  background: rgba(124, 205, 79, 0.2);
+  box-shadow: inset 2px 0 0 #7ccd4f;
+  color: #fff;
+}
+
+#chat-assist .row .ico {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  background-size: 20px 20px;
+  image-rendering: pixelated;
+}
+
+#chat-assist .row .val {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 13.5px;
+}
+
+#chat-assist .row .val b {
+  color: #9be86c;
+  font-weight: 700;
+}
+
+#chat-assist .row .det {
+  margin-left: auto;
+  padding-left: 12px;
+  color: #8796a8;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#chat-assist .row.sel .det {
+  color: #b9c6d4;
+}
+
+#chat-assist .sig {
+  padding: 7px 11px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+#chat-assist .list.hidden + .sig {
+  border-top: none;
+}
+
+#chat-assist .sig .line {
+  font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  font-size: 13.5px;
+  color: #8796a8;
+}
+
+#chat-assist .sig .cmd {
+  color: #d9e1ea;
+}
+
+#chat-assist .sig .cur {
+  color: #ffd54a;
+  font-weight: 700;
+  border-bottom: 2px solid rgba(255, 213, 74, 0.6);
+}
+
+#chat-assist .sig .help {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: #a9b6c4;
+}
+
+#chat-assist .sig .help.warn {
+  color: #ff9d8a;
+}
+
+/* Línea del chat con el texto fantasma encima. */
+.chat-line {
+  position: relative;
+}
+
+#chat-ghost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font: 500 15px var(--font);
+  padding: 12px 14px;
+  white-space: pre;
+  overflow: hidden;
+  display: none;
+}
+
+#chat.open #chat-ghost {
+  display: block;
+}
+
+#chat-ghost .typed {
+  color: transparent;
+}
+
+#chat-ghost .rest {
+  color: rgba(200, 212, 226, 0.42);
+}
+
+#chat-assist .sig .kbd-hints {
+  font-size: 12px;
+  color: #8796a8;
+}
+
+#chat-assist .kbd-hints kbd {
+  display: inline-block;
+  width: auto;
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  margin-right: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font: 600 11px var(--font);
+  color: #d9e1ea;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.05);
+}

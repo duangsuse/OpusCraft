@@ -1,0 +1,177 @@
+/* Pantalla de comercio con un aldeano (fase 6). */
+#trade-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+#trade-screen.hidden {
+  display: none;
+}
+
+.trade-panel {
+  width: min(460px, 100%);
+  padding: 16px 18px 12px;
+  color: #fff;
+}
+
+.trade-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trade-head h2 {
+  margin: 0;
+}
+
+.trade-level {
+  font: 700 12px/1 var(--pixel);
+  color: #9fe870;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.trade-xp {
+  height: 6px;
+  margin: 10px 0 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.trade-xp i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #5fbf3f, #b6f06a);
+  transition: width 0.25s ease-out;
+}
+
+/* Precio que cambió: el de antes tachado; más barato en verde, más caro en rojo. */
+.tslot b.cheaper { color: #7cf07c; }
+.tslot b.dearer { color: #ff8a7a; }
+.tslot b s { color: #d8d8d8; opacity: 0.8; font-weight: normal; }
+
+.trade-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
+}
+
+.trade-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 2px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.trade-row:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(242, 210, 90, 0.7);
+}
+
+.trade-row.poor {
+  opacity: 0.55;
+}
+
+.trade-row.out {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.trade-row.out .tslot {
+  filter: grayscale(1);
+}
+
+.tslot {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+
+.tslot.empty {
+  background: transparent;
+}
+
+.tslot i {
+  position: absolute;
+  inset: 4px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.tslot b {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  font: 700 12px/1.2 var(--pixel);
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.tarrow {
+  flex: none;
+  width: 28px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.35);
+  clip-path: polygon(0 30%, 60% 30%, 60% 0, 100% 50%, 60% 100%, 60% 70%, 0 70%);
+}
+
+.trade-row.out .tarrow {
+  background: #e25a4a;
+  clip-path: polygon(10% 0, 50% 40%, 90% 0, 100% 10%, 60% 50%, 100% 90%, 90% 100%, 50% 60%, 10% 100%, 0 90%, 40% 50%, 0 10%);
+}
+
+.tname {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.tstock {
+  flex: none;
+  font: 700 11px/1 var(--pixel);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.trade-empty {
+  margin: 12px 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.trade-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.trade-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
