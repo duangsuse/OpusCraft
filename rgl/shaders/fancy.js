@@ -1,6 +1,8 @@
 // rgl/shaders/fancy.js —— goodGL fancyFS + chunkVS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
 import { u, glsl } from '../pass.js';
 import { F } from '../frameref.js';
+import { NOISE, SHORE } from '../../water/glsl.js';
+const lib = x => glsl([x]);
 export const fancy = (Pass, X = {}) => Pass({ tag: 'fancy', vs: glsl`#version 300 es
 precision highp float;
 layout(location=0) in vec3 a_pos;
@@ -35,6 +37,7 @@ void main(){
 precision highp float;
 precision highp sampler2DArray;
 precision highp sampler2DShadow;
+precision highp usampler2D;
 
 
 
@@ -108,6 +111,7 @@ float caustic(vec2 p, float t){
   return c;
 }
 float lb(float l){ float f = 1.0 - l; return (1.0 - f) / (f * 3.0 + 1.0); }
+${lib(NOISE + SHORE)}
 in vec3 v_uv; in vec4 v_tint; in vec3 v_light; in vec3 v_rel; in vec3 v_normal; in vec3 v_world;
 flat in int v_flags;
 
@@ -305,6 +309,23 @@ void main(){
   o2 = vec4(octEnc(N), rough, ssrW);
   envS += ${() => F.torchCol} * b * b * 0.08 * envBRDF(F0, sqrt(rough), NoV);
   col += (lightI * specD + envS) * mix(0.5, 1.0, pbr);
+  // 岸壁水线（v2/gl shade.js:227–248）：紧邻水面格的侧面上，水线随涌浪升降（shoreH 在 d = 0 处），线下盖半透明水色，上方留湿痕。邻格是否为「最上面一格水」读岸线场（water/surfacefield.js）
+  if (!under && abs(N0.y) < 0.5 && ${() => F.foamWidth} > 0.0 && ${() => F.shoreAmp} > 0.0 && length(v_rel) < 96.0) {
+    int wy = int(floor(v_world.y - 0.001));
+    uvec2 fv = texelFetch(${X.shoreFld}, ivec2(floor(v_world.xz + N0.xz * 0.01)) & (${X.shoreN} - 1), 0).rg;
+    if (fv.r == 1u && int(fv.g) == wy) {
+      float dy = v_world.y - (float(wy) + 8.0 / 9.0), top = ${() => F.shoreAmp} * 1.6;
+      if (dy > -0.02 && dy < top) {
+        float hh = shoreH(${X.wnoise}, v_world.xz, 0.0, ${() => F.foamWidth}, ${() => F.shoreSpd}, ${() => F.time}) * ${() => F.shoreAmp};
+        float aw = 0.02 + length(v_rel) * 0.002, band = 1.0 - smoothstep(hh - aw, hh + aw, dy);
+        vec3 wl = ${() => F.ambCol} * sky * sky * 1.5 + ${X.lightCol} * max(${X.lightDir}.y, 0.0) * sh * 0.1;
+        col *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, top, dy));
+        vec3 wv = mix(col * vec3(0.55, 0.8, 0.85), vec3(0.12, 0.38, 0.55) * wl, 0.45);
+        wv += wl * 0.35 * (1.0 - smoothstep(0.0, aw * 3.0, abs(dy - hh)));
+        col = mix(col, wv, band * 0.85);
+      }
+    }
+  }
   if ((v_flags & 64) != 0) { col = albedo * ((v_flags & 256) != 0 ? 3.0 : 2.6) + albedo * (direct + amb); o2 = vec4(0.0); }
   if (mat >= 2) o2 = vec4(0.0);
   o = vec4(col, (mat >= 2) ? c.a : 1.0);

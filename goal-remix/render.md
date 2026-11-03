@@ -374,3 +374,14 @@ goodGL 原版的效果上界（每项单独关，ms / 占比）：
 - **`P` 是 `vars()` 对象**（读写值照旧，bench 契约不变）；`meta.folder` 分组：渲染 / 雾（`mist`、`fog`）/ 云隙光（`volumetric`）/ 花草锐阴影 / 调试。`VR.apply(k)` = `P.it[k].set(P[k])`（hooks 以后路由宏切换）；`VR.panelRows = P.panelSpec` 给 R7 的面板用（`panelSpec` 仍是 `[]`：bench-v2 按 v2 的 `[[标题, 行]]` 格式遍历它，格式不同会炸）。云隙光现在只有一个开关（`volumetric`）；强度 / 光束参数在 GLSL 常量里，提成参数属于「调优」（§4.1：失去常量折叠，单独提交），留给夜空 / 云隙光 fork 时一起做。
 - **已知**：`water` 机位在「不同机位组合」的两次跑之间会差 16538 px（R5 之前就有，和 `flora` 的 ±1~23 同类，疑似机位顺序带来的状态）；比较时用同一组机位串。
 - **R5 还没做的**：`vanilla / lines / overlay / blit` 转换（?r=gl 不走，留给 R6）；宏来回切换命中编译缓存的 GL 级验收已有（`tools/test-pass-gl.mjs`）但尚未接 `P` 的宏开关（R7）；「人看晨、昏、雨三种天」要宿主 B（雨）；bench.md §4 确定性钉点除 `time / cloudX / ref` 外，`cov`、天气钉点等宿主 B 才有意义。
+
+### 日月轨迹同源（时间分配跟 goodGL）
+- 宿主 A 的 `updateSky` 原来用 `sin(2π·t)`（06:00 / 18:00 过地平线、正午 90°），rgl 用 goodGL 的 `celestial()`（约 05:15 / 18:45 过地平线、倾角 28°、正午 62°）。两套曲线同时存在：mob 光照、刷怪 / 燃烧（`skyDarken`）、v2/gl 的 `uSunDir` 走前一条，rgl 画面走后一条。
+- 现在 A 的 `celestialDir(t)`（VoxelCraft.html）= rgl/frame.js 的同一份公式，`U.uSunDir` / 太阳 / 月亮位置 / 白天系数都从它出；`?r=gl&passdev` 每帧核对 `Env.sunDir` 与 `F.sunDir`，偏差 > 2e-3 就 warn 一次。
+- `DAY_LENGTH` 600 → 1200 s（= goodGL 的 24000 tick × 20 tps）：原来黄昏光带（tick 12000–13800）只有 45 s，现在 90 s；想保留旧节奏改回 600 即可。
+- 日 / 月切换只认 `F.useSun`（`sunH > -0.02`）；云光原先用 `-0.05` 另一个阈值，已改读它。
+
+### 面板绑定（11-03，用户指出 P 虽然是 vars() 但没接 UI）
+- 之前只做了 `panelSpec` getter（从各 Ref 的 meta 生成行），R7 才计划做面板，所以 `?r=gl` 按 F4 什么也没有。现在补上：`rgl/panel.js` 的 `createPanel(P)` 直接由 `P.panelSpec` 建 Tweakpane（同 v2/gl 的 CDN 版本 4.0.5），一行 = 一个 Ref，文件夹 = `meta.folder`（渲染 / 云隙光 / 花草锐阴影 / 雾 / 水 / 水下 / 调试），写值走 `ref.set`（hooks 统一路由）。`VR.paneReady / togglePanel / panelVisible` 与宿主 F4 现成接口对上，面板里的键盘输入不传给游戏。「重置默认」按钮按 `P_DEFAULTS` 逐项 `set`。
+- `vars.js` 给 `P` 加了不可枚举的 `refs`（path → Ref）。
+- 验证：无头浏览器里 `?r=gl` 等 `paneReady`，7 个文件夹、26 行，`togglePanel(true)` 后 `expanded` / `panelVisible` 为真，`P.it.uwWindow.set(7)` 生效。**没做的**：参数持久化（v2/gl 有 localStorage 的 `vc.v2.params` / 命名预设）；宏类开关（R7）要等 `P.hooks` 接上。

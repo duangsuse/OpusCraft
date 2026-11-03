@@ -94,7 +94,7 @@ export function createPassKit(gl, { dev = false } = {}) {
       }
       const cache = new Map(); let cur = null, nUnits = 0;
       const typeOf = (n, x) => {
-        const v = getter(x.f)(), t = glslTypeOf(v, x.f.meta || {});
+        const v = getter(x.f)(), t = glslTypeOf(v, getter(x.f).meta || {});
         if (x.type == null) x.type = t;
         else if (dev && x.type !== t) throw new Error(`pass ${tag}: uniform '${n}' 类型变了：${x.type} → ${t}`);
         return t;

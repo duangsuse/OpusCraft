@@ -79,3 +79,51 @@
 
 - 自动：`water`、`uw` 两个机位，加一个新机位"水下仰视 60°"（宿主 A 加进 `bench-v2.mjs` 的机位搜索规则，宿主 B 加进 `c_Bench.poses`），换 pass 前后各截一张；同代码重复截图 0 px；`gpu water` 列和墙钟前后对比。
 - 人看：俯视能透过 2–4 格深的水看到沙底且偏青绿；平视远处几乎全是反射；低太阳角有一路通向太阳的碎金光带；水下仰视在 48.75° 处出现全反射边缘，**没有黑圈**；雨天水面有涟漪，洞里的水不反射天空。
+
+## 5. 进度（宿主 A，`?r=gl`）
+
+### 9a（11-03）：LiqPG 水面光学已换进 `rgl/shaders/water.js`
+- 换了：波高场法线（`waveH` 三正弦 + 三层噪声，强度 `mix(0.25, 0.55, rain)`，远处淡化，雨涟漪）、折射偏移 / 厚度（天空背景 thick = 60）、吸收 + 内散射（光源 = `lightCol`·阴影·云影 + `ambCol`，所以夜里是月光）、SSR（LiqPG 步进，未命中退天空 × 遮蔽，`P.ssrSteps` 默认 24，面板文件夹「水」）、GGX α = 0.012 的太阳光斑。
+- 水下看水面（§3 的 bug 1、2、3、5 的一部分）：窗口判据 `k = 1 − η²(1 − c²) < 0` 全反射，`smoothstep(0, 0.05, k)` 过渡，边缘随波法线起伏；折射向量只在 `k > 0` 时才算，没有 NaN；窗口外用反射方向做 SSR，未命中用内散射色。上表面和下表面共用一个波高场。新机位 `uwup`（水下仰视 60°，`bench-v2 --views uwup`）：窗口边缘是波浪形，没有黑圈。
+- 没动：goodGL 的水网格 / 顶点波；泡沫仍是 goodGL 的（临时，9b 换）；`wind` 用 `rain` 代替（宿主 A 没有风）。
+- 没验：前后 0 px 不适用（风格通道，画面本来就变）；水下窗口里的天空偏暗灰（窗口外是 comp 的水下雾色，更亮），属于水下介质（9c）要一起调的东西。
+- GPU：water pass 在 `water` 机位 ≈10 ms（SSR 关）→ 17 ms（24 步），机器当时负载高、数字噪声大，R7 统一复测。
+
+### 9c（11-03）：水下介质 + v2/gl 的水底花纹（用户：水下缺口最大，复用 rgl 现有体积光，天空透亮度太低，池底图样要 v2/gl 的）
+- **介质**（`rgl/shaders/comp.js` camUnder 分支，替换原来的 `exp(-dist·0.07)` 水雾）：LiqPG post.js:229 的消光 / 内散射（12 步，最远 64 格，HG 相函数），光源 = `F.lightCol`（夜里是月光）× 阴影图可见性（`shadowRaw`，即 rgl 现有体积光用的那张）× 水面以下深度衰减，加 `ambCol × 0.08`。光束图样 = 焦散图样沿折射阳光方向拉出来的体积，所以光柱方向和池底亮斑方向一致。`volumetric` 关了就没有光束。
+- **焦散**：v2/gl 的 `causAt`（两层反向漂移噪声之差 → 亮脊）+ `uwLs`，用**同一张噪声贴图**（`water/noise.js`，v2/gl 已改为从它取，`--cmp` 0 px）。水深不查体素：水下用 `Env.eyeWaterTop`（相机眼上方水面 y，宿主 A 向上数水格；`goal-renderapi.ts` 新增 `eyeWaterTop?`），水上看池底用本片元水面 y 减去折射后看到的点的 y。阴影可见性（水下用阴影图、水上用 `sh`）当作屋檐下没有焦散的判据，代替 v2 的体素天空光。强度 `P.uwCaustic`（面板「水下」）。
+- **水下仰视窗口**：窗口内辐亮度 × 1.77（n²），加折射后的太阳盘（随波起伏的光斑）。窗口现在比周围水体亮得多。
+- **没做**：水下群系水色（宿主 A 没有群系，`F.waterCol` 用常量 `[0.05, 0.22, 0.5]` × 眼处天空光）；水下屏幕扰动（post.js:450）；`F.waterFog` 已不再被 comp 使用（字段还在）。
+
+### 6. 模块化：水体做成可被 v2/gl 下拉选择的一套
+目标：这套「水面 + 水下」既是 `?r=gl` 的水，也是 v2/gl 面板「水面风格」里的一个选项（和 噪声 / Reimagined / Bliss 并列），以后宿主 B（v3）也直接用。
+1. **纯函数库**（已开始）`water/glsl.js`：只放不引用 uniform 的 GLSL 函数，噪声贴图、时间、方向全经参数传入，所以能同时嵌进 rgl 的 `Pass` 模板（`glsl([lib])`）和 v2/gl 的 `glsl` 拼接。已有 `NOISE / CAUSTIC / MEDIUM`；9b 加 `SHORE`（`shoreDist / shoreH`，参数化掉 `voxAt`，改读 `surfacefield` 采样器）、波高 / 波法线 / GGX / Snell（现在写在 `rgl/shaders/water.js` 里，下一步抽出来）。
+2. **共享资源** `water/noise.js`（噪声贴图数据，v2/gl 已改用）；以后 `water/surfacefield.js` 放岸线场 + 高度场波纹的 CPU 侧（原点 / 滚动 / 区块事件），也是纯 JS，两个渲染器各自上传纹理。
+3. **宿主适配只剩 Env**：`sunDir / dayTime / eyeInWater / eyeWaterTop / eyeSky`（以及以后的 `waterColorAt`、`weather`）。v2/gl 的 `voxelCraftEnv` 已转发；宿主 B 补 `eyeWaterTop` 即可。
+4. **v2/gl 里的下拉选项**：`waterStyle` 加第 4 项 `'Remix'`（`WATER_STYLE == 3`）——法线 / 反射 / 折射 / 吸收用 `water/glsl.js` 的函数，岸线用 `surfacefield`，水下介质用 MEDIUM；v2/gl 的 DDA 里没有「水面 pass」，所以这一项只替换 `shade.js` 里水面分支的光学部分，不改 DDA。`CLOUD_STYLE / WATER_STYLE` 宏切换机制已有（`v2/gl.js:706`），预设按钮 `WATER_PRESETS.remix` 同理。
+5. **验收**：同一机位（`water / uw / uwup`）`?r=gl` 与 `?r=v2/gl` 选 Remix 对比，人看一致（风格通道）；`--ref` 0 px 只对「不选 Remix 时 v2/gl 不变」成立（本段 `wn_pre` 已验）。
+
+### 9c 修正（11-03，用户：水底花纹没改、水下光线 y 方向反了）
+- **光线方向**：焦散 / 光束把图样沿阳光方向投回水面，入射点应为 `p − Ls·(dz / −Ls.y)`，即朝太阳一侧偏移；之前照抄 v2/gl `uwCaustic` 的符号（朝背离太阳一侧偏）。数值核对：太阳在 +x、仰角 53°，水深 4 格的点，入射点在 +x 方向 +2.5 格。已改 `water/glsl.js` 的 `causticAt`（光束同用它，同步修正）。⚠ v2/gl 的 `uwCaustic`（uw.js:62）符号与它自己的 `uwShafts`（uw.js:78，`− sl·p.y`，正确）相反，疑似同一个写反；我没改 v2/gl（会动它的基准），要不要改你定。
+- **水底花纹**：透过水面看池底原来也用了「沿阳光投影」的版本；v2/gl 对应处（shade.js:293）是图样直接落在被看到的点上、按视线在水里的路程 `exp(−路程·0.12)` 衰减、乘 `dayF·skyK`。新增 `causticSeen`，水面 pass 改用它。`uwCaustic` 0 ↔ 1.4 对比，`water` 机位约 9.5 万像素差 > 6，说明图样确实叠上去了，但强度 1.4 下偏淡（乘在已经被水吸收的池底上）。
+
+### 9b（11-03）：岸线场 + v2/gl 的岸边波纹（水面部分）
+- **场**：`water/surfacefield.js`（纯 JS）：以**世界格坐标取模**索引的环形 RG8UI（N = 512，够 rd ≤ 14；不滚动，所以也没有「按整格平移」问题），R = 0 无 / 1 水面列 / 2 实心列，G = 该列最上面一格水（或实心）的 y。实心 = `BT.kind === 1`（立方体；花草、火把不算岸）。由 `SRC.onChunkChanged` 驱动（`'blocks'` 重写该区块 16×16，`'gone'` 清零），每帧只上传脏区块（`texSubImage2D`）。以后的 Eulerian 波纹挂在同一套坐标上，沿用 R=2 当边界遮罩。
+- **GLSL**：`water/glsl.js` 的 `SHORE`（`shoreH` / `shoreDist`）= v2/gl water.js 的原文，只把 `voxAt` 换成场采样：邻格是非流体实心 ⇔ 邻列 R == 2 且 G ≥ 查询格 y。
+- **水面 pass 用法**（对应 v2/gl shade.js:256–262、370–371）：到岸距离 + 离岸方向 → 涌浪起伏 `sh0` 与斜率 `sg` → 水面法线沿离岸方向倾斜、浪峰略亮、边缘软化（`shoreFade`，随涌浪进退）。原来 goodGL 的白色泡沫块删掉。参数在面板「水」：`foamWidth / shoreFade / shoreWaveAmp / shoreWaveSpeed`，默认值同 v2/gl。
+- 新机位 `shore`（`bench-v2 --views shore`）：5–7 格外有 ≥ 5 个采样点的直岸。
+- **没做（9b-2）**：岸壁水线（shade.js:227–248，岸边实心格侧面上随涌浪升降的水线 / 湿痕）——它在不透明地形的 fancy 片元里，要在 `fancy` 的 FS 里读同一张场，改动较大，单独做。瀑布泡沫仍是 goodGL 的。
+- 我这里肉眼看了 `shore`（有 / 无 `foamWidth`）：岸边多了一圈随波推进的明暗带，边缘软化；没有做 v2/gl 同机位并排对比（两边的水面法线、反射本来就不同，只能人看）。
+
+### 9b-2（11-03）：岸壁水线
+- `rgl/shaders/fancy.js`（不透明地形的片元）末尾加 v2/gl shade.js:227–248 的岸壁水线：侧面片元向外一格查岸线场，若那一列是水面列且「最上面一格水」的 y 等于本片元所在格，则水线高度 `shoreH(…, d = 0) × shoreWaveAmp` 随涌浪升降，线下盖半透明水色，线上留湿痕（0.3 暗化）。水面高度取 8/9（`vendor/gl/shared.js` 的 `cornerHeight` 源头水高，与 `Env.eyeWaterTop` 一致）。相机在水下（`under`）不画。
+- 水色亮度 `wl` 用 `ambCol·sky²·1.5 + lightCol·sunY·阴影·0.1`（v2 用体素光 × 曝光，这里没有对应量，数值是目测）。
+- 肉眼看：`shoreWaveAmp = 0.3` 时岸边侧面出现一圈随波升降的暗青水线；默认 0.12 下很窄（岸壁在水面以上只有 ~0.2 格）。同样没有和 v2/gl 并排对比。
+
+### 9c 再修正（11-03，用户：离水面近时抬头被全反射遮满天空）
+- 水下仰视的 Snell 窗口半径 ≈ 1.14 × 水深，水深 2 格时窗口只有 ~2 格宽，窗口外的全反射暗色盖住整个视野（水桶、瀑布、浅池）。
+- 现在 `P.uwWindow`（面板「水下」，默认 4 格）：相机离水面不到这个深度，水面从下面看就**不做窗口 / 全反射**，直接取水面上方场景，只按波法线做偏移（带扭曲的透视），亮度同窗口（× 1.97，所以过渡连续）；深度从 `uwWindow` 起 3 格内渐变到完整的窗口 + 全反射。深度 = `Env.eyeWaterTop − 相机 y`（`F.camDepth`）。浅处不再跑 SSR。
+- 之前写的「窗口 × 1.77（n²）」实际代码值是 1.97（用户看过画面说色调可以，保留），文档以代码为准。
+
+### 6 的修订（用户 11-03）
+- **不做 v2/gl 的 Remix 下拉**：水体要由用户专门移植到 pane / v3，v2/gl 保持不动。所以 §6 第 4 条取消；`v2/gl uwCaustic` 的符号疑似写反也不改。`water/noise.js`（v2/gl 已改用，0 px）与 `water/glsl.js`（纯函数库）保留，作为 v3 移植的接口。

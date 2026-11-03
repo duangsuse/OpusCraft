@@ -72,6 +72,9 @@ export function createFrameBuilder() {
     const sunCol = Ts.map(v => v * 3.7), moonCol = Tm.map((v, i) => v * [0.5, 0.66, 1.0][i] * 0.2);
     F.sunCol = sunCol; F.moonCol = moonCol;
     const useSun = sunH > -0.02;
+    F.foamWidth = S.foamWidth != null ? S.foamWidth : 1.2; F.shoreFade = S.shoreFade != null ? S.shoreFade : 0.3; F.shoreAmp = S.shoreWaveAmp != null ? S.shoreWaveAmp : 0.12; F.shoreSpd = S.shoreWaveSpeed != null ? S.shoreWaveSpeed : 1;   // remix: v2/gl 的岸边波纹参数（面板「水」）
+    F.ssrSteps = S.ssrSteps != null ? S.ssrSteps : 24;                                          // remix: 水面 SSR 步数（LiqPG 档位 0 / 16 / 24 / 40）
+    F.useSun = useSun;                                                                            // remix: 日 / 月切换的唯一判据（光向、云光、…都读它，别各写各的 sunDir.y 阈值）
     F.lightDir = useSun ? env.sunDir : env.moonDir;
     F.lightCol = (useSun ? sunCol.map(v => v * smooth01(-0.02, 0.05, sunH)) : moonCol.map(v => v * smooth01(0.02, 0.1, -sunH))).map(v => v * dim);
     const dayAmt = smooth01(-0.2, 0.15, sunH); F.dayAmt = dayAmt;
@@ -100,6 +103,10 @@ export function createFrameBuilder() {
     F.fogDensity = 0.0016 + 0.004 * rain;
     const dbg = inp.dbg;                                                                          // 原版 Game.dbg：fog / mist / vol / exp 覆写（去雾版用它）
     if (dbg) { if (dbg.mist !== undefined) F.mist = dbg.mist; if (dbg.fog !== undefined) F.fogDensity = dbg.fog; if (dbg.vol !== undefined) F.volumetric = dbg.vol; if (dbg.exp !== undefined) st.exposure = dbg.exp; }
+    F.waterTop = inp.waterTop != null ? inp.waterTop : eye[1] + 1;                                // remix: 眼上方水面的世界 y（Env.eyeWaterTop）；没给就当离眼 1 格
+    F.waterCol = (inp.waterCol || [0.05, 0.22, 0.5]).map(v => v * Math.min(1, Math.max(0.1, st.eyeSky)));     // 水体散射色（线性）× 眼处天空光（water.md §1）；宿主 A 没有群系水色
+    F.camDepth = F.waterTop - eye[1]; F.uwWindow = S.uwWindow != null ? S.uwWindow : 4;                          // remix: 相机在水面下多深（格）；水下仰视窗口只在 ≥ uwWindow 格深时启用
+    F.uwCaustic = S.uwCaustic != null ? S.uwCaustic : 1.4; F.uwShafts = S.uwShafts != null ? S.uwShafts : 1; F.uwDensity = S.uwDensity != null ? S.uwDensity : 1;
     F.waterFog = mixv([0.002, 0.008, 0.015], [0.03, 0.12, 0.2], dayAmt);
     const sp = M4.xform(viewProj, [env.sunDir[0] * 1000, env.sunDir[1] * 1000, env.sunDir[2] * 1000, 1]);
     if (sp[3] > 0) { F.sunUV = [sp[0] / sp[3] * 0.5 + 0.5, sp[1] / sp[3] * 0.5 + 0.5]; const edge = Math.max(Math.abs(F.sunUV[0] - 0.5), Math.abs(F.sunUV[1] - 0.5)); F.sunVis = smooth01(0.9, 0.5, edge) * smooth01(-0.05, 0.05, sunH) * (0.4 + 0.6 * (1 - smooth01(0.1, 0.6, sunH))); }

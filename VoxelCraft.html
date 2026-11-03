@@ -303,7 +303,7 @@ const SEA = 40;             // sea level
 const RS = CS * 3;          // lighting/meshing region (3x3 chunks)
 const RSCH = RS * CH;
 const PS = 64;              // vertex position fixed-point scale
-const DAY_LENGTH = 600;     // seconds per day/night cycle
+const DAY_LENGTH = 1200;    // seconds per day/night cycle（= goodGL：24000 tick × 20 tps；原 600，黄昏 / 拂晓只有 goodGL 的一半时长）
 const REACH = 5;
 const ATTACK_REACH = 3.5;
 const GRAVITY = 32;
@@ -1330,6 +1330,7 @@ const RCTX = { THREE, scene, camera, renderer, U, GLSL, MeshBuilder, makeGeometr
   get flying() { return !!(player.fly || player.noclip); },   // Env.flying（同样惰性）
   get eyeInWater() { return !!player.eyeInWater; },   // Env.eyeInWater / eyeSky（rgl：水下、洞穴系数）；同样惰性
   get eyeSky() { const p = camera.position; return lightAt(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))[0] / 15; },
+  get eyeWaterTop() { if (!player.eyeInWater) return undefined; const p = camera.position, x = Math.floor(p.x), z = Math.floor(p.z); let y = Math.floor(p.y); while (y < CH && getBlock(x, y + 1, z) === B.WATER) y++; return y + 1 - 1 / 9; },   // Env.eyeWaterTop：眼上方水面的世界 y（不在水里 = undefined）
   get worldTime() { return worldTime; },   // Env.dayTime 的来源（0..1，0 = 06:00）；getter 惰性读，createRenderer 期间不要碰（TDZ）
   clouds, cloudMat,   // 云层（v2 隐藏平面云，改为在 DDA 中绘制体积云）
   stars, skyMat, sky, sun, moon };   // sky / sun / moon：?r=gl 自己画天空，R4 把它们隐藏后让 three 只画实体、粒子、选框    // 星星（v2 默认隐藏宿主星、在 DDA 天空分支程序化绘制）/ 天空球（天顶色给水面反射）
@@ -2271,8 +2272,15 @@ const cNightTop = new THREE.Color(0.008, 0.012, 0.04), cNightHor = new THREE.Col
 const cSunset = new THREE.Color(0.98, 0.56, 0.3), cWater = new THREE.Color(0.06, 0.16, 0.42);
 const tmpTop = new THREE.Color(), tmpHor = new THREE.Color();
 let cloudDrift = 0;
+// 日月轨迹 = goodGL 的 celestial()/environment()（rgl/frame.js 同一份公式；?r=gl&passdev 每帧核对）：一天 24000 tick，0 = 06:00。
+// 黄昏 / 拂晓的长度、太阳最高仰角（倾角 28°，正午 ≈ 62°）都按它走；sunDir 是全局唯一的光照方向来源
+function celestialDir(t01) {
+  let f = (t01 * 24000 % 24000) / 24000 - 0.25; if (f < 0) f += 1; if (f > 1) f -= 1;
+  const f2 = f; f = 1 - (Math.cos(f * Math.PI) + 1) / 2; const th = (f2 + (f - f2) / 3) * Math.PI * 2, tilt = 28 * Math.PI / 180;
+  return [-Math.sin(th), Math.cos(th) * Math.cos(tilt), Math.cos(th) * Math.sin(tilt)];
+}
 function updateSky(dt) {
-  const ang = worldTime * Math.PI * 2, sy = Math.sin(ang), sx = Math.cos(ang);
+  const [sx, sy, sz] = celestialDir(worldTime);
   const day = smoothstep(-0.2, 0.25, sy);
   skyDarken = (1 - day) * NIGHT_DARKEN;
   skyTint.set(lerp(0.66, 1, day), lerp(0.74, 1, day), lerp(1.0, 1, day));
@@ -2283,9 +2291,9 @@ function updateSky(dt) {
   skyMat.uniforms.uTop.value.copy(tmpTop); skyMat.uniforms.uHorizon.value.copy(tmpHor);
   const cp = camera.position;
   sky.position.copy(cp); stars.position.copy(cp);
-  sun.position.set(cp.x + sx * 600, cp.y + sy * 600, cp.z + 120); sun.lookAt(cp);
-  U.uSunDir.value.set(sx, sy, 0.2).normalize();
-  moon.position.set(cp.x - sx * 600, cp.y - sy * 600, cp.z - 120); moon.lookAt(cp);
+  sun.position.set(cp.x + sx * 600, cp.y + sy * 600, cp.z + sz * 600); sun.lookAt(cp);
+  U.uSunDir.value.set(sx, sy, sz);
+  moon.position.set(cp.x - sx * 600, cp.y - sy * 600, cp.z - sz * 600); moon.lookAt(cp);
   stars.material.opacity = clamp(1 - day * 1.6, 0, 1); stars.visible = stars.material.opacity > 0.01;
   cloudDrift += dt * 1.2;
   clouds.position.x = cp.x; clouds.position.z = cp.z; cloudMat.uniforms.uOffset.value.set(cloudDrift, 0);

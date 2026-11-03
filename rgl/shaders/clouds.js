@@ -60,8 +60,8 @@ void main(){
   t1 = min(t1, t0 + 900.0);
   const int N = 16; float stepL = (t1 - t0) / float(N);
   float t = t0 + stepL * ign(gl_FragCoord.xy + fract(${() => F.time}) * 17.0);
-  vec3 L = ${() => F.sunDir}.y > -0.05 ? ${() => F.sunDir} : ${() => F.moonDir};
-  vec3 lcol = ${() => F.sunDir}.y > -0.05 ? ${() => F.sunCol} : ${() => F.moonCol};
+  vec3 L = ${() => F.useSun} ? ${() => F.sunDir} : ${() => F.moonDir};
+  vec3 lcol = ${() => F.useSun} ? ${() => F.sunCol} : ${() => F.moonCol};
   float mu = dot(d, L);
   float ph = mix((1.0 - 0.36) / (4.0 * 3.14159 * pow(1.0 + 0.36 - 1.2 * mu, 1.5)), (1.0 - 0.04) / (4.0 * 3.14159 * pow(1.0 + 0.04 + 0.4 * mu, 1.5)), 0.3);
   vec3 ambTop = skyBase(vec3(0.0, 1.0, 0.0)) * 1.1, ambBot = skyHorizon(vec3(d.x, 0.0, d.z)) * 0.55;

@@ -4,7 +4,7 @@
 //     --r ID            渲染器（?r=，默认 v2 单文件原版；v2/gl = goal-glmod 模块化 / 拆 pass 版）
 //     --seed N          世界种子（默认 20240607）      --rd N        视距（默认 6）
 //     --scale S         DDA 分辨率（默认 = v2 默认）   --size WxH    视口（默认 1280x657）
-//     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,water,uw,flora）
+//     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,water,shore,uw,uwup,flora）
 //     --set k=v,...     覆盖 VR.P 参数（如 shadowSteps=0）
 //     --preset NAME     云 + 水面预设（VR.presets.cloud/water 同名项：vol|noise|mc|bliss）；--set 在其后覆盖
 //     --ref             VR.setRef(1) 参考模式：主射线 / 阴影 / 反射折射步数预算全放到 576 + 精确入格（DF 开/关 0 px 对比用）
@@ -17,7 +17,7 @@
 //     --swiftshader     用软件渲染（无 GPU 计时，仅步数/fetch 统计）
 // 输出：每机位 GPU 分 pass 时间（scene/dda/comp，中位数）、主射线平均迭代、阴影平均迭代、
 //       预算耗尽占比、平均 fetch、平均 texture() 采样（DBG 6）、层级（列跳/砖步/体素步）、DF（DBG 4：盒跳跃/未计算退化/v=2 退化）、云步数（DBG 5 A 通道）、
-//       着色占比（dda - dda[跳过 smoothLight]）。默认机位不含 uw（水下仰视）、flora（花近景），需 --views 显式指定。
+//       着色占比（dda - dda[跳过 smoothLight]）。默认机位不含 shore（岸线）、uw（水下）、uwup（水下仰视 60°）、flora（花近景），需 --views 显式指定。
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { launch, killStray } from './cdp.mjs';
@@ -128,6 +128,17 @@ const init = await b.js(`(async () => {
       if (!best || sc > best.sc) best = { sc, x, z };
     }
     if (best) views.water = { x: best.x + 0.5, y: SEA + 1 + 3 - EYE, z: best.z + 0.5, yaw: 0.6, pitch: -0.18 }; }
+  // 4b) shore：岸线（泡沫 / 水线，water.md §0.1）：水面格 5 格外有一段 ≥ 7 格的直岸（水面层邻格是非水实心），眼在水面 +2.5，朝岸略俯视
+  { let best = null; const solidAt = (x, y, z) => { const b = gb(x, y, z); return b !== 0 && b !== B.WATER && b !== B.TALL_GRASS; };
+    for (let x = X0 - RAD; x <= X0 + RAD; x += 2) for (let z = Z0 - RAD; z <= Z0 + RAD; z += 2) {
+      if (gb(x, SEA, z) !== B.WATER) continue;
+      for (let a = 0; a < 8; a++) { const yaw = a * Math.PI / 4, dx = -Math.sin(yaw), dz = -Math.cos(yaw);       // 朝向 (dx,dz)：向前找岸
+        let hit = -1; for (let d = 1; d <= 12; d++) if (solidAt(Math.round(x + dx * d), SEA, Math.round(z + dz * d))) { hit = d; break; }
+        if (hit < 4 || hit > 7) continue;
+        let n = 0; for (let k = -6; k <= 6; k += 2) { const px = Math.round(x + dx * hit - dz * k), pz = Math.round(z + dz * hit + dx * k); if (solidAt(px, SEA, pz) && gb(px - Math.round(dx), SEA, pz - Math.round(dz)) === B.WATER) n++; }
+        const sc = n * 100 - ((x - X0) ** 2 + (z - Z0) ** 2) * 0.01; if (n >= 5 && (!best || sc > best.sc)) best = { sc, x, z, yaw };
+      } }
+    if (best) views.shore = { x: best.x + 0.5, y: SEA + 1 + 2.5 - EYE, z: best.z + 0.5, yaw: best.yaw, pitch: -0.25 }; }
   // 5) uw：水下仰视（§9.2-5）：离岸最远且水深 ≥ 5 的水柱，眼在水面下 ~2 格，仰视斜看水面（斯涅尔窗 + 光束 + 折射）
   { let best = null;
     for (let x = X0 - RAD; x <= X0 + RAD; x += 2) for (let z = Z0 - RAD; z <= Z0 + RAD; z += 2) {
@@ -138,6 +149,7 @@ const init = await b.js(`(async () => {
       if (!best || sc > best.sc) best = { sc, x, z };
     }
     if (best) views.uw = { x: best.x + 0.5, y: SEA - 1.2 - EYE, z: best.z + 0.5, yaw: 0.6, pitch: 0.35 }; }
+    if (views.uw) views.uwup = { ...views.uw, pitch: 1.05 };     // 水下仰视 60°（Snell 窗口 / 全反射边缘，water.md §4）
 
   // 6) flora：离出生点最近、前方无遮挡的花（POPPY/DANDELION），玩家在其东南 1.1 格、眼高 +0.8，俯视花头（R3b 锐阴影/花体积感；人眼验收用）
   { let best = null;

@@ -49,6 +49,7 @@ export function vars(defaults, metas = {}) {
   };
   const P = build(defaults, []);
   Object.defineProperty(P, 'hooks', { enumerable: false, value: root.hooks });
+  Object.defineProperty(P, 'refs', { enumerable: false, value: root.refs });     // path → Ref（面板按 panelSpec 行的 path 取）
   // panelSpec：从各 Ref 的 meta 生成面板行（文件夹 = 路径前缀）；只列叶子
   Object.defineProperty(P, 'panelSpec', { enumerable: false, get() {
     const out = [];

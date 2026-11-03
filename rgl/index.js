@@ -8,6 +8,9 @@ import { Textures } from '../vendor/gl/textures.js';
 import { PBR } from '../vendor/gl/pbr.js';
 import { createFrameBuilder } from './frame.js';
 import { idLUT } from './xlate.js';
+import { waterNoiseData } from '../water/noise.js';
+import { createPanel } from './panel.js';
+import { SurfaceField } from '../water/surfacefield.js';
 import { createPassKit, u } from './pass.js';
 import { vars } from './vars.js';
 import { clouds } from './shaders/clouds.js';
@@ -53,12 +56,31 @@ export function createRenderer(ctx) {
   if (!R.floatOK) throw new Error('gl: 需要 EXT_color_buffer_float');
 
   // R5：模板化 Pass（rgl/pass.js）。已转的 program 放进 R.passes，vendor 的 renderFancy 里对应的 use / 上传行已被补丁替换；其余仍走 R.mk / R.use
-  const kit = createPassKit(gl, { dev: /[?&]passdev\b/.test(location.search) });
+  const DEV = /[?&]passdev\b/.test(location.search), kit = createPassKit(gl, { dev: DEV }); let warnedSun = false;
   const tex = (t, type = 'sampler2D') => Object.assign(t, { glslType: type });   // 纹理的 GLSL 类型打在对象上（vars.js glslTypeOf 读它）
   const T = () => R.targets;
   const dr = { offset: new Float32Array(3), origin: new Float32Array(3) };
   R.setDraw = (P, ox, oy, oz, ax, ay, az) => { dr.offset[0] = ox; dr.offset[1] = oy; dr.offset[2] = oz; dr.origin[0] = ax; dr.origin[1] = ay; dr.origin[2] = az; P.touch('offset', 'origin'); };
+  const SRC = voxelCraftSource(ctx), ENV = voxelCraftEnv(ctx), BT = voxelCraftBlocks(ctx);
+  // 岸线 / 水面高度场（water/surfacefield.js）：环形 RG8UI，按世界格取模；N = 512 够 rd ≤ 14。区块事件驱动（'blocks' 重写该区块 16×16、'gone' 清掉）
+  const field = new SurfaceField({ N: 512, H: SRC.height, waterId: BT.waterId, solid: Uint8Array.from(BT.kind, k => k === 1 ? 1 : 0) });
+  const fieldTex = (() => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8UI, field.N, field.N, 0, gl.RG_INTEGER, gl.UNSIGNED_BYTE, field.data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.bindTexture(gl.TEXTURE_2D, null); return t; })();
+  SRC.onChunkChanged((cx, cz, what) => { if (what === 'gone') field.clearChunk(cx, cz); else if (what === 'blocks') { const ch = SRC.getChunk(cx, cz); if (ch) field.setChunk(cx, cz, ch.blocks); } });
+  SRC.forEachChunk((cx, cz) => { const ch = SRC.getChunk(cx, cz); if (ch) field.setChunk(cx, cz, ch.blocks); });
+  function uploadField() {
+    const d = field.takeDirty(); if (!d.length) return;
+    gl.bindTexture(gl.TEXTURE_2D, fieldTex); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    for (const [cx, cz] of d) { const r = field.chunkRect(cx, cz); gl.texSubImage2D(gl.TEXTURE_2D, 0, r.x, r.y, 16, 16, gl.RG_INTEGER, gl.UNSIGNED_BYTE, r.data); }
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+  const wnoise = (() => { const { N, data } = waterNoiseData(), t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, N, N, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.REPEAT], [gl.TEXTURE_WRAP_T, gl.REPEAT], [gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+    gl.bindTexture(gl.TEXTURE_2D, null); return t; })();   // v2/gl 同一张水面噪声（water/noise.js）
   const X = {
+    wnoise: u('wnoise', () => tex(wnoise)),
+    shoreFld: u('shoreFld', () => tex(fieldTex, 'usampler2D')), shoreN: u('shoreN', Object.assign(() => field.N, { meta: { glsl: 'int' } })),
     skyLut: u('skyLut', () => tex(R.lutTex)),
     taaCur: u('curTex', () => tex(T().compC)), taaHist: u('histTex', () => tex(T().histC[1 - T().histI])), taaDepth: u('depthTex', () => tex(T().sceneD)), histValid: () => T().histValid,
     blSrc: u('src', () => tex(R.bl.src)), blTexel: u('texel', () => [1 / R.bl.w, 1 / R.bl.h]), blFirst: u('first', () => R.bl.first),   // 当前 bloom 层（vendor 的循环在调用 use() 前写 R.bl）
@@ -69,7 +91,6 @@ export function createRenderer(ctx) {
   Object.assign(X, commonX(R, tex, T));
   R.passes = { skyLut: skyLut(kit.Pass), clouds: clouds(kit.Pass, X), skyF: skyF(kit.Pass, X), taa: taa(kit.Pass, X), bdown: bdown(kit.Pass, X), bup: bup(kit.Pass, X), final: final(kit.Pass, X), comp: comp(kit.Pass, X), shadow: shadow(kit.Pass, X), shadowS: shadow(kit.Pass, X, true), fancy: fancy(kit.Pass, X), water: water(kit.Pass, X) };
   // 适配器（宿主 A）：ChunkSource / Env / BlockTable。R2 只用 Env 的 dayTime
-  const SRC = voxelCraftSource(ctx), ENV = voxelCraftEnv(ctx), BT = voxelCraftBlocks(ctx);
   // 贴图 / PBR：用 goodGL 自己的程序化贴图（材质参数和贴图是一起调出来的，render.md §3 贴图行）
   const tx = Textures.build(); R.uploadTextures(tx); R.uploadPBR(PBR.build(tx), tx.count);
   // R4 方案 B：goodGL 画完（final 之后）把它的深度换算成 three 相机的深度写进默认帧缓冲，three 再直接画 scene（实体、粒子、选框）
@@ -80,7 +101,7 @@ export function createRenderer(ctx) {
   const world = createWorld(R, SRC, idLUT(ctx.B), { seed: 1 });
 
   // 参数：只列已经接上的。fog / mist 默认 0 = 去雾版（render.md §0，goodGL 的缺点之一）；scale / maxMP 等 R5 接上 pass.js / vars.js 后再加
-  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, meshJobs: 6 /* 每帧最多提交的网格任务 */ };
+  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 6 /* 每帧最多提交的网格任务 */ };
   // P = vars 对象（读写值照旧，bench 契约不变）；meta.folder 给面板分文件夹：雾、云隙光各一组（render.md 备忘「天空 / 雾 / 云隙光」），面板本身 R7 才建
   const FOLDER = (f, o = {}) => ({ folder: f, ...o });
   const P = vars(P_DEFAULTS, {
@@ -89,6 +110,9 @@ export function createRenderer(ctx) {
     mist: FOLDER('雾', { min: 0, max: 1, label: '晨昏薄雾' }), fog: FOLDER('雾', { min: 0, max: 0.02, label: '距离雾密度' }),
     volumetric: FOLDER('云隙光', { label: '体积光（云隙光 / 雾中光束）' }),
     sharpDist: FOLDER('花草锐阴影', { min: 0, max: 128 }), sharpSoft: FOLDER('花草锐阴影', { min: 0, max: 3 }), sharpFly: FOLDER('花草锐阴影', { min: 0, max: 128 }),
+    uwWindow: FOLDER('水下', { min: 0, max: 16, label: '窗口起始深度（格）' }), uwCaustic: FOLDER('水下', { min: 0, max: 4, label: '焦散' }), uwShafts: FOLDER('水下', { min: 0, max: 4, label: '光束' }), uwDensity: FOLDER('水下', { min: 0.2, max: 4, label: '水体浓度' }),
+    foamWidth: FOLDER('水', { min: 0, max: 1.5, label: '岸边波纹范围' }), shoreFade: FOLDER('水', { min: 0, max: 1.5, label: '岸边软化' }), shoreWaveAmp: FOLDER('水', { min: 0, max: 0.3, label: '岸边涌浪起伏' }), shoreWaveSpeed: FOLDER('水', { min: 0, max: 3, label: '岸边涌浪速度' }),
+    ssrSteps: FOLDER('水', { min: 0, max: 48, step: 1, label: '反射步数（SSR）' }),
     meshJobs: FOLDER('调试', { min: 1, max: 16, step: 1 }),
   });
   // D：bench / 调试钉点（bench.md §2、§4）。time 钉住 F.time（火把闪烁、水波相位），cloudX 钉住 cloudTime，ref = REF 模式，noTimer 关计时查询
@@ -154,9 +178,11 @@ export function createRenderer(ctx) {
     if (ENV.underwater) ENV.underwater(!!ENV.eyeInWater);                       // 宿主的水下遮罩由着色器代替（每帧隐藏）
     const sharpT = ENV.flying ? P.sharpFly : P.sharpDist; sharpNow = Math.abs(sharpT - sharpNow) < 0.5 ? sharpT : sharpNow + (sharpT - sharpNow) * Math.min(1, dt / 300);
     const F = fb.build({ W, H, eye: [e[12], e[13], e[14]], fwd: [-e[8], -e[9], -e[10]], up: [e[4], e[5], e[6]], fovDeg: camera.fov, rd,
-      tick: day * 24000, dayCount: 0, underwater: ENV.eyeInWater, eyeSky: ENV.eyeSky, rain: wx.rain, flash: wx.thunder, wet: wx.wet, time: D.time != null ? D.time : sec, cloudTime: D.cloudX != null ? D.cloudX : sec, dt, ref: D.ref,
+      tick: day * 24000, dayCount: 0, underwater: ENV.eyeInWater, eyeSky: ENV.eyeSky, waterTop: ENV.eyeWaterTop, rain: wx.rain, flash: wx.thunder, wet: wx.wet, time: D.time != null ? D.time : sec, cloudTime: D.cloudX != null ? D.cloudX : sec, dt, ref: D.ref,
       S: { ...P, sharpDist: sharpNow }, dbg: { fog: P.fog, mist: P.mist } });
     setFrame(F);
+    uploadField();
+    if (DEV && ENV.sunDir) { const s = ENV.sunDir, d = Math.hypot(s.x - F.sunDir[0], s.y - F.sunDir[1], s.z - F.sunDir[2]); if (d > 2e-3 && !warnedSun) { warnedSun = true; console.warn('rgl: 宿主 Env.sunDir 与 goodGL celestial 不一致（日月轨迹必须同源）', d, [s.x, s.y, s.z], F.sunDir); } }
     resetGLState(gl);
     R.ensureTargets(W, H);
     world.pump(e[12], e[13], e[14], rd, P.meshJobs);
@@ -178,6 +204,7 @@ export function createRenderer(ctx) {
     cpuMs = performance.now() - t0; nFrames++;
   }
 
+  const panel = createPanel(P, { defaults: P_DEFAULTS });
   return {
     name: 'gl',
     // ChunkSource 事件源：宿主的 build / dispose 就是它（R3 起据此标脏段）
@@ -188,7 +215,7 @@ export function createRenderer(ctx) {
     stats: () => { const w = world.stat(); return `gl ${W}x${H} 区块 ${w.chunks} 段 ${R.stats.drawn}/${R.stats.sections} 网格 ${w.meshN}×${w.meshMsAvg.toFixed(1)}ms ${w.quads}q cpu ${cpuMs.toFixed(1)}ms` +
       (qExt ? ` gpu ${PASSES.map(k => k.slice(0, 2) + gpu[k].toFixed(1)).join('/')} = ${gpu.total.toFixed(1)}ms` : '') + (D.view ? ` [dbg ${D.view}]` : ''); },
     // ---- bench 契约（bench.md §2）
-    P, P_DEFAULTS, panelSpec: [], get panelRows() { return P.panelSpec; }, apply: k => { P.it[k].set(P[k]); }, presets: { cloud: {}, water: {} }, D,
+    P, P_DEFAULTS, paneReady: panel.paneReady, togglePanel: panel.togglePanel, panelVisible: panel.panelVisible, panelSpec: [], get panelRows() { return P.panelSpec; }, apply: k => { P.it[k].set(P[k]); }, presets: { cloud: {}, water: {} }, D,
     setRef: on => { D.ref = on ? 1 : 0; },
     setDebug: (view = 0, raw = 0) => { D.view = view; D.raw = raw; },          // R2：DBG 宏还没接（bench.md §5），只记下
     resetLag: () => { fb.reset(); },

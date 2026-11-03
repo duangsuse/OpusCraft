@@ -7,6 +7,7 @@ import * as GD from './glsl/dbg.js';
 import * as GW from './glsl/water.js';
 import * as GU from './glsl/uw.js';
 import * as GS from './glsl/shade.js';
+import { waterNoiseData } from '../water/noise.js';
 // 接口与 v1.js 相同：createRenderer(ctx) → { name, buildChunk, disposeChunk, update, render, stats }
 // 进度：参数 P + 面板 DSL + Tweakpane；环形 3D 体素纹理 + 砖占用 + 列高；两级 DDA（不透明/镂空/花草/火把/水面）
 //       ddaRT（绘制缓冲 × scale）与 sceneRT 深度合成；v1 同款四角平滑光照 + AO；太阳阴影射线
@@ -818,34 +819,7 @@ export function createRenderer(ctx) {
 ${G.head(K)}${U_MAIN}${G.util(K)}${GC.vol(K)}${U_PASS}${G.data(K)}${GT.trace(K)}${GD.dbg(K)}${GC.star(K)}${GW.fn(K)}${GU.uw(K)}${GW.refl(K)}${GS.main(K)}`;
   // 水面噪声法线贴图（可平铺 128²：RG = 斜率，B = 高度）：4 层值噪声 → bump
   const waterNoiseTex = (() => {
-    const N = 128, H = new Float32Array(N * N);
-    const hash = (x, y, s) => {
-      let n = Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(s, 1274126177);
-      n = Math.imul(n ^ (n >>> 13), 1274126177);
-      return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
-    };
-    const sm = t => t * t * (3 - 2 * t);
-    const vn = (x, y, per, s) => {                     // 格点周期 = per → 采样范围 0..per 时无缝平铺
-      const xi = Math.floor(x), yi = Math.floor(y), fx = sm(x - xi), fy = sm(y - yi);
-      const x0 = ((xi % per) + per) % per, y0 = ((yi % per) + per) % per, x1 = (x0 + 1) % per, y1 = (y0 + 1) % per;
-      const a = hash(x0, y0, s), b = hash(x1, y0, s), c = hash(x0, y1, s), e = hash(x1, y1, s);
-      return (a + (b - a) * fx) * (1 - fy) + (c + (e - c) * fx) * fy;
-    };
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      let v = 0, amp = 1, per = 4;
-      for (let o = 0; o < 4; o++) { v += amp * vn(x / N * per, y / N * per, per, o * 31 + 7); amp *= 0.55; per *= 2; }
-      H[y * N + x] = v;
-    }
-    const data = new Uint8Array(N * N * 4), K = 1.4;
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      const gx = (H[y * N + (x + 1) % N] - H[y * N + (x - 1 + N) % N]) * 0.5 * K;
-      const gy = (H[((y + 1) % N) * N + x] - H[((y - 1 + N) % N) * N + x]) * 0.5 * K;
-      const o = (y * N + x) * 4;
-      data[o] = clamp(Math.round((0.5 - gx) * 255), 0, 255);
-      data[o + 1] = clamp(Math.round((0.5 - gy) * 255), 0, 255);
-      data[o + 2] = clamp(Math.round(H[y * N + x] * 90), 0, 255);
-      data[o + 3] = 255;
-    }
+    const { N, data } = waterNoiseData();
     const t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
     Object.assign(t, { wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false });
     t.needsUpdate = true;
@@ -1228,6 +1202,7 @@ export function voxelCraftEnv(ctx) {
     get flying() { return !!ctx.flying; },     // goal-remix R3b：rgl 的花草锐阴影 LOD；v2 / v2/gl 不读
     get eyeInWater() { return !!ctx.eyeInWater; },   // goal-remix R5：rgl 的水下判定 / 洞穴系数；v2 / v2/gl 不读
     get eyeSky() { return ctx.eyeSky; },
+    get eyeWaterTop() { return ctx.eyeWaterTop; },
     // weather：宿主 A 没有天气（恒晴），不提供
     get dayTime() { return ctx.worldTime; },   // 0..1，0 = 06:00（goal-remix：rgl 用它定日月；v2 / v2/gl 不读）
     // 宿主的水下 CSS 蓝色遮罩由着色器内的水体吸收代替（每帧隐藏）；水下雾按 v2 面板建议值写进共享 U（主程序是近 0.5 / 远 18，很浑）

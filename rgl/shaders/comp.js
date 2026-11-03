@@ -1,5 +1,7 @@
 // rgl/shaders/comp.js —— goodGL compositeFS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
-import { u } from '../pass.js';
+import { u, glsl } from '../pass.js';
+import { NOISE, CAUSTIC, MEDIUM } from '../../water/glsl.js';
+const lib = x => glsl([x]);
 import { F } from '../frameref.js';
 export const comp = (Pass, X = {}) => Pass({ tag: 'comp' })`#version 300 es
 precision highp float; precision highp sampler2DShadow;
@@ -41,6 +43,7 @@ float shadowRaw(vec3 wp){
   if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0) return 1.0;
   return texture(${X.cShadow}, c);
 }
+${lib(NOISE + CAUSTIC + MEDIUM)}
 void main(){
   vec3 col = texture(${X.cColor}, v_uv).rgb;
   float d = texture(${X.cDepth}, v_uv).r;
@@ -85,8 +88,29 @@ void main(){
     if (isSky || (tc > 0.0 && dist > tc)) { vec4 cl = texture(${X.cClouds}, v_uv); col = col * cl.a + cl.rgb; }
   }
   if (${u('camUnder', () => F.underwater ? 1 : 0)} > 0.5) {
-    float f = 1.0 - exp(-dist * 0.07);
-    col = mix(col, ${() => F.waterFog}, f);
+    // 水下：焦散（v2/gl 图样，沿折射阳光方向投影，水深起点 = Env.eyeWaterTop）+ 介质（吸收 / 内散射 / 光束，LiqPG post.js:229；光束图样 = 焦散图样沿阳光方向拉出的体积）
+    float wTop = ${() => F.waterTop}, dayF = smoothstep(-0.05, 0.12, ${() => F.sunDir}.y);
+    vec3 Ls = waterLs(${() => F.sunDir}, 0.0);
+    float shV = ${u('shadowOn', () => 1)} > 0.5 ? shadowRaw(rel + ${() => F.camToShadow} + vec3(0.0, 0.05, 0.0)) : 1.0;
+    if (!isSky) {
+      vec3 pw = ${() => F.camPos} + rel; float dz = wTop - pw.y;
+      if (dz > 0.12 && dz < 14.0) col *= 1.0 + causticAt(${X.wnoise}, pw, dz, Ls, ${() => F.time}) * ${() => F.uwCaustic} * dayF * shV;
+    }
+    vec3 sigS = (${() => F.waterCol} * 0.05 + 0.012) * ${() => F.uwDensity}, sigE = (vec3(0.25, 0.06, 0.04) * ${() => F.uwDensity} + sigS);
+    float maxD = min(dist, 64.0), dt = maxD / 12.0, jit = ign(gl_FragCoord.xy + fract(${() => F.time} * 7.0) * 13.0);
+    float ph = waterPhase(dot(dir, ${() => F.lightDir}));
+    vec3 Tm = vec3(1.0), Sm = vec3(0.0);
+    for (int i = 0; i < 12; i++) {
+      float t = (float(i) + jit) * dt; vec3 p = dir * t; vec3 pw = ${() => F.camPos} + p;
+      float dep = max(wTop - pw.y, 0.0);
+      vec3 att = exp(-vec3(0.25, 0.06, 0.04) * ${() => F.uwDensity} * dep);
+      float vis = ${u('shadowOn', () => 1)} > 0.5 && ${u('volOn', () => F.volumetric ? 1 : 0)} > 0.5 ? shadowRaw(p + ${() => F.camToShadow}) : 1.0;
+      float mod_ = 0.45 + 1.1 * causticAt(${X.wnoise}, pw, dep, Ls, ${() => F.time});
+      vec3 Lm = ${() => F.lightCol} * ph * vis * mix(1.0, mod_, min(${() => F.uwShafts}, 1.0)) * ${() => F.uwShafts} * att * (1.0 - ${() => F.caveFactor}) + ${() => F.ambCol} * 0.08 * att;
+      vec3 Ts = exp(-sigE * dt);
+      Sm += Tm * Lm * sigS * (1.0 - Ts) / max(sigE, vec3(1e-6)); Tm *= Ts;
+    }
+    col = col * Tm + Sm;
   } else {
     if (!isSky) {
       vec3 fogC = skyHorizon(dir); float fl = dot(fogC, vec3(0.3, 0.55, 0.15)); float flim = dot(${() => F.ambCol}, vec3(0.3, 0.55, 0.15)) * 2.2 + 0.02; fogC *= min(1.0, flim / max(fl, 1e-4));
