@@ -21,59 +21,59 @@ const block = (key: string, name: string, o: Opts): number => family(key, name, 
 
 // ------------------------------------------------------------------ piedra y ladrillos de piedra
 
-export const SMOOTH_STONE = block('smooth_stone', 'Piedra lisa', stone('smooth_stone', 2));
-export const CHISELED_STONE_BRICKS = block('chiseled_stone_bricks', 'Ladrillos de piedra cincelados', stone('chiseled_stone_bricks', 1.5));
-export const POLISHED_GRANITE = block('polished_granite', 'Granito pulido', stone('polished_granite', 1.5));
-export const POLISHED_DIORITE = block('polished_diorite', 'Diorita pulida', stone('polished_diorite', 1.5));
-export const POLISHED_ANDESITE = block('polished_andesite', 'Andesita pulida', stone('polished_andesite', 1.5));
+export const SMOOTH_STONE = block('smooth_stone', '平滑石头', stone('smooth_stone', 2));
+export const CHISELED_STONE_BRICKS = block('chiseled_stone_bricks', '雕纹石砖', stone('chiseled_stone_bricks', 1.5));
+export const POLISHED_GRANITE = block('polished_granite', '磨制花岗岩', stone('polished_granite', 1.5));
+export const POLISHED_DIORITE = block('polished_diorite', '磨制闪长岩', stone('polished_diorite', 1.5));
+export const POLISHED_ANDESITE = block('polished_andesite', '磨制安山岩', stone('polished_andesite', 1.5));
 
 // ------------------------------------------------------------------ pizarra profunda
 
-export const POLISHED_DEEPSLATE = block('polished_deepslate', 'Pizarra profunda pulida', stone('polished_deepslate', 3.5));
-export const DEEPSLATE_BRICKS = block('deepslate_bricks', 'Ladrillos de pizarra profunda', stone('deepslate_bricks', 3.5));
-export const CRACKED_DEEPSLATE_BRICKS = block('cracked_deepslate_bricks', 'Ladrillos de pizarra profunda agrietados', stone('cracked_deepslate_bricks', 3.5));
-export const DEEPSLATE_TILES = block('deepslate_tiles', 'Azulejos de pizarra profunda', stone('deepslate_tiles', 3.5));
-export const CRACKED_DEEPSLATE_TILES = block('cracked_deepslate_tiles', 'Azulejos de pizarra profunda agrietados', stone('cracked_deepslate_tiles', 3.5));
-export const CHISELED_DEEPSLATE = block('chiseled_deepslate', 'Pizarra profunda cincelada', stone('chiseled_deepslate', 3.5));
+export const POLISHED_DEEPSLATE = block('polished_deepslate', '磨制深板岩', stone('polished_deepslate', 3.5));
+export const DEEPSLATE_BRICKS = block('deepslate_bricks', '深板岩砖', stone('deepslate_bricks', 3.5));
+export const CRACKED_DEEPSLATE_BRICKS = block('cracked_deepslate_bricks', '裂纹深板岩砖', stone('cracked_deepslate_bricks', 3.5));
+export const DEEPSLATE_TILES = block('deepslate_tiles', '深板岩瓦', stone('deepslate_tiles', 3.5));
+export const CRACKED_DEEPSLATE_TILES = block('cracked_deepslate_tiles', '裂纹深板岩瓦', stone('cracked_deepslate_tiles', 3.5));
+export const CHISELED_DEEPSLATE = block('chiseled_deepslate', '雕纹深板岩', stone('chiseled_deepslate', 3.5));
 
 // ------------------------------------------------------------------ toba
 
-export const POLISHED_TUFF = block('polished_tuff', 'Toba pulida', stone('polished_tuff', 1.5));
-export const TUFF_BRICKS = block('tuff_bricks', 'Ladrillos de toba', stone('tuff_bricks', 1.5));
-export const CHISELED_TUFF = block('chiseled_tuff', 'Toba cincelada', stone('chiseled_tuff', 1.5, { top: 'chiseled_tuff_top' }));
-export const CHISELED_TUFF_BRICKS = block('chiseled_tuff_bricks', 'Ladrillos de toba cincelados',
+export const POLISHED_TUFF = block('polished_tuff', '磨制凝灰岩', stone('polished_tuff', 1.5));
+export const TUFF_BRICKS = block('tuff_bricks', '凝灰岩砖', stone('tuff_bricks', 1.5));
+export const CHISELED_TUFF = block('chiseled_tuff', '雕纹凝灰岩', stone('chiseled_tuff', 1.5, { top: 'chiseled_tuff_top' }));
+export const CHISELED_TUFF_BRICKS = block('chiseled_tuff_bricks', '雕纹凝灰岩砖',
   stone('chiseled_tuff_bricks', 1.5, { top: 'chiseled_tuff_bricks_top' }));
 
 // ------------------------------------------------------------------ areniscas
 
-export const SMOOTH_SANDSTONE = block('smooth_sandstone', 'Arenisca lisa', stone('sandstone_top', 2));
-export const SMOOTH_RED_SANDSTONE = block('smooth_red_sandstone', 'Arenisca roja lisa', stone('red_sandstone_top', 2));
-export const CUT_RED_SANDSTONE = block('cut_red_sandstone', 'Arenisca roja cortada', stone('cut_red_sandstone', 0.8, {
+export const SMOOTH_SANDSTONE = block('smooth_sandstone', '平滑砂岩', stone('sandstone_top', 2));
+export const SMOOTH_RED_SANDSTONE = block('smooth_red_sandstone', '平滑红砂岩', stone('red_sandstone_top', 2));
+export const CUT_RED_SANDSTONE = block('cut_red_sandstone', '切制红砂岩', stone('cut_red_sandstone', 0.8, {
   top: 'red_sandstone_top', bottom: 'red_sandstone_bottom',
 }));
-export const CHISELED_RED_SANDSTONE = block('chiseled_red_sandstone', 'Arenisca roja cincelada', stone('chiseled_red_sandstone', 0.8, {
+export const CHISELED_RED_SANDSTONE = block('chiseled_red_sandstone', '雕纹红砂岩', stone('chiseled_red_sandstone', 0.8, {
   top: 'red_sandstone_top', bottom: 'red_sandstone_bottom',
 }));
 
 // ------------------------------------------------------------------ barro
 
 /** Barro: se hunde un poco al pisarlo (como en Minecraft, la colisión mide 14/16). */
-export const MUD = block('mud', 'Barro', {
+export const MUD = block('mud', '泥', {
   all: 'mud', hardness: 0.5, tool: 'shovel', sound: 'dirt', category: 'naturaleza', collision: [0, 0, 0, 1, 14 / 16, 1],
 });
-export const PACKED_MUD = block('packed_mud', 'Barro compacto', { all: 'packed_mud', hardness: 1, tool: 'pickaxe', sound: 'dirt' });
-export const MUD_BRICKS = block('mud_bricks', 'Ladrillos de barro', stone('mud_bricks', 1.5));
+export const PACKED_MUD = block('packed_mud', '泥坯', { all: 'packed_mud', hardness: 1, tool: 'pickaxe', sound: 'dirt' });
+export const MUD_BRICKS = block('mud_bricks', '泥砖', stone('mud_bricks', 1.5));
 
 // ------------------------------------------------------------------ cuevas de azufre
 
-export const CINNABAR = block('cinnabar', 'Cinabrio', stone('cinnabar', 1.5, { category: 'naturaleza' }));
-export const POLISHED_CINNABAR = block('polished_cinnabar', 'Cinabrio pulido', stone('polished_cinnabar', 1.5));
-export const CINNABAR_BRICKS = block('cinnabar_bricks', 'Ladrillos de cinabrio', stone('cinnabar_bricks', 1.5));
-export const CHISELED_CINNABAR = block('chiseled_cinnabar', 'Cinabrio cincelado', stone('chiseled_cinnabar', 1.5));
-export const SULFUR = block('sulfur', 'Azufre', stone('sulfur', 1.5, { category: 'naturaleza' }));
-export const POLISHED_SULFUR = block('polished_sulfur', 'Azufre pulido', stone('polished_sulfur', 1.5));
-export const SULFUR_BRICKS = block('sulfur_bricks', 'Ladrillos de azufre', stone('sulfur_bricks', 1.5));
-export const CHISELED_SULFUR = block('chiseled_sulfur', 'Azufre cincelado', stone('chiseled_sulfur', 1.5));
+export const CINNABAR = block('cinnabar', '朱砂', stone('cinnabar', 1.5, { category: 'naturaleza' }));
+export const POLISHED_CINNABAR = block('polished_cinnabar', '磨制朱砂', stone('polished_cinnabar', 1.5));
+export const CINNABAR_BRICKS = block('cinnabar_bricks', '朱砂砖', stone('cinnabar_bricks', 1.5));
+export const CHISELED_CINNABAR = block('chiseled_cinnabar', '雕纹朱砂', stone('chiseled_cinnabar', 1.5));
+export const SULFUR = block('sulfur', '硫磺', stone('sulfur', 1.5, { category: 'naturaleza' }));
+export const POLISHED_SULFUR = block('polished_sulfur', '磨制硫磺', stone('polished_sulfur', 1.5));
+export const SULFUR_BRICKS = block('sulfur_bricks', '硫磺砖', stone('sulfur_bricks', 1.5));
+export const CHISELED_SULFUR = block('chiseled_sulfur', '雕纹硫磺', stone('chiseled_sulfur', 1.5));
 
 // ------------------------------------------------------------------ formas
 
@@ -83,30 +83,30 @@ const mat = (key: string, name: string, b: number, hardness: number, tier = 1, s
 
 /** Materiales con losa y escaleras (las de Minecraft 26.3 que faltaban). */
 const SHAPED: Material[] = [
-  mat('mossy_cobblestone', 'de roca musgosa', MOSSY_COBBLESTONE, 2),
-  mat('mossy_stone_brick', 'de ladrillos de piedra musgosos', MOSSY_STONE_BRICKS, 1.5),
-  mat('granite', 'de granito', GRANITE, 1.5),
-  mat('diorite', 'de diorita', DIORITE, 1.5),
-  mat('andesite', 'de andesita', ANDESITE, 1.5),
-  mat('polished_granite', 'de granito pulido', POLISHED_GRANITE, 1.5),
-  mat('polished_diorite', 'de diorita pulida', POLISHED_DIORITE, 1.5),
-  mat('polished_andesite', 'de andesita pulida', POLISHED_ANDESITE, 1.5),
-  mat('polished_deepslate', 'de pizarra profunda pulida', POLISHED_DEEPSLATE, 3.5),
-  mat('deepslate_brick', 'de ladrillos de pizarra profunda', DEEPSLATE_BRICKS, 3.5),
-  mat('deepslate_tile', 'de azulejos de pizarra profunda', DEEPSLATE_TILES, 3.5),
-  mat('tuff', 'de toba', TUFF, 1.5),
-  mat('polished_tuff', 'de toba pulida', POLISHED_TUFF, 1.5),
-  mat('tuff_brick', 'de ladrillos de toba', TUFF_BRICKS, 1.5),
-  mat('smooth_sandstone', 'de arenisca lisa', SMOOTH_SANDSTONE, 2),
-  mat('red_sandstone', 'de arenisca roja', RED_SANDSTONE, 0.8),
-  mat('smooth_red_sandstone', 'de arenisca roja lisa', SMOOTH_RED_SANDSTONE, 2),
-  mat('mud_brick', 'de ladrillos de barro', MUD_BRICKS, 1.5),
-  mat('cinnabar', 'de cinabrio', CINNABAR, 1.5),
-  mat('polished_cinnabar', 'de cinabrio pulido', POLISHED_CINNABAR, 1.5),
-  mat('cinnabar_brick', 'de ladrillos de cinabrio', CINNABAR_BRICKS, 1.5),
-  mat('sulfur', 'de azufre', SULFUR, 1.5),
-  mat('polished_sulfur', 'de azufre pulido', POLISHED_SULFUR, 1.5),
-  mat('sulfur_brick', 'de ladrillos de azufre', SULFUR_BRICKS, 1.5),
+  mat('mossy_cobblestone', '苔石', MOSSY_COBBLESTONE, 2),
+  mat('mossy_stone_brick', '苔石砖', MOSSY_STONE_BRICKS, 1.5),
+  mat('granite', '花岗岩', GRANITE, 1.5),
+  mat('diorite', '闪长岩', DIORITE, 1.5),
+  mat('andesite', '安山岩', ANDESITE, 1.5),
+  mat('polished_granite', '磨制花岗岩', POLISHED_GRANITE, 1.5),
+  mat('polished_diorite', '磨制闪长岩', POLISHED_DIORITE, 1.5),
+  mat('polished_andesite', '磨制安山岩', POLISHED_ANDESITE, 1.5),
+  mat('polished_deepslate', '磨制深板岩', POLISHED_DEEPSLATE, 3.5),
+  mat('deepslate_brick', '深板岩砖', DEEPSLATE_BRICKS, 3.5),
+  mat('deepslate_tile', '深板岩瓦', DEEPSLATE_TILES, 3.5),
+  mat('tuff', '凝灰岩', TUFF, 1.5),
+  mat('polished_tuff', '磨制凝灰岩', POLISHED_TUFF, 1.5),
+  mat('tuff_brick', '凝灰岩砖', TUFF_BRICKS, 1.5),
+  mat('smooth_sandstone', '平滑砂岩', SMOOTH_SANDSTONE, 2),
+  mat('red_sandstone', '红砂岩', RED_SANDSTONE, 0.8),
+  mat('smooth_red_sandstone', '平滑红砂岩', SMOOTH_RED_SANDSTONE, 2),
+  mat('mud_brick', '泥砖', MUD_BRICKS, 1.5),
+  mat('cinnabar', '朱砂', CINNABAR, 1.5),
+  mat('polished_cinnabar', '磨制朱砂', POLISHED_CINNABAR, 1.5),
+  mat('cinnabar_brick', '朱砂砖', CINNABAR_BRICKS, 1.5),
+  mat('sulfur', '硫磺', SULFUR, 1.5),
+  mat('polished_sulfur', '磨制硫磺', POLISHED_SULFUR, 1.5),
+  mat('sulfur_brick', '硫磺砖', SULFUR_BRICKS, 1.5),
 ];
 for (const m of SHAPED) addMaterialShapes(m);
 
@@ -119,7 +119,7 @@ function addSlab(m: Material, side?: string): number {
   const tex: BlockDef['tex'] = side ? [side, side, base[2], base[3], side, side] : base;
   const t = tex.map(L);
   const opts: Opts = { hardness: m.hardness, tool: m.tool, tier: m.tier, sound: m.sound, tex };
-  const id = family(`${m.key}_slab`, `Losa ${m.name}`, [['type', 3]], (st) => {
+  const id = family(`${m.key}_slab`, `${m.name}台阶`, [['type', 3]], (st) => {
     if (st.type === 2) return { ...opts, render: R_CUBE };
     return { ...opts, render: R_MODEL, model: [st.type === 0 ? mbox(0, 0, 0, 16, 8, 16, t) : mbox(0, 8, 0, 16, 16, 16, t)] };
   });
@@ -128,30 +128,30 @@ function addSlab(m: Material, side?: string): number {
 }
 /** Materiales que sólo tienen losa. */
 const SLAB_ONLY: Material[] = [
-  mat('smooth_stone', 'de piedra lisa', SMOOTH_STONE, 2),
-  mat('cut_sandstone', 'de arenisca cortada', CUT_SANDSTONE, 0.8),
-  mat('cut_red_sandstone', 'de arenisca roja cortada', CUT_RED_SANDSTONE, 0.8),
+  mat('smooth_stone', '平滑石头', SMOOTH_STONE, 2),
+  mat('cut_sandstone', '切制砂岩', CUT_SANDSTONE, 0.8),
+  mat('cut_red_sandstone', '切制红砂岩', CUT_RED_SANDSTONE, 0.8),
 ];
 for (const m of SLAB_ONLY) addSlab(m, m.key === 'smooth_stone' ? 'smooth_stone_slab_side' : undefined);
 
 /** Muros nuevos (los de Minecraft 26.3 que faltaban). */
 const WALLED: [key: string, name: string, block: number, hardness: number][] = [
-  ['mossy_stone_brick', 'de ladrillos de piedra musgosos', MOSSY_STONE_BRICKS, 1.5],
-  ['cobbled_deepslate', 'de pizarra profunda rocosa', COBBLED_DEEPSLATE, 3.5],
-  ['polished_deepslate', 'de pizarra profunda pulida', POLISHED_DEEPSLATE, 3.5],
-  ['deepslate_brick', 'de ladrillos de pizarra profunda', DEEPSLATE_BRICKS, 3.5],
-  ['deepslate_tile', 'de azulejos de pizarra profunda', DEEPSLATE_TILES, 3.5],
-  ['tuff', 'de toba', TUFF, 1.5],
-  ['polished_tuff', 'de toba pulida', POLISHED_TUFF, 1.5],
-  ['tuff_brick', 'de ladrillos de toba', TUFF_BRICKS, 1.5],
-  ['red_sandstone', 'de arenisca roja', RED_SANDSTONE, 0.8],
-  ['mud_brick', 'de ladrillos de barro', MUD_BRICKS, 1.5],
-  ['cinnabar', 'de cinabrio', CINNABAR, 1.5],
-  ['polished_cinnabar', 'de cinabrio pulido', POLISHED_CINNABAR, 1.5],
-  ['cinnabar_brick', 'de ladrillos de cinabrio', CINNABAR_BRICKS, 1.5],
-  ['sulfur', 'de azufre', SULFUR, 1.5],
-  ['polished_sulfur', 'de azufre pulido', POLISHED_SULFUR, 1.5],
-  ['sulfur_brick', 'de ladrillos de azufre', SULFUR_BRICKS, 1.5],
+  ['mossy_stone_brick', '苔石砖', MOSSY_STONE_BRICKS, 1.5],
+  ['cobbled_deepslate', '深板岩圆石', COBBLED_DEEPSLATE, 3.5],
+  ['polished_deepslate', '磨制深板岩', POLISHED_DEEPSLATE, 3.5],
+  ['deepslate_brick', '深板岩砖', DEEPSLATE_BRICKS, 3.5],
+  ['deepslate_tile', '深板岩瓦', DEEPSLATE_TILES, 3.5],
+  ['tuff', '凝灰岩', TUFF, 1.5],
+  ['polished_tuff', '磨制凝灰岩', POLISHED_TUFF, 1.5],
+  ['tuff_brick', '凝灰岩砖', TUFF_BRICKS, 1.5],
+  ['red_sandstone', '红砂岩', RED_SANDSTONE, 0.8],
+  ['mud_brick', '泥砖', MUD_BRICKS, 1.5],
+  ['cinnabar', '朱砂', CINNABAR, 1.5],
+  ['polished_cinnabar', '磨制朱砂', POLISHED_CINNABAR, 1.5],
+  ['cinnabar_brick', '朱砂砖', CINNABAR_BRICKS, 1.5],
+  ['sulfur', '硫磺', SULFUR, 1.5],
+  ['polished_sulfur', '磨制硫磺', POLISHED_SULFUR, 1.5],
+  ['sulfur_brick', '硫磺砖', SULFUR_BRICKS, 1.5],
 ];
 for (const [key, name, b, hardness] of WALLED) addWall({ key, name, block: b, hardness });
 

@@ -108,22 +108,22 @@ export function critterMobs(base: readonly MobDef[], ids: { cat: number; cow: nu
   const horseLike = (b: Base): MobDef => ({ ...b, parts: clone(horse.parts), atlas: [horse.atlas[0], horse.atlas[1]] });
   return [
     {
-      id: MOB_BAT, key: 'bat', name: 'Murciélago', hostile: false, health: 6, walk: 3, run: 5, width: 0.5, height: 0.9,
+      id: MOB_BAT, key: 'bat', name: '蝙蝠', hostile: false, health: 6, walk: 3, run: 5, width: 0.5, height: 0.9,
       damage: 0, burnsInSun: false, drops: [], xp: 0, anim: 'flyer', scale: 1, flying: true, parts: bat.parts, atlas: bat.atlas,
     },
     {
-      id: MOB_OCELOT, key: 'ocelot', name: 'Ocelote', hostile: false, health: 10, walk: 1.4, run: 4.2, width: 0.6, height: 0.7,
+      id: MOB_OCELOT, key: 'ocelot', name: '豹猫', hostile: false, health: 10, walk: 1.4, run: 4.2, width: 0.6, height: 0.7,
       damage: 3, burnsInSun: false, drops: [], anim: 'quadruped', scale: 1,
       // El modelo del gato sin el collar (los ocelotes no se domestican).
       parts: clone(cat.parts.filter((p) => p.name !== 'collar')), atlas: [cat.atlas[0], cat.atlas[1]],
     },
     {
-      id: MOB_MOOSHROOM, key: 'mooshroom', name: 'Champiñaca', hostile: false, health: 10, walk: 1.1, run: 2.4, width: 0.9,
+      id: MOB_MOOSHROOM, key: 'mooshroom', name: '哞菇', hostile: false, health: 10, walk: 1.1, run: 2.4, width: 0.9,
       height: 1.4, damage: 0, burnsInSun: false, drops: [[LEATHER, 0, 2], [RAW_BEEF, 1, 3]], anim: 'quadruped', scale: 1,
       sound: 'cow', parts: [...clone(cow.parts), ...mushroomParts()], atlas: [cow.atlas[0], cow.atlas[1]],
     },
     {
-      id: MOB_TRADER_LLAMA, key: 'trader_llama', name: 'Llama de comerciante', hostile: false, neutral: true, health: 20,
+      id: MOB_TRADER_LLAMA, key: 'trader_llama', name: '商队羊驼', hostile: false, neutral: true, health: 20,
       walk: 1.2, run: 2.8, width: 0.9, height: 1.87, damage: 1, burnsInSun: false, drops: [[LEATHER, 0, 2]], anim: 'quadruped',
       scale: llama.scale,
       // La manta del comerciante: una funda sobre el lomo (algo más grande que el cuerpo).
@@ -131,11 +131,11 @@ export function critterMobs(base: readonly MobDef[], ids: { cat: number; cow: nu
       atlas: [llama.atlas[0], 96],
     },
     horseLike({
-      id: MOB_SKELETON_HORSE, key: 'skeleton_horse', name: 'Caballo esqueleto', hostile: false, health: 15, walk: 1.4, run: 3.4,
+      id: MOB_SKELETON_HORSE, key: 'skeleton_horse', name: '骷髅马', hostile: false, health: 15, walk: 1.4, run: 3.4,
       width: 1.3, height: 1.6, damage: 0, burnsInSun: false, drops: [[BONE, 0, 2]], anim: 'quadruped', scale: 1,
     }),
     horseLike({
-      id: MOB_ZOMBIE_HORSE, key: 'zombie_horse', name: 'Caballo zombi', hostile: false, health: 15, walk: 1.4, run: 3.4,
+      id: MOB_ZOMBIE_HORSE, key: 'zombie_horse', name: '僵尸马', hostile: false, health: 15, walk: 1.4, run: 3.4,
       width: 1.3, height: 1.6, damage: 0, burnsInSun: false, drops: [[ROTTEN_FLESH, 0, 2]], anim: 'quadruped', scale: 1,
     }),
   ];

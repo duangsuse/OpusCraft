@@ -35,7 +35,7 @@ export default {
     const m = url.pathname.match(ROOM_RE);
     if (m) {
       if (request.headers.get('Upgrade') !== 'websocket') {
-        return new Response('Se esperaba una conexión WebSocket', { status: 426 });
+        return new Response('需要 WebSocket 连接', { status: 426 });
       }
       const room = m[1].toLowerCase();
       // Un mundo nuevo nace en la región de quien lo crea (a uno que ya existe la pista no le afecta).
@@ -62,7 +62,7 @@ export default {
       const stats = await env.WORLD_DIRECTORY.getByName('global').stats();
       return Response.json(stats, { headers: { 'Cache-Control': 'public, max-age=10' } });
     }
-    return new Response('No encontrado', { status: 404 });
+    return new Response('未找到', { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
 

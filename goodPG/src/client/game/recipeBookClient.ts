@@ -52,7 +52,7 @@ export class RecipeBookState {
     this.version++;
     if (!this.quiet) {
       const names = [...new Set(fresh.map((r) => r.out.id))];
-      this.g.ui.toast(names.length === 1 ? `Receta nueva: ${ITEMS[names[0]].name}` : `${names.length} recetas nuevas en el libro`);
+      this.g.ui.toast(names.length === 1 ? `新配方：${ITEMS[names[0]].name}` : `配方书中有 ${names.length} 个新配方`);
     }
     this.quiet = false;
   }

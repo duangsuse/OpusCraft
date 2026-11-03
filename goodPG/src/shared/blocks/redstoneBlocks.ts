@@ -92,7 +92,7 @@ const topSupport = (get: NeighborGet) => {
 /** Uniones del polvo por lado (0 N, 1 E, 2 S, 3 O). */
 export const WIRE_NONE = 0, WIRE_SIDE = 1, WIRE_UP = 2;
 
-export const REDSTONE_WIRE = family('redstone_wire', 'Polvo de redstone', [['power', 16], ['dot', 2]], (st) => {
+export const REDSTONE_WIRE = family('redstone_wire', '红石粉', [['power', 16], ['dot', 2]], (st) => {
   const t = L(`redstone_dust_${st.power}`);
   return {
     render: R_MODEL, solid: false, opaque: false, lightOpacity: 0, hardness: 0, sound: 'stone', all: `redstone_dust_${st.power}`,
@@ -212,11 +212,11 @@ registerRedstone(REDSTONE_WIRE, {
 
 // ------------------------------------------------------------------ antorchas de redstone
 
-export const REDSTONE_TORCH = family('redstone_torch', 'Antorcha de redstone', [['off', 2]], (st) => ({
+export const REDSTONE_TORCH = family('redstone_torch', '红石火把', [['off', 2]], (st) => ({
   render: R_TORCH, solid: false, lightOpacity: 0, emission: st.off ? 0 : 7, sound: 'wood', hardness: 0, category: 'redstone',
   all: st.off ? 'redstone_torch_off' : 'redstone_torch', walkThrough: true,
 }));
-export const REDSTONE_WALL_TORCH = family('redstone_wall_torch', 'Antorcha de redstone', [['facing', 4], ['off', 2]], (st) => ({
+export const REDSTONE_WALL_TORCH = family('redstone_wall_torch', '红石火把', [['facing', 4], ['off', 2]], (st) => ({
   render: R_TORCH, solid: false, lightOpacity: 0, emission: st.off ? 0 : 7, sound: 'wood', hardness: 0, category: null,
   all: st.off ? 'redstone_torch_off' : 'redstone_torch', wall: st.facing, base: REDSTONE_TORCH, walkThrough: true,
   selection: rotateFlat([5.5 / 16, 3 / 16, 11 / 16, 10.5 / 16, 13 / 16, 1], st.facing),
@@ -274,7 +274,7 @@ function mountedSupport(mount: number, facing: number) {
   return (get: NeighborGet) => supportAt(get, face);
 }
 
-export const LEVER = family('lever', 'Palanca', MOUNTED_PROPS, (st) => {
+export const LEVER = family('lever', '拉杆', MOUNTED_PROPS, (st) => {
   const base = L('cobblestone'), h = L('lever_handle');
   // Mango escalonado (inclinado hacia el norte apagada, hacia el sur encendida).
   const steps = st.powered ? [[7, 9], [8, 10], [9, 11], [10, 12]] : [[7, 9], [6, 8], [5, 7], [4, 6]];
@@ -291,7 +291,7 @@ export const BUTTONS: Record<string, number> = {};
 const WOODEN_BUTTONS = new Set<number>();
 
 function button(key: string, name: string, tex: string, sound: SoundMaterial): number {
-  return family(`${key}_button`, `Botón ${name}`, MOUNTED_PROPS, (st) => {
+  return family(`${key}_button`, `${name}按钮`, MOUNTED_PROPS, (st) => {
     const t = L(tex);
     const box = [mbox(5, 0, 6, 11, st.powered ? 1 : 2, 10, t)];
     return {
@@ -314,7 +314,7 @@ export function addButton(key: string, name: string, tex: string, sound: SoundMa
   registerRedstone(id, { emitter: mountedEmitter });
   return id;
 }
-BUTTONS.stone = button('stone', 'de piedra', 'stone', 'stone');
+BUTTONS.stone = button('stone', '石', 'stone', 'stone');
 for (const w of WOODS) {
   BUTTONS[w.key] = button(w.key, w.name, defs[w.block].tex[0], 'wood');
   WOODEN_BUTTONS.add(BUTTONS[w.key]);
@@ -363,9 +363,9 @@ function plateOpts(tex: string, sound: SoundMaterial, pressed: boolean): Opts {
 }
 
 function plate(key: string, name: string, tex: string, sound: SoundMaterial): number {
-  return family(`${key}_pressure_plate`, `Placa de presión ${name}`, [['powered', 2]], (st) => plateOpts(tex, sound, st.powered === 1));
+  return family(`${key}_pressure_plate`, `${name}压力板`, [['powered', 2]], (st) => plateOpts(tex, sound, st.powered === 1));
 }
-PRESSURE_PLATES.stone = plate('stone', 'de piedra', 'stone', 'stone');
+PRESSURE_PLATES.stone = plate('stone', '石质', 'stone', 'stone');
 for (const w of WOODS) {
   PRESSURE_PLATES[w.key] = plate(w.key, w.name, defs[w.block].tex[0], 'wood');
   WOODEN_PLATES.add(PRESSURE_PLATES[w.key]);
@@ -385,9 +385,9 @@ export function addPressurePlate(key: string, name: string, tex: string, sound: 
 }
 
 /** Placas de peso: ligera (de oro: una potencia por entidad) y pesada (de hierro: una por cada diez). */
-export const LIGHT_WEIGHTED_PLATE = family('light_weighted_pressure_plate', 'Placa de presión para peso ligero', [['power', 16]], (st) =>
+export const LIGHT_WEIGHTED_PLATE = family('light_weighted_pressure_plate', '轻质测重压力板', [['power', 16]], (st) =>
   ({ ...plateOpts('gold_block', 'metal', st.power > 0), tool: 'pickaxe' }));
-export const HEAVY_WEIGHTED_PLATE = family('heavy_weighted_pressure_plate', 'Placa de presión para peso pesado', [['power', 16]], (st) =>
+export const HEAVY_WEIGHTED_PLATE = family('heavy_weighted_pressure_plate', '重质测重压力板', [['power', 16]], (st) =>
   ({ ...plateOpts('iron_block', 'metal', st.power > 0), tool: 'pickaxe' }));
 
 export function isPressurePlate(id: number): boolean {
@@ -430,7 +430,7 @@ function diodeBase(top: string): ModelBox {
  * Repetidor: `facing` es hacia donde sale la señal (0 N, 1 E, 2 S, 3 O), `delay` 0..3 (1..4 ticks de
  * redstone), `powered` y `locked` (bloqueado por un repetidor o un comparador de lado).
  */
-export const REPEATER = family('repeater', 'Repetidor de redstone', [['facing', 4], ['delay', 4], ['powered', 2], ['locked', 2]], (st) => {
+export const REPEATER = family('repeater', '红石中继器', [['facing', 4], ['delay', 4], ['powered', 2], ['locked', 2]], (st) => {
   const on = st.powered === 1;
   const z = 6 + st.delay * 2;
   const boxes = [diodeBase(`repeater_${on ? 'on' : 'off'}_${st.facing}`), torchBit(7, 2, 5, on)];
@@ -465,7 +465,7 @@ export function repeaterWith(id: number, powered: boolean, locked: boolean): num
 }
 
 /** Comparador: `facing` como el repetidor, `subtract` (antorcha de delante encendida) y `powered`. */
-export const COMPARATOR = family('comparator', 'Comparador de redstone', [['facing', 4], ['subtract', 2], ['powered', 2]], (st) => {
+export const COMPARATOR = family('comparator', '红石比较器', [['facing', 4], ['subtract', 2], ['powered', 2]], (st) => {
   const on = st.powered === 1;
   const boxes = [
     diodeBase(`comparator_${on ? 'on' : 'off'}_${st.facing}`),
@@ -513,12 +513,12 @@ registerRedstone(COMPARATOR, {
 
 // ------------------------------------------------------------------ bloque de redstone, lámpara, sensor, diana y bloque musical
 
-export const REDSTONE_BLOCK = family('redstone_block', 'Bloque de redstone', [], () => ({
+export const REDSTONE_BLOCK = family('redstone_block', '红石块', [], () => ({
   all: 'redstone_block', hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', category: 'redstone',
 }));
 registerRedstone(REDSTONE_BLOCK, { emitter: { weak: () => 15 } });
 
-export const REDSTONE_LAMP = family('redstone_lamp', 'Lámpara de redstone', [['lit', 2]], (st) => ({
+export const REDSTONE_LAMP = family('redstone_lamp', '红石灯', [['lit', 2]], (st) => ({
   all: st.lit ? 'redstone_lamp_on' : 'redstone_lamp', hardness: 0.3, sound: 'glass', emission: st.lit ? 15 : 0, category: 'redstone',
 }));
 export function isLamp(id: number): boolean {
@@ -526,7 +526,7 @@ export function isLamp(id: number): boolean {
 }
 
 /** Sensor de luz solar: potencia 0..15 según el sol; invertido, según la oscuridad. */
-export const DAYLIGHT_DETECTOR = family('daylight_detector', 'Sensor de luz solar', [['power', 16], ['inverted', 2]], (st) => {
+export const DAYLIGHT_DETECTOR = family('daylight_detector', '阳光探测器', [['power', 16], ['inverted', 2]], (st) => {
   const side = L('daylight_detector_side');
   const top = L(st.inverted ? 'daylight_detector_inverted_top' : 'daylight_detector_top');
   return {
@@ -547,7 +547,7 @@ export function daylightWith(id: number, power: number, inverted: boolean): numb
 }
 
 /** Bloque diana: da potencia un rato cuando le da un proyectil (más cuanto más al centro). */
-export const TARGET = family('target', 'Diana', [['power', 16]], () => ({
+export const TARGET = family('target', '标靶', [['power', 16]], () => ({
   tex: ['target_side', 'target_side', 'target_top', 'target_top', 'target_side', 'target_side'], hardness: 0.5, sound: 'grass',
   category: 'redstone',
 }));
@@ -556,7 +556,7 @@ export function isTarget(id: number): boolean {
 }
 
 /** Bloque musical: tono 0..24 y encendido (suena al recibir potencia). */
-export const NOTE_BLOCK = family('note_block', 'Bloque musical', [['note', 25], ['powered', 2]], () => ({
+export const NOTE_BLOCK = family('note_block', '音符盒', [['note', 25], ['powered', 2]], () => ({
   all: 'note_block', hardness: 0.8, tool: 'axe', sound: 'wood', category: 'redstone',
 }));
 export function isNoteBlock(id: number): boolean {
@@ -576,7 +576,7 @@ registerRedstone(TARGET, { emitter: levelEmitter(TARGET) });
 // ------------------------------------------------------------------ gancho de cuerda y cuerda tendida
 
 /** Gancho: en una pared, `facing` hacia fuera; `attached` con cuerda tendida hasta otro gancho, `powered` al pisarla. */
-export const TRIPWIRE_HOOK = family('tripwire_hook', 'Gancho de cuerda', [['facing', 4], ['attached', 2], ['powered', 2]], (st) => {
+export const TRIPWIRE_HOOK = family('tripwire_hook', '绊线钩', [['facing', 4], ['attached', 2], ['powered', 2]], (st) => {
   const wood = L('oak_planks'), iron = L('iron_block');
   const y = st.attached ? -2 : 0;
   const boxes = [
@@ -609,7 +609,7 @@ export function hookWith(id: number, attached: boolean, powered: boolean): numbe
 }
 
 /** Cuerda tendida (la coloca la cuerda): `powered` si hay algo encima, `attached` entre dos ganchos, `disarmed` cortada con tijeras. */
-export const TRIPWIRE = family('tripwire', 'Cuerda', [['powered', 2], ['attached', 2], ['disarmed', 2]], (st) => {
+export const TRIPWIRE = family('tripwire', '绊线', [['powered', 2], ['attached', 2], ['disarmed', 2]], (st) => {
   const t = L('tripwire');
   const y = st.attached ? 1 : 2;
   return {
@@ -661,12 +661,12 @@ registerRedstone(TRIPWIRE_HOOK, {
 // ------------------------------------------------------------------ cofre trampa
 
 /** Cofre trampa: como el cofre (y se une en dobles con otro cofre trampa); da potencia mientras está abierto. */
-export const TRAPPED_CHEST = family('trapped_chest', 'Cofre trampa', [['facing', 4]], (st) => {
+export const TRAPPED_CHEST = family('trapped_chest', '陷阱箱', [['facing', 4]], (st) => {
   const tex: BlockDef['tex'] = ['chest_side', 'chest_side', 'chest_top', 'chest_top', 'chest_side', 'chest_side'];
   tex[DIR_FACE[st.facing]] = 'trapped_chest_front';
   return { tex, hardness: 2.5, tool: 'axe', sound: 'wood', category: 'redstone' };
 });
-export const TRAPPED_CHEST_DOUBLE = family('trapped_chest_double', 'Cofre trampa', [['facing', 4], ['side', 2]], (st) => {
+export const TRAPPED_CHEST_DOUBLE = family('trapped_chest_double', '陷阱箱', [['facing', 4], ['side', 2]], (st) => {
   const tex: BlockDef['tex'] = ['chest_side', 'chest_side', 'chest_top', 'chest_top', 'chest_side', 'chest_side'];
   tex[DIR_FACE[st.facing]] = st.side === 0 ? 'trapped_chest_front_seam_right' : 'trapped_chest_front_seam_left';
   tex[DIR_FACE[(st.facing + 2) & 3]] = st.side === 0 ? 'chest_side_seam_left' : 'chest_side_seam_right';
@@ -694,7 +694,7 @@ registerRedstone([TRAPPED_CHEST, TRAPPED_CHEST_DOUBLE], {
 // ------------------------------------------------------------------ puerta y trampilla de hierro
 
 /** Puerta de hierro: como las de madera, pero sólo la abre la redstone. */
-export const IRON_DOOR = family('iron_door', 'Puerta de hierro', [['facing', 4], ['half', 2], ['open', 2], ['hinge', 2]], (st) => {
+export const IRON_DOOR = family('iron_door', '铁门', [['facing', 4], ['half', 2], ['open', 2], ['hinge', 2]], (st) => {
   const tx = L(st.half ? 'iron_door_top' : 'iron_door_bottom');
   const panel = !st.open ? mbox(0, 0, 13, 16, 16, 16, tx) : st.hinge === 0 ? mbox(0, 0, 0, 3, 16, 16, tx) : mbox(13, 0, 0, 16, 16, 16, tx);
   return {
@@ -703,7 +703,7 @@ export const IRON_DOOR = family('iron_door', 'Puerta de hierro', [['facing', 4],
   };
 });
 /** Trampilla de hierro: sólo la abre la redstone. */
-export const IRON_TRAPDOOR = family('iron_trapdoor', 'Trampilla de hierro', [['facing', 4], ['half', 2], ['open', 2]], (st) => {
+export const IRON_TRAPDOOR = family('iron_trapdoor', '铁活板门', [['facing', 4], ['half', 2], ['open', 2]], (st) => {
   const tx = L('iron_trapdoor');
   const box = st.open ? rotateBoxes([mbox(0, 0, 13, 16, 16, 16, tx)], st.facing)
     : [st.half ? mbox(0, 13, 0, 16, 16, 16, tx) : mbox(0, 0, 0, 16, 3, 16, tx)];
@@ -721,12 +721,12 @@ export function isIronOpenable(id: number): boolean {
 // ------------------------------------------------------------------ mena de redstone encendida
 
 /** Mena de redstone encendida (al tocarla o pisarla): da luz y se apaga sola con los ticks aleatorios. */
-export const LIT_REDSTONE_ORE = family('lit_redstone_ore', 'Mena de redstone', [], () => ({
+export const LIT_REDSTONE_ORE = family('lit_redstone_ore', '红石矿石', [], () => ({
   tex: defs[REDSTONE_ORE].tex, hardness: defs[REDSTONE_ORE].hardness, tool: 'pickaxe', tier: defs[REDSTONE_ORE].tier, sound: 'stone',
   emission: 9, category: null, base: REDSTONE_ORE,
 }));
 const DEEP_REDSTONE = DEEPSLATE_ORE[REDSTONE_ORE];
-export const LIT_DEEPSLATE_REDSTONE_ORE = family('lit_deepslate_redstone_ore', 'Mena de redstone de pizarra profunda', [], () => ({
+export const LIT_DEEPSLATE_REDSTONE_ORE = family('lit_deepslate_redstone_ore', '深层红石矿石', [], () => ({
   tex: defs[DEEP_REDSTONE].tex, hardness: defs[DEEP_REDSTONE].hardness, tool: 'pickaxe', tier: defs[DEEP_REDSTONE].tier, sound: 'stone',
   emission: 9, category: null, base: DEEP_REDSTONE,
 }));
@@ -750,7 +750,7 @@ export function isLitRedstoneOre(id: number): boolean {
 const BULB_LIGHT = [15, 12, 8, 4];
 
 /** Bombilla de cobre: cambia de encendida a apagada con cada pulso de redstone (no se abre a mano). */
-export const COPPER_BULB = addCopperVariants('bulb', 'copper_bulb', 'Bombilla de cobre', [['lit', 2], ['powered', 2]], (s) => (st) => ({
+export const COPPER_BULB = addCopperVariants('bulb', 'copper_bulb', '铜灯', [['lit', 2], ['powered', 2]], (s) => (st) => ({
   all: copperTexture(st.lit ? 'copper_bulb_lit' : 'copper_bulb', s), hardness: 3, tool: 'pickaxe', tier: 1, sound: 'metal',
   category: 'redstone', emission: st.lit ? BULB_LIGHT[s] : 0,
 }));
@@ -788,7 +788,7 @@ const ROD_SEL: number[][] = [0, 1, 2, 3, 4, 5].map((f) => {
 });
 
 /** Pararrayos: `facing` es la cara hacia la que apunta (0..5); `powered` un momento cuando le cae un rayo. */
-export const LIGHTNING_ROD = addCopperVariants('lightning_rod', 'lightning_rod', 'Pararrayos', [['facing', 6], ['powered', 2]], (s) => (st) => {
+export const LIGHTNING_ROD = addCopperVariants('lightning_rod', 'lightning_rod', '避雷针', [['facing', 6], ['powered', 2]], (s) => (st) => {
   const tex = st.powered ? 'lightning_rod_on' : copperTexture('lightning_rod', s);
   return {
     render: R_MODEL, opaque: false, lightOpacity: 0, all: tex, hardness: 3, tool: 'pickaxe', tier: 1, sound: 'metal', category: 'redstone',

@@ -93,17 +93,17 @@ function shulkerParts(): ModelPart[] {
 export function endMobs(): MobDef[] {
   return [
     {
-      id: MOB_ENDERMITE, key: 'endermite', name: 'Endermita', hostile: true, health: 8, walk: 1.4, run: javaGroundSpeed(0.25),
+      id: MOB_ENDERMITE, key: 'endermite', name: '末影螨', hostile: true, health: 8, walk: 1.4, run: javaGroundSpeed(0.25),
       width: 0.4, height: 0.3, damage: 2, burnsInSun: false, drops: [], atlas: [64, 32], parts: endermiteParts(), anim: 'endermite',
       scale: 1, xp: 3,
     },
     {
-      id: MOB_ENDER_DRAGON, key: 'ender_dragon', name: 'Dragón de Ender', hostile: true, health: DRAGON_HEALTH, walk: 0, run: 0,
+      id: MOB_ENDER_DRAGON, key: 'ender_dragon', name: '末影龙', hostile: true, health: DRAGON_HEALTH, walk: 0, run: 0,
       width: 16, height: 8, damage: 10, burnsInSun: false, drops: [], atlas: [256, 256], parts: [], anim: 'dragon', scale: 1,
       flying: true, fireImmune: true, xp: 0,
     },
     {
-      id: MOB_SHULKER, key: 'shulker', name: 'Shulker', hostile: true, health: SHULKER_HEALTH, walk: 0, run: 0, width: 1, height: 1,
+      id: MOB_SHULKER, key: 'shulker', name: '潜影贝', hostile: true, health: SHULKER_HEALTH, walk: 0, run: 0, width: 1, height: 1,
       damage: 0, burnsInSun: false, drops: [], atlas: [64, 64], parts: shulkerParts(), anim: 'shulker', scale: 1, xp: 5,
     },
   ];

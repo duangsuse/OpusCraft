@@ -50,14 +50,14 @@ export class BookScreen {
       '<div class="book-head"></div>' +
       '<div class="book-page">' +
       '<textarea spellcheck="false" autocomplete="off"></textarea><div class="book-view"></div>' +
-      '<div class="book-sign"><label>Título del libro</label><input type="text" spellcheck="false" autocomplete="off">' +
+      '<div class="book-sign"><label>书名</label><input type="text" spellcheck="false" autocomplete="off">' +
       '<p class="book-sign-note"></p></div>' +
       '</div>' +
-      '<div class="book-nav"><button type="button" class="book-arrow" data-k="prev" aria-label="Página anterior">‹</button>' +
+      '<div class="book-nav"><button type="button" class="book-arrow" data-k="prev" aria-label="上一页">‹</button>' +
       '<span class="book-num"></span><span class="book-count"></span>' +
-      '<button type="button" class="book-arrow" data-k="next" aria-label="Página siguiente">›</button></div>' +
+      '<button type="button" class="book-arrow" data-k="next" aria-label="下一页">›</button></div>' +
       '<div class="book-actions"></div>' +
-      '<p class="book-hint">Re Pág / Av Pág: pasar página · Esc: cerrar</p>' +
+      '<p class="book-hint">Page Up / Page Down：翻页 · Esc：关闭</p>' +
       '</div>';
     const q = <T extends HTMLElement>(sel: string) => this.root.querySelector(sel) as T;
     this.els = {
@@ -201,12 +201,12 @@ export class BookScreen {
     if (mode === 'read' && r) {
       const gen = BOOK_GENERATIONS[r.gen ?? 0] ?? '';
       head.innerHTML = r.title
-        ? `<b>${esc(r.title)}</b><span>de ${esc(r.author ?? '?')} · ${esc(gen)}</span>`
-        : '<b>Libro y pluma</b><span>Sin firmar</span>';
+        ? `<b>${esc(r.title)}</b><span>作者：${esc(r.author ?? '?')} · ${esc(gen)}</span>`
+        : '<b>书与笔</b><span>未署名</span>';
     } else if (mode === 'sign') {
-      head.innerHTML = '<b>Firmar el libro</b>';
+      head.innerHTML = '<b>签署书本</b>';
     } else {
-      head.innerHTML = '<b>Libro y pluma</b><span>Escribe; al firmarlo tendrá título y autor</span>';
+      head.innerHTML = '<b>书与笔</b><span>输入内容；签署后将获得书名与作者</span>';
     }
     text.hidden = mode !== 'edit';
     view.hidden = mode !== 'read';
@@ -215,7 +215,7 @@ export class BookScreen {
     if (mode === 'read') view.textContent = this.pages[this.page] ?? '';
     if (mode === 'sign') {
       title.value = '';
-      signNote.textContent = `Autor: ${this.author}. Una vez firmado ya no se podrá editar.`;
+      signNote.textContent = `作者：${this.author}。签署后将无法再编辑。`;
     }
     this.renderNav();
     this.renderActions();
@@ -224,7 +224,7 @@ export class BookScreen {
   private renderNav(): void {
     const { num, count, prev, next } = this.els;
     const mode = this.mode;
-    num.textContent = mode === 'sign' ? '' : `Página ${this.page + 1} de ${this.pages.length}`;
+    num.textContent = mode === 'sign' ? '' : `第 ${this.page + 1} 页 · 共 ${this.pages.length} 页`;
     count.textContent = mode === 'edit' ? `${[...(this.pages[this.page] ?? '')].length}/${BOOK_PAGE_CHARS}` : '';
     prev.disabled = mode === 'sign' || this.page === 0;
     next.disabled = mode === 'sign' || (this.page >= this.pages.length - 1 && (mode !== 'edit' || this.pages.length >= BOOK_MAX_PAGES));
@@ -236,9 +236,9 @@ export class BookScreen {
     const mode = this.mode;
     const btn = (k: string, label: string, primary = false, disabled = false) =>
       `<button type="button" class="btn${primary ? ' primary' : ''}" data-a="${k}"${disabled ? ' disabled' : ''}>${label}</button>`;
-    if (mode === 'edit') a.innerHTML = btn('sign', 'Firmar') + btn('done', 'Hecho', true);
-    else if (mode === 'sign') a.innerHTML = btn('back', 'Cancelar') + btn('confirm', 'Firmar y cerrar', true, !this.els.title.value.trim());
-    else a.innerHTML = (this.read?.take ? btn('take', 'Sacar libro') : '') + btn('done', 'Cerrar', true);
+    if (mode === 'edit') a.innerHTML = btn('sign', '签署') + btn('done', '完成', true);
+    else if (mode === 'sign') a.innerHTML = btn('back', '取消') + btn('confirm', '签署并关闭', true, !this.els.title.value.trim());
+    else a.innerHTML = (this.read?.take ? btn('take', '取出书本') : '') + btn('done', '关闭', true);
     a.querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.addEventListener('click', () => this.action(b.dataset.a!)));
   }
 

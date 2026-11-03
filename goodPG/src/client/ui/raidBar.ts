@@ -51,14 +51,14 @@ export function renderRaidBar(st: RaidState | null, show: boolean): void {
   const waiting = st.s === 1 && st.r === 0;
   el.classList.toggle('waiting', waiting);
   if (st.s === 2) {
-    label.textContent = 'Asalto · Victoria';
+    label.textContent = '袭击 · 胜利';
     fill.style.width = '0%';
   } else if (st.s === 3) {
-    label.textContent = 'Asalto · Derrota';
+    label.textContent = '袭击 · 失败';
     fill.style.width = '0%';
   } else {
-    const left = st.r > 0 ? ` · quedan ${st.r}` : '';
-    label.textContent = `Asalto · Oleada ${st.w} de ${st.n}${left}`;
+    const left = st.r > 0 ? ` · 剩余 ${st.r}` : '';
+    label.textContent = `袭击 · 第 ${st.w} / ${st.n} 波${left}`;
     fill.style.width = `${Math.round(Math.max(0, Math.min(1, st.h)) * 100)}%`;
   }
 }

@@ -100,100 +100,100 @@ const plant = (o: Opts): Opts => ({
   ...o,
 });
 
-def(AIR, 'air', 'Aire', { render: R_NONE, solid: false, opaque: false, replaceable: true, all: 'stone', category: null });
-def(STONE, 'stone', 'Piedra', { all: 'stone' });
-def(GRASS, 'grass_block', 'Bloque de hierba', { top: 'grass_top', bottom: 'dirt', side: 'grass_side', sound: 'grass', category: 'naturaleza' });
-def(DIRT, 'dirt', 'Tierra', { all: 'dirt', sound: 'dirt', category: 'naturaleza' });
-def(COBBLESTONE, 'cobblestone', 'Roca', { all: 'cobblestone' });
-def(OAK_PLANKS, 'oak_planks', 'Tablones de roble', { all: 'oak_planks', sound: 'wood' });
-def(BEDROCK, 'bedrock', 'Lecho de roca', { all: 'bedrock', breakable: false, category: null });
-def(SAND, 'sand', 'Arena', { all: 'sand', sound: 'sand', category: 'naturaleza' });
-def(GRAVEL, 'gravel', 'Grava', { all: 'gravel', sound: 'gravel', category: 'naturaleza' });
-def(OAK_LOG, 'oak_log', 'Tronco de roble', { top: 'oak_log_top', side: 'oak_log_side', sound: 'wood', category: 'naturaleza' });
-def(OAK_LEAVES, 'oak_leaves', 'Hojas de roble', { all: 'oak_leaves', render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', category: 'naturaleza' });
-def(GLASS, 'glass', 'Cristal', { all: 'glass', render: R_CUTOUT, lightOpacity: 0, sound: 'glass' });
-def(WATER, 'water', 'Agua', { all: 'water', render: R_WATER, solid: false, lightOpacity: 2, sound: 'water', replaceable: true, category: 'naturaleza' });
-def(COAL_ORE, 'coal_ore', 'Mena de carbón', { all: 'coal_ore', category: 'minerales' });
-def(IRON_ORE, 'iron_ore', 'Mena de hierro', { all: 'iron_ore', category: 'minerales' });
-def(GOLD_ORE, 'gold_ore', 'Mena de oro', { all: 'gold_ore', category: 'minerales' });
-def(DIAMOND_ORE, 'diamond_ore', 'Mena de diamante', { all: 'diamond_ore', category: 'minerales' });
-def(LAPIS_ORE, 'lapis_ore', 'Mena de lapislázuli', { all: 'lapis_ore', category: 'minerales' });
-def(REDSTONE_ORE, 'redstone_ore', 'Mena de redstone', { all: 'redstone_ore', category: 'minerales' });
-def(SANDSTONE, 'sandstone', 'Arenisca', { top: 'sandstone_top', bottom: 'sandstone_bottom', side: 'sandstone_side' });
-def(SNOWY_GRASS, 'snowy_grass_block', 'Hierba nevada', { top: 'snow', bottom: 'dirt', side: 'grass_side_snowy', sound: 'snow', category: 'naturaleza' });
-def(SNOW_BLOCK, 'snow_block', 'Bloque de nieve', { all: 'snow', sound: 'snow', category: 'naturaleza' });
-def(ICE, 'ice', 'Hielo', { all: 'ice', render: R_TRANSLUCENT, lightOpacity: 2, sound: 'glass', category: 'naturaleza' });
-def(CLAY, 'clay', 'Arcilla', { all: 'clay', sound: 'dirt', category: 'naturaleza' });
-def(CACTUS, 'cactus', 'Cactus', { top: 'cactus_top', bottom: 'cactus_bottom', side: 'cactus_side', render: R_CACTUS, lightOpacity: 0, sound: 'wool', category: 'naturaleza' });
-def(BIRCH_LOG, 'birch_log', 'Tronco de abedul', { top: 'birch_log_top', side: 'birch_log_side', sound: 'wood', category: 'naturaleza' });
-def(BIRCH_LEAVES, 'birch_leaves', 'Hojas de abedul', { all: 'birch_leaves', render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', category: 'naturaleza' });
-def(SPRUCE_LOG, 'spruce_log', 'Tronco de abeto', { top: 'spruce_log_top', side: 'spruce_log_side', sound: 'wood', category: 'naturaleza' });
-def(SPRUCE_LEAVES, 'spruce_leaves', 'Hojas de abeto', { all: 'spruce_leaves', render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', category: 'naturaleza' });
-def(SHORT_GRASS, 'short_grass', 'Hierba', plant({ all: 'short_grass', replaceable: true }));
-def(FERN, 'fern', 'Helecho', plant({ all: 'fern', replaceable: true }));
-def(POPPY, 'poppy', 'Amapola', plant({ all: 'poppy' }));
-def(DANDELION, 'dandelion', 'Diente de león', plant({ all: 'dandelion' }));
-def(CORNFLOWER, 'cornflower', 'Aciano', plant({ all: 'cornflower' }));
-def(DEAD_BUSH, 'dead_bush', 'Arbusto seco', plant({ all: 'dead_bush', replaceable: true }));
-def(SUGAR_CANE, 'sugar_cane', 'Caña de azúcar', plant({ all: 'sugar_cane' }));
-def(RED_MUSHROOM, 'red_mushroom', 'Champiñón rojo', plant({ all: 'red_mushroom' }));
-def(BROWN_MUSHROOM, 'brown_mushroom', 'Champiñón marrón', plant({ all: 'brown_mushroom' }));
-def(TORCH, 'torch', 'Antorcha', { all: 'torch', render: R_TORCH, solid: false, lightOpacity: 0, emission: 14, sound: 'wood', category: 'decoracion' });
-def(GLOWSTONE, 'glowstone', 'Piedra luminosa', { all: 'glowstone', emission: 15, sound: 'glass', category: 'decoracion' });
-def(SEA_LANTERN, 'sea_lantern', 'Linterna marina', { all: 'sea_lantern', emission: 15, sound: 'glass', category: 'decoracion' });
-def(LAVA, 'lava', 'Lava', { all: 'lava', render: R_LAVA, solid: false, opaque: false, lightOpacity: 15, emission: 15, sound: 'lava', replaceable: true, category: 'naturaleza' });
-def(BRICKS, 'bricks', 'Ladrillos', { all: 'bricks' });
-def(STONE_BRICKS, 'stone_bricks', 'Ladrillos de piedra', { all: 'stone_bricks' });
-def(MOSSY_COBBLESTONE, 'mossy_cobblestone', 'Roca musgosa', { all: 'mossy_cobblestone' });
-def(OBSIDIAN, 'obsidian', 'Obsidiana', { all: 'obsidian' });
-def(BOOKSHELF, 'bookshelf', 'Librería', { top: 'oak_planks', side: 'bookshelf', sound: 'wood', category: 'decoracion' });
-def(CRAFTING_TABLE, 'crafting_table', 'Mesa de trabajo', {
+def(AIR, 'air', '空气', { render: R_NONE, solid: false, opaque: false, replaceable: true, all: 'stone', category: null });
+def(STONE, 'stone', '石头', { all: 'stone' });
+def(GRASS, 'grass_block', '草方块', { top: 'grass_top', bottom: 'dirt', side: 'grass_side', sound: 'grass', category: 'naturaleza' });
+def(DIRT, 'dirt', '泥土', { all: 'dirt', sound: 'dirt', category: 'naturaleza' });
+def(COBBLESTONE, 'cobblestone', '圆石', { all: 'cobblestone' });
+def(OAK_PLANKS, 'oak_planks', '橡木木板', { all: 'oak_planks', sound: 'wood' });
+def(BEDROCK, 'bedrock', '基岩', { all: 'bedrock', breakable: false, category: null });
+def(SAND, 'sand', '沙子', { all: 'sand', sound: 'sand', category: 'naturaleza' });
+def(GRAVEL, 'gravel', '砂砾', { all: 'gravel', sound: 'gravel', category: 'naturaleza' });
+def(OAK_LOG, 'oak_log', '橡木原木', { top: 'oak_log_top', side: 'oak_log_side', sound: 'wood', category: 'naturaleza' });
+def(OAK_LEAVES, 'oak_leaves', '橡木树叶', { all: 'oak_leaves', render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', category: 'naturaleza' });
+def(GLASS, 'glass', '玻璃', { all: 'glass', render: R_CUTOUT, lightOpacity: 0, sound: 'glass' });
+def(WATER, 'water', '水', { all: 'water', render: R_WATER, solid: false, lightOpacity: 2, sound: 'water', replaceable: true, category: 'naturaleza' });
+def(COAL_ORE, 'coal_ore', '煤矿石', { all: 'coal_ore', category: 'minerales' });
+def(IRON_ORE, 'iron_ore', '铁矿石', { all: 'iron_ore', category: 'minerales' });
+def(GOLD_ORE, 'gold_ore', '金矿石', { all: 'gold_ore', category: 'minerales' });
+def(DIAMOND_ORE, 'diamond_ore', '钻石矿石', { all: 'diamond_ore', category: 'minerales' });
+def(LAPIS_ORE, 'lapis_ore', '青金石矿石', { all: 'lapis_ore', category: 'minerales' });
+def(REDSTONE_ORE, 'redstone_ore', '红石矿石', { all: 'redstone_ore', category: 'minerales' });
+def(SANDSTONE, 'sandstone', '砂岩', { top: 'sandstone_top', bottom: 'sandstone_bottom', side: 'sandstone_side' });
+def(SNOWY_GRASS, 'snowy_grass_block', '积雪草方块', { top: 'snow', bottom: 'dirt', side: 'grass_side_snowy', sound: 'snow', category: 'naturaleza' });
+def(SNOW_BLOCK, 'snow_block', '雪块', { all: 'snow', sound: 'snow', category: 'naturaleza' });
+def(ICE, 'ice', '冰', { all: 'ice', render: R_TRANSLUCENT, lightOpacity: 2, sound: 'glass', category: 'naturaleza' });
+def(CLAY, 'clay', '黏土', { all: 'clay', sound: 'dirt', category: 'naturaleza' });
+def(CACTUS, 'cactus', '仙人掌', { top: 'cactus_top', bottom: 'cactus_bottom', side: 'cactus_side', render: R_CACTUS, lightOpacity: 0, sound: 'wool', category: 'naturaleza' });
+def(BIRCH_LOG, 'birch_log', '白桦原木', { top: 'birch_log_top', side: 'birch_log_side', sound: 'wood', category: 'naturaleza' });
+def(BIRCH_LEAVES, 'birch_leaves', '白桦树叶', { all: 'birch_leaves', render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', category: 'naturaleza' });
+def(SPRUCE_LOG, 'spruce_log', '云杉原木', { top: 'spruce_log_top', side: 'spruce_log_side', sound: 'wood', category: 'naturaleza' });
+def(SPRUCE_LEAVES, 'spruce_leaves', '云杉树叶', { all: 'spruce_leaves', render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', category: 'naturaleza' });
+def(SHORT_GRASS, 'short_grass', '矮草丛', plant({ all: 'short_grass', replaceable: true }));
+def(FERN, 'fern', '蕨', plant({ all: 'fern', replaceable: true }));
+def(POPPY, 'poppy', '虞美人', plant({ all: 'poppy' }));
+def(DANDELION, 'dandelion', '蒲公英', plant({ all: 'dandelion' }));
+def(CORNFLOWER, 'cornflower', '矢车菊', plant({ all: 'cornflower' }));
+def(DEAD_BUSH, 'dead_bush', '枯萎的灌木', plant({ all: 'dead_bush', replaceable: true }));
+def(SUGAR_CANE, 'sugar_cane', '甘蔗', plant({ all: 'sugar_cane' }));
+def(RED_MUSHROOM, 'red_mushroom', '红色蘑菇', plant({ all: 'red_mushroom' }));
+def(BROWN_MUSHROOM, 'brown_mushroom', '棕色蘑菇', plant({ all: 'brown_mushroom' }));
+def(TORCH, 'torch', '火把', { all: 'torch', render: R_TORCH, solid: false, lightOpacity: 0, emission: 14, sound: 'wood', category: 'decoracion' });
+def(GLOWSTONE, 'glowstone', '荧石', { all: 'glowstone', emission: 15, sound: 'glass', category: 'decoracion' });
+def(SEA_LANTERN, 'sea_lantern', '海晶灯', { all: 'sea_lantern', emission: 15, sound: 'glass', category: 'decoracion' });
+def(LAVA, 'lava', '熔岩', { all: 'lava', render: R_LAVA, solid: false, opaque: false, lightOpacity: 15, emission: 15, sound: 'lava', replaceable: true, category: 'naturaleza' });
+def(BRICKS, 'bricks', '红砖块', { all: 'bricks' });
+def(STONE_BRICKS, 'stone_bricks', '石砖', { all: 'stone_bricks' });
+def(MOSSY_COBBLESTONE, 'mossy_cobblestone', '苔石', { all: 'mossy_cobblestone' });
+def(OBSIDIAN, 'obsidian', '黑曜石', { all: 'obsidian' });
+def(BOOKSHELF, 'bookshelf', '书架', { top: 'oak_planks', side: 'bookshelf', sound: 'wood', category: 'decoracion' });
+def(CRAFTING_TABLE, 'crafting_table', '工作台', {
   tex: ['crafting_table_side', 'crafting_table_side', 'crafting_table_top', 'oak_planks', 'crafting_table_front', 'crafting_table_side'],
   sound: 'wood',
   category: 'decoracion',
 });
-def(PUMPKIN, 'pumpkin', 'Calabaza', { top: 'pumpkin_top', side: 'pumpkin_side', sound: 'wood', category: 'decoracion' });
-def(HAY_BALE, 'hay_bale', 'Fardo de heno', { top: 'hay_bale_top', side: 'hay_bale_side', sound: 'grass', category: 'decoracion' });
-def(BIRCH_PLANKS, 'birch_planks', 'Tablones de abedul', { all: 'birch_planks', sound: 'wood' });
-def(SPRUCE_PLANKS, 'spruce_planks', 'Tablones de abeto', { all: 'spruce_planks', sound: 'wood' });
-def(GRANITE, 'granite', 'Granito', { all: 'granite' });
-def(DIORITE, 'diorite', 'Diorita', { all: 'diorite' });
-def(ANDESITE, 'andesite', 'Andesita', { all: 'andesite' });
-def(TERRACOTTA, 'terracotta', 'Terracota', { all: 'terracotta' });
-def(QUARTZ_BLOCK, 'quartz_block', 'Bloque de cuarzo', { all: 'quartz_block' });
-def(GOLD_BLOCK, 'gold_block', 'Bloque de oro', { all: 'gold_block', sound: 'metal', category: 'minerales' });
-def(IRON_BLOCK, 'iron_block', 'Bloque de hierro', { all: 'iron_block', sound: 'metal', category: 'minerales' });
-def(DIAMOND_BLOCK, 'diamond_block', 'Bloque de diamante', { all: 'diamond_block', sound: 'metal', category: 'minerales' });
-def(COPPER_BLOCK, 'copper_block', 'Bloque de cobre', { all: 'copper_block', sound: 'metal', category: 'minerales' });
-def(WHITE_WOOL, 'white_wool', 'Lana blanca', { all: 'white_wool', sound: 'wool', category: 'colores' });
-def(BLACK_WOOL, 'black_wool', 'Lana negra', { all: 'black_wool', sound: 'wool', category: 'colores' });
-def(RED_WOOL, 'red_wool', 'Lana roja', { all: 'red_wool', sound: 'wool', category: 'colores' });
-def(ORANGE_WOOL, 'orange_wool', 'Lana naranja', { all: 'orange_wool', sound: 'wool', category: 'colores' });
-def(YELLOW_WOOL, 'yellow_wool', 'Lana amarilla', { all: 'yellow_wool', sound: 'wool', category: 'colores' });
-def(LIME_WOOL, 'lime_wool', 'Lana verde lima', { all: 'lime_wool', sound: 'wool', category: 'colores' });
-def(BLUE_WOOL, 'blue_wool', 'Lana azul', { all: 'blue_wool', sound: 'wool', category: 'colores' });
-def(PURPLE_WOOL, 'purple_wool', 'Lana morada', { all: 'purple_wool', sound: 'wool', category: 'colores' });
+def(PUMPKIN, 'pumpkin', '南瓜', { top: 'pumpkin_top', side: 'pumpkin_side', sound: 'wood', category: 'decoracion' });
+def(HAY_BALE, 'hay_bale', '干草捆', { top: 'hay_bale_top', side: 'hay_bale_side', sound: 'grass', category: 'decoracion' });
+def(BIRCH_PLANKS, 'birch_planks', '白桦木板', { all: 'birch_planks', sound: 'wood' });
+def(SPRUCE_PLANKS, 'spruce_planks', '云杉木板', { all: 'spruce_planks', sound: 'wood' });
+def(GRANITE, 'granite', '花岗岩', { all: 'granite' });
+def(DIORITE, 'diorite', '闪长岩', { all: 'diorite' });
+def(ANDESITE, 'andesite', '安山岩', { all: 'andesite' });
+def(TERRACOTTA, 'terracotta', '陶瓦', { all: 'terracotta' });
+def(QUARTZ_BLOCK, 'quartz_block', '石英块', { all: 'quartz_block' });
+def(GOLD_BLOCK, 'gold_block', '金块', { all: 'gold_block', sound: 'metal', category: 'minerales' });
+def(IRON_BLOCK, 'iron_block', '铁块', { all: 'iron_block', sound: 'metal', category: 'minerales' });
+def(DIAMOND_BLOCK, 'diamond_block', '钻石块', { all: 'diamond_block', sound: 'metal', category: 'minerales' });
+def(COPPER_BLOCK, 'copper_block', '铜块', { all: 'copper_block', sound: 'metal', category: 'minerales' });
+def(WHITE_WOOL, 'white_wool', '白色羊毛', { all: 'white_wool', sound: 'wool', category: 'colores' });
+def(BLACK_WOOL, 'black_wool', '黑色羊毛', { all: 'black_wool', sound: 'wool', category: 'colores' });
+def(RED_WOOL, 'red_wool', '红色羊毛', { all: 'red_wool', sound: 'wool', category: 'colores' });
+def(ORANGE_WOOL, 'orange_wool', '橙色羊毛', { all: 'orange_wool', sound: 'wool', category: 'colores' });
+def(YELLOW_WOOL, 'yellow_wool', '黄色羊毛', { all: 'yellow_wool', sound: 'wool', category: 'colores' });
+def(LIME_WOOL, 'lime_wool', '黄绿色羊毛', { all: 'lime_wool', sound: 'wool', category: 'colores' });
+def(BLUE_WOOL, 'blue_wool', '蓝色羊毛', { all: 'blue_wool', sound: 'wool', category: 'colores' });
+def(PURPLE_WOOL, 'purple_wool', '紫色羊毛', { all: 'purple_wool', sound: 'wool', category: 'colores' });
 
 // Fluidos en movimiento (no aparecen en el inventario).
 for (let l = 1; l <= 7; l++) {
-  def(WATER_FLOW_1 + l - 1, 'water_flow_' + l, 'Agua', {
+  def(WATER_FLOW_1 + l - 1, 'water_flow_' + l, '水', {
     all: 'water', render: R_WATER, solid: false, lightOpacity: 2, sound: 'water', replaceable: true, category: null,
     fluid: 1, level: l, hardness: -1,
   });
 }
-def(WATER_FALL, 'water_fall', 'Agua', {
+def(WATER_FALL, 'water_fall', '水', {
   all: 'water', render: R_WATER, solid: false, lightOpacity: 2, sound: 'water', replaceable: true, category: null,
   fluid: 1, level: 8, hardness: -1,
 });
 // Fase 8.2: como en Java, el nivel de la lava es 8 − su cantidad; la del mundo normal baja de 2 en 2 (niveles 2, 4
 // y 6) y la del Nether, de 1 en 1 (los impares se registran al final, en fluids.ts de blocks). Toda da luz 15.
 for (let l = 1; l <= 3; l++) {
-  def(LAVA_FLOW_1 + l - 1, 'lava_flow_' + l, 'Lava', {
+  def(LAVA_FLOW_1 + l - 1, 'lava_flow_' + l, '熔岩', {
     all: 'lava', render: R_LAVA, solid: false, opaque: false, lightOpacity: 15, emission: 15, sound: 'lava',
     replaceable: true, category: null, fluid: 2, level: l * 2, hardness: -1,
   });
 }
-def(LAVA_FALL, 'lava_fall', 'Lava', {
+def(LAVA_FALL, 'lava_fall', '熔岩', {
   all: 'lava', render: R_LAVA, solid: false, opaque: false, lightOpacity: 15, emission: 15, sound: 'lava',
   replaceable: true, category: null, fluid: 2, level: 8, hardness: -1,
 });
@@ -211,15 +211,15 @@ function oriented(base: number, key: string, name: string, front: string, side: 
     def(base + f, f === 0 ? key : key + '_' + f, name, { ...o, tex, category: f === 0 ? o.category ?? 'decoracion' : null });
   }
 }
-oriented(FURNACE, 'furnace', 'Horno', 'furnace_front', 'furnace_side', 'furnace_top', { hardness: 3.5, tool: 'pickaxe', tier: 1 });
-oriented(FURNACE_LIT, 'furnace_lit', 'Horno', 'furnace_front_lit', 'furnace_side', 'furnace_top', {
+oriented(FURNACE, 'furnace', '熔炉', 'furnace_front', 'furnace_side', 'furnace_top', { hardness: 3.5, tool: 'pickaxe', tier: 1 });
+oriented(FURNACE_LIT, 'furnace_lit', '熔炉', 'furnace_front_lit', 'furnace_side', 'furnace_top', {
   hardness: 3.5, tool: 'pickaxe', tier: 1, emission: 13, category: null,
 });
 for (let f = 0; f < 4; f++) defs[FURNACE_LIT + f].category = null;
-oriented(CHEST, 'chest', 'Cofre', 'chest_front', 'chest_side', 'chest_top', { hardness: 2.5, tool: 'axe', sound: 'wood' });
-def(OAK_SAPLING, 'oak_sapling', 'Brote de roble', plant({ all: 'oak_sapling', hardness: 0 }));
-def(BIRCH_SAPLING, 'birch_sapling', 'Brote de abedul', plant({ all: 'birch_sapling', hardness: 0 }));
-def(SPRUCE_SAPLING, 'spruce_sapling', 'Brote de abeto', plant({ all: 'spruce_sapling', hardness: 0 }));
+oriented(CHEST, 'chest', '箱子', 'chest_front', 'chest_side', 'chest_top', { hardness: 2.5, tool: 'axe', sound: 'wood' });
+def(OAK_SAPLING, 'oak_sapling', '橡木树苗', plant({ all: 'oak_sapling', hardness: 0 }));
+def(BIRCH_SAPLING, 'birch_sapling', '白桦树苗', plant({ all: 'birch_sapling', hardness: 0 }));
+def(SPRUCE_SAPLING, 'spruce_sapling', '云杉树苗', plant({ all: 'spruce_sapling', hardness: 0 }));
 
 /** [dureza, herramienta, nivel] por clave de bloque (valores de Minecraft). */
 const MINING: Record<string, [number, ToolKind | null, number]> = {
@@ -246,7 +246,7 @@ const MINING: Record<string, [number, ToolKind | null, number]> = {
 };
 for (const [key, [h, tool, tier]] of Object.entries(MINING)) {
   const b = defs.find((d) => d && d.key === key);
-  if (!b) throw new Error('Bloque desconocido en MINING: ' + key);
+  if (!b) throw new Error('MINING 中有未知方块：' + key);
   b.hardness = h;
   b.tool = tool;
   b.tier = tier;

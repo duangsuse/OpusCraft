@@ -26,20 +26,20 @@ function beeHome(key: string, name: string, t: HomeTextures, hardness: number, c
 }
 
 /** Nido de abejas natural: la entrada mira hacia fuera del tronco. */
-export const BEE_NEST = beeHome('bee_nest', 'Nido de abejas', {
+export const BEE_NEST = beeHome('bee_nest', '蜂巢', {
   top: 'bee_nest_top', bottom: 'bee_nest_bottom', side: 'bee_nest_side', front: 'bee_nest_front', frontHoney: 'bee_nest_front_honey',
 }, 0.3, 'naturaleza');
 
 /** Colmena: tablones y panal; las abejas sin casa la adoptan igual que un nido. */
-export const BEEHIVE = beeHome('beehive', 'Colmena', {
+export const BEEHIVE = beeHome('beehive', '蜂箱', {
   top: 'beehive_end', bottom: 'beehive_end', side: 'beehive_side', front: 'beehive_front', frontHoney: 'beehive_front_honey',
 }, 0.6, 'decoracion');
 
-export const HONEY_BLOCK = family('honey_block', 'Bloque de miel', [], () => ({
+export const HONEY_BLOCK = family('honey_block', '蜂蜜块', [], () => ({
   all: 'honey_block', hardness: 0, sound: 'wool', category: 'decoracion',
 }));
 
-export const HONEYCOMB_BLOCK = family('honeycomb_block', 'Bloque de panal', [], () => ({
+export const HONEYCOMB_BLOCK = family('honeycomb_block', '蜜脾块', [], () => ({
   all: 'honeycomb_block', hardness: 0.6, sound: 'wood', category: 'decoracion',
 }));
 

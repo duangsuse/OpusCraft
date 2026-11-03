@@ -131,11 +131,11 @@ function piston(key: string, name: string, sticky: boolean): number {
   });
 }
 
-export const PISTON = piston('piston', 'Pistón', false);
-export const STICKY_PISTON = piston('sticky_piston', 'Pistón adhesivo', true);
+export const PISTON = piston('piston', '活塞', false);
+export const STICKY_PISTON = piston('sticky_piston', '黏性活塞', true);
 
 /** Cabeza del pistón (la pone el pistón al extenderse; no se obtiene como objeto). */
-export const PISTON_HEAD = sixWay('piston_head', 'Cabeza de pistón', ORDER_UP, [['sticky', 2]], (facing, st) => ({
+export const PISTON_HEAD = sixWay('piston_head', '活塞头', ORDER_UP, [['sticky', 2]], (facing, st) => ({
   render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 1.5, tool: 'pickaxe', sound: 'stone', noItem: true, category: null,
   all: 'piston_top', model: pistonTextures(pointBoxes(HEAD_UP, facing), facing, st.sticky === 1),
 }));
@@ -144,7 +144,7 @@ export const PISTON_HEAD = sixWay('piston_head', 'Cabeza de pistón', ORDER_UP, 
  * Bloque en movimiento: el hueco que ocupa lo que empuja o recoge un pistón mientras se desliza (lo
  * dibuja el cliente aparte). No se ve, no choca y no se puede romper ni mover.
  */
-export const MOVING_BLOCK = family('moving_piston', 'Bloque en movimiento', [], () => ({
+export const MOVING_BLOCK = family('moving_piston', '移动的活塞', [], () => ({
   render: R_NONE, solid: false, opaque: false, lightOpacity: 0, hardness: -1, breakable: false, noItem: true, category: null,
   all: 'piston_side', collision: [], selection: [],
 }));
@@ -182,7 +182,7 @@ for (let i = 0; i < 12; i++) setConductor([PISTON + i, STICKY_PISTON + i], false
 // ------------------------------------------------------------------ observador
 
 /** Observador: la cara (`facing`) mira al bloque que vigila; por detrás da un pulso al cambiar. */
-export const OBSERVER = sixWay('observer', 'Observador', ORDER_SOUTH, [['powered', 2]], (facing, st) => {
+export const OBSERVER = sixWay('observer', '侦测器', ORDER_SOUTH, [['powered', 2]], (facing, st) => {
   const tex = [0, 1, 2, 3, 4, 5].map((f) => {
     // La flecha de dos de los lados apunta hacia la salida; los otros dos, lisos.
     const vertical = facing === UP || facing === DOWN;
@@ -238,7 +238,7 @@ function hopperBoxes(facing: number): ModelBox[] {
 }
 
 /** Tolva: pasa objetos hacia donde apunta su pico y coge los de encima; con potencia se bloquea. */
-export const HOPPER = family('hopper', 'Tolva', [['facing', 5], ['locked', 2]], (st) => ({
+export const HOPPER = family('hopper', '漏斗', [['facing', 5], ['locked', 2]], (st) => ({
   render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 3, tool: 'pickaxe', tier: 1, sound: 'metal', category: 'redstone',
   all: 'hopper_outside', model: hopperBoxes(st.facing), itemModel: hopperBoxes(HOPPER_DOWN),
 }));
@@ -274,9 +274,9 @@ function dispenserLike(key: string, name: string, front: string): number {
 }
 
 /** Dispensador: con un pulso usa uno de sus objetos (dispara flechas, pone agua, enciende…). */
-export const DISPENSER = dispenserLike('dispenser', 'Dispensador', 'dispenser_front');
+export const DISPENSER = dispenserLike('dispenser', '发射器', 'dispenser_front');
 /** Soltador: con un pulso suelta uno de sus objetos (o lo mete en el contenedor de delante). */
-export const DROPPER = dispenserLike('dropper', 'Soltador', 'dropper_front');
+export const DROPPER = dispenserLike('dropper', '投掷器', 'dropper_front');
 
 export function isDispenser(id: number): boolean {
   return id > 0 && familyBase(id) === DISPENSER;
@@ -297,7 +297,7 @@ export function dispenserWith(id: number, triggered: boolean): number {
 // ------------------------------------------------------------------ dinamita
 
 /** Dinamita: se enciende con redstone, un mechero, fuego, una flecha en llamas o una explosión. */
-export const TNT = family('tnt', 'Dinamita', [], () => ({
+export const TNT = family('tnt', 'TNT', [], () => ({
   side: 'tnt_side', top: 'tnt_top', bottom: 'tnt_bottom', hardness: 0, sound: 'grass', category: 'redstone',
 }));
 setConductor(TNT, false);
@@ -312,7 +312,7 @@ export function mechanismSlots(id: number): number {
 
 /** Nombre de la ventana de su inventario. */
 export function mechanismTitle(id: number): string {
-  return isHopper(id) ? 'Tolva' : isDispenser(id) ? 'Dispensador' : isDropper(id) ? 'Soltador' : '';
+  return isHopper(id) ? '漏斗' : isDispenser(id) ? '发射器' : isDropper(id) ? '投掷器' : '';
 }
 
 

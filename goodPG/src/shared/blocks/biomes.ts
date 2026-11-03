@@ -23,36 +23,38 @@ const plant = (tex: string, o: Opts = {}): Opts => ({
 
 export interface WoodType {
   key: string;
-  /** "de roble", "de jungla"… */
+  /** Nombre del árbol (troncos, hojas y tablones). */
   name: string;
+  /** Nombre de la madera en las formas (losas, escaleras, puertas y carteles). */
+  wood: string;
   log: number;
   planks: number;
   leaves: number;
   sapling: number;
 }
 
-function newWood(key: string, name: string): WoodType {
-  const log = family(`${key}_log`, `Tronco ${name}`, [], () => ({
+function newWood(key: string, name: string, wood: string): WoodType {
+  const log = family(`${key}_log`, `${name}原木`, [], () => ({
     top: `${key}_log_top`, side: `${key}_log_side`, sound: 'wood', hardness: 2, tool: 'axe', category: 'naturaleza',
   }));
-  const planks = family(`${key}_planks`, `Tablones ${name}`, [], () => ({
+  const planks = family(`${key}_planks`, `${name}木板`, [], () => ({
     all: `${key}_planks`, sound: 'wood', hardness: 2, tool: 'axe',
   }));
-  const leaves = family(`${key}_leaves`, `Hojas ${name}`, [], () => ({
+  const leaves = family(`${key}_leaves`, `${name}树叶`, [], () => ({
     all: `${key}_leaves`, render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', hardness: 0.2, category: 'naturaleza',
   }));
-  const sapling = family(`${key}_sapling`, `Brote ${name}`, [], () => plant(`${key}_sapling`));
-  const m: Material = { key, name, block: planks, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' };
+  const sapling = family(`${key}_sapling`, `${name}树苗`, [], () => plant(`${key}_sapling`));
+  const m: Material = { key, name: wood, block: planks, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' };
   addMaterialShapes(m);
   addWoodShapes(m);
-  addSign(key, name);
-  return { key, name, log, planks, leaves, sapling };
+  addSign(key, wood);
+  return { key, name, wood, log, planks, leaves, sapling };
 }
 
-const JUNGLE = newWood('jungle', 'de jungla');
-const ACACIA = newWood('acacia', 'de acacia');
-const DARK_OAK = newWood('dark_oak', 'de roble oscuro');
-const CHERRY = newWood('cherry', 'de cerezo');
+const JUNGLE = newWood('jungle', '丛林', '丛林木');
+const ACACIA = newWood('acacia', '金合欢', '金合欢木');
+const DARK_OAK = newWood('dark_oak', '深色橡木', '深色橡木');
+const CHERRY = newWood('cherry', '樱花', '樱花木');
 
 export const JUNGLE_LOG = JUNGLE.log, JUNGLE_PLANKS = JUNGLE.planks, JUNGLE_LEAVES = JUNGLE.leaves, JUNGLE_SAPLING = JUNGLE.sapling;
 export const ACACIA_LOG = ACACIA.log, ACACIA_PLANKS = ACACIA.planks, ACACIA_LEAVES = ACACIA.leaves, ACACIA_SAPLING = ACACIA.sapling;
@@ -62,9 +64,9 @@ export const CHERRY_LOG = CHERRY.log, CHERRY_PLANKS = CHERRY.planks, CHERRY_LEAV
 
 /** Todas las maderas, en el orden en que se registraron. */
 export const WOOD_TYPES: readonly WoodType[] = [
-  { key: 'oak', name: 'de roble', log: OAK_LOG, planks: OAK_PLANKS, leaves: OAK_LEAVES, sapling: OAK_SAPLING },
-  { key: 'birch', name: 'de abedul', log: BIRCH_LOG, planks: BIRCH_PLANKS, leaves: BIRCH_LEAVES, sapling: BIRCH_SAPLING },
-  { key: 'spruce', name: 'de abeto', log: SPRUCE_LOG, planks: SPRUCE_PLANKS, leaves: SPRUCE_LEAVES, sapling: SPRUCE_SAPLING },
+  { key: 'oak', name: '橡木', wood: '橡木', log: OAK_LOG, planks: OAK_PLANKS, leaves: OAK_LEAVES, sapling: OAK_SAPLING },
+  { key: 'birch', name: '白桦', wood: '白桦木', log: BIRCH_LOG, planks: BIRCH_PLANKS, leaves: BIRCH_LEAVES, sapling: BIRCH_SAPLING },
+  { key: 'spruce', name: '云杉', wood: '云杉木', log: SPRUCE_LOG, planks: SPRUCE_PLANKS, leaves: SPRUCE_LEAVES, sapling: SPRUCE_SAPLING },
   JUNGLE, ACACIA, DARK_OAK, CHERRY,
 ];
 export const ALL_LOGS: readonly number[] = WOOD_TYPES.map((w) => w.log);
@@ -95,7 +97,7 @@ export function woodOf(id: number): WoodType | undefined {
  * Enredaderas: cuelgan de la pared de detrás (como la escalera de mano) o de otra enredadera de
  * encima, se trepan y se pueden atravesar. `facing` es hacia donde mira la hoja (la pared, detrás).
  */
-export const VINE = family('vine', 'Enredaderas', [['facing', 4]], (st) => {
+export const VINE = family('vine', '藤蔓', [['facing', 4]], (st) => {
   const t = L('vine');
   const f = st.facing;
   return {
@@ -115,7 +117,7 @@ export const VINE = family('vine', 'Enredaderas', [['facing', 4]], (st) => {
 export const isVine = (id: number): boolean => id >= VINE && id < VINE + 4;
 
 /** Nenúfar: flota sobre una fuente de agua y se puede pisar. */
-export const LILY_PAD = family('lily_pad', 'Nenúfar', [], () => {
+export const LILY_PAD = family('lily_pad', '睡莲', [], () => {
   const t = L('lily_pad');
   return {
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 0, sound: 'grass', category: 'naturaleza', flatItem: 'lily_pad',
@@ -131,36 +133,36 @@ export const LILY_PAD = family('lily_pad', 'Nenúfar', [], () => {
 
 // ------------------------------------------------------------------ suelos y bloques de bioma
 
-export const MYCELIUM = family('mycelium', 'Micelio', [], () => ({
+export const MYCELIUM = family('mycelium', '菌丝体', [], () => ({
   top: 'mycelium_top', side: 'mycelium_side', bottom: 'dirt', sound: 'grass', hardness: 0.6, tool: 'shovel', category: 'naturaleza',
 }));
-export const RED_MUSHROOM_BLOCK = family('red_mushroom_block', 'Bloque de champiñón rojo', [], () => ({
+export const RED_MUSHROOM_BLOCK = family('red_mushroom_block', '红色蘑菇方块', [], () => ({
   all: 'red_mushroom_block', sound: 'wood', hardness: 0.2, tool: 'axe', category: 'naturaleza',
 }));
-export const BROWN_MUSHROOM_BLOCK = family('brown_mushroom_block', 'Bloque de champiñón marrón', [], () => ({
+export const BROWN_MUSHROOM_BLOCK = family('brown_mushroom_block', '棕色蘑菇方块', [], () => ({
   all: 'brown_mushroom_block', sound: 'wood', hardness: 0.2, tool: 'axe', category: 'naturaleza',
 }));
-export const MUSHROOM_STEM = family('mushroom_stem', 'Tallo de champiñón', [], () => ({
+export const MUSHROOM_STEM = family('mushroom_stem', '蘑菇柄', [], () => ({
   side: 'mushroom_stem', top: 'mushroom_block_inside', sound: 'wood', hardness: 0.2, tool: 'axe', category: 'naturaleza',
 }));
-export const RED_SAND = family('red_sand', 'Arena roja', [], () => ({
+export const RED_SAND = family('red_sand', '红沙', [], () => ({
   all: 'red_sand', sound: 'sand', hardness: 0.5, tool: 'shovel', category: 'naturaleza',
 }));
-export const RED_SANDSTONE = family('red_sandstone', 'Arenisca roja', [], () => ({
+export const RED_SANDSTONE = family('red_sandstone', '红砂岩', [], () => ({
   top: 'red_sandstone_top', side: 'red_sandstone_side', bottom: 'red_sandstone_bottom', hardness: 0.8, tool: 'pickaxe', tier: 1,
 }));
 /** Terracotas de colores de las badlands (en franjas). */
 export const TERRACOTTA_COLORS = ['white', 'orange', 'yellow', 'brown', 'red', 'light_gray'] as const;
 const TERRACOTTA_NAMES: Record<string, string> = {
-  white: 'blanca', orange: 'naranja', yellow: 'amarilla', brown: 'marrón', red: 'roja', light_gray: 'gris claro',
+  white: '白色', orange: '橙色', yellow: '黄色', brown: '棕色', red: '红色', light_gray: '淡灰色',
 };
 export const COLORED_TERRACOTTA: Record<string, number> = {};
 for (const c of TERRACOTTA_COLORS) {
-  COLORED_TERRACOTTA[c] = family(`${c}_terracotta`, `Terracota ${TERRACOTTA_NAMES[c]}`, [], () => ({
+  COLORED_TERRACOTTA[c] = family(`${c}_terracotta`, `${TERRACOTTA_NAMES[c]}陶瓦`, [], () => ({
     all: `${c}_terracotta`, hardness: 1.25, tool: 'pickaxe', tier: 1, category: 'colores',
   }));
 }
-export const PACKED_ICE = family('packed_ice', 'Hielo compacto', [], () => ({
+export const PACKED_ICE = family('packed_ice', '浮冰', [], () => ({
   all: 'packed_ice', sound: 'glass', hardness: 0.5, tool: 'pickaxe', category: 'naturaleza',
 }));
 
@@ -171,15 +173,15 @@ export const FLOWER_KEYS = [
   'lily_of_the_valley',
 ] as const;
 const FLOWER_NAMES: Record<string, string> = {
-  blue_orchid: 'Orquídea azul', allium: 'Allium', azure_bluet: 'Rubia azul', red_tulip: 'Tulipán rojo',
-  orange_tulip: 'Tulipán naranja', white_tulip: 'Tulipán blanco', pink_tulip: 'Tulipán rosa', oxeye_daisy: 'Margarita',
-  lily_of_the_valley: 'Lirio de los valles',
+  blue_orchid: '兰花', allium: '绒球葱', azure_bluet: '蓝花美耳草', red_tulip: '红色郁金香',
+  orange_tulip: '橙色郁金香', white_tulip: '白色郁金香', pink_tulip: '粉红色郁金香', oxeye_daisy: '滨菊',
+  lily_of_the_valley: '铃兰',
 };
 export const FLOWERS: Record<string, number> = {};
 for (const k of FLOWER_KEYS) FLOWERS[k] = family(k, FLOWER_NAMES[k], [], () => plant(k));
 
 /** Pétalos rosas: una alfombra de flores de cerezo sobre la hierba. */
-export const PINK_PETALS = family('pink_petals', 'Pétalos rosas', [], () => {
+export const PINK_PETALS = family('pink_petals', '粉红色花瓣', [], () => {
   const t = L('pink_petals');
   return {
     render: R_MODEL, solid: false, opaque: false, lightOpacity: 0, hardness: 0, sound: 'grass', replaceable: true,
@@ -201,8 +203,8 @@ export const PINK_PETALS = family('pink_petals', 'Pétalos rosas', [], () => {
 // cuentan como tronco o tablón de una madera (troncos sin corteza, leños, tablones de bambú).
 
 /** Registra una madera nueva completa y la añade a WOOD_TYPES y a las listas de troncos, hojas… */
-export function addWoodType(key: string, name: string): WoodType {
-  const w = newWood(key, name);
+export function addWoodType(key: string, name: string, wood: string): WoodType {
+  const w = newWood(key, name, wood);
   (WOOD_TYPES as WoodType[]).push(w);
   (ALL_LOGS as number[]).push(w.log);
   (ALL_PLANKS as number[]).push(w.planks);

@@ -5,7 +5,7 @@ import { isLeaves } from './biomes';
 import { mbox } from '../blockModels';
 
 /** Capa de nieve: `layers` 0..7 = de 1 a 8 capas de 2/16 de alto. */
-export const SNOW_LAYER = family('snow_layer', 'Capa de nieve', [['layers', 8]], (st) => {
+export const SNOW_LAYER = family('snow_layer', '雪', [['layers', 8]], (st) => {
   const n = st.layers + 1;
   const t = L('snow');
   return {

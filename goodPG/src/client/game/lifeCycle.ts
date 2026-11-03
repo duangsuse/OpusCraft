@@ -127,7 +127,7 @@ export class LifeCycle {
   }
 
   showDeath(): void {
-    this.g.ui.showDeath(this.g.survival.deathCause ? `${this.g.cfg.name} ${deathMessage(this.g.survival.deathCause)}.` : 'Tu partida anterior terminó en muerte.');
+    this.g.ui.showDeath(this.g.survival.deathCause ? `${this.g.cfg.name} ${deathMessage(this.g.survival.deathCause)}。` : '你上一次的游戏以死亡告终。');
     this.g.input.exitLock();
     this.g.input.releaseAll();
   }
@@ -153,7 +153,7 @@ export class LifeCycle {
       if (b < 0 || isBed(b)) sp = [this.bed[0] + 0.5, this.bed[1] + 0.5625, this.bed[2] + 0.5];
       else {
         this.bed = null;
-        this.g.ui.toast('No tenías cama o estaba obstruida');
+        this.g.ui.toast('你没有床，或者床被挡住了');
       }
     }
     [p.x, p.y, p.z] = sp;

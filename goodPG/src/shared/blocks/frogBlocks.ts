@@ -13,9 +13,9 @@ function froglight(key: string, name: string): number {
   return id;
 }
 
-export const OCHRE_FROGLIGHT = froglight('ochre', 'Luz de rana ocre');
-export const VERDANT_FROGLIGHT = froglight('verdant', 'Luz de rana verdosa');
-export const PEARLESCENT_FROGLIGHT = froglight('pearlescent', 'Luz de rana perlada');
+export const OCHRE_FROGLIGHT = froglight('ochre', '赭黄蛙明灯');
+export const VERDANT_FROGLIGHT = froglight('verdant', '翠绿蛙明灯');
+export const PEARLESCENT_FROGLIGHT = froglight('pearlescent', '珠光蛙明灯');
 
 /** Su sitio en el inventario creativo. */
 export const FROG_INVENTORY: readonly number[] = [OCHRE_FROGLIGHT, VERDANT_FROGLIGHT, PEARLESCENT_FROGLIGHT];

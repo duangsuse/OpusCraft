@@ -55,5 +55,5 @@ export const OCEAN_STRUCTURES: GridType[] = [
 
 /** Nombres (y claves de /localizar). */
 export const OCEAN_STRUCTURE_NAMES: Readonly<Record<string, string>> = {
-  monument: 'Monumento oceánico', ocean_ruins: 'Ruinas oceánicas', buried_treasure: 'Tesoro enterrado',
+  monument: '海底神殿', ocean_ruins: '海底废墟', buried_treasure: '埋藏的宝藏',
 };

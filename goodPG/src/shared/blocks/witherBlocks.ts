@@ -12,7 +12,7 @@ export function supportsWitherRose(b: number): boolean {
   return b < 0 || isVegetationSoil(b) || b === NETHERRACK || b === SOUL_SAND || b === SOUL_SOIL;
 }
 
-export const WITHER_ROSE = family('wither_rose', 'Rosa marchita', [], () => ({
+export const WITHER_ROSE = family('wither_rose', '凋灵玫瑰', [], () => ({
   render: R_CROSS, solid: false, opaque: false, lightOpacity: 0, sound: 'grass', hardness: 0, all: 'wither_rose', category: 'naturaleza',
   walkThrough: true, selection: [5 / 16, 0, 5 / 16, 11 / 16, 10 / 16, 11 / 16],
   support: (get: NeighborGet) => supportsWitherRose(get(0, -1, 0)),

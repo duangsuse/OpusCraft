@@ -71,7 +71,7 @@ function witherParts() {
 export function witherMobs(): MobDef[] {
   return [
     {
-      id: MOB_WITHER, key: 'wither', name: 'Wither', hostile: true, health: WITHER_HEALTH, walk: 0.6 * 20, run: 0.6 * 20, width: 0.9,
+      id: MOB_WITHER, key: 'wither', name: '凋灵', hostile: true, health: WITHER_HEALTH, walk: 0.6 * 20, run: 0.6 * 20, width: 0.9,
       height: 3.5, damage: 0, burnsInSun: false, drops: [], atlas: [64, 64], parts: witherParts(), anim: 'wither', scale: 2,
       flying: true, fireImmune: true, fullBright: true, xp: WITHER_XP,
     },

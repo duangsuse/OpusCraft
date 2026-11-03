@@ -23,7 +23,7 @@ function ensure(): void {
 export function clockText(dayTime: number): string {
   const mins = Math.floor((((dayTime % 1) + 1) % 1) * 24 * 60 + 6 * 60) % (24 * 60);
   const h = Math.floor(mins / 60), m = mins % 60;
-  const part = h >= 6 && h < 12 ? 'mañana' : h >= 12 && h < 18 ? 'tarde' : h >= 18 && h < 21 ? 'atardecer' : 'noche';
+  const part = h >= 6 && h < 12 ? '上午' : h >= 12 && h < 18 ? '下午' : h >= 18 && h < 21 ? '黄昏' : '夜晚';
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} · ${part}`;
 }
 

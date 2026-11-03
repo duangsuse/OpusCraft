@@ -55,7 +55,7 @@ function register(base: number, count: number, kind: number): void {
   }
 }
 
-export const RAIL = family('rail', 'Raíl', [['shape', 10]], (st) =>
+export const RAIL = family('rail', '铁轨', [['shape', 10]], (st) =>
   railOpts(st.shape >= RAIL_SE ? 'rail_corner' : 'rail', 'rail', st.shape));
 register(RAIL, 10, RAIL_PLAIN);
 
@@ -67,9 +67,9 @@ function poweredFamily(key: string, name: string, kind: number): number {
   return base;
 }
 
-export const POWERED_RAIL = poweredFamily('powered_rail', 'Raíl propulsor', RAIL_POWERED);
-export const DETECTOR_RAIL = poweredFamily('detector_rail', 'Raíl detector', RAIL_DETECTOR);
-export const ACTIVATOR_RAIL = poweredFamily('activator_rail', 'Raíl activador', RAIL_ACTIVATOR);
+export const POWERED_RAIL = poweredFamily('powered_rail', '动力铁轨', RAIL_POWERED);
+export const DETECTOR_RAIL = poweredFamily('detector_rail', '探测铁轨', RAIL_DETECTOR);
+export const ACTIVATOR_RAIL = poweredFamily('activator_rail', '激活铁轨', RAIL_ACTIVATOR);
 
 export const isRail = (id: number): boolean => id > 0 && RAIL_SHAPE[id] >= 0;
 /** ¿Está encendido? (sólo propulsor, detector y activador). */

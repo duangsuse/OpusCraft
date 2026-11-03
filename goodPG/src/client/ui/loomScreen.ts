@@ -18,10 +18,10 @@ export const LOOM_PATTERN = 2;
 const SAMPLE_BASE = 8, SAMPLE_DYE = 15;
 
 export const LOOM_HTML =
-  '<h3>Telar</h3><div class="loom">' +
-  `<div class="loom-in"><div class="slot2" data-s="grid:${LOOM_BANNER}" data-hint="Estandarte"></div>` +
-  `<div class="slot2" data-s="grid:${LOOM_DYE}" data-hint="Tinte"></div>` +
-  `<div class="slot2" data-s="grid:${LOOM_PATTERN}" data-hint="Diseño"></div></div>` +
+  '<h3>织布机</h3><div class="loom">' +
+  `<div class="loom-in"><div class="slot2" data-s="grid:${LOOM_BANNER}" data-hint="旗帜"></div>` +
+  `<div class="slot2" data-s="grid:${LOOM_DYE}" data-hint="染料"></div>` +
+  `<div class="slot2" data-s="grid:${LOOM_PATTERN}" data-hint="图案"></div></div>` +
   '<div class="loom-list"></div>' +
   '<div class="loom-preview"><img alt=""></div>' +
   '<div class="arrow"></div><div class="slot2 big" data-s="out"></div></div>';
@@ -92,6 +92,6 @@ export class LoomPanel {
       else preview.removeAttribute('src');
     }
     preview.parentElement!.classList.toggle('empty', !src);
-    preview.parentElement!.title = full ? 'Ya tiene 6 capas: no caben más' : '';
+    preview.parentElement!.title = full ? '已有 6 层图案：无法再添加' : '';
   }
 }

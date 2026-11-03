@@ -129,7 +129,7 @@ function ownData(id: number, r: Record<string, unknown>): ItemData | undefined {
     const gen = Number(r.gen);
     return {
       pages: sanitizePages(r.pages) ?? [],
-      title: sanitizeTitle(r.title) || 'Sin título',
+      title: sanitizeTitle(r.title) || '无标题',
       author: cleanText(r.author, MAX_AUTHOR, false).trim() || '?',
       gen: Number.isInteger(gen) ? Math.max(0, Math.min(MAX_BOOK_GEN, gen)) : 0,
     };
@@ -209,7 +209,7 @@ export function stackName(s: ItemStack): string {
   if (s.data?.name) return s.data.name;
   if (s.id === WRITTEN_BOOK && s.data?.title) return s.data.title;
   if (s.data?.smap) return STRUCTURE_MAPS[s.data.smap.k]?.name ?? itemName(s.id); // Fase 7.5 (océano)
-  if (s.data?.lode) return 'Brújula magnetizada'; // Fase 8.5
+  if (s.data?.lode) return '磁石指针'; // Fase 8.5
   return itemName(s.id);
 }
 

@@ -13,8 +13,8 @@ export class SignEditor {
     this.root = document.createElement('div');
     this.root.id = 'sign-editor';
     this.root.className = 'hidden';
-    this.root.innerHTML = '<div class="sign-board"></div><button type="button">Listo</button>' +
-      '<p>Intro: siguiente línea · Esc o Listo: terminar</p>';
+    this.root.innerHTML = '<div class="sign-board"></div><button type="button">完成</button>' +
+      '<p>Enter：下一行 · Esc 或完成：结束</p>';
     const board = this.root.querySelector('.sign-board')!;
     for (let i = 0; i < SIGN_LINES; i++) {
       const inp = document.createElement('input');

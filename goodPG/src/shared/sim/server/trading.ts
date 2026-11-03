@@ -98,13 +98,13 @@ export class Trading {
     const v = ctx.entities.villagers.data(e);
     if (e.type === MOB_VILLAGER && v.prof === PROF_NONE) {
       ctx.send(s, { t: 'tclose' });
-      ctx.tell(s, 'Este aldeano aún no tiene oficio: necesita un bloque de trabajo libre cerca.');
+      ctx.tell(s, '这个村民还没有职业：需要在附近有一个空闲的工作站点方块。');
       ctx.fx('villager_no', e.x, e.y + e.height, e.z, e.type);
       return;
     }
     if (v.trading && v.trading !== s.id && [...this.open.entries()].some(([sid, eid]) => sid === v.trading && eid === e.id)) {
       ctx.send(s, { t: 'tclose' });
-      ctx.tell(s, 'Este aldeano está comerciando con otro jugador.');
+      ctx.tell(s, '这个村民正在与另一名玩家交易。');
       return;
     }
     this.close(s, false);
@@ -140,7 +140,7 @@ export class Trading {
     const { offer: o, price } = entry;
     const v = ctx.entities.villagers.data(e);
     const used = v.uses[o.key] ?? 0;
-    if (used >= o.max) return fail('Esta oferta está agotada: el aldeano repondrá más tarde.');
+    if (used >= o.max) return fail('这项交易已售罄：村民稍后会补货。');
     // Lo pagado tiene que cubrir el precio (el de ahora); lo que sobre se devuelve. El frasco de agua tiene que serlo.
     const rest = pay.map((p) => ({ ...p }));
     const costs: [number, number, boolean][] = [[o.cost[0], price, !!o.water]];

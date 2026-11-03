@@ -228,7 +228,7 @@ export class NetherGoods {
       s.bedDim = ctx.dim;
       ctx.savePlayer(s);
       ctx.send(s, { t: 'spawn', p: [x, y, z], d: ctx.dim });
-      ctx.tell(s, 'Punto de reaparición establecido.');
+      ctx.tell(s, '已设置重生点。');
       ctx.fx('anchor_set', x + 0.5, y + 0.5, z + 0.5);
     }
     return true;

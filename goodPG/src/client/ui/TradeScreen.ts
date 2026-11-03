@@ -57,8 +57,8 @@ export class TradeScreen {
       '<div class="trade-head"><h2></h2><span class="trade-level"></span></div>' +
       '<div class="trade-xp"><i></i></div>' +
       '<div class="trade-list"></div>' +
-      '<div class="trade-foot"><span class="trade-wallet"></span><button type="button">Salir</button></div>' +
-      '<p class="trade-hint">Clic: comerciar · Mayús + clic: todas las veces que puedas · Esc: salir</p>' +
+      '<div class="trade-foot"><span class="trade-wallet"></span><button type="button">退出</button></div>' +
+      '<p class="trade-hint">点击：交易 · Shift + 点击：尽可能多次交易 · Esc：退出</p>' +
       '</div>';
     this.list = this.root.querySelector('.trade-list')!;
     this.title = this.root.querySelector('h2')!;
@@ -141,21 +141,21 @@ export class TradeScreen {
       const poor = c2 === c1
         ? this.host.have(c1, !!x.w) < n1 + n2
         : this.host.have(c1, !!x.w) < n1 || (!!c2 && this.host.have(c2) < n2);
-      const first = x.w ? 'Frasco de agua' : itemName(c1);
+      const first = x.w ? '水瓶' : itemName(c1);
       const tip = `${n1} × ${first}${c2 ? ` + ${n2} × ${itemName(c2)}` : ''} → ${rn} × ${stackLabel(give)}` +
-        (out ? ' (agotada)' : ` · quedan ${max - uses}`);
+        (out ? '（已售罄）' : ` · 剩余 ${max - uses} 次`);
       return `<div class="trade-row${out ? ' out' : ''}${poor ? ' poor' : ''}" data-i="${i}" title="${esc(tip)}">` +
         `${slot({ id: c1, count: n1 }, x.b ?? n1)}${slot(c2 ? { id: c2, count: n2 } : null)}<span class="tarrow"></span>${slot(give)}` +
         `<span class="tname">${esc(stackLabel(give))}</span>` +
-        `<span class="tstock">${out ? 'Agotada' : `${max - uses}/${max}`}</span></div>`;
+        `<span class="tstock">${out ? '已售罄' : `${max - uses}/${max}`}</span></div>`;
     }).join('');
     const key = html;
     if (this.list.dataset.key !== key) {
       this.list.dataset.key = key;
-      this.list.innerHTML = html || '<p class="trade-empty">No tiene nada que ofrecer.</p>';
+      this.list.innerHTML = html || '<p class="trade-empty">它没有可以交易的东西。</p>';
     }
     const em = this.host.have(EMERALD);
-    this.wallet.textContent = `Tienes ${em} esmeralda${em === 1 ? '' : 's'}`;
+    this.wallet.textContent = `你有 ${em} 个绿宝石`;
   }
 }
 

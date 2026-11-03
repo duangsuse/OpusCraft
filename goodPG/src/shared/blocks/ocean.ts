@@ -80,7 +80,7 @@ const seaPlant = (tex: string, o: Opts = {}): Opts => ({
 export const CORAL_TYPES = ['tube', 'brain', 'bubble', 'fire', 'horn'] as const;
 export type CoralType = (typeof CORAL_TYPES)[number];
 const CORAL_NAMES: Record<CoralType, string> = {
-  tube: 'de tubo', brain: 'de cerebro', bubble: 'de burbuja', fire: 'de fuego', horn: 'de cuerno',
+  tube: '管', brain: '脑纹', bubble: '气泡', fire: '火', horn: '鹿角',
 };
 
 export interface CoralSet {
@@ -111,18 +111,18 @@ function wallFanBoxes(t: number): ModelBox[] {
 function coralSet(type: CoralType, dead: boolean): CoralSet {
   const pre = dead ? 'dead_' : '';
   const name = CORAL_NAMES[type];
-  const m = dead ? ' muerto' : '', f = dead ? ' muerta' : '';
+  const deadPrefix = dead ? '失活的' : '';
   const blockTex = `${pre}${type}_coral_block`, plantTex = `${pre}${type}_coral`, fanTex = `${pre}${type}_coral_fan`;
-  const block = family(`${pre}${type}_coral_block`, `Bloque de coral ${name}${m}`, [], () => ({
+  const block = family(`${pre}${type}_coral_block`, `${deadPrefix}${name}珊瑚块`, [], () => ({
     all: blockTex, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone', category: 'naturaleza',
   }));
-  const coral = family(`${pre}${type}_coral`, `Coral ${name}${m}`, [['water', 2]], (st) => ({
+  const coral = family(`${pre}${type}_coral`, `${deadPrefix}${name}珊瑚`, [['water', 2]], (st) => ({
     ...seaPlant(plantTex, { sound: 'stone' }), ...(st.water ? WET : {}), support: solidBelow,
   }));
-  const fan = family(`${pre}${type}_coral_fan`, `Gorgonia ${name}${f}`, [['water', 2]], (st) => ({
+  const fan = family(`${pre}${type}_coral_fan`, `${deadPrefix}${name}珊瑚扇`, [['water', 2]], (st) => ({
     ...seaPlant(fanTex, { sound: 'stone' }), ...(st.water ? WET : {}), support: solidBelow,
   }));
-  const wallFan = family(`${pre}${type}_coral_wall_fan`, `Gorgonia ${name}${f}`, [['water', 2], ['facing', 4]], (st) => {
+  const wallFan = family(`${pre}${type}_coral_wall_fan`, `${deadPrefix}${name}珊瑚扇`, [['water', 2], ['facing', 4]], (st) => {
     const d = st.facing;
     return {
       render: R_MODEL, solid: false, opaque: false, lightOpacity: 0, hardness: 0, sound: 'stone', all: fanTex,
@@ -197,7 +197,7 @@ export function coralAlive(id: number, get: NeighborGet): boolean {
 // ------------------------------------------------------------------ algas
 
 /** Alga: `part` 0 = objeto (seca, no existe en el mundo), 1 = punta, 2 = tallo (las dos anegadas). */
-export const KELP = family('kelp', 'Alga', [['part', 3]], (st) => ({
+export const KELP = family('kelp', '海带', [['part', 3]], (st) => ({
   ...seaPlant(st.part === 2 ? 'kelp_plant' : 'kelp'),
   ...(st.part ? WET : {}),
   support: (get) => {
@@ -211,14 +211,14 @@ export const KELP_TOP = KELP + 1;
 export const KELP_STEM = KELP + 2;
 export const isKelp = (id: number): boolean => id === KELP_TOP || id === KELP_STEM;
 
-export const DRIED_KELP_BLOCK = family('dried_kelp_block', 'Bloque de algas secas', [], () => ({
+export const DRIED_KELP_BLOCK = family('dried_kelp_block', '干海带块', [], () => ({
   top: 'dried_kelp_top', side: 'dried_kelp_side', hardness: 0.5, sound: 'grass', category: 'naturaleza',
 }));
 
 // ------------------------------------------------------------------ plantas marinas
 
 /** Planta marina: `kind` 0 = objeto (seca), 1 = corta, 2 = alta (abajo), 3 = alta (arriba). */
-export const SEAGRASS = family('seagrass', 'Planta marina', [['kind', 4]], (st) => ({
+export const SEAGRASS = family('seagrass', '海草', [['kind', 4]], (st) => ({
   ...seaPlant(['seagrass', 'seagrass', 'tall_seagrass_bottom', 'tall_seagrass_top'][st.kind]),
   ...(st.kind ? WET : {}),
   replaceable: st.kind > 0,
@@ -254,7 +254,7 @@ const PICKLE_BOXES: [number, number, number, number, number, number][] = [
 ];
 
 /** Pepinos de mar: `count` 0..3 = de 1 a 4; anegados dan luz (6, 9, 12 y 15). */
-export const SEA_PICKLE = family('sea_pickle', 'Pepino de mar', [['count', 4], ['water', 2]], (st) => {
+export const SEA_PICKLE = family('sea_pickle', '海泡菜', [['count', 4], ['water', 2]], (st) => {
   const t = L('sea_pickle');
   const model = PICKLE_BOXES.slice(0, st.count + 1).map(([x0, y0, z0, x1, y1, z1]) => mbox(x0, y0, z0, x1, y1, z1, t));
   return {
@@ -285,25 +285,25 @@ export function seaPickleBlock(n: number, water: boolean): number {
 const prismarine = (key: string, name: string, tex: string): number => family(key, name, [], () => ({
   all: tex, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone',
 }));
-export const PRISMARINE = prismarine('prismarine', 'Prismarina', 'prismarine');
-export const PRISMARINE_BRICKS = prismarine('prismarine_bricks', 'Ladrillos de prismarina', 'prismarine_bricks');
-export const DARK_PRISMARINE = prismarine('dark_prismarine', 'Prismarina oscura', 'dark_prismarine');
-addMaterialShapes({ key: 'prismarine', name: 'de prismarina', block: PRISMARINE, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone' });
+export const PRISMARINE = prismarine('prismarine', '海晶石', 'prismarine');
+export const PRISMARINE_BRICKS = prismarine('prismarine_bricks', '海晶石砖', 'prismarine_bricks');
+export const DARK_PRISMARINE = prismarine('dark_prismarine', '暗海晶石', 'dark_prismarine');
+addMaterialShapes({ key: 'prismarine', name: '海晶石', block: PRISMARINE, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone' });
 addMaterialShapes({
-  key: 'prismarine_brick', name: 'de ladrillos de prismarina', block: PRISMARINE_BRICKS, hardness: 1.5, tool: 'pickaxe', tier: 1,
+  key: 'prismarine_brick', name: '海晶石砖', block: PRISMARINE_BRICKS, hardness: 1.5, tool: 'pickaxe', tier: 1,
   sound: 'stone',
 });
 addMaterialShapes({
-  key: 'dark_prismarine', name: 'de prismarina oscura', block: DARK_PRISMARINE, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone',
+  key: 'dark_prismarine', name: '暗海晶石', block: DARK_PRISMARINE, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone',
 });
-export const PRISMARINE_WALL = addWall({ key: 'prismarine', name: 'de prismarina', block: PRISMARINE, hardness: 1.5 });
+export const PRISMARINE_WALL = addWall({ key: 'prismarine', name: '海晶石', block: PRISMARINE, hardness: 1.5 });
 
 // ------------------------------------------------------------------ esponjas
 
-export const SPONGE = family('sponge', 'Esponja', [], () => ({
+export const SPONGE = family('sponge', '海绵', [], () => ({
   all: 'sponge', hardness: 0.6, sound: 'grass', category: 'naturaleza',
 }));
-export const WET_SPONGE = family('wet_sponge', 'Esponja mojada', [], () => ({
+export const WET_SPONGE = family('wet_sponge', '湿海绵', [], () => ({
   all: 'wet_sponge', hardness: 0.6, sound: 'grass', category: 'naturaleza',
 }));
 

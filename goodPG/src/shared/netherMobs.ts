@@ -512,48 +512,48 @@ const magma = (id: number, key: string, name: string, size: number): MobDef => (
 export function netherMobs(): MobDef[] {
   return [
     {
-      id: MOB_PIGLIN, key: 'piglin', name: 'Piglin', ...piglinBase(16, 5), atlas: [64, 64], parts: piglinParts(), anim: 'piglin', scale: 1, xp: 5,
+      id: MOB_PIGLIN, key: 'piglin', name: '猪灵', ...piglinBase(16, 5), atlas: [64, 64], parts: piglinParts(), anim: 'piglin', scale: 1, xp: 5,
     },
     {
-      id: MOB_PIGLIN_BRUTE, key: 'piglin_brute', name: 'Piglin bruto', ...piglinBase(50, 7), atlas: [64, 64], parts: piglinParts(), anim: 'piglin',
+      id: MOB_PIGLIN_BRUTE, key: 'piglin_brute', name: '猪灵蛮兵', ...piglinBase(50, 7), atlas: [64, 64], parts: piglinParts(), anim: 'piglin',
       scale: 1, xp: 20,
     },
     {
-      id: MOB_ZOMBIFIED_PIGLIN, key: 'zombified_piglin', name: 'Piglin zombificado', hostile: true, neutral: true, health: 20,
+      id: MOB_ZOMBIFIED_PIGLIN, key: 'zombified_piglin', name: '僵尸猪灵', hostile: true, neutral: true, health: 20,
       walk: javaGroundSpeed(0.23), run: javaGroundSpeed(0.28), width: 0.6, height: 1.95, damage: 5, burnsInSun: false,
       drops: [[ROTTEN_FLESH, 0, 1], [GOLD_NUGGET, 0, 1]], atlas: [64, 64], parts: piglinParts(), anim: 'piglin', scale: 1, fireImmune: true,
       xp: 5, babyXp: 12,
     },
     {
-      id: MOB_GHAST, key: 'ghast', name: 'Ghast', hostile: true, health: 10, walk: 1.2, run: 1.2, width: 4, height: 4, damage: 0,
+      id: MOB_GHAST, key: 'ghast', name: '恶魂', hostile: true, health: 10, walk: 1.2, run: 1.2, width: 4, height: 4, damage: 0,
       burnsInSun: false, drops: [[GHAST_TEAR, 0, 1], [GUNPOWDER, 0, 2]], atlas: [64, 64], parts: ghastParts(), anim: 'ghast', scale: 4.5,
       flying: true, fireImmune: true, xp: 5,
     },
     {
-      id: MOB_BLAZE, key: 'blaze', name: 'Blaze', hostile: true, health: 20, walk: javaGroundSpeed(0.23), run: javaGroundSpeed(0.23), width: 0.6,
+      id: MOB_BLAZE, key: 'blaze', name: '烈焰人', hostile: true, health: 20, walk: javaGroundSpeed(0.23), run: javaGroundSpeed(0.23), width: 0.6,
       height: 1.8, damage: 6, burnsInSun: false, drops: [], atlas: [64, 32], parts: blazeParts(), anim: 'blaze', scale: 1, fireImmune: true,
       fullBright: true, xp: 10,
     },
-    magma(MOB_MAGMA_CUBE, 'magma_cube', 'Cubo de magma', 4),
-    magma(MOB_MAGMA_CUBE_MEDIUM, 'magma_cube_medium', 'Cubo de magma mediano', 2),
-    magma(MOB_MAGMA_CUBE_SMALL, 'magma_cube_small', 'Cubo de magma pequeño', 1),
+    magma(MOB_MAGMA_CUBE, 'magma_cube', '岩浆怪', 4),
+    magma(MOB_MAGMA_CUBE_MEDIUM, 'magma_cube_medium', '中型岩浆怪', 2),
+    magma(MOB_MAGMA_CUBE_SMALL, 'magma_cube_small', '小型岩浆怪', 1),
     {
-      id: MOB_HOGLIN, key: 'hoglin', name: 'Hoglin', hostile: true, health: 40, walk: javaGroundSpeed(0.4 * 0.3), run: javaGroundSpeed(0.3),
+      id: MOB_HOGLIN, key: 'hoglin', name: '疣猪兽', hostile: true, health: 40, walk: javaGroundSpeed(0.4 * 0.3), run: javaGroundSpeed(0.3),
       width: 1.3964844, height: 1.4, damage: 6, burnsInSun: false, drops: [[RAW_PORKCHOP, 2, 4], [LEATHER, 0, 1]], atlas: [128, 64],
       parts: hoglinParts(), anim: 'hoglin', scale: 1, xp: 5, babyXp: 3,
     },
     {
-      id: MOB_ZOGLIN, key: 'zoglin', name: 'Zoglin', hostile: true, health: 40, walk: javaGroundSpeed(0.4 * 0.3), run: javaGroundSpeed(0.3),
+      id: MOB_ZOGLIN, key: 'zoglin', name: '僵尸疣猪兽', hostile: true, health: 40, walk: javaGroundSpeed(0.4 * 0.3), run: javaGroundSpeed(0.3),
       width: 1.3964844, height: 1.4, damage: 6, burnsInSun: false, drops: [[ROTTEN_FLESH, 1, 3]], atlas: [128, 64], parts: hoglinParts(),
       anim: 'hoglin', scale: 1, fireImmune: true, xp: 5, babyXp: 5,
     },
     {
-      id: MOB_STRIDER, key: 'strider', name: 'Strider', hostile: false, health: 20, walk: javaGroundSpeed(STRIDER_SPEED),
+      id: MOB_STRIDER, key: 'strider', name: '炽足兽', hostile: false, health: 20, walk: javaGroundSpeed(STRIDER_SPEED),
       run: javaGroundSpeed(STRIDER_SPEED * 1.65), width: 0.9, height: 1.7, damage: 0, burnsInSun: false, drops: [[STRING, 2, 5]],
       atlas: [64, 128], parts: striderParts(), anim: 'strider', scale: 1, fireImmune: true,
     },
     {
-      id: MOB_WITHER_SKELETON, key: 'wither_skeleton', name: 'Esqueleto wither', hostile: true, health: 20, walk: javaGroundSpeed(0.25),
+      id: MOB_WITHER_SKELETON, key: 'wither_skeleton', name: '凋灵骷髅', hostile: true, health: 20, walk: javaGroundSpeed(0.25),
       run: javaGroundSpeed(0.25 * 1.2), width: 0.7, height: 2.4, damage: 8, burnsInSun: false, drops: [[COAL, -1, 1], [BONE, 0, 2]],
       atlas: [64, 32], parts: witherSkeletonParts(), anim: 'wither_skeleton', scale: 1.2, fireImmune: true, xp: 5,
     },

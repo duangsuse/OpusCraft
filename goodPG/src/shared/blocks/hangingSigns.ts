@@ -36,7 +36,7 @@ export function addHangingSign(key: string, name: string, log: number, logTex: s
     all: logTex,
   };
   // Del techo, mirando al norte: tablero de 14×10 con las caras en z = 7 y z = 9, y dos cadenas encima.
-  HANGING_SIGNS[key] = family(`${key}_hanging_sign`, `Cartel colgante ${name}`, [['facing', 4]], (st) => {
+  HANGING_SIGNS[key] = family(`${key}_hanging_sign`, `${name}悬挂式告示牌`, [['facing', 4]], (st) => {
     const t = L(logTex);
     return {
       ...opts,
@@ -48,7 +48,7 @@ export function addHangingSign(key: string, name: string, log: number, logTex: s
   });
   // En la pared (detrás, al sur si mira al norte): barra de la pared hacia fuera y el tablero colgando
   // de ella a lo largo, con las caras hacia el este y el oeste.
-  WALL_HANGING_SIGNS[key] = family(`${key}_wall_hanging_sign`, `Cartel colgante ${name}`, [['facing', 4]], (st) => {
+  WALL_HANGING_SIGNS[key] = family(`${key}_wall_hanging_sign`, `${name}悬挂式告示牌`, [['facing', 4]], (st) => {
     const t = L(logTex);
     return {
       ...opts,
@@ -68,8 +68,8 @@ export function addHangingSign(key: string, name: string, log: number, logTex: s
   addSignBase(WALL_HANGING_SIGNS[key]);
 }
 
-for (const { wood, strippedLog } of WOOD_EXTRAS) addHangingSign(wood.key, wood.name, strippedLog, `stripped_${wood.key}_log_side`);
-addHangingSign('bamboo', 'de bambú', STRIPPED_BAMBOO_BLOCK, 'stripped_bamboo_block_side');
+for (const { wood, strippedLog } of WOOD_EXTRAS) addHangingSign(wood.key, wood.wood, strippedLog, `stripped_${wood.key}_log_side`);
+addHangingSign('bamboo', '竹', STRIPPED_BAMBOO_BLOCK, 'stripped_bamboo_block_side');
 
 /** Tipo de cartel colgante: 0 no lo es, 1 del techo, 2 de pared. */
 export function hangingSignKind(id: number): number {

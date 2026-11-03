@@ -57,6 +57,6 @@ export function collectionFx(g: Game, kind: string, p: [number, number, number],
   g.audio.playDisc(key, disc, p, elapsed);
   // Quien está cerca ve qué suena (como en Minecraft).
   const pl = g.player;
-  if (elapsed < 1 && Math.hypot(p[0] - pl.x, p[1] - pl.y, p[2] - pl.z) < 24) g.ui.toast(`Suena: ${DISCS[disc].title}`);
+  if (elapsed < 1 && Math.hypot(p[0] - pl.x, p[1] - pl.y, p[2] - pl.z) < 24) g.ui.toast(`正在播放：${DISCS[disc].title}`);
   return true;
 }

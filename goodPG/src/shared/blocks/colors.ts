@@ -21,11 +21,11 @@ export type DyeColor = (typeof DYE_COLORS)[number];
 
 /** Nombre de cada color: [masculino, femenino] ("Tinte rojo", "Lana roja"). */
 export const COLOR_NAMES: Readonly<Record<DyeColor, readonly [string, string]>> = {
-  white: ['blanco', 'blanca'], orange: ['naranja', 'naranja'], magenta: ['magenta', 'magenta'],
-  light_blue: ['azul claro', 'azul claro'], yellow: ['amarillo', 'amarilla'], lime: ['verde lima', 'verde lima'],
-  pink: ['rosa', 'rosa'], gray: ['gris', 'gris'], light_gray: ['gris claro', 'gris claro'], cyan: ['cian', 'cian'],
-  purple: ['morado', 'morada'], blue: ['azul', 'azul'], brown: ['marrón', 'marrón'], green: ['verde', 'verde'],
-  red: ['rojo', 'roja'], black: ['negro', 'negra'],
+  white: ['白色', '白色'], orange: ['橙色', '橙色'], magenta: ['品红色', '品红色'],
+  light_blue: ['淡蓝色', '淡蓝色'], yellow: ['黄色', '黄色'], lime: ['黄绿色', '黄绿色'],
+  pink: ['粉红色', '粉红色'], gray: ['灰色', '灰色'], light_gray: ['淡灰色', '淡灰色'], cyan: ['青色', '青色'],
+  purple: ['紫色', '紫色'], blue: ['蓝色', '蓝色'], brown: ['棕色', '棕色'], green: ['绿色', '绿色'],
+  red: ['红色', '红色'], black: ['黑色', '黑色'],
 };
 const masc = (c: DyeColor) => COLOR_NAMES[c][0];
 const fem = (c: DyeColor) => COLOR_NAMES[c][1];
@@ -45,13 +45,13 @@ export const WOOL: Record<DyeColor, number> = {
 } as Record<DyeColor, number>;
 for (const c of DYE_COLORS) {
   if (WOOL[c] !== undefined) continue;
-  WOOL[c] = family(`${c}_wool`, `Lana ${fem(c)}`, [], () => ({ all: `${c}_wool`, sound: 'wool', hardness: 0.8, category: 'colores' }));
+  WOOL[c] = family(`${c}_wool`, `${fem(c)}羊毛`, [], () => ({ all: `${c}_wool`, sound: 'wool', hardness: 0.8, category: 'colores' }));
 }
 
 // Terracota de color: las seis de las badlands ya existían; el resto entra en el mismo registro.
 for (const c of DYE_COLORS) {
   if (COLORED_TERRACOTTA[c] !== undefined) continue;
-  COLORED_TERRACOTTA[c] = family(`${c}_terracotta`, `Terracota ${fem(c)}`, [], () => ({
+  COLORED_TERRACOTTA[c] = family(`${c}_terracotta`, `${fem(c)}陶瓦`, [], () => ({
     all: `${c}_terracotta`, hardness: 1.25, tool: 'pickaxe', tier: 1, category: 'colores',
   }));
 }
@@ -61,7 +61,7 @@ for (const c of DYE_COLORS) {
 /** Alfombra de cada color: una losita de 1/16 de alto que necesita suelo. */
 export const CARPETS = {} as Record<DyeColor, number>;
 for (const c of DYE_COLORS) {
-  CARPETS[c] = family(`${c}_carpet`, `Alfombra ${fem(c)}`, [], () => ({
+  CARPETS[c] = family(`${c}_carpet`, `${fem(c)}地毯`, [], () => ({
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 0.1, sound: 'wool', all: `${c}_wool`, category: 'colores',
     model: [mbox(0, 0, 0, 16, 1, 16, L(`${c}_wool`))], collision: [0, 0, 0, 1, 1 / 16, 1], support: needsFloor,
   }));
@@ -73,12 +73,12 @@ export const CONCRETE = {} as Record<DyeColor, number>;
 export const CONCRETE_POWDER = {} as Record<DyeColor, number>;
 const POWDER_TO_CONCRETE = new Map<number, number>();
 for (const c of DYE_COLORS) {
-  CONCRETE[c] = family(`${c}_concrete`, `Hormigón ${masc(c)}`, [], () => ({
+  CONCRETE[c] = family(`${c}_concrete`, `${masc(c)}混凝土`, [], () => ({
     all: `${c}_concrete`, hardness: 1.8, tool: 'pickaxe', tier: 1, category: 'colores',
   }));
 }
 for (const c of DYE_COLORS) {
-  CONCRETE_POWDER[c] = family(`${c}_concrete_powder`, `Hormigón en polvo ${masc(c)}`, [], () => ({
+  CONCRETE_POWDER[c] = family(`${c}_concrete_powder`, `${masc(c)}混凝土粉末`, [], () => ({
     all: `${c}_concrete_powder`, hardness: 0.5, tool: 'shovel', sound: 'sand', category: 'colores',
   }));
   POWDER_TO_CONCRETE.set(CONCRETE_POWDER[c], CONCRETE[c]);
@@ -100,7 +100,7 @@ export const STAINED_GLASS = {} as Record<DyeColor, number>;
 export const STAINED_GLASS_PANES = {} as Record<DyeColor, number>;
 const STAINED_GLASS_IDS = new Set<number>();
 for (const c of DYE_COLORS) {
-  STAINED_GLASS[c] = family(`${c}_stained_glass`, `Cristal ${masc(c)}`, [], () => ({
+  STAINED_GLASS[c] = family(`${c}_stained_glass`, `${masc(c)}染色玻璃`, [], () => ({
     all: `${c}_stained_glass`, render: R_TRANSLUCENT, lightOpacity: 0, hardness: 0.3, sound: 'glass', category: 'colores',
   }));
   STAINED_GLASS_IDS.add(STAINED_GLASS[c]);
@@ -108,7 +108,7 @@ for (const c of DYE_COLORS) {
 }
 for (const c of DYE_COLORS) {
   const name = `${c}_stained_glass`;
-  STAINED_GLASS_PANES[c] = family(`${c}_stained_glass_pane`, `Panel de cristal ${masc(c)}`, [], () => {
+  STAINED_GLASS_PANES[c] = family(`${c}_stained_glass_pane`, `${masc(c)}染色玻璃板`, [], () => {
     const g = L(name);
     const arm = (d: number) => rotateBoxes([mbox(7, 0, 0, 9, 16, 7, g)], d);
     const flat = (d: number) => rotateFlat([7 / 16, 0, 0, 9 / 16, 1, 7 / 16], d);
@@ -144,7 +144,7 @@ export function isStainedGlass(id: number): boolean {
 export const GLAZED_TERRACOTTA = {} as Record<DyeColor, number>;
 const GLAZED_BASES = new Set<number>();
 for (const c of DYE_COLORS) {
-  GLAZED_TERRACOTTA[c] = family(`${c}_glazed_terracotta`, `Terracota esmaltada ${fem(c)}`, [['facing', 4]], (st) => ({
+  GLAZED_TERRACOTTA[c] = family(`${c}_glazed_terracotta`, `${fem(c)}带釉陶瓦`, [['facing', 4]], (st) => ({
     all: `${c}_glazed_terracotta`, hardness: 1.4, tool: 'pickaxe', tier: 1, category: 'colores',
     texRot: st.facing & 1 ? 63 : 0,
   }));
@@ -159,7 +159,7 @@ export function isGlazedTerracotta(id: number): boolean {
 
 for (const c of DYE_COLORS) {
   if (BEDS[c] !== undefined) continue;
-  BEDS[c] = family(`${c}_bed`, `Cama ${fem(c)}`, [['facing', 4], ['part', 2]], (st) => {
+  BEDS[c] = family(`${c}_bed`, `${fem(c)}床`, [['facing', 4], ['part', 2]], (st) => {
     const wool = L(`${c}_wool`), pillow = L('white_wool'), wood = L('oak_planks');
     const mattress = mbox(0, 3, 0, 16, 9, 16, [wool, wool, wool, wood, wool, wool]);
     const boxes = st.part === 0
@@ -209,10 +209,10 @@ function candleFamily(key: string, name: string, bodyTex: string): number {
 }
 
 /** Vela sin teñir. */
-export const CANDLE = candleFamily('candle', 'Vela', 'candle');
+export const CANDLE = candleFamily('candle', '蜡烛', 'candle');
 /** Vela de cada color (la cera usa el color del hormigón). */
 export const CANDLES = {} as Record<DyeColor, number>;
-for (const c of DYE_COLORS) CANDLES[c] = candleFamily(`${c}_candle`, `Vela ${fem(c)}`, `${c}_concrete`);
+for (const c of DYE_COLORS) CANDLES[c] = candleFamily(`${c}_candle`, `${fem(c)}蜡烛`, `${c}_concrete`);
 
 /** ¿Vela (cualquier número y estado)? */
 export function isCandle(id: number): boolean {
@@ -250,7 +250,7 @@ for (const c of DYE_COLORS) {
     category: null,
   } as const;
   // De pie: palo de dos bloques con travesaño y la tela colgando por delante (el frente mira a -Z al norte).
-  BANNERS[c] = family(`${c}_banner`, `Estandarte ${masc(c)}`, [['facing', 4]], (st) => {
+  BANNERS[c] = family(`${c}_banner`, `${masc(c)}旗帜`, [['facing', 4]], (st) => {
     const w = L(`${c}_wool`), p = L('oak_planks');
     return {
       ...common,
@@ -264,7 +264,7 @@ for (const c of DYE_COLORS) {
     };
   });
   // En la pared: travesaño arriba y la tela colgando hasta el bloque de abajo.
-  WALL_BANNERS[c] = family(`${c}_wall_banner`, `Estandarte ${masc(c)}`, [['facing', 4]], (st) => {
+  WALL_BANNERS[c] = family(`${c}_wall_banner`, `${masc(c)}旗帜`, [['facing', 4]], (st) => {
     const w = L(`${c}_wool`), p = L('oak_planks');
     return {
       ...common,

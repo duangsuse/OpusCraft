@@ -43,56 +43,56 @@ export type DamageCause =
 /** Mensajes de muerte (se completan con el nombre del jugador). */
 export function deathMessage(cause: DamageCause): string {
   const mobs: Record<string, string> = {
-    zombie: 'fue devorado por un zombi', husk: 'fue devorado por un zombi momificado', skeleton: 'fue abatido por un esqueleto',
-    stray: 'fue abatido por un esqueleto errante', spider: 'fue mordido por una araña', enderman: 'fue destrozado por un enderman',
-    creeper: 'voló por los aires por un creeper',
+    zombie: '被僵尸杀死了', husk: '被尸壳杀死了', skeleton: '被骷髅杀死了',
+    stray: '被流浪者杀死了', spider: '被蜘蛛咬死了', enderman: '被末影人杀死了',
+    creeper: '被苦力怕炸死了',
     // Fase 6 (monstruos)
-    drowned: 'fue arrastrado al fondo por un ahogado', witch: 'fue hechizado por una bruja', slime: 'fue aplastado por un slime',
-    phantom: 'fue atacado por un phantom', silverfish: 'fue devorado por lepismas', cave_spider: 'fue mordido por una araña de cueva',
-    zombie_villager: 'fue devorado por un aldeano zombi',
+    drowned: '被溺尸拖入了水底', witch: '被女巫施法杀死了', slime: '被史莱姆压死了',
+    phantom: '被幻翼杀死了', silverfish: '被蠹虫咬死了', cave_spider: '被洞穴蜘蛛咬死了',
+    zombie_villager: '被僵尸村民杀死了',
     // Fase 6 (gólems/domesticar)
-    iron_golem: 'salió volando por un gólem de hierro', wolf: 'fue despedazado por un lobo',
+    iron_golem: '被铁傀儡打飞了', wolf: '被狼咬死了',
     // Fase 6 (fauna).
-    bee: 'murió picado por una abeja', panda: 'fue aplastado por un panda',
-    polar_bear: 'fue destrozado por un oso polar',
+    bee: '被蜜蜂蜇死了', panda: '被熊猫压死了',
+    polar_bear: '被北极熊杀死了',
     // Fase 6 (asaltos)
-    pillager: 'fue abatido por un saqueador', vindicator: 'fue despedazado por un vindicador',
-    evoker: 'fue devorado por los colmillos de un evocador', vex: 'fue atravesado por un vex', ravager: 'fue arrollado por un devastador',
+    pillager: '被掠夺者杀死了', vindicator: '被卫道士杀死了',
+    evoker: '被唤魔者的尖牙咬死了', vex: '被恼鬼刺死了', ravager: '被劫掠兽撞死了',
     // Fase 7.5 (océano)
-    guardian: 'fue fulminado por un guardián', elder_guardian: 'fue fulminado por un guardián anciano',
-    guardian_laser: 'fue fulminado por el láser de un guardián', guardian_thorns: 'murió pinchado por un guardián',
+    guardian: '被守卫者用魔法杀死了', elder_guardian: '被远古守卫者用魔法杀死了',
+    guardian_laser: '被守卫者的激光杀死了', guardian_thorns: '被守卫者刺死了',
     // Fase 7.5 (abismo)
-    warden: 'fue destrozado por un warden', sonic_boom: 'fue aniquilado por un chillido cargado sónicamente',
+    warden: '被监守者杀死了', sonic_boom: '被音波尖啸消灭了',
     // Fase 8.3 (criaturas del Nether)
-    piglin: 'fue asesinado por un piglin', piglin_brute: 'fue asesinado por un piglin bruto',
-    zombified_piglin: 'fue asesinado por un piglin zombificado', blaze: 'fue asesinado por un blaze',
-    magma_cube: 'fue aplastado por un cubo de magma', hoglin: 'fue asesinado por un hoglin', zoglin: 'fue asesinado por un zoglin',
-    wither_skeleton: 'fue asesinado por un esqueleto wither', fireball: 'fue alcanzado por una bola de fuego',
-    small_fireball: 'fue alcanzado por una bola de fuego',
+    piglin: '被猪灵杀死了', piglin_brute: '被猪灵蛮兵杀死了',
+    zombified_piglin: '被僵尸猪灵杀死了', blaze: '被烈焰人杀死了',
+    magma_cube: '被岩浆怪压死了', hoglin: '被疣猪兽杀死了', zoglin: '被僵尸疣猪兽杀死了',
+    wither_skeleton: '被凋灵骷髅杀死了', fireball: '被火球击中了',
+    small_fireball: '被火球击中了',
   };
   switch (cause) {
-    case 'fall': return 'cayó desde muy alto';
-    case 'lava': return 'intentó nadar en lava';
-    case 'fire': return 'ardió hasta morir';
-    case 'campfire': return 'se quemó en una fogata';
-    case 'hot_floor': return 'descubrió que el suelo era lava'; // Fase 8: el magma
-    case 'sweet_berry_bush': return 'murió pinchado por un arbusto de bayas dulces'; // Fase 6.5
-    case 'freeze': return 'se congeló hasta morir'; // Fase 6.5 (materiales)
-    case 'drown': return 'se ahogó';
-    case 'starve': return 'murió de hambre';
-    case 'void': return 'cayó al vacío';
-    case 'suffocate': return 'se asfixió dentro de un bloque';
-    case 'explosion': return 'voló por los aires';
-    case 'fireworks': return 'estalló por los aires con un cohete'; // Fase 8.6
-    case 'shulker_bullet': return 'fue abatido por un shulker'; // Fase 8.6
-    case 'fly_into_wall': return 'experimentó la energía cinética'; // Fase 8.6: chocar planeando
-    case 'lightning': return 'fue alcanzado por un rayo';
-    case 'arrow': return 'fue abatido por una flecha';
-    case 'kill': return 'abandonó este mundo';
-    case 'llama': return 'murió de un escupitajo de llama'; // Fase 6 (monturas)
-    case 'magic': return 'murió por arte de magia'; // Fase 7 (pociones)
-    case 'wither': return 'se marchitó'; // Fase 7 (efectos)
-    default: return mobs[cause] ?? 'murió';
+    case 'fall': return '从高处摔了下来';
+    case 'lava': return '试图在岩浆里游泳';
+    case 'fire': return '被烧死了';
+    case 'campfire': return '被营火烧死了';
+    case 'hot_floor': return '发现了地板是岩浆'; // Fase 8: el magma
+    case 'sweet_berry_bush': return '被甜浆果丛刺死了'; // Fase 6.5
+    case 'freeze': return '被冻死了'; // Fase 6.5 (materiales)
+    case 'drown': return '淹死了';
+    case 'starve': return '饿死了';
+    case 'void': return '掉进了虚空';
+    case 'suffocate': return '在方块里窒息了';
+    case 'explosion': return '被炸死了';
+    case 'fireworks': return '被烟花炸死了'; // Fase 8.6
+    case 'shulker_bullet': return '被潜影贝杀死了'; // Fase 8.6
+    case 'fly_into_wall': return '体验了动能'; // Fase 8.6: chocar planeando
+    case 'lightning': return '被闪电劈死了';
+    case 'arrow': return '被箭射死了';
+    case 'kill': return '离开了这个世界';
+    case 'llama': return '被羊驼吐口水吐死了'; // Fase 6 (monturas)
+    case 'magic': return '死于魔法'; // Fase 7 (pociones)
+    case 'wither': return '凋零了'; // Fase 7 (efectos)
+    default: return mobs[cause] ?? '死了';
   }
 }
 

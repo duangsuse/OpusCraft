@@ -31,21 +31,21 @@ export interface StructureMapDef {
 }
 
 export const STRUCTURE_MAPS: Readonly<Record<StructureMapKind, StructureMapDef>> = {
-  buried_treasure: { structure: 'buried_treasure', marker: 'x', name: 'Mapa del tesoro enterrado', search: 13, scale: 2 },
+  buried_treasure: { structure: 'buried_treasure', marker: 'x', name: '埋藏的宝藏地图', search: 13, scale: 2 },
   // Fase 7.5 (mansión): los de explorador buscan en 100 regiones, como en Minecraft (el del tesoro, 50 chunks:
   // 13 regiones de 4 chunks).
-  monument: { structure: 'monument', marker: 'monument', name: 'Mapa de explorador oceánico', search: 100, scale: 4 },
-  mansion: { structure: 'mansion', marker: 'mansion', name: 'Mapa de explorador de bosques', search: 100, scale: 4 },
+  monument: { structure: 'monument', marker: 'monument', name: '海洋探险家地图', search: 100, scale: 4 },
+  mansion: { structure: 'mansion', marker: 'mansion', name: '林地探险家地图', search: 100, scale: 4 },
   // Los del cartógrafo de 26.3 (exploration_map con search_radius 100; escala 1:4, como los de explorador).
-  village_desert: { structure: 'village', village: 'desert', marker: 'village_desert', name: 'Mapa de aldea del desierto', search: 100, scale: 4 },
-  village_plains: { structure: 'village', village: 'plains', marker: 'village_plains', name: 'Mapa de aldea de llanura', search: 100, scale: 4 },
-  village_savanna: { structure: 'village', village: 'savanna', marker: 'village_savanna', name: 'Mapa de aldea de sabana', search: 100, scale: 4 },
-  village_snowy: { structure: 'village', village: 'snowy', marker: 'village_snowy', name: 'Mapa de aldea nevada', search: 100, scale: 4 },
-  village_taiga: { structure: 'village', village: 'taiga', marker: 'village_taiga', name: 'Mapa de aldea de taiga', search: 100, scale: 4 },
-  swamp_hut: { structure: 'swamp_hut', marker: 'swamp_hut', name: 'Mapa de explorador de pantanos', search: 100, scale: 4 },
-  jungle_temple: { structure: 'jungle_temple', marker: 'jungle_temple', name: 'Mapa de explorador de junglas', search: 100, scale: 4 },
+  village_desert: { structure: 'village', village: 'desert', marker: 'village_desert', name: '沙漠村庄地图', search: 100, scale: 4 },
+  village_plains: { structure: 'village', village: 'plains', marker: 'village_plains', name: '平原村庄地图', search: 100, scale: 4 },
+  village_savanna: { structure: 'village', village: 'savanna', marker: 'village_savanna', name: '热带草原村庄地图', search: 100, scale: 4 },
+  village_snowy: { structure: 'village', village: 'snowy', marker: 'village_snowy', name: '雪原村庄地图', search: 100, scale: 4 },
+  village_taiga: { structure: 'village', village: 'taiga', marker: 'village_taiga', name: '针叶林村庄地图', search: 100, scale: 4 },
+  swamp_hut: { structure: 'swamp_hut', marker: 'swamp_hut', name: '沼泽探险家地图', search: 100, scale: 4 },
+  jungle_temple: { structure: 'jungle_temple', marker: 'jungle_temple', name: '丛林探险家地图', search: 100, scale: 4 },
   // Aún no hay cámaras de desafío: el mapa nunca encuentra una y la oferta no sale (como en Java sin ninguna cerca).
-  trial_chambers: { structure: 'trial_chambers', marker: 'trial_chambers', name: 'Mapa de cámaras de desafío', search: 100, scale: 4 },
+  trial_chambers: { structure: 'trial_chambers', marker: 'trial_chambers', name: '试炼密室地图', search: 100, scale: 4 },
 };
 
 /**

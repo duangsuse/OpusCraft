@@ -32,14 +32,14 @@ export interface PaintingVariant {
 
 /** Cuadros con arte procedural original. El índice es la variante que se guarda: sólo se añaden al final. */
 export const PAINTINGS: readonly PaintingVariant[] = [
-  { key: 'dawn', name: 'Amanecer', w: 1, h: 1 },
-  { key: 'meadow', name: 'Pradera', w: 1, h: 1 },
-  { key: 'lighthouse', name: 'Faro', w: 1, h: 1 },
-  { key: 'still_life', name: 'Bodegón', w: 1, h: 1 },
-  { key: 'mountains', name: 'Cordillera', w: 2, h: 1 },
-  { key: 'river', name: 'El río', w: 2, h: 1 },
-  { key: 'cypress', name: 'Ciprés', w: 1, h: 2 },
-  { key: 'castle', name: 'Castillo', w: 2, h: 2 },
+  { key: 'dawn', name: '黎明', w: 1, h: 1 },
+  { key: 'meadow', name: '草原', w: 1, h: 1 },
+  { key: 'lighthouse', name: '灯塔', w: 1, h: 1 },
+  { key: 'still_life', name: '静物画', w: 1, h: 1 },
+  { key: 'mountains', name: '山脉', w: 2, h: 1 },
+  { key: 'river', name: '河流', w: 2, h: 1 },
+  { key: 'cypress', name: '柏树', w: 1, h: 2 },
+  { key: 'castle', name: '城堡', w: 2, h: 2 },
 ];
 
 /** Textura de la celda (cx, cy) de un cuadro: cx hacia la derecha y cy hacia abajo desde la esquina de arriba. */

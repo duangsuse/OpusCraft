@@ -130,52 +130,52 @@ function item(key: string, name: string, o: Partial<ItemDef> = {}): number {
   return id;
 }
 
-export const STICK = item('stick', 'Palo', { fuel: 5 });
-export const COAL = item('coal', 'Carbón', { fuel: 80 });
-export const CHARCOAL = item('charcoal', 'Carbón vegetal', { fuel: 80 });
-export const IRON_INGOT = item('iron_ingot', 'Lingote de hierro');
-export const GOLD_INGOT = item('gold_ingot', 'Lingote de oro');
-export const DIAMOND = item('diamond', 'Diamante');
-export const LAPIS = item('lapis_lazuli', 'Lapislázuli');
-export const REDSTONE = item('redstone', 'Polvo de redstone');
-export const FLINT = item('flint', 'Pedernal');
-export const CLAY_BALL = item('clay_ball', 'Bola de arcilla');
-export const BRICK = item('brick', 'Ladrillo');
-export const BONE = item('bone', 'Hueso');
-export const STRING = item('string', 'Cuerda');
-export const FEATHER = item('feather', 'Pluma');
-export const GUNPOWDER = item('gunpowder', 'Pólvora');
-export const LEATHER = item('leather', 'Cuero');
-export const ROTTEN_FLESH = item('rotten_flesh', 'Carne podrida', { food: { hunger: 4, saturation: 0.8 } });
-export const PAPER = item('paper', 'Papel');
-export const BOOK = item('book', 'Libro');
-export const ENDER_PEARL = item('ender_pearl', 'Perla de ender', { stack: 16 });
-export const APPLE = item('apple', 'Manzana', { food: { hunger: 4, saturation: 2.4 } });
-export const RAW_PORKCHOP = item('raw_porkchop', 'Chuleta de cerdo cruda', { food: { hunger: 3, saturation: 1.8 } });
-export const COOKED_PORKCHOP = item('cooked_porkchop', 'Chuleta de cerdo cocinada', { food: { hunger: 8, saturation: 12.8 } });
-export const RAW_BEEF = item('raw_beef', 'Filete crudo', { food: { hunger: 3, saturation: 1.8 } });
-export const STEAK = item('steak', 'Filete', { food: { hunger: 8, saturation: 12.8 } });
-export const RAW_CHICKEN = item('raw_chicken', 'Pollo crudo', { food: { hunger: 2, saturation: 1.2 } });
-export const COOKED_CHICKEN = item('cooked_chicken', 'Pollo asado', { food: { hunger: 6, saturation: 7.2 } });
-export const RAW_MUTTON = item('raw_mutton', 'Cordero crudo', { food: { hunger: 2, saturation: 1.2 } });
-export const COOKED_MUTTON = item('cooked_mutton', 'Cordero asado', { food: { hunger: 6, saturation: 9.6 } });
-export const BREAD = item('bread', 'Pan', { food: { hunger: 5, saturation: 6 } });
-export const BUCKET = item('bucket', 'Cubo', { stack: 16 });
-export const WATER_BUCKET = item('water_bucket', 'Cubo de agua', { stack: 1, block: WATER });
-export const LAVA_BUCKET = item('lava_bucket', 'Cubo de lava', { stack: 1, block: LAVA, fuel: 1000 });
-export const BOW = item('bow', 'Arco', { stack: 1, fuel: 15, tool: { kind: 'bow', tier: 0, speed: 1, durability: 384, damage: 1 } });
-export const ARROW = item('arrow', 'Flecha');
-export const SHEARS = item('shears', 'Tijeras', { stack: 1, tool: { kind: 'shears', tier: 0, speed: 1.5, durability: 238, damage: 1 } });
+export const STICK = item('stick', '木棍', { fuel: 5 });
+export const COAL = item('coal', '煤炭', { fuel: 80 });
+export const CHARCOAL = item('charcoal', '木炭', { fuel: 80 });
+export const IRON_INGOT = item('iron_ingot', '铁锭');
+export const GOLD_INGOT = item('gold_ingot', '金锭');
+export const DIAMOND = item('diamond', '钻石');
+export const LAPIS = item('lapis_lazuli', '青金石');
+export const REDSTONE = item('redstone', '红石粉');
+export const FLINT = item('flint', '燧石');
+export const CLAY_BALL = item('clay_ball', '黏土球');
+export const BRICK = item('brick', '红砖');
+export const BONE = item('bone', '骨头');
+export const STRING = item('string', '线');
+export const FEATHER = item('feather', '羽毛');
+export const GUNPOWDER = item('gunpowder', '火药');
+export const LEATHER = item('leather', '皮革');
+export const ROTTEN_FLESH = item('rotten_flesh', '腐肉', { food: { hunger: 4, saturation: 0.8 } });
+export const PAPER = item('paper', '纸');
+export const BOOK = item('book', '书');
+export const ENDER_PEARL = item('ender_pearl', '末影珍珠', { stack: 16 });
+export const APPLE = item('apple', '苹果', { food: { hunger: 4, saturation: 2.4 } });
+export const RAW_PORKCHOP = item('raw_porkchop', '生猪排', { food: { hunger: 3, saturation: 1.8 } });
+export const COOKED_PORKCHOP = item('cooked_porkchop', '熟猪排', { food: { hunger: 8, saturation: 12.8 } });
+export const RAW_BEEF = item('raw_beef', '生牛肉', { food: { hunger: 3, saturation: 1.8 } });
+export const STEAK = item('steak', '牛排', { food: { hunger: 8, saturation: 12.8 } });
+export const RAW_CHICKEN = item('raw_chicken', '生鸡肉', { food: { hunger: 2, saturation: 1.2 } });
+export const COOKED_CHICKEN = item('cooked_chicken', '熟鸡肉', { food: { hunger: 6, saturation: 7.2 } });
+export const RAW_MUTTON = item('raw_mutton', '生羊肉', { food: { hunger: 2, saturation: 1.2 } });
+export const COOKED_MUTTON = item('cooked_mutton', '熟羊肉', { food: { hunger: 6, saturation: 9.6 } });
+export const BREAD = item('bread', '面包', { food: { hunger: 5, saturation: 6 } });
+export const BUCKET = item('bucket', '桶', { stack: 16 });
+export const WATER_BUCKET = item('water_bucket', '水桶', { stack: 1, block: WATER });
+export const LAVA_BUCKET = item('lava_bucket', '熔岩桶', { stack: 1, block: LAVA, fuel: 1000 });
+export const BOW = item('bow', '弓', { stack: 1, fuel: 15, tool: { kind: 'bow', tier: 0, speed: 1, durability: 384, damage: 1 } });
+export const ARROW = item('arrow', '箭');
+export const SHEARS = item('shears', '剪刀', { stack: 1, tool: { kind: 'shears', tier: 0, speed: 1.5, durability: 238, damage: 1 } });
 
 /** Materiales de herramienta: [prefijo, nombre, nivel, velocidad de minado, durabilidad]. */
 const MATERIALS: [string, string, number, number, number][] = [
-  ['wooden', 'de madera', 1, 2, 59],
-  ['stone', 'de piedra', 2, 4, 131],
-  ['iron', 'de hierro', 3, 6, 250],
-  ['golden', 'de oro', 1, 12, 32],
-  ['diamond', 'de diamante', 4, 8, 1561],
+  ['wooden', '木', 1, 2, 59],
+  ['stone', '石', 2, 4, 131],
+  ['iron', '铁', 3, 6, 250],
+  ['golden', '金', 1, 12, 32],
+  ['diamond', '钻石', 4, 8, 1561],
 ];
-const KINDS: [ToolType, string][] = [['pickaxe', 'Pico'], ['axe', 'Hacha'], ['shovel', 'Pala'], ['sword', 'Espada']];
+const KINDS: [ToolType, string][] = [['pickaxe', '镐'], ['axe', '斧'], ['shovel', '锹'], ['sword', '剑']];
 /**
  * Daño por golpe y velocidad de ataque de Minecraft Java por tipo y material (madera, piedra,
  * hierro, oro, diamante): la espada es rápida, el hacha pega fuerte pero lenta.
@@ -192,7 +192,7 @@ export const TOOLS: Record<string, Record<string, number>> = {};
 MATERIALS.forEach(([mat, matName, tier, speed, dur], m) => {
   TOOLS[mat] = {};
   for (const [kind, kindName] of KINDS) {
-    TOOLS[mat][kind] = item(`${mat}_${kind}`, `${kindName} ${matName}`, {
+    TOOLS[mat][kind] = item(`${mat}_${kind}`, `${matName}${kindName}`, {
       stack: 1,
       fuel: mat === 'wooden' ? 10 : undefined,
       tool: { kind, tier, speed, durability: dur, damage: COMBAT[kind][0][m], attackSpeed: COMBAT[kind][1][m] },
@@ -202,19 +202,19 @@ MATERIALS.forEach(([mat, matName, tier, speed, dur], m) => {
 
 // ------------------------------------------------------------------ granja
 // (Van al final para no cambiar los ids de los objetos guardados en inventarios y cofres.)
-export const WHEAT_SEEDS = item('wheat_seeds', 'Semillas de trigo', { block: WHEAT_CROP });
-export const WHEAT = item('wheat', 'Trigo');
-export const CARROT = item('carrot', 'Zanahoria', { block: CARROTS, food: { hunger: 3, saturation: 3.6 } });
-export const POTATO = item('potato', 'Patata', { block: POTATOES, food: { hunger: 1, saturation: 0.6 } });
-export const BAKED_POTATO = item('baked_potato', 'Patata asada', { food: { hunger: 5, saturation: 6 } });
-export const BEETROOT = item('beetroot', 'Remolacha', { food: { hunger: 1, saturation: 1.2 } });
-export const BEETROOT_SEEDS = item('beetroot_seeds', 'Semillas de remolacha', { block: BEETROOTS });
-export const BONE_MEAL = item('bone_meal', 'Polvo de hueso');
-export const EGG = item('egg', 'Huevo', { stack: 16 });
-export const MILK_BUCKET = item('milk_bucket', 'Cubo de leche', { stack: 1, drink: true });
-export const SUGAR = item('sugar', 'Azúcar');
+export const WHEAT_SEEDS = item('wheat_seeds', '小麦种子', { block: WHEAT_CROP });
+export const WHEAT = item('wheat', '小麦');
+export const CARROT = item('carrot', '胡萝卜', { block: CARROTS, food: { hunger: 3, saturation: 3.6 } });
+export const POTATO = item('potato', '马铃薯', { block: POTATOES, food: { hunger: 1, saturation: 0.6 } });
+export const BAKED_POTATO = item('baked_potato', '烤马铃薯', { food: { hunger: 5, saturation: 6 } });
+export const BEETROOT = item('beetroot', '甜菜根', { food: { hunger: 1, saturation: 1.2 } });
+export const BEETROOT_SEEDS = item('beetroot_seeds', '甜菜种子', { block: BEETROOTS });
+export const BONE_MEAL = item('bone_meal', '骨粉');
+export const EGG = item('egg', '鸡蛋', { stack: 16 });
+export const MILK_BUCKET = item('milk_bucket', '牛奶桶', { stack: 1, drink: true });
+export const SUGAR = item('sugar', '糖');
 MATERIALS.forEach(([mat, matName, tier, speed, dur], m) => {
-  TOOLS[mat].hoe = item(`${mat}_hoe`, `Azada ${matName}`, {
+  TOOLS[mat].hoe = item(`${mat}_hoe`, `${matName}锄`, {
     stack: 1,
     fuel: mat === 'wooden' ? 10 : undefined,
     tool: { kind: 'hoe', tier, speed, durability: dur, damage: COMBAT.hoe[0][m], attackSpeed: COMBAT.hoe[1][m] },
@@ -224,16 +224,16 @@ ITEMS[CAKE].stack = 1;
 
 // ------------------------------------------------------------------ armaduras (fase 4)
 const ARMOR_NAMES: Record<string, [string, string]> = {
-  leather: ['de cuero', 'de cuero'], golden: ['de oro', 'de oro'], iron: ['de hierro', 'de hierro'], diamond: ['de diamante', 'de diamante'],
+  leather: ['皮革', '皮革'], golden: ['金', '金'], iron: ['铁', '铁'], diamond: ['钻石', '钻石'],
 };
-const PIECE_NAMES = ['Casco', 'Peto', 'Grebas', 'Botas'];
+const PIECE_NAMES = ['头盔', '胸甲', '护腿', '靴子'];
 /** ARMOR[material][pieza] → id (materiales: leather, iron, golden, diamond). */
 export const ARMOR: Record<string, Record<string, number>> = {};
 for (const mat of ARMOR_MATERIALS) {
   ARMOR[mat] = {};
   const st = ARMOR_STATS[mat];
   ARMOR_PIECES.forEach((piece, slot) => {
-    ARMOR[mat][piece] = item(`${mat}_${piece}`, `${PIECE_NAMES[slot]} ${ARMOR_NAMES[mat][0]}`, {
+    ARMOR[mat][piece] = item(`${mat}_${piece}`, `${ARMOR_NAMES[mat][0]}${PIECE_NAMES[slot]}`, {
       stack: 1,
       armor: { slot: slot as ArmorSlot, material: mat, points: st.points[slot], toughness: st.toughness, durability: st.durability[slot] },
     });
@@ -241,86 +241,86 @@ for (const mat of ARMOR_MATERIALS) {
 }
 
 // ------------------------------------------------------------------ combate y estado (fase 4)
-export const GOLDEN_APPLE = item('golden_apple', 'Manzana dorada', {
+export const GOLDEN_APPLE = item('golden_apple', '金苹果', {
   food: { hunger: 4, saturation: 9.6, always: true, effects: [[EFFECT_REGENERATION, 5, 1, 1], [EFFECT_ABSORPTION, 120, 0, 1]] },
 });
-export const SPIDER_EYE = item('spider_eye', 'Ojo de araña', {
+export const SPIDER_EYE = item('spider_eye', '蜘蛛眼', {
   food: { hunger: 2, saturation: 3.2, effects: [[EFFECT_POISON, 5, 0, 1]] },
 });
 /** Escudo: se levanta con clic derecho mantenido y bloquea lo que llega de frente. */
-export const SHIELD = item('shield', 'Escudo', {
+export const SHIELD = item('shield', '盾牌', {
   stack: 1, fuel: 15, tool: { kind: 'shield', tier: 0, speed: 1, durability: 336, damage: 1 },
 });
 
 // ------------------------------------------------------------------ calabazas, sandías y pesca (fase 4)
-export const PUMPKIN_SEEDS = item('pumpkin_seeds', 'Semillas de calabaza', { block: PUMPKIN_STEM });
-export const MELON_SEEDS = item('melon_seeds', 'Semillas de sandía', { block: MELON_STEM });
-export const MELON_SLICE = item('melon_slice', 'Rodaja de sandía', { food: { hunger: 2, saturation: 1.2 } });
-export const PUMPKIN_PIE = item('pumpkin_pie', 'Tarta de calabaza', { food: { hunger: 8, saturation: 4.8 } });
-export const FISHING_ROD = item('fishing_rod', 'Caña de pescar', {
+export const PUMPKIN_SEEDS = item('pumpkin_seeds', '南瓜种子', { block: PUMPKIN_STEM });
+export const MELON_SEEDS = item('melon_seeds', '西瓜种子', { block: MELON_STEM });
+export const MELON_SLICE = item('melon_slice', '西瓜片', { food: { hunger: 2, saturation: 1.2 } });
+export const PUMPKIN_PIE = item('pumpkin_pie', '南瓜派', { food: { hunger: 8, saturation: 4.8 } });
+export const FISHING_ROD = item('fishing_rod', '钓鱼竿', {
   stack: 1, fuel: 15, tool: { kind: 'fishing_rod', tier: 0, speed: 1, durability: 64, damage: 1 },
 });
-export const COD = item('cod', 'Bacalao crudo', { food: { hunger: 2, saturation: 0.4 } });
-export const COOKED_COD = item('cooked_cod', 'Bacalao cocinado', { food: { hunger: 5, saturation: 6 } });
-export const SALMON = item('salmon', 'Salmón crudo', { food: { hunger: 2, saturation: 0.4 } });
-export const COOKED_SALMON = item('cooked_salmon', 'Salmón cocinado', { food: { hunger: 6, saturation: 9.6 } });
-export const TROPICAL_FISH = item('tropical_fish', 'Pez tropical', { food: { hunger: 1, saturation: 0.2 } });
+export const COD = item('cod', '生鳕鱼', { food: { hunger: 2, saturation: 0.4 } });
+export const COOKED_COD = item('cooked_cod', '熟鳕鱼', { food: { hunger: 5, saturation: 6 } });
+export const SALMON = item('salmon', '生鲑鱼', { food: { hunger: 2, saturation: 0.4 } });
+export const COOKED_SALMON = item('cooked_salmon', '熟鲑鱼', { food: { hunger: 6, saturation: 9.6 } });
+export const TROPICAL_FISH = item('tropical_fish', '热带鱼', { food: { hunger: 1, saturation: 0.2 } });
 /** Pez globo: Hambre III, Veneno II y (Fase 7: efectos) Náuseas I, como en Minecraft Java. */
-export const PUFFERFISH = item('pufferfish', 'Pez globo', {
+export const PUFFERFISH = item('pufferfish', '河豚', {
   food: { hunger: 1, saturation: 0.2, effects: [[EFFECT_HUNGER, 15, 2, 1], [EFFECT_POISON, 60, 1, 1], [EFFECT_NAUSEA, 15, 0, 1]] },
 });
 
 // ------------------------------------------------------------------ subsuelo (fase 5)
-export const COPPER_INGOT = item('copper_ingot', 'Lingote de cobre');
-export const EMERALD = item('emerald', 'Esmeralda');
-export const AMETHYST_SHARD = item('amethyst_shard', 'Fragmento de amatista');
+export const COPPER_INGOT = item('copper_ingot', '铜锭');
+export const EMERALD = item('emerald', '绿宝石');
+export const AMETHYST_SHARD = item('amethyst_shard', '紫水晶碎片');
 /** Bayas luminosas: se comen o se plantan bajo un techo (enredaderas de cueva). */
-export const GLOW_BERRIES = item('glow_berries', 'Bayas luminosas', { block: CAVE_VINES, food: { hunger: 2, saturation: 0.4 } });
+export const GLOW_BERRIES = item('glow_berries', '荧光浆果', { block: CAVE_VINES, food: { hunger: 2, saturation: 0.4 } });
 
 // ------------------------------------------------------------------ mapas, brújula y nieve (fase 5)
-export const COMPASS = item('compass', 'Brújula');
-export const EMPTY_MAP = item('map', 'Mapa vacío');
+export const COMPASS = item('compass', '指南针');
+export const EMPTY_MAP = item('map', '空地图');
 /** Mapa de una zona: la celda de 128×128 bloques va en `dmg` (ver maps.ts). */
-export const FILLED_MAP = item('filled_map', 'Mapa');
-export const SNOWBALL = item('snowball', 'Bola de nieve', { stack: 16 });
+export const FILLED_MAP = item('filled_map', '地图');
+export const SNOWBALL = item('snowball', '雪球', { stack: 16 });
 
 // ------------------------------------------------------------------ Fase 6 (monturas): silla de montar
-export const SADDLE = item('saddle', 'Silla de montar', { stack: 1 });
+export const SADDLE = item('saddle', '鞍', { stack: 1 });
 // ------------------------------------------------------------------ Fase 6 (monstruos): botín y pociones de bruja
-export const SLIME_BALL = item('slime_ball', 'Bola de slime');
-export const PHANTOM_MEMBRANE = item('phantom_membrane', 'Membrana de phantom');
+export const SLIME_BALL = item('slime_ball', '黏液球');
+export const PHANTOM_MEMBRANE = item('phantom_membrane', '幻翼膜');
 /** Pociones arrojadizas que lanzan las brujas (al romperse dan su efecto alrededor). */
-export const SPLASH_HARMING = item('splash_potion_harming', 'Poción arrojadiza de daño', { stack: 1 });
-export const SPLASH_SLOWNESS = item('splash_potion_slowness', 'Poción arrojadiza de lentitud', { stack: 1 });
-export const SPLASH_POISON = item('splash_potion_poison', 'Poción arrojadiza de veneno', { stack: 1 });
+export const SPLASH_HARMING = item('splash_potion_harming', '喷溅型伤害药水', { stack: 1 });
+export const SPLASH_SLOWNESS = item('splash_potion_slowness', '喷溅型迟缓药水', { stack: 1 });
+export const SPLASH_POISON = item('splash_potion_poison', '喷溅型剧毒药水', { stack: 1 });
 // ------------------------------------------------------------------ Fase 6 (acuáticos): cubos con criatura
 // Se llenan usando un cubo de agua sobre la criatura; al vaciarlos sale el agua y la criatura.
-export const COD_BUCKET = item('cod_bucket', 'Cubo con bacalao', { stack: 1, block: WATER });
-export const SALMON_BUCKET = item('salmon_bucket', 'Cubo con salmón', { stack: 1, block: WATER });
-export const TROPICAL_FISH_BUCKET = item('tropical_fish_bucket', 'Cubo con pez tropical', { stack: 1, block: WATER });
-export const PUFFERFISH_BUCKET = item('pufferfish_bucket', 'Cubo con pez globo', { stack: 1, block: WATER });
-export const AXOLOTL_BUCKET = item('axolotl_bucket', 'Cubo con ajolote', { stack: 1, block: WATER });
-export const TADPOLE_BUCKET = item('tadpole_bucket', 'Cubo con renacuajo', { stack: 1, block: WATER });
+export const COD_BUCKET = item('cod_bucket', '鳕鱼桶', { stack: 1, block: WATER });
+export const SALMON_BUCKET = item('salmon_bucket', '鲑鱼桶', { stack: 1, block: WATER });
+export const TROPICAL_FISH_BUCKET = item('tropical_fish_bucket', '热带鱼桶', { stack: 1, block: WATER });
+export const PUFFERFISH_BUCKET = item('pufferfish_bucket', '河豚桶', { stack: 1, block: WATER });
+export const AXOLOTL_BUCKET = item('axolotl_bucket', '美西螈桶', { stack: 1, block: WATER });
+export const TADPOLE_BUCKET = item('tadpole_bucket', '蝌蚪桶', { stack: 1, block: WATER });
 // ------------------------------------------------------------------ fauna (fase 6)
-export const GLASS_BOTTLE = item('glass_bottle', 'Frasco de cristal', { stack: 16 });
+export const GLASS_BOTTLE = item('glass_bottle', '玻璃瓶', { stack: 16 });
 /** Frasco de miel: se bebe aunque no haya hambre, quita el veneno y devuelve el frasco vacío. */
-export const HONEY_BOTTLE = item('honey_bottle', 'Frasco de miel', { stack: 16, food: { hunger: 6, saturation: 1.2, always: true } });
-export const HONEYCOMB = item('honeycomb', 'Panal');
-export const RAW_RABBIT = item('raw_rabbit', 'Conejo crudo', { food: { hunger: 3, saturation: 1.8 } });
-export const COOKED_RABBIT = item('cooked_rabbit', 'Conejo cocinado', { food: { hunger: 5, saturation: 6 } });
-export const RABBIT_HIDE = item('rabbit_hide', 'Piel de conejo');
-export const ARMADILLO_SCUTE = item('armadillo_scute', 'Escama de armadillo');
+export const HONEY_BOTTLE = item('honey_bottle', '蜂蜜瓶', { stack: 16, food: { hunger: 6, saturation: 1.2, always: true } });
+export const HONEYCOMB = item('honeycomb', '蜜脾');
+export const RAW_RABBIT = item('raw_rabbit', '生兔肉', { food: { hunger: 3, saturation: 1.8 } });
+export const COOKED_RABBIT = item('cooked_rabbit', '熟兔肉', { food: { hunger: 5, saturation: 6 } });
+export const RABBIT_HIDE = item('rabbit_hide', '兔子皮');
+export const ARMADILLO_SCUTE = item('armadillo_scute', '犰狳鳞甲');
 /** Cepillo: saca escamas a los armadillos (16 de desgaste por escama). */
-export const BRUSH = item('brush', 'Cepillo', { stack: 1, tool: { kind: 'brush', tier: 0, speed: 1, durability: 64, damage: 1 } });
+export const BRUSH = item('brush', '刷子', { stack: 1, tool: { kind: 'brush', tier: 0, speed: 1, durability: 64, damage: 1 } });
 // ------------------------------------------------------------------ Fase 6 (asaltos)
 /** Botella ominosa: la suelta el capitán de una patrulla; al beberla da Mal presagio. */
-export const OMINOUS_BOTTLE = item('ominous_bottle', 'Botella ominosa', { food: { hunger: 0, saturation: 0, always: true } });
+export const OMINOUS_BOTTLE = item('ominous_bottle', '不祥之瓶', { food: { hunger: 0, saturation: 0, always: true } });
 /** Tótem de inmortalidad: en la mano (o la secundaria), salva de una muerte segura. */
-export const TOTEM_OF_UNDYING = item('totem_of_undying', 'Tótem de inmortalidad', { stack: 1 });
+export const TOTEM_OF_UNDYING = item('totem_of_undying', '不死图腾', { stack: 1 });
 // ------------------------------------------------------------------ Fase 6.5 (colores): tintes
 /** Tinte de cada uno de los 16 colores. */
 export const DYES = {} as Record<DyeColor, number>;
-for (const c of DYE_COLORS) DYES[c] = item(`${c}_dye`, `Tinte ${COLOR_NAMES[c][0]}`);
+for (const c of DYE_COLORS) DYES[c] = item(`${c}_dye`, `${COLOR_NAMES[c][0]}染料`);
 // Los estandartes se apilan de 16 en 16 y arden como la madera; las alfombras, un poco.
 for (const c of DYE_COLORS) {
   ITEMS[BANNERS[c]].stack = 16;
@@ -329,14 +329,14 @@ for (const c of DYE_COLORS) {
 }
 // ------------------------------------------------------------------ Fase 6.5 (cobre)
 /** Cobre en bruto: lo sueltan las menas de cobre; se funde en lingotes. */
-export const RAW_COPPER = item('raw_copper', 'Cobre en bruto');
-export const COPPER_NUGGET = item('copper_nugget', 'Pepita de cobre');
+export const RAW_COPPER = item('raw_copper', '粗铜');
+export const COPPER_NUGGET = item('copper_nugget', '铜粒');
 // Herramientas de cobre (la «Edad del cobre»): cosechan como las de piedra, algo más rápidas y duraderas.
 TOOLS.copper = {};
 for (const [kind, kindName, damage, attackSpeed] of [
-  ['pickaxe', 'Pico', 3, 1.2], ['axe', 'Hacha', 9, 0.8], ['shovel', 'Pala', 3.5, 1], ['sword', 'Espada', 5, 1.6], ['hoe', 'Azada', 1, 2],
+  ['pickaxe', '镐', 3, 1.2], ['axe', '斧', 9, 0.8], ['shovel', '锹', 3.5, 1], ['sword', '剑', 5, 1.6], ['hoe', '锄', 1, 2],
 ] as const) {
-  TOOLS.copper[kind] = item(`copper_${kind}`, `${kindName} de cobre`, {
+  TOOLS.copper[kind] = item(`copper_${kind}`, `铜${kindName}`, {
     stack: 1, tool: { kind, tier: 2, speed: 5, durability: 190, damage, attackSpeed },
   });
 }
@@ -344,7 +344,7 @@ for (const [kind, kindName, damage, attackSpeed] of [
 ARMOR[COPPER_ARMOR] = {};
 ARMOR_PIECES.forEach((piece, slot) => {
   const st = ARMOR_STATS[COPPER_ARMOR];
-  ARMOR[COPPER_ARMOR][piece] = item(`copper_${piece}`, `${PIECE_NAMES[slot]} de cobre`, {
+  ARMOR[COPPER_ARMOR][piece] = item(`copper_${piece}`, `铜${PIECE_NAMES[slot]}`, {
     stack: 1,
     armor: { slot: slot as ArmorSlot, material: COPPER_ARMOR, points: st.points[slot], toughness: st.toughness, durability: st.durability[slot] },
   });
@@ -353,11 +353,11 @@ ARMOR_PIECES.forEach((piece, slot) => {
 COPPER.door.forEach((row) => row.forEach((id, stage) => (ITEMS[id].sprite = copperTexture('copper_door', stage))));
 // ------------------------------------------------------------------ Fase 6.5 (océano y plantas)
 /** Algas secas: comida rápida (el alga se seca en el horno). */
-export const DRIED_KELP = item('dried_kelp', 'Algas secas', { food: { hunger: 1, saturation: 0.6 } });
+export const DRIED_KELP = item('dried_kelp', '干海带', { food: { hunger: 1, saturation: 0.6 } });
 /** Bayas dulces: se comen o se plantan (arbusto de bayas dulces). */
-export const SWEET_BERRIES = item('sweet_berries', 'Bayas dulces', { block: SWEET_BERRY_BUSH, food: { hunger: 2, saturation: 0.4 } });
-export const PRISMARINE_SHARD = item('prismarine_shard', 'Fragmento de prismarina');
-export const PRISMARINE_CRYSTALS = item('prismarine_crystals', 'Cristales de prismarina');
+export const SWEET_BERRIES = item('sweet_berries', '甜浆果', { block: SWEET_BERRY_BUSH, food: { hunger: 2, saturation: 0.4 } });
+export const PRISMARINE_SHARD = item('prismarine_shard', '海晶碎片');
+export const PRISMARINE_CRYSTALS = item('prismarine_crystals', '海晶砂粒');
 ITEMS[KELP].smelt = DRIED_KELP;
 ITEMS[WET_SPONGE].smelt = SPONGE;
 ITEMS[DRIED_KELP_BLOCK].fuel = 200;
@@ -391,29 +391,29 @@ export const BREED_FOOD: Readonly<Record<string, readonly number[]>> = {
 
 // ------------------------------------------------------------------ Fase 6.5 (decoración)
 // Comida (valores de Minecraft), pepitas, cuenco, catalejo, reloj, cuadros, marcos y huevos generadores.
-export const BOWL = item('bowl', 'Cuenco', { fuel: 5 });
-export const IRON_NUGGET = item('iron_nugget', 'Pepita de hierro');
-export const GOLD_NUGGET = item('gold_nugget', 'Pepita de oro');
-export const COCOA_BEANS = item('cocoa_beans', 'Granos de cacao');
-export const COOKIE = item('cookie', 'Galleta', { food: { hunger: 2, saturation: 0.4 } });
+export const BOWL = item('bowl', '碗', { fuel: 5 });
+export const IRON_NUGGET = item('iron_nugget', '铁粒');
+export const GOLD_NUGGET = item('gold_nugget', '金粒');
+export const COCOA_BEANS = item('cocoa_beans', '可可豆');
+export const COOKIE = item('cookie', '曲奇', { food: { hunger: 2, saturation: 0.4 } });
 /** Estofados y sopas: no se apilan y devuelven el cuenco al comerlos. */
-export const MUSHROOM_STEW = item('mushroom_stew', 'Estofado de champiñones', { stack: 1, food: { hunger: 6, saturation: 7.2 } });
-export const RABBIT_STEW = item('rabbit_stew', 'Estofado de conejo', { stack: 1, food: { hunger: 10, saturation: 12 } });
-export const BEETROOT_SOUP = item('beetroot_soup', 'Sopa de remolacha', { stack: 1, food: { hunger: 6, saturation: 7.2 } });
+export const MUSHROOM_STEW = item('mushroom_stew', '蘑菇煲', { stack: 1, food: { hunger: 6, saturation: 7.2 } });
+export const RABBIT_STEW = item('rabbit_stew', '兔肉煲', { stack: 1, food: { hunger: 10, saturation: 12 } });
+export const BEETROOT_SOUP = item('beetroot_soup', '甜菜汤', { stack: 1, food: { hunger: 6, saturation: 7.2 } });
 /** Estofado sospechoso: el efecto depende de la flor con que se hizo (va en `dmg`, ver decorFood.ts). */
-export const SUSPICIOUS_STEW = item('suspicious_stew', 'Estofado sospechoso', { stack: 1, food: { hunger: 6, saturation: 7.2, always: true } });
-export const GOLDEN_CARROT = item('golden_carrot', 'Zanahoria dorada', { food: { hunger: 6, saturation: 14.4 } });
-export const GLISTERING_MELON_SLICE = item('glistering_melon_slice', 'Rodaja de sandía reluciente');
+export const SUSPICIOUS_STEW = item('suspicious_stew', '迷之炖菜', { stack: 1, food: { hunger: 6, saturation: 7.2, always: true } });
+export const GOLDEN_CARROT = item('golden_carrot', '金胡萝卜', { food: { hunger: 6, saturation: 14.4 } });
+export const GLISTERING_MELON_SLICE = item('glistering_melon_slice', '闪烁的西瓜片');
 /** Catalejo: con el clic derecho mantenido se mira de lejos. */
-export const SPYGLASS = item('spyglass', 'Catalejo', { stack: 1 });
+export const SPYGLASS = item('spyglass', '望远镜', { stack: 1 });
 /** Reloj: en la mano muestra la hora del mundo. */
-export const CLOCK = item('clock', 'Reloj');
+export const CLOCK = item('clock', '时钟');
 /** Cuadro y marco: se cuelgan en una pared (entidades). */
-export const PAINTING = item('painting', 'Cuadro');
-export const ITEM_FRAME = item('item_frame', 'Marco');
+export const PAINTING = item('painting', '画');
+export const ITEM_FRAME = item('item_frame', '物品展示框');
 /** Huevos generadores por clave de criatura: al usarlos sobre un bloque aparece la criatura. */
 export const SPAWN_EGGS: Record<string, number> = {};
-for (const e of SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `Huevo generador de ${e.name}`);
+for (const e of SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `${e.name}刷怪蛋`);
 /** Clave de la criatura de un huevo generador ('' si no lo es). */
 export function spawnEggMob(id: number): string {
   const k = ITEMS[id]?.key ?? '';
@@ -421,146 +421,146 @@ export function spawnEggMob(id: number): string {
 }
 
 /** Bolsa de tinta: la suelta el calamar; da el tinte negro. */
-export const INK_SAC = item('ink_sac', 'Saco de tinta');
+export const INK_SAC = item('ink_sac', '墨囊');
 // Fase 6.5 (remate): etiqueta (pone nombre a una criatura) y correa (la ata al jugador o a una valla).
-export const NAME_TAG = item('name_tag', 'Etiqueta');
-export const LEAD = item('lead', 'Correa');
+export const NAME_TAG = item('name_tag', '命名牌');
+export const LEAD = item('lead', '拴绳');
 /** Saco: guarda varios objetos distintos en una ranura (hasta 64 de peso). Liso y de los 16 colores. */
-export const BUNDLE = item('bundle', 'Saco', { stack: 1 });
+export const BUNDLE = item('bundle', '收纳袋', { stack: 1 });
 export const DYED_BUNDLES = {} as Record<DyeColor, number>;
-for (const c of DYE_COLORS) DYED_BUNDLES[c] = item(`${c}_bundle`, `Saco ${COLOR_NAMES[c][0]}`, { stack: 1 });
+for (const c of DYE_COLORS) DYED_BUNDLES[c] = item(`${c}_bundle`, `${COLOR_NAMES[c][0]}收纳袋`, { stack: 1 });
 /** Soporte para armadura: se pone sobre un bloque y se le viste con clic derecho. */
-export const ARMOR_STAND = item('armor_stand', 'Soporte para armadura', { stack: 16 });
+export const ARMOR_STAND = item('armor_stand', '盔甲架', { stack: 16 });
 // ------------------------------------------------------------------ Fase 6.5 (libros y estandartes)
 /** Libro y pluma: se escribe (sus páginas van en los datos de la pila) y se firma. */
-export const WRITABLE_BOOK = item('writable_book', 'Libro y pluma', { stack: 1 });
+export const WRITABLE_BOOK = item('writable_book', '书与笔', { stack: 1 });
 /** Libro escrito: firmado (título, autor y generación); se lee y se copia. */
-export const WRITTEN_BOOK = item('written_book', 'Libro escrito', { stack: 16 });
+export const WRITTEN_BOOK = item('written_book', '成书', { stack: 16 });
 /** Diseños de estandarte: dibujos del telar que necesitan su diseño (no se gastan). */
 export const BANNER_PATTERN_ITEMS = {
-  flower: item('flower_banner_pattern', 'Diseño de estandarte (Flor)', { stack: 1 }),
-  creeper: item('creeper_banner_pattern', 'Diseño de estandarte (Creeper)', { stack: 1 }),
-  skull: item('skull_banner_pattern', 'Diseño de estandarte (Calavera)', { stack: 1 }),
-  thing: item('thing_banner_pattern', 'Diseño de estandarte (Cosa)', { stack: 1 }),
-  globe: item('globe_banner_pattern', 'Diseño de estandarte (Globo)', { stack: 1 }),
-  curly_border: item('bordure_indented_banner_pattern', 'Diseño de estandarte (Bordura dentada)', { stack: 1 }),
-  bricks: item('field_masoned_banner_pattern', 'Diseño de estandarte (Campo de ladrillos)', { stack: 1 }),
+  flower: item('flower_banner_pattern', '花朵盾徽旗帜图案', { stack: 1 }),
+  creeper: item('creeper_banner_pattern', '苦力怕盾徽旗帜图案', { stack: 1 }),
+  skull: item('skull_banner_pattern', '骷髅盾徽旗帜图案', { stack: 1 }),
+  thing: item('thing_banner_pattern', 'Mojang标志旗帜图案', { stack: 1 }),
+  globe: item('globe_banner_pattern', '地球旗帜图案', { stack: 1 }),
+  curly_border: item('bordure_indented_banner_pattern', '锯齿框边旗帜图案', { stack: 1 }),
+  bricks: item('field_masoned_banner_pattern', '砖纹旗帜图案', { stack: 1 }),
 } as const;
 // ------------------------------------------------------------------ Fase 6.5 (materiales)
 /** Hierro y oro en bruto: los sueltan sus menas; se funden en lingotes. */
-export const RAW_IRON = item('raw_iron', 'Hierro en bruto');
-export const RAW_GOLD = item('raw_gold', 'Oro en bruto');
+export const RAW_IRON = item('raw_iron', '粗铁');
+export const RAW_GOLD = item('raw_gold', '粗金');
 /** Cubo de nieve polvo: un cubo vacío sobre la nieve polvo la recoge; al vaciarlo, la pone y queda el cubo. */
-export const POWDER_SNOW_BUCKET = item('powder_snow_bucket', 'Cubo de nieve polvo', { stack: 1, block: POWDER_SNOW });
+export const POWDER_SNOW_BUCKET = item('powder_snow_bucket', '细雪桶', { stack: 1, block: POWDER_SNOW });
 // ------------------------------------------------------------------ Fase 6.5 (colecciones)
 /** Saco de tinta brillante: lo suelta el calamar brillante; con un marco se hace el marco brillante. */
-export const GLOW_INK_SAC = item('glow_ink_sac', 'Saco de tinta brillante');
+export const GLOW_INK_SAC = item('glow_ink_sac', '荧光墨囊');
 /** Marco brillante: como el marco, pero el objeto que muestra se ve a plena luz aunque esté a oscuras. */
-export const GLOW_ITEM_FRAME = item('glow_item_frame', 'Marco brillante');
+export const GLOW_ITEM_FRAME = item('glow_item_frame', '荧光物品展示框');
 /** Discos de música, en el orden de DISCS (discs.ts); el título va en la descripción. */
 // Fase 7.5 (abismo): el disco 5 se registra al final (su objeto no puede ir aquí sin mover los ids de detrás).
-export const MUSIC_DISCS: readonly number[] = DISCS.filter((d) => d.key !== '5' && d.key !== 'tears' && d.key !== 'pigstep').map((d) => item(`music_disc_${d.key}`, 'Disco de música', { stack: 1 }));
+export const MUSIC_DISCS: readonly number[] = DISCS.filter((d) => d.key !== '5' && d.key !== 'tears' && d.key !== 'pigstep').map((d) => item(`music_disc_${d.key}`, '音乐唱片', { stack: 1 }));
 // Las cabezas se llevan en el hueco del casco (sin puntos de armadura ni desgaste).
 for (const k of ALL_SKULL_KINDS) ITEMS[SKULLS[k]].armor = { slot: 0, material: 'leather', points: 0, toughness: 0, durability: 0 };
 
 // ------------------------------------------------------------------ Fase 6.5 (equipo)
 /** Mechero: enciende fuego en la cara tocada, velas y fogatas (64 usos). */
-export const FLINT_AND_STEEL = item('flint_and_steel', 'Mechero', {
+export const FLINT_AND_STEEL = item('flint_and_steel', '打火石', {
   stack: 1, tool: { kind: 'lighter', tier: 0, speed: 1, durability: 64, damage: 1 },
 });
 // Armadura de cota de malla: no se fabrica (botín y comercio con el armero).
 ARMOR[CHAINMAIL_ARMOR] = {};
 ARMOR_PIECES.forEach((piece, slot) => {
   const st = ARMOR_STATS[CHAINMAIL_ARMOR];
-  ARMOR[CHAINMAIL_ARMOR][piece] = item(`chainmail_${piece}`, `${PIECE_NAMES[slot]} de cota de malla`, {
+  ARMOR[CHAINMAIL_ARMOR][piece] = item(`chainmail_${piece}`, `锁链${PIECE_NAMES[slot]}`, {
     stack: 1,
     armor: { slot: slot as ArmorSlot, material: CHAINMAIL_ARMOR, points: st.points[slot], toughness: st.toughness, durability: st.durability[slot] },
   });
 });
 /** Ballesta y ballesta cargada (la misma, con un virote puesto: se cambia al cargarla y al disparar). */
-export const CROSSBOW = item('crossbow', 'Ballesta', { stack: 1, tool: { kind: 'crossbow', tier: 0, speed: 1, durability: 465, damage: 1 } });
-export const CROSSBOW_CHARGED = item('crossbow_charged', 'Ballesta', { stack: 1, tool: { kind: 'crossbow', tier: 0, speed: 1, durability: 465, damage: 1 } });
+export const CROSSBOW = item('crossbow', '弩', { stack: 1, tool: { kind: 'crossbow', tier: 0, speed: 1, durability: 465, damage: 1 } });
+export const CROSSBOW_CHARGED = item('crossbow_charged', '弩', { stack: 1, tool: { kind: 'crossbow', tier: 0, speed: 1, durability: 465, damage: 1 } });
 /** Tridente: 9 de daño cuerpo a cuerpo; con el clic derecho mantenido se lanza. */
-export const TRIDENT = item('trident', 'Tridente', { stack: 1, tool: { kind: 'trident', tier: 0, speed: 1, durability: 250, damage: 9, attackSpeed: 1.1 } });
-export const TURTLE_SCUTE = item('turtle_scute', 'Escama de tortuga');
+export const TRIDENT = item('trident', '三叉戟', { stack: 1, tool: { kind: 'trident', tier: 0, speed: 1, durability: 250, damage: 9, attackSpeed: 1.1 } });
+export const TURTLE_SCUTE = item('turtle_scute', '海龟鳞甲');
 /** Caparazón de tortuga: casco que da respiración acuática al sacar la cabeza del agua. */
-export const TURTLE_HELMET = item('turtle_helmet', 'Caparazón de tortuga', {
+export const TURTLE_HELMET = item('turtle_helmet', '海龟壳', {
   stack: 1, armor: { slot: 0, material: TURTLE_ARMOR, points: 2, toughness: 0, durability: ARMOR_STATS[TURTLE_ARMOR].durability[0] },
 });
 /** Armaduras para caballo por material (leather, iron, golden, diamond). */
 export const HORSE_ARMOR: Record<string, number> = {};
-for (const [mat, name] of [['leather', 'de cuero'], ['iron', 'de hierro'], ['golden', 'de oro'], ['diamond', 'de diamante']] as const) {
-  HORSE_ARMOR[mat] = item(`${mat}_horse_armor`, `Armadura ${name} para caballo`, { stack: 1 });
+for (const [mat, name] of [['leather', '皮革'], ['iron', '铁'], ['golden', '金'], ['diamond', '钻石']] as const) {
+  HORSE_ARMOR[mat] = item(`${mat}_horse_armor`, `${name}马铠`, { stack: 1 });
 }
 /** Armadura para lobo: absorbe el daño del lobo domesticado y se desgasta. */
-export const WOLF_ARMOR = item('wolf_armor', 'Armadura para lobo', {
+export const WOLF_ARMOR = item('wolf_armor', '狼铠', {
   stack: 1, tool: { kind: 'body_armor', tier: 0, speed: 1, durability: WOLF_ARMOR_DURABILITY, damage: 1 },
 });
 /** Caña con zanahoria: guía al cerdo ensillado que se monta (y le da un acelerón). */
-export const CARROT_ON_A_STICK = item('carrot_on_a_stick', 'Caña con zanahoria', {
+export const CARROT_ON_A_STICK = item('carrot_on_a_stick', '胡萝卜钓竿', {
   stack: 1, tool: { kind: 'carrot_stick', tier: 0, speed: 1, durability: 25, damage: 1 },
 });
 /** Cuerno de cabra: la tonada va en el desgaste de la pila (1..8). */
-export const GOAT_HORN = item('goat_horn', 'Cuerno de cabra', { stack: 1 });
-export const RABBIT_FOOT = item('rabbit_foot', 'Pata de conejo');
-export const POISONOUS_POTATO = item('poisonous_potato', 'Patata venenosa', {
+export const GOAT_HORN = item('goat_horn', '山羊角', { stack: 1 });
+export const RABBIT_FOOT = item('rabbit_foot', '兔子脚');
+export const POISONOUS_POTATO = item('poisonous_potato', '毒马铃薯', {
   food: { hunger: 2, saturation: 1.2, effects: [[EFFECT_POISON, 5, 0, 0.6]] },
 });
 /** Manzana de oro encantada: sólo en el botín de las estructuras. */
-export const ENCHANTED_GOLDEN_APPLE = item('enchanted_golden_apple', 'Manzana de oro encantada', {
+export const ENCHANTED_GOLDEN_APPLE = item('enchanted_golden_apple', '附魔金苹果', {
   food: {
     hunger: 4, saturation: 9.6, always: true,
     effects: [[EFFECT_REGENERATION, 20, 1, 1], [EFFECT_ABSORPTION, 120, 3, 1], [EFFECT_RESISTANCE, 300, 0, 1], [EFFECT_FIRE_RESISTANCE, 300, 0, 1]],
   },
 });
-export const HEART_OF_THE_SEA = item('heart_of_the_sea', 'Corazón del mar');
-export const NAUTILUS_SHELL = item('nautilus_shell', 'Concha de nautilo');
+export const HEART_OF_THE_SEA = item('heart_of_the_sea', '海洋之心');
+export const NAUTILUS_SHELL = item('nautilus_shell', '鹦鹉螺壳');
 /** Cohete y estrella de fuegos artificiales (su vuelo y sus colores van en el desgaste; ver equipment.ts). */
-export const FIREWORK_ROCKET = item('firework_rocket', 'Cohete de fuegos artificiales');
-export const FIREWORK_STAR = item('firework_star', 'Estrella de fuegos artificiales');
+export const FIREWORK_ROCKET = item('firework_rocket', '烟花火箭');
+export const FIREWORK_STAR = item('firework_star', '烟花之星');
 // ------------------------------------------------------------------ Fase 7 (encantamientos)
 /** Libro encantado: guarda encantamientos (`data.stored`) para ponerlos con el yunque. */
-export const ENCHANTED_BOOK = item('enchanted_book', 'Libro encantado', { stack: 1 });
+export const ENCHANTED_BOOK = item('enchanted_book', '附魔书', { stack: 1 });
 /** Botella con experiencia: se lanza y al romperse suelta orbes (de 3 a 11 puntos). */
-export const EXPERIENCE_BOTTLE = item('experience_bottle', 'Botella con experiencia');
+export const EXPERIENCE_BOTTLE = item('experience_bottle', '附魔之瓶');
 
 // ------------------------------------------------------------------ Fase 7 (pociones)
 /**
  * Pociones: el tipo va en `dmg` (0 = agua; ver potions.ts). El frasco se bebe; las arrojadizas y las
  * persistentes se lanzan; las flechas con efecto se disparan con el arco y la ballesta.
  */
-export const POTION = item('potion', 'Poción', { stack: 1, drink: true });
-export const SPLASH_POTION = item('splash_potion', 'Poción arrojadiza', { stack: 1 });
-export const LINGERING_POTION = item('lingering_potion', 'Poción persistente', { stack: 1 });
-export const TIPPED_ARROW = item('tipped_arrow', 'Flecha con efecto');
+export const POTION = item('potion', '药水', { stack: 1, drink: true });
+export const SPLASH_POTION = item('splash_potion', '喷溅药水', { stack: 1 });
+export const LINGERING_POTION = item('lingering_potion', '滞留药水', { stack: 1 });
+export const TIPPED_ARROW = item('tipped_arrow', '药箭');
 /** Ingredientes de destilación que faltaban. Los del Nether y el End, de momento sólo en creativo y en el botín. */
-export const FERMENTED_SPIDER_EYE = item('fermented_spider_eye', 'Ojo de araña fermentado');
-export const GLOWSTONE_DUST = item('glowstone_dust', 'Polvo de piedra luminosa');
-export const NETHER_WART = item('nether_wart', 'Verruga del Nether', { block: NETHER_WART_CROP }); // Fase 8.4: se planta en arena de alma
-export const BLAZE_ROD = item('blaze_rod', 'Vara de blaze', { fuel: 120 });
-export const BLAZE_POWDER = item('blaze_powder', 'Polvo de blaze');
-export const MAGMA_CREAM = item('magma_cream', 'Crema de magma');
-export const GHAST_TEAR = item('ghast_tear', 'Lágrima de ghast');
-export const DRAGON_BREATH = item('dragon_breath', 'Aliento de dragón');
+export const FERMENTED_SPIDER_EYE = item('fermented_spider_eye', '发酵蜘蛛眼');
+export const GLOWSTONE_DUST = item('glowstone_dust', '荧石粉');
+export const NETHER_WART = item('nether_wart', '下界疣', { block: NETHER_WART_CROP }); // Fase 8.4: se planta en arena de alma
+export const BLAZE_ROD = item('blaze_rod', '烈焰棒', { fuel: 120 });
+export const BLAZE_POWDER = item('blaze_powder', '烈焰粉');
+export const MAGMA_CREAM = item('magma_cream', '岩浆膏');
+export const GHAST_TEAR = item('ghast_tear', '恶魂之泪');
+export const DRAGON_BREATH = item('dragon_breath', '龙息');
 // El alambique se ve plano en el inventario y en la mano (como en Minecraft).
 ITEMS[BREWING_STAND].sprite = 'brewing_stand';
 // ------------------------------------------------------------------ Fase 7 (transporte)
 /** Barcas y barcas con cofre por madera (la de bambú es una balsa), en el orden de BOAT_WOODS. */
 const BOAT_NAMES: [string, string][] = [
-  ['oak', 'de roble'], ['spruce', 'de abeto'], ['birch', 'de abedul'], ['jungle', 'de jungla'], ['acacia', 'de acacia'],
-  ['dark_oak', 'de roble oscuro'], ['mangrove', 'de mangle'], ['cherry', 'de cerezo'], ['pale_oak', 'de roble pálido'],
-  ['bamboo', 'de bambú'],
+  ['oak', '橡木'], ['spruce', '云杉'], ['birch', '白桦'], ['jungle', '丛林'], ['acacia', '金合欢'],
+  ['dark_oak', '深色橡木'], ['mangrove', '红树'], ['cherry', '樱花木'], ['pale_oak', '苍白橡木'],
+  ['bamboo', '竹'],
 ];
 export const BOAT_ITEMS: Record<string, number> = {};
 export const CHEST_BOAT_ITEMS: Record<string, number> = {};
 for (const [wood, name] of BOAT_NAMES) {
   const raft = wood === 'bamboo';
-  BOAT_ITEMS[wood] = item(raft ? 'bamboo_raft' : `${wood}_boat`, raft ? 'Balsa de bambú' : `Barca ${name}`, { stack: 1, fuel: 60 });
-  CHEST_BOAT_ITEMS[wood] = item(raft ? 'bamboo_chest_raft' : `${wood}_chest_boat`, raft ? 'Balsa de bambú con cofre' : `Barca ${name} con cofre`, { stack: 1 });
+  BOAT_ITEMS[wood] = item(raft ? 'bamboo_raft' : `${wood}_boat`, raft ? '竹筏' : `${name}船`, { stack: 1, fuel: 60 });
+  CHEST_BOAT_ITEMS[wood] = item(raft ? 'bamboo_chest_raft' : `${wood}_chest_boat`, raft ? '竹运输筏' : `${name}运输船`, { stack: 1 });
 }
-export const MINECART = item('minecart', 'Vagoneta', { stack: 1 });
-export const CHEST_MINECART = item('chest_minecart', 'Vagoneta con cofre', { stack: 1 });
-export const FURNACE_MINECART = item('furnace_minecart', 'Vagoneta con horno', { stack: 1 });
+export const MINECART = item('minecart', '矿车', { stack: 1 });
+export const CHEST_MINECART = item('chest_minecart', '运输矿车', { stack: 1 });
+export const FURNACE_MINECART = item('furnace_minecart', '动力矿车', { stack: 1 });
 // ------------------------------------------------------------------ Fase 7 (redstone)
 // El polvo de redstone pone el polvo en el suelo y la cuerda, la cuerda tendida (como las semillas
 // plantan su cultivo); la puerta de hierro se ve plana en la mano, como las de madera. El cuarzo del
@@ -568,71 +568,71 @@ export const FURNACE_MINECART = item('furnace_minecart', 'Vagoneta con horno', {
 ITEMS[REDSTONE].block = REDSTONE_WIRE;
 ITEMS[STRING].block = TRIPWIRE;
 ITEMS[IRON_DOOR].sprite = 'iron_door';
-export const QUARTZ = item('quartz', 'Cuarzo del Nether');
+export const QUARTZ = item('quartz', '下界石英');
 // ------------------------------------------------------------------ Fase 7 (mecanismos)
 // La tolva se ve plana en el inventario y en la mano (como en Minecraft); las vagonetas con tolva y con
 // dinamita las registra el transporte (vehicleItems.ts).
 ITEMS[HOPPER].sprite = 'hopper';
-export const HOPPER_MINECART = item('hopper_minecart', 'Vagoneta con tolva', { stack: 1 });
-export const TNT_MINECART = item('tnt_minecart', 'Vagoneta con dinamita', { stack: 1 });
+export const HOPPER_MINECART = item('hopper_minecart', '漏斗矿车', { stack: 1 });
+export const TNT_MINECART = item('tnt_minecart', 'TNT矿车', { stack: 1 });
 // Fase 7.5: huevos generadores de las criaturas nuevas (océano: guardianes; fauna: murciélago, ocelote…; abismo: warden).
-for (const e of LATE_SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `Huevo generador de ${e.name}`);
+for (const e of LATE_SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `${e.name}刷怪蛋`);
 
 // ------------------------------------------------------------------ Fase 7.5 (abismo)
 /** Fragmento de eco (sólo en las ciudades antiguas): ocho alrededor de una brújula dan la de recuperación. */
-export const ECHO_SHARD = item('echo_shard', 'Fragmento de eco');
+export const ECHO_SHARD = item('echo_shard', '回响碎片');
 /** Brújula de recuperación: apunta a donde murió el jugador por última vez (gira sin rumbo si no hay). */
-export const RECOVERY_COMPASS = item('recovery_compass', 'Brújula de recuperación');
+export const RECOVERY_COMPASS = item('recovery_compass', '追溯指针');
 /** Fragmento del disco 5: nueve hacen el disco. */
-export const DISC_FRAGMENT_5 = item('disc_fragment_5', 'Fragmento de disco');
-export const MUSIC_DISC_5 = item('music_disc_5', 'Disco de música', { stack: 1 });
+export const DISC_FRAGMENT_5 = item('disc_fragment_5', '唱片残片');
+export const MUSIC_DISC_5 = item('music_disc_5', '音乐唱片', { stack: 1 });
 (MUSIC_DISCS as number[]).push(MUSIC_DISC_5);
 // ------------------------------------------------------------------ Fase 8.2 (biomas del Nether)
 /** Ladrillo del Nether: sale de fundir rocanegra; cuatro hacen un bloque de ladrillos del Nether. */
-export const NETHER_BRICK = item('nether_brick', 'Ladrillo del Nether');
+export const NETHER_BRICK = item('nether_brick', '下界砖');
 // ------------------------------------------------------------------ Fase 8.3 (criaturas del Nether)
 /** Caña con hongo distorsionado: guía al strider ensillado que se monta; cada acelerón gasta 1 de sus 100 usos. */
-export const WARPED_FUNGUS_ON_A_STICK = item('warped_fungus_on_a_stick', 'Caña con hongo distorsionado', {
+export const WARPED_FUNGUS_ON_A_STICK = item('warped_fungus_on_a_stick', '诡异菌钓竿', {
   stack: 1, tool: { kind: 'carrot_stick', tier: 0, speed: 1, durability: 100, damage: 1 },
 });
 /** Carga de fuego: enciende fuego donde se usa (se gasta) y el dispensador la lanza como bola de fuego pequeña. */
-export const FIRE_CHARGE = item('fire_charge', 'Carga de fuego');
+export const FIRE_CHARGE = item('fire_charge', '火焰弹');
 /** Flecha espectral: lo que alcanza brilla 10 s (se ve a través de las paredes). */
-export const SPECTRAL_ARROW = item('spectral_arrow', 'Flecha espectral');
+export const SPECTRAL_ARROW = item('spectral_arrow', '光灵箭');
 /** Disco «Tears»: lo suelta el ghast al que mata su propia bola de fuego devuelta por un jugador. */
-export const MUSIC_DISC_TEARS = item('music_disc_tears', 'Disco de música', { stack: 1 });
+export const MUSIC_DISC_TEARS = item('music_disc_tears', '音乐唱片', { stack: 1 });
 (MUSIC_DISCS as number[]).push(MUSIC_DISC_TEARS);
-for (const e of NETHER_SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `Huevo generador de ${e.name}`);
+for (const e of NETHER_SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `${e.name}刷怪蛋`);
 // Fase 8.4 (estructuras del Nether): el disco «Pigstep» y el diseño de estandarte del hocico, sólo en los cofres de
 // los bastiones.
-export const MUSIC_DISC_PIGSTEP = item('music_disc_pigstep', 'Disco de música', { stack: 1 });
+export const MUSIC_DISC_PIGSTEP = item('music_disc_pigstep', '音乐唱片', { stack: 1 });
 (MUSIC_DISCS as number[]).push(MUSIC_DISC_PIGSTEP);
-export const PIGLIN_BANNER_PATTERN = item('piglin_banner_pattern', 'Diseño de estandarte (Hocico)', { stack: 1 });
+export const PIGLIN_BANNER_PATTERN = item('piglin_banner_pattern', '猪鼻旗帜图案', { stack: 1 });
 (BANNER_PATTERN_ITEMS as Record<string, number>).piglin = PIGLIN_BANNER_PATTERN;
 // Fase 8.5 (lo que da el Nether): la netherita (chatarra de los escombros ancestrales, lingote, las herramientas,
 // la armadura y la armadura para caballo, que se mejoran desde el diamante en la mesa de herrería con la plantilla)
 // y la estrella del Nether (la del Wither, para el faro).
-export const NETHERITE_SCRAP = item('netherite_scrap', 'Chatarra de netherita');
-export const NETHERITE_INGOT = item('netherite_ingot', 'Lingote de netherita');
-export const NETHERITE_UPGRADE_SMITHING_TEMPLATE = item('netherite_upgrade_smithing_template', 'Plantilla de herrería (Mejora de netherita)');
+export const NETHERITE_SCRAP = item('netherite_scrap', '下界合金碎片');
+export const NETHERITE_INGOT = item('netherite_ingot', '下界合金锭');
+export const NETHERITE_UPGRADE_SMITHING_TEMPLATE = item('netherite_upgrade_smithing_template', '下界合金升级锻造模板');
 TOOLS.netherite = {};
 for (const [kind, kindName, damage, attackSpeed] of [
-  ['sword', 'Espada', 8, 1.6], ['pickaxe', 'Pico', 6, 1.2], ['axe', 'Hacha', 10, 1], ['shovel', 'Pala', 6.5, 1], ['hoe', 'Azada', 1, 4],
+  ['sword', '剑', 8, 1.6], ['pickaxe', '镐', 6, 1.2], ['axe', '斧', 10, 1], ['shovel', '锹', 6.5, 1], ['hoe', '锄', 1, 4],
 ] as const) {
-  TOOLS.netherite[kind] = item(`netherite_${kind}`, `${kindName} de netherita`, {
+  TOOLS.netherite[kind] = item(`netherite_${kind}`, `下界合金${kindName}`, {
     stack: 1, tool: { kind, tier: 4, speed: 9, durability: 2031, damage, attackSpeed },
   });
 }
 ARMOR[NETHERITE_ARMOR] = {};
 ARMOR_PIECES.forEach((piece, slot) => {
   const st = ARMOR_STATS[NETHERITE_ARMOR];
-  ARMOR[NETHERITE_ARMOR][piece] = item(`netherite_${piece}`, `${PIECE_NAMES[slot]} de netherita`, {
+  ARMOR[NETHERITE_ARMOR][piece] = item(`netherite_${piece}`, `下界合金${PIECE_NAMES[slot]}`, {
     stack: 1,
     armor: { slot: slot as ArmorSlot, material: NETHERITE_ARMOR, points: st.points[slot], toughness: st.toughness, durability: st.durability[slot] },
   });
 });
-HORSE_ARMOR.netherite = item('netherite_horse_armor', 'Armadura de netherita para caballo', { stack: 1 });
-export const NETHER_STAR = item('nether_star', 'Estrella del Nether');
+HORSE_ARMOR.netherite = item('netherite_horse_armor', '下界合金马铠', { stack: 1 });
+export const NETHER_STAR = item('nether_star', '下界之星');
 /** Fase 8.5: objetos que no arden (flotan en la lava y el fuego no los quema): los de netherita y sus escombros. */
 export const FIRE_RESISTANT_ITEMS: ReadonlySet<number> = new Set([
   NETHERITE_SCRAP, NETHERITE_INGOT, ...Object.values(TOOLS.netherite), ...Object.values(ARMOR[NETHERITE_ARMOR]), HORSE_ARMOR.netherite,
@@ -641,24 +641,24 @@ export const FIRE_RESISTANT_ITEMS: ReadonlySet<number> = new Set([
 export const EXPLOSION_RESISTANT_ITEMS: ReadonlySet<number> = new Set([NETHER_STAR]);
 // Fase 8.6 (el End): la fruta de coro (se come aunque no haya hambre y teletransporta) y la reventada (del horno,
 // para la púrpura y las varas del End).
-export const CHORUS_FRUIT = item('chorus_fruit', 'Fruta de coro', { food: { hunger: 4, saturation: 2.4, always: true } });
-export const POPPED_CHORUS_FRUIT = item('popped_chorus_fruit', 'Fruta de coro reventada');
+export const CHORUS_FRUIT = item('chorus_fruit', '紫颂果', { food: { hunger: 4, saturation: 2.4, always: true } });
+export const POPPED_CHORUS_FRUIT = item('popped_chorus_fruit', '爆裂紫颂果');
 /** El ojo de ender: lanzado, vuela hacia la fortaleza más cercana; puesto en un marco del portal del End, lo completa. */
-export const ENDER_EYE = item('ender_eye', 'Ojo de ender');
-for (const e of END_SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `Huevo generador de ${e.name}`);
+export const ENDER_EYE = item('ender_eye', '末影之眼');
+for (const e of END_SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `${e.name}刷怪蛋`);
 /** El cristal del End: se pone sobre obsidiana o lecho de roca y estalla al golpearlo; cuatro en el portal de salida traen otro dragón. */
-export const END_CRYSTAL = item('end_crystal', 'Cristal del End');
+export const END_CRYSTAL = item('end_crystal', '末地水晶');
 // Fase 8.6: las cajas de shulker no se apilan (llevan dentro lo suyo).
 for (const c of SHULKER_BOX_COLORS) if (ITEMS[SHULKER_BOXES[c]]) ITEMS[SHULKER_BOXES[c]].stack = 1;
 /** La concha de shulker (la suelta el shulker): para las cajas de shulker. */
-export const SHULKER_SHELL = item('shulker_shell', 'Caparazón de shulker');
+export const SHULKER_SHELL = item('shulker_shell', '潜影壳');
 /** Los élitros (del barco del End): en el pecho, planean al saltar en el aire; se gastan 1 cada segundo de vuelo. */
-export const ELYTRA = item('elytra', 'Élitros', {
+export const ELYTRA = item('elytra', '鞘翅', {
   stack: 1, armor: { slot: 1, material: ELYTRA_ARMOR, points: 0, toughness: 0, durability: ARMOR_STATS[ELYTRA_ARMOR].durability[1] },
 });
 
 // Fase 8.7 (el Wither): su huevo generador (id nuevo, el último).
-for (const e of WITHER_SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `Huevo generador de ${e.name}`);
+for (const e of WITHER_SPAWN_EGG_DEFS) SPAWN_EGGS[e.mob] = item(`${e.mob}_spawn_egg`, `${e.name}刷怪蛋`);
 
 export const ITEM_COUNT = nextId;
 if (ITEM_COUNT > 1024) throw new Error('Demasiados objetos: el rango 256..1023 está lleno');

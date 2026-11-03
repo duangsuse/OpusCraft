@@ -5,29 +5,29 @@
 import { family, R_CROSS, R_CUTOUT } from './registry';
 
 /** Generador de monstruos: una jaula que invoca criaturas cuando hay un jugador cerca. */
-export const MOB_SPAWNER = family('spawner', 'Generador de monstruos', [], () => ({
+export const MOB_SPAWNER = family('spawner', '刷怪笼', [], () => ({
   all: 'spawner', render: R_CUTOUT, lightOpacity: 1, hardness: 5, tool: 'pickaxe', tier: 1, sound: 'metal', category: 'decoracion',
 }));
 /** Telaraña: frena mucho a quien la atraviesa. */
-export const COBWEB = family('cobweb', 'Telaraña', [], () => ({
+export const COBWEB = family('cobweb', '蜘蛛网', [], () => ({
   all: 'cobweb', render: R_CROSS, solid: false, opaque: false, lightOpacity: 1, hardness: 4, tool: 'axe', sound: 'wool',
   category: 'decoracion', walkThrough: true,
 }));
-export const CHISELED_SANDSTONE = family('chiseled_sandstone', 'Arenisca cincelada', [], () => ({
+export const CHISELED_SANDSTONE = family('chiseled_sandstone', '雕纹砂岩', [], () => ({
   top: 'sandstone_top', bottom: 'sandstone_bottom', side: 'chiseled_sandstone', hardness: 0.8, tool: 'pickaxe', tier: 1,
 }));
-export const CUT_SANDSTONE = family('cut_sandstone', 'Arenisca cortada', [], () => ({
+export const CUT_SANDSTONE = family('cut_sandstone', '切制砂岩', [], () => ({
   top: 'sandstone_top', bottom: 'sandstone_bottom', side: 'cut_sandstone', hardness: 0.8, tool: 'pickaxe', tier: 1,
 }));
-export const MOSSY_STONE_BRICKS = family('mossy_stone_bricks', 'Ladrillos de piedra musgosos', [], () => ({
+export const MOSSY_STONE_BRICKS = family('mossy_stone_bricks', '苔石砖', [], () => ({
   all: 'mossy_stone_bricks', hardness: 1.5, tool: 'pickaxe', tier: 1,
 }));
-export const CRACKED_STONE_BRICKS = family('cracked_stone_bricks', 'Ladrillos de piedra agrietados', [], () => ({
+export const CRACKED_STONE_BRICKS = family('cracked_stone_bricks', '裂纹石砖', [], () => ({
   all: 'cracked_stone_bricks', hardness: 1.5, tool: 'pickaxe', tier: 1,
 }));
-export const NETHERRACK = family('netherrack', 'Rocanegra', [], () => ({
+export const NETHERRACK = family('netherrack', '下界岩', [], () => ({
   all: 'netherrack', hardness: 0.4, tool: 'pickaxe', tier: 1, category: 'naturaleza', sound: 'netherrack',
 }));
-export const CRYING_OBSIDIAN = family('crying_obsidian', 'Obsidiana llorosa', [], () => ({
+export const CRYING_OBSIDIAN = family('crying_obsidian', '哭泣的黑曜石', [], () => ({
   all: 'crying_obsidian', hardness: 50, tool: 'pickaxe', tier: 4, emission: 10, category: 'naturaleza',
 }));

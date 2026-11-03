@@ -17,15 +17,15 @@ import { registerSkull, skullTexture, SKULLS, SKULL_FACES } from './collections'
 
 const PICK = (hardness: number, sound: SoundMaterial = 'stone') => ({ hardness, tool: 'pickaxe' as const, tier: 1, sound, category: 'construccion' as const });
 
-export const END_STONE = family('end_stone', 'Piedra del End', [], () => ({ ...PICK(3), all: 'end_stone', category: 'naturaleza' }));
-export const END_STONE_BRICKS = family('end_stone_bricks', 'Ladrillos de piedra del End', [], () => ({ ...PICK(3), all: 'end_stone_bricks' }));
-addMaterialShapes({ key: 'end_stone_brick', name: 'de ladrillos de piedra del End', block: END_STONE_BRICKS, hardness: 3, tool: 'pickaxe', tier: 1, sound: 'stone' });
-addWall({ key: 'end_stone_brick', name: 'de ladrillos de piedra del End', block: END_STONE_BRICKS, hardness: 3 });
+export const END_STONE = family('end_stone', '末地石', [], () => ({ ...PICK(3), all: 'end_stone', category: 'naturaleza' }));
+export const END_STONE_BRICKS = family('end_stone_bricks', '末地石砖', [], () => ({ ...PICK(3), all: 'end_stone_bricks' }));
+addMaterialShapes({ key: 'end_stone_brick', name: '末地石砖', block: END_STONE_BRICKS, hardness: 3, tool: 'pickaxe', tier: 1, sound: 'stone' });
+addWall({ key: 'end_stone_brick', name: '末地石砖', block: END_STONE_BRICKS, hardness: 3 });
 
-export const PURPUR_BLOCK = family('purpur_block', 'Bloque de púrpura', [], () => ({ ...PICK(1.5), all: 'purpur_block' }));
-export const PURPUR_PILLAR = family('purpur_pillar', 'Pilar de púrpura', [], () => ({ ...PICK(1.5), top: 'purpur_pillar_top', side: 'purpur_pillar' }));
-addAxisLogs('purpur_pillar', 'Pilar de púrpura', PURPUR_PILLAR, 'purpur_pillar_top', 'purpur_pillar', undefined, { ...PICK(1.5), category: null });
-addMaterialShapes({ key: 'purpur', name: 'de púrpura', block: PURPUR_BLOCK, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone' });
+export const PURPUR_BLOCK = family('purpur_block', '紫珀块', [], () => ({ ...PICK(1.5), all: 'purpur_block' }));
+export const PURPUR_PILLAR = family('purpur_pillar', '紫珀柱', [], () => ({ ...PICK(1.5), top: 'purpur_pillar_top', side: 'purpur_pillar' }));
+addAxisLogs('purpur_pillar', '紫珀柱', PURPUR_PILLAR, 'purpur_pillar_top', 'purpur_pillar', undefined, { ...PICK(1.5), category: null });
+addMaterialShapes({ key: 'purpur', name: '紫珀', block: PURPUR_BLOCK, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone' });
 
 // ------------------------------------------------------------------ vara del End
 
@@ -34,7 +34,7 @@ function rodBoxes(t: number): ModelBox[] {
   return [mbox(6, 0, 6, 10, 1, 10, t), mbox(7, 1, 7, 9, 16, 9, t)];
 }
 /** `facing`: la cara hacia la que apunta (0 +x, 1 −x, 2 arriba, 3 abajo, 4 +z, 5 −z). */
-export const END_ROD = family('end_rod', 'Vara del End', [['facing', 6]], (st) => {
+export const END_ROD = family('end_rod', '末地烛', [['facing', 6]], (st) => {
   const t = L('end_rod');
   const [b] = pointTo([mbox(6, 0, 6, 10, 16, 10, t)], st.facing);
   const box = [b.x0 / 16, b.y0 / 16, b.z0 / 16, b.x1 / 16, b.y1 / 16, b.z1 / 16];
@@ -84,7 +84,7 @@ function chorusPlantSurvives(get: NeighborGet): boolean {
   return below < 0 || (below > 0 && (familyBase(below) === CHORUS_PLANT || below === END_STONE));
 }
 
-export const CHORUS_PLANT = family('chorus_plant', 'Planta de coro', [], () => {
+export const CHORUS_PLANT = family('chorus_plant', '紫颂植物', [], () => {
   const t = L('chorus_plant');
   return {
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 0.4, tool: 'axe', sound: 'wood', all: 'chorus_plant', category: 'naturaleza',
@@ -113,7 +113,7 @@ function chorusFlowerSurvives(get: NeighborGet): boolean {
   return plant;
 }
 
-export const CHORUS_FLOWER = family('chorus_flower', 'Flor de coro', [['age', 6]], (st) => {
+export const CHORUS_FLOWER = family('chorus_flower', '紫颂花', [['age', 6]], (st) => {
   const tex = st.age >= CHORUS_FLOWER_DEAD_AGE ? 'chorus_flower_dead' : 'chorus_flower';
   const t = L(tex);
   return {
@@ -139,7 +139,7 @@ export function isChorusPlant(id: number): boolean {
  * Marco del portal del End (EndPortalFrameBlock): una losa de 13/16 que mira hacia dentro del portal (`facing`) y
  * que puede llevar un ojo de ender encima (`eye`). No se rompe; da un poco de luz.
  */
-export const END_PORTAL_FRAME = family('end_portal_frame', 'Marco del portal del End', [['facing', 4], ['eye', 2]], (st) => {
+export const END_PORTAL_FRAME = family('end_portal_frame', '末地传送门框架', [['facing', 4], ['eye', 2]], (st) => {
   const top = L('end_portal_frame_top'), side = L('end_portal_frame_side'), bottom = L('end_stone'), eye = L('end_portal_frame_eye');
   const boxes: ModelBox[] = [mbox(0, 0, 0, 16, 13, 16, [side, side, top, bottom, side, side])];
   if (st.eye) boxes.push(mbox(4, 13, 4, 12, 16, 12, eye));
@@ -161,7 +161,7 @@ export function isEndPortalFrame(id: number): boolean {
  * Portal del End: el velo de estrellas (dos caras, a 12/16 y a 6/16 de alto, como TheEndPortalRenderer). Ni se pica
  * ni se toca; quien entra viaja al End (o, desde el End, vuelve al mundo normal).
  */
-export const END_PORTAL = family('end_portal', 'Portal del End', [], () => {
+export const END_PORTAL = family('end_portal', '末地传送门', [], () => {
   const t = L('end_portal');
   return {
     render: R_MODEL, all: 'end_portal', solid: false, opaque: false, lightOpacity: 0, emission: 15, hardness: -1, breakable: false,
@@ -174,14 +174,14 @@ export const END_PORTAL = family('end_portal', 'Portal del End', [], () => {
  * Puerta del End (EndGatewayBlock): un cubo de velo de estrellas por sus seis caras; quien entra sale lejos, en las
  * islas exteriores (o vuelve). Ni se pica ni se toca.
  */
-export const END_GATEWAY = family('end_gateway', 'Puerta del End', [], () => ({
+export const END_GATEWAY = family('end_gateway', '末地折跃门', [], () => ({
   render: R_MODEL, all: 'end_portal', solid: false, opaque: false, lightOpacity: 0, emission: 15, hardness: -1, breakable: false,
   sound: 'glass', noItem: true, category: null, walkThrough: true, collision: [], selection: [],
   model: [mbox(0, 0, 0, 16, 16, 16, L('end_portal'))],
 }));
 
 /** Huevo de dragón (DragonEggBlock): capas de 16 a 2 de ancho; cae como la arena y huye al tocarlo. */
-export const DRAGON_EGG = family('dragon_egg', 'Huevo de dragón', [], () => {
+export const DRAGON_EGG = family('dragon_egg', '龙蛋', [], () => {
   const t = L('dragon_egg');
   const layers: [number, number, number][] = [[6, 15, 16], [5, 14, 15], [4, 13, 14], [3, 11, 13], [2, 8, 11], [1, 3, 8], [2, 1, 3], [3, 0, 1]];
   return {
@@ -213,7 +213,7 @@ function shulkerBoxBoxes(prefix: string): ModelBox[] {
  */
 export const SHULKER_BOXES = Object.fromEntries(SHULKER_BOX_COLORS.map((c) => {
   const prefix = c ? `${c}_` : '';
-  const name = c ? `Caja de shulker ${COLOR_NAMES[c][1]}` : 'Caja de shulker';
+  const name = c ? `${COLOR_NAMES[c][1]}潜影盒` : '潜影盒';
   const id = family(`${prefix}shulker_box`, name, [['facing', 6]], (st) => ({
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 2, tool: 'pickaxe', sound: 'stone', all: `${prefix}shulker_box_top`,
     category: 'decoracion', model: pointTo(shulkerBoxBoxes(prefix), st.facing), itemModel: shulkerBoxBoxes(prefix),
@@ -249,7 +249,7 @@ function enderChestBoxes(): ModelBox[] {
  * ender del mundo. Da luz 7; dureza 22,5 y resistencia 600; con pico, suelta 8 de obsidiana (con Toque de seda, él
  * mismo).
  */
-export const ENDER_CHEST = family('ender_chest', 'Cofre de ender', [['facing', 4]], (st) => ({
+export const ENDER_CHEST = family('ender_chest', '末影箱', [['facing', 4]], (st) => ({
   render: R_MODEL, opaque: false, lightOpacity: 0, emission: 7, hardness: 22.5, tool: 'pickaxe', tier: 1, sound: 'stone',
   all: 'ender_chest_top', category: 'decoracion', model: rotateBoxes(enderChestBoxes(), st.facing), itemModel: enderChestBoxes(),
   collision: [1 / 16, 0, 1 / 16, 15 / 16, 14 / 16, 15 / 16], selection: [1 / 16, 0, 1 / 16, 15 / 16, 14 / 16, 15 / 16],

@@ -184,7 +184,7 @@ function mapAt(rows: readonly string[], t: Texel, inks: Readonly<Record<string, 
   const ch = row[t.i];
   if (ch === undefined || ch === '.') return null;
   const p = inks[ch];
-  if (!p) throw new Error(`Tinta de criatura desconocida '${ch}'`);
+  if (!p) throw new Error(`未知的生物墨迹 '${ch}'`);
   return p;
 }
 
@@ -1539,7 +1539,7 @@ export function generateMobTexture(mobId: number, variant = 0): MobTexture {
   if (mob && isVillagerType(mobId)) return paintMob(mobId, villagerPainter(mobId, variant));
   const painter = VARIANT_PAINTERS[mobId]?.(variant) ?? PAINTERS[mobId] ?? MONSTER_PAINTERS[mobId] ?? ILLAGER_PAINTERS[mobId] ?? OCEAN_PAINTERS[mobId] // Fase 6 (monturas): pelajes
     ?? ALLAY_PAINTERS[mobId] ?? WARDEN_PAINTERS[mobId]; // Fase 7.5 (mansión, abismo)
-  if (!mob || !painter) throw new Error('Criatura sin textura: ' + mobId);
+  if (!mob || !painter) throw new Error('生物没有纹理：' + mobId);
   return paintMob(mobId, painter);
 }
 

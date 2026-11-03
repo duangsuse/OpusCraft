@@ -16,7 +16,7 @@ const EGG_TEXTURES = ['turtle_egg', 'turtle_egg_slightly_cracked', 'turtle_egg_v
  * Huevo de tortuga: `eggs` 0..3 = de 1 a 4 huevos; `hatch` 0..2 = entero, algo agrietado, muy
  * agrietado (el siguiente paso eclosiona).
  */
-export const TURTLE_EGG = family('turtle_egg', 'Huevo de tortuga', [['eggs', 4], ['hatch', 3]], (st) => {
+export const TURTLE_EGG = family('turtle_egg', '海龟蛋', [['eggs', 4], ['hatch', 3]], (st) => {
   const tex = EGG_TEXTURES[st.hatch];
   const t = L(tex);
   const model: ModelBox[] = EGG_BOXES.slice(0, st.eggs + 1).map(([x0, y0, z0, x1, y1, z1]) => mbox(x0, y0, z0, x1, y1, z1, t));

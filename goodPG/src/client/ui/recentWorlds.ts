@@ -41,13 +41,13 @@ export function forgetWorld(room: string, offline: boolean): void {
   save(loadRecentWorlds().filter((w) => !(w.room === room && w.offline === offline)));
 }
 
-/** "hace 5 min", "hace 2 h", "hace 3 días". */
+/** "刚刚", "5 分钟前", "2 小时前", "3 天前". */
 export function ago(at: number): string {
   const m = Math.max(0, Math.round((Date.now() - at) / 60000));
-  if (m < 1) return 'ahora';
-  if (m < 60) return `hace ${m} min`;
+  if (m < 1) return '刚刚';
+  if (m < 60) return `${m} 分钟前`;
   const h = Math.round(m / 60);
-  if (h < 24) return `hace ${h} h`;
+  if (h < 24) return `${h} 小时前`;
   const d = Math.round(h / 24);
-  return `hace ${d} día${d === 1 ? '' : 's'}`;
+  return `${d} 天前`;
 }

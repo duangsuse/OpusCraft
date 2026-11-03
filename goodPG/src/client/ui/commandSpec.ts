@@ -1,5 +1,6 @@
 // Los comandos del chat tal como los entiende el servidor (server/commands.ts): nombre, alias,
 // descripción y argumentos con sus opciones. Lo usa el asistente del chat para sugerir y explicar.
+// Los nombres canónicos siguen en español (son los que ejecuta el servidor); los alias chinos son atajos.
 import { EFFECTS } from '../../shared/effects';
 import { MOBS, MOB_TYPES } from '../../shared/mobs';
 import { ITEMS } from '../../shared/items';
@@ -12,7 +13,7 @@ import { allDimensions } from '../../shared/dimensions'; // Fase 8: /dimension
 export interface Option {
   /** Lo que se escribe. */
   value: string;
-  /** Nombre legible (en español) que se muestra al lado. */
+  /** Nombre legible (en chino) que se muestra al lado. */
   label?: string;
   /** Objeto cuyo icono se muestra. */
   item?: number;
@@ -42,11 +43,11 @@ let itemOptions: Option[] | null = null;
 let blockOptions: Option[] | null = null;
 /** Fase 8: bloques para /setblock y /fill (los que se obtienen como objeto, más el aire). */
 const blocks = (): Option[] => (blockOptions ??= [
-  { value: 'air', label: 'Aire' },
+  { value: 'air', label: '空气' },
   ...BLOCKS.filter((b) => b && b.category !== null && !b.noItem).map((b) => ({ value: b.key, label: b.name, item: b.id })),
 ]);
 const coord = (name: string, optional = false): ArgSpec => ({
-  name, optional, desc: 'Coordenada (con ~ es relativa a ti: ~, ~1, ~-2)', options: () => [{ value: '~' }],
+  name, optional, desc: '坐标（带 ~ 表示相对自己：~、~1、~-2）', options: () => [{ value: '~' }],
 });
 
 const STRUCTURES: [string, string][] = [
@@ -58,147 +59,166 @@ const STRUCTURES: [string, string][] = [
   ['cabana_de_bruja', 'swamp_hut'], ['fosil', 'fossil'], // Fase 7.5 (fauna)
   ['mansion', 'mansion'], // Fase 7.5 (mansión)
   ['fortaleza', 'fortress'], ['bastion', 'bastion_remnant'], // Fase 8.4 (estructuras del Nether)
+  ['ciudad_del_end', 'end_city'], // Fase 8.6
 ];
 
 export const COMMAND_SPECS: CommandSpec[] = [
-  { name: 'ayuda', aliases: ['help'], desc: 'Lista los comandos disponibles', args: [] },
+  { name: 'ayuda', aliases: ['help', '帮助', '命令'], desc: '列出所有命令，或查看某个命令的用法', args: [{ name: '命令', optional: true, desc: '要看用法的命令（不填则列出全部）' }] },
   {
-    name: 'modo', aliases: ['gamemode'], desc: 'Cambia tu modo de juego',
+    name: 'modo', aliases: ['gamemode', '模式', '游戏模式'], desc: '切换你的游戏模式',
     args: [{
-      name: 'modo', desc: 'Supervivencia o creativo',
-      options: () => [{ value: 'supervivencia', label: 'Vida, hambre y recursos' }, { value: 'creativo', label: 'Vuelo y bloques infinitos' }],
+      name: '模式', desc: '生存或创造',
+      options: () => [{ value: '生存', label: '有生命、饥饿和资源' }, { value: '创造', label: '飞行、无限方块' }],
     }],
   },
   {
-    name: 'dificultad', aliases: ['difficulty'], desc: 'Cambia la dificultad del mundo',
+    name: 'dificultad', aliases: ['difficulty', '难度'], desc: '修改世界难度',
     args: [{
-      name: 'dificultad', desc: 'Cuánto daño hacen los monstruos (pacífico: no aparecen)',
+      name: '难度', desc: '怪物造成的伤害（和平：不刷怪）',
       options: () => [
-        { value: 'pacifico', label: 'Sin monstruos' }, { value: 'facil', label: 'Menos daño' },
-        { value: 'normal', label: 'Como en Minecraft' }, { value: 'dificil', label: 'Más daño y más peligros' },
+        { value: '和平', label: '没有怪物' }, { value: '简单', label: '伤害更低' },
+        { value: '普通', label: '与原版一致' }, { value: '困难', label: '伤害更高、更危险' },
       ],
     }],
   },
   {
-    name: 'jefes', aliases: ['bosses'], desc: 'Jefes reforzados (el dragón gana vida con cada jugador y se enfurece al final)',
+    name: 'jefes', aliases: ['bosses', '首领'], desc: '首领强化（龙会按玩家人数增加生命，并在最后狂暴）',
     args: [{
-      name: 'modo', desc: 'Cuándo van reforzados',
+      name: '模式', desc: '何时强化',
       options: () => [
-        { value: 'auto', label: 'Reforzados en difícil' }, { value: 'java', label: 'Como en Minecraft' },
-        { value: 'duros', label: 'Siempre reforzados' },
+        { value: '自动', label: '困难时强化' }, { value: '原版', label: '与原版一致' },
+        { value: '强化', label: '始终强化' },
       ],
     }],
   },
   {
-    name: 'hora', aliases: ['time'], desc: 'Cambia la hora del día',
-    args: [{
-      name: 'momento', desc: 'Un momento del día o un número de 0 a 24000',
-      options: () => [
-        { value: 'dia', label: 'Mañana' }, { value: 'mediodia', label: 'Sol en lo alto' }, { value: 'atardecer', label: 'Puesta de sol' },
-        { value: 'noche', label: 'Salen los monstruos' }, { value: 'medianoche', label: 'Luna en lo alto' },
-        { value: 'amanecer', label: 'Sale el sol' },
-      ],
-    }],
+    name: 'hora', aliases: ['time', '时间'], desc: '修改一天中的时间',
+    args: [
+      { name: 'set', optional: true, desc: '可选的「set」，与 /时间 set 白天 等价', options: () => [{ value: 'set', label: '设置' }] },
+      {
+        name: '时间', desc: '一天中的时刻，或 0 到 24000 的数字',
+        options: () => [
+          { value: '白天', label: '清晨' }, { value: '正午', label: '太阳最高' }, { value: '日落', label: '太阳落山' },
+          { value: '夜晚', label: '怪物出现' }, { value: '午夜', label: '月亮最高' }, { value: '日出', label: '太阳升起' },
+        ],
+      },
+    ],
   },
   {
-    name: 'invocar', aliases: ['summon'], desc: 'Hace aparecer una criatura delante de ti',
+    name: 'invocar', aliases: ['summon', '召唤'], desc: '在你面前生成一只生物',
+    args: [
+      {
+        name: '生物', desc: '要生成的生物（「闪电」会召唤雷电）',
+        options: () => [{ value: '闪电', label: '落下一道闪电' }, ...(mobOptions ??= MOB_TYPES.filter((t) => !MOBS[t].inert).map((t) => ({ value: underscore(MOBS[t].name), label: MOBS[t].key.replace(/_/g, ' ') })))],
+      },
+      { name: '状态', optional: true, desc: '只对苦力怕有效：充能', options: () => [{ value: '充能', label: '充能苦力怕' }] },
+    ],
+  },
+  {
+    name: 'dar', aliases: ['give', '给予', '给'], desc: '给你一件物品（掉在你脚下）',
+    args: [
+      {
+        name: '物品', desc: '按中文名或英文 key 搜索',
+        options: () => (itemOptions ??= ITEMS.filter((i) => i).map((i) => ({ value: i.key, label: i.name, item: i.id }))),
+      },
+      {
+        name: '数量', optional: true, desc: '数量（默认 1，最多 576）',
+        options: () => ['1', '8', '16', '32', '64', '576'].map((v) => ({ value: v })),
+      },
+    ],
+  },
+  {
+    name: 'efecto', aliases: ['effect', '效果'], desc: '施加状态效果（或清除全部效果）',
+    args: [
+      {
+        name: '效果', desc: '效果名称，或「清除」清空所有效果',
+        options: () => [{ value: '清除', label: '清除所有效果' }, ...Object.values(EFFECTS).map((e) => ({ value: underscore(e.name), label: e.good ? '增益' : '减益' }))],
+      },
+      { name: '秒数', optional: true, desc: '持续时间（默认 30 秒，最多 3600）', options: () => ['30', '60', '300', '3600'].map((v) => ({ value: v })) },
+      { name: '等级', optional: true, desc: '效果等级（默认 1，最多 5）', options: () => ['1', '2', '3', '4', '5'].map((v) => ({ value: v })) },
+    ],
+  },
+  {
+    name: 'matar', aliases: ['kill', '杀死', '杀'], desc: '立即死亡；带生物名时清除 256 格内该生物',
     args: [{
-      name: 'criatura', desc: 'La criatura que aparece',
+      name: '生物', optional: true, desc: '要清除的生物（不填则自己死亡）',
       options: () => (mobOptions ??= MOB_TYPES.filter((t) => !MOBS[t].inert).map((t) => ({ value: underscore(MOBS[t].name), label: MOBS[t].key.replace(/_/g, ' ') }))),
     }],
   },
   {
-    name: 'dar', aliases: ['give'], desc: 'Te da un objeto (lo suelta a tus pies)',
+    name: 'voz', aliases: ['语音'], desc: '语音聊天：状态、开关，以及静音或调整某个玩家的音量',
     args: [
       {
-        name: 'objeto', desc: 'Busca por su nombre en español o por su clave',
-        options: () => (itemOptions ??= ITEMS.filter((i) => i).map((i) => ({ value: i.key, label: i.name, item: i.id }))),
-      },
-      {
-        name: 'cantidad', optional: true, desc: 'Cuántos (1 por defecto, hasta 576)',
-        options: () => ['1', '8', '16', '32', '64'].map((v) => ({ value: v })),
-      },
-    ],
-  },
-  {
-    name: 'efecto', aliases: ['effect'], desc: 'Te pone un efecto de estado (o te los quita todos)',
-    args: [
-      {
-        name: 'efecto', desc: 'El efecto, o «quitar» para quitarlos todos',
-        options: () => [{ value: 'quitar', label: 'Quita todos los efectos' }, ...Object.values(EFFECTS).map((e) => ({ value: underscore(e.name), label: e.good ? 'Beneficioso' : 'Perjudicial' }))],
-      },
-      { name: 'segundos', optional: true, desc: 'Duración en segundos (30 por defecto, hasta 3600)', options: () => ['30', '60', '300', '3600'].map((v) => ({ value: v })) },
-      { name: 'nivel', optional: true, desc: 'Nivel del efecto (1 por defecto, hasta 5)', options: () => ['1', '2', '3', '4', '5'].map((v) => ({ value: v })) },
-    ],
-  },
-  { name: 'matar', aliases: ['kill'], desc: 'Te mata al instante', args: [] },
-  {
-    name: 'voz', desc: 'Chat de voz: estado, activarlo o no, y silenciar o subir el volumen de un jugador',
-    args: [
-      {
-        name: 'acción', optional: true, desc: 'Qué hacer (sin nada, dice cómo está)',
+        name: '操作', optional: true, desc: '做什么（不填则显示当前状态）',
         options: () => [
-          { value: 'on', label: 'Activar el chat de voz' }, { value: 'off', label: 'Desactivarlo' },
-          { value: 'silenciar', label: 'Dejar de oír a un jugador' }, { value: 'activar', label: 'Volver a oírle' },
-          { value: 'volumen', label: 'Volumen de un jugador (0-200)' },
+          { value: 'on', label: '开启语音聊天' }, { value: 'off', label: '关闭语音聊天' },
+          { value: '静音', label: '不再听某个玩家' }, { value: '取消静音', label: '重新听到该玩家' },
+          { value: '音量', label: '某个玩家的音量（0-200）' },
         ],
       },
-      { name: 'jugador', optional: true, desc: 'A quién', options: (players) => players.map((p) => ({ value: p })) },
-      { name: 'volumen', optional: true, desc: 'Porcentaje (100 normal, 0 silenciado, hasta 200)' },
+      { name: '玩家', optional: true, desc: '对谁', options: (players) => players.map((p) => ({ value: p })) },
+      { name: '音量', optional: true, desc: '百分比（100 正常，0 静音，最多 200）' },
     ],
   },
   {
-    name: 'grupo', desc: 'Grupo de voz: los del mismo grupo os oís a cualquier distancia en la dimensión',
-    args: [{ name: 'nombre', optional: true, desc: 'Nombre del grupo, o «salir» para dejarlo', options: () => [{ value: 'salir', label: 'Dejar el grupo' }] }],
+    name: 'grupo', aliases: ['组队', '队伍'], desc: '语音分组：同组的人在任何距离都能互相听到',
+    args: [{ name: '名称', optional: true, desc: '组名，或「退出」离开当前组', options: () => [{ value: '退出', label: '离开当前组' }] }],
   },
   {
-    name: 'tp', desc: 'Te lleva junto a otro jugador',
-    args: [{ name: 'jugador', desc: 'A quién ir', options: (players) => players.map((p) => ({ value: p })) }],
+    name: 'noclip', aliases: ['穿墙', '无碰撞'], desc: '忽略方块碰撞（仅本地；空格/Shift 上下移动）',
+    args: [{ name: '状态', optional: true, desc: '开启或关闭（不填则切换）', options: () => [{ value: '开', label: '开启' }, { value: '关', label: '关闭' }] }],
   },
   {
-    name: 'localizar', aliases: ['locate'], desc: 'Dice dónde está la estructura más cercana',
+    name: 'tp', aliases: ['传送'], desc: '传送到另一名玩家身边',
+    args: [{ name: '玩家', desc: '要去谁那里', options: (players) => players.map((p) => ({ value: p })) }],
+  },
+  {
+    name: 'localizar', aliases: ['locate', '定位', '寻找'], desc: '给出最近的结构的位置',
     args: [{
-      name: 'estructura', desc: 'Qué buscar',
-      options: () => STRUCTURES.map(([value, key]) => ({ value, label: key === 'mineshaft' ? 'Mina abandonada' : STRUCTURE_NAMES[key] ?? NETHER_STRUCTURE_NAMES[key] })),
+      name: '结构', desc: '要找什么',
+      options: () => STRUCTURES.map(([value, key]) => ({ value, label: key === 'mineshaft' ? '废弃矿井' : STRUCTURE_NAMES[key] ?? NETHER_STRUCTURE_NAMES[key] })),
     }],
   },
-  { name: 'asalto', aliases: ['raid'], desc: 'Desata un asalto en la aldea más cercana', args: [] },
-  { name: 'patrulla', aliases: ['patrol'], desc: 'Hace aparecer una patrulla de saqueadores', args: [] },
+  { name: 'asalto', aliases: ['raid', '袭击'], desc: '在最近的村庄发起袭击', args: [] },
+  { name: 'patrulla', aliases: ['patrol', '巡逻'], desc: '在附近生成一队掠夺者巡逻队', args: [] },
   // Fase 7 (encantamientos)
   {
-    name: 'encantar', aliases: ['enchant'], desc: 'Encanta el objeto que tienes en la mano',
+    name: 'encantar', aliases: ['enchant', '附魔'], desc: '给手上的物品附魔',
     args: [
       {
-        name: 'encantamiento', desc: 'Por su nombre en español (con guiones bajos)',
-        options: () => ENCHANT_IDS.map((id) => ({ value: underscore(ENCHANTS[id].name), label: `Hasta ${ENCHANTS[id].max}` })),
+        name: '附魔', desc: '按中文名或 key 输入',
+        options: () => ENCHANT_IDS.map((id) => ({ value: underscore(ENCHANTS[id].name), label: `最高 ${ENCHANTS[id].max} 级` })),
       },
-      { name: 'nivel', optional: true, desc: 'Nivel (1 por defecto, hasta 10)', options: () => ['1', '2', '3', '4', '5'].map((v) => ({ value: v })) },
+      { name: '等级', optional: true, desc: '等级（默认 1，最多 10）', options: () => ['1', '2', '3', '4', '5'].map((v) => ({ value: v })) },
     ],
   },
   {
-    name: 'experiencia', aliases: ['xp'], desc: 'Te da experiencia (puntos o niveles)',
+    name: 'experiencia', aliases: ['xp', '经验'], desc: '给你经验（点数或等级）',
     args: [
-      { name: 'cantidad', desc: 'Cuánta experiencia', options: () => ['10', '30', '100', '1000'].map((v) => ({ value: v })) },
-      { name: 'unidad', optional: true, desc: 'Puntos (por defecto) o niveles', options: () => [{ value: 'puntos' }, { value: 'niveles' }] },
+      { name: '数量', desc: '多少经验', options: () => ['10', '30', '100', '1000'].map((v) => ({ value: v })) },
+      { name: '单位', optional: true, desc: '点数（默认）或等级', options: () => [{ value: '点数' }, { value: '等级' }] },
     ],
   },
-  { name: 'semilla', aliases: ['seed'], desc: 'Muestra la semilla del mundo', args: [] },
-  { name: 'lista', aliases: ['list'], desc: 'Jugadores conectados', args: [] },
+  { name: 'semilla', aliases: ['seed', '种子'], desc: '显示世界种子', args: [] },
+  { name: 'lista', aliases: ['list', '列表', '玩家列表'], desc: '在线玩家', args: [] },
   // Fase 8 (dimensiones)
   {
-    name: 'dimension', aliases: ['dimensión'], desc: 'Te lleva a otra dimensión (a su punto de aparición o a x y z)',
+    name: 'dimension', aliases: ['dimensión', '维度'], desc: '前往另一个维度（出生点，或指定的 x y z）',
     args: [
-      { name: 'dimensión', desc: 'A dónde ir', options: () => allDimensions().map((d) => ({ value: d.key, label: d.name })) },
+      {
+        name: '维度', desc: '要去哪里',
+        options: () => allDimensions().map((d) => ({ value: d.key, label: d.name })),
+      },
       coord('x', true), coord('y', true), coord('z', true),
     ],
   },
   {
-    name: 'setblock', desc: 'Pone un bloque en unas coordenadas',
-    args: [coord('x'), coord('y'), coord('z'), { name: 'bloque', desc: 'El bloque (por su clave)', options: blocks }],
+    name: 'setblock', aliases: ['放置方块', '设块'], desc: '在指定坐标放置一个方块',
+    args: [coord('x'), coord('y'), coord('z'), { name: '方块', desc: '方块（可用 key 或中文名）', options: blocks }],
   },
   {
-    name: 'fill', desc: 'Llena una caja con un bloque (hasta 32768)',
-    args: [coord('x1'), coord('y1'), coord('z1'), coord('x2'), coord('y2'), coord('z2'), { name: 'bloque', desc: 'El bloque (por su clave)', options: blocks }],
+    name: 'fill', aliases: ['填充'], desc: '用方块填满一个长方体（最多 32768 块）',
+    args: [coord('x1'), coord('y1'), coord('z1'), coord('x2'), coord('y2'), coord('z2'), { name: '方块', desc: '方块（可用 key 或中文名）', options: blocks }],
   },
 ];
 
@@ -208,7 +228,11 @@ export function findCommand(name: string): CommandSpec | undefined {
   return COMMAND_SPECS.find((c) => c.name === n || c.aliases?.includes(n));
 }
 
-/** Firma legible: «/dar <objeto> [cantidad]». */
+/** Alias chino de un comando, si lo tiene (para mostrar la firma). */
+const chineseAlias = (c: CommandSpec): string | undefined => c.aliases?.find((a) => /[\u4e00-\u9fff]/.test(a));
+
+/** Firma legible: «/给予 <物品> [数量]». */
 export function signature(c: CommandSpec): string {
-  return '/' + c.name + c.args.map((a) => (a.optional ? ` [${a.name}]` : ` <${a.name}>`)).join('');
+  const name = chineseAlias(c) ?? c.name;
+  return '/' + name + c.args.map((a) => (a.optional ? ` [${a.name}]` : ` <${a.name}>`)).join('');
 }

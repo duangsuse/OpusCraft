@@ -68,26 +68,26 @@ export const PROF_LEATHERWORKER = 12;
 export const PROF_CLERIC = 13;
 
 export const PROFESSIONS: readonly Profession[] = [
-  { id: PROF_NONE, key: 'none', name: 'Aldeano', block: 0 },
-  { id: PROF_FARMER, key: 'farmer', name: 'Granjero', block: COMPOSTER },
-  { id: PROF_BUTCHER, key: 'butcher', name: 'Carnicero', block: SMOKER },
-  { id: PROF_ARMORER, key: 'armorer', name: 'Armero', block: BLAST_FURNACE },
-  { id: PROF_MASON, key: 'mason', name: 'Cantero', block: STONECUTTER },
-  { id: PROF_LIBRARIAN, key: 'librarian', name: 'Bibliotecario', block: LECTERN },
-  { id: PROF_CARTOGRAPHER, key: 'cartographer', name: 'Cartógrafo', block: CARTOGRAPHY_TABLE },
-  { id: PROF_FLETCHER, key: 'fletcher', name: 'Flechero', block: FLETCHING_TABLE },
-  { id: PROF_FISHERMAN, key: 'fisherman', name: 'Pescador', block: BARREL },
-  { id: PROF_SHEPHERD, key: 'shepherd', name: 'Pastor', block: LOOM },
-  { id: PROF_WEAPONSMITH, key: 'weaponsmith', name: 'Herrero de armas', block: GRINDSTONE },
-  { id: PROF_TOOLSMITH, key: 'toolsmith', name: 'Herrero', block: SMITHING_TABLE },
-  { id: PROF_LEATHERWORKER, key: 'leatherworker', name: 'Peletero', block: CAULDRON },
-  { id: PROF_CLERIC, key: 'cleric', name: 'Clérigo', block: BREWING_STAND },
+  { id: PROF_NONE, key: 'none', name: '村民', block: 0 },
+  { id: PROF_FARMER, key: 'farmer', name: '农民', block: COMPOSTER },
+  { id: PROF_BUTCHER, key: 'butcher', name: '屠夫', block: SMOKER },
+  { id: PROF_ARMORER, key: 'armorer', name: '盔甲匠', block: BLAST_FURNACE },
+  { id: PROF_MASON, key: 'mason', name: '石匠', block: STONECUTTER },
+  { id: PROF_LIBRARIAN, key: 'librarian', name: '图书管理员', block: LECTERN },
+  { id: PROF_CARTOGRAPHER, key: 'cartographer', name: '制图师', block: CARTOGRAPHY_TABLE },
+  { id: PROF_FLETCHER, key: 'fletcher', name: '制箭师', block: FLETCHING_TABLE },
+  { id: PROF_FISHERMAN, key: 'fisherman', name: '渔夫', block: BARREL },
+  { id: PROF_SHEPHERD, key: 'shepherd', name: '牧羊人', block: LOOM },
+  { id: PROF_WEAPONSMITH, key: 'weaponsmith', name: '武器匠', block: GRINDSTONE },
+  { id: PROF_TOOLSMITH, key: 'toolsmith', name: '工具匠', block: SMITHING_TABLE },
+  { id: PROF_LEATHERWORKER, key: 'leatherworker', name: '皮匠', block: CAULDRON },
+  { id: PROF_CLERIC, key: 'cleric', name: '牧师', block: BREWING_STAND },
 ];
 
 /** Experiencia total para llegar a cada nivel (VillagerData.NEXT_LEVEL_XP_THRESHOLDS). */
 export const LEVEL_XP = [0, 10, 70, 150, 250] as const;
 export const MAX_LEVEL = 5;
-export const LEVEL_NAMES = ['Novato', 'Aprendiz', 'Oficial', 'Experto', 'Maestro'] as const;
+export const LEVEL_NAMES = ['新手', '学徒', '老手', '专家', '大师'] as const;
 
 /** Nivel (1..5) que corresponde a una experiencia. */
 export function levelForXp(xp: number): number {
@@ -328,8 +328,8 @@ export function offerResult(o: TradeOffer): ItemStack {
 
 /** Nombre visible de un aldeano según su profesión (y del comerciante). */
 export function villagerTitle(prof: number, trader: boolean): string {
-  if (trader) return 'Comerciante ambulante';
-  return PROFESSIONS[prof]?.name ?? 'Aldeano';
+  if (trader) return '流浪商人';
+  return PROFESSIONS[prof]?.name ?? '村民';
 }
 
 export type { TradeLevel };

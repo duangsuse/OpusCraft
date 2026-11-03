@@ -401,7 +401,7 @@ export function decodeEdits(buf: ArrayBuffer): [number, number, number, number][
 export function sanitizeName(raw: unknown): string {
   const s = typeof raw === 'string' ? raw : '';
   const clean = s.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, MAX_NAME);
-  return clean || 'Jugador';
+  return clean || '玩家';
 }
 
 export function sanitizeColor(raw: unknown): string {

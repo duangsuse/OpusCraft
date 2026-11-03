@@ -86,12 +86,12 @@ const common = { hostile: true, burnsInSun: false, anim: 'guardian' as const, so
 export const OCEAN_MOBS: MobDef[] = [
   // Guardián: 30 de vida, 6 de daño (el del láser), nada a 0,5 y su caja mide 0,85.
   model({
-    ...common, id: MOB_GUARDIAN, key: 'guardian', name: 'Guardián', health: 30, walk: 2.2, run: 4.2, width: 0.85, height: 0.85,
+    ...common, id: MOB_GUARDIAN, key: 'guardian', name: '守卫者', health: 30, walk: 2.2, run: 4.2, width: 0.85, height: 0.85,
     damage: 6, drops: [[PRISMARINE_SHARD, 0, 2]], scale: 0.85, xp: 10,
   }),
   // Guardián anciano: 80 de vida, 8 de daño, más lento y 2,35 veces más grande.
   model({
-    ...common, id: MOB_ELDER_GUARDIAN, key: 'elder_guardian', name: 'Guardián anciano', health: 80, walk: 1.2, run: 1.9,
+    ...common, id: MOB_ELDER_GUARDIAN, key: 'elder_guardian', name: '远古守卫者', health: 80, walk: 1.2, run: 1.9,
     width: 1.9975, height: 1.9975, damage: 8, drops: [[PRISMARINE_SHARD, 0, 2]], scale: 2.0, xp: 10, sound: 'elder_guardian',
   }),
 ];

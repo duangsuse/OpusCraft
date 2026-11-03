@@ -24,13 +24,13 @@ export class BeaconPanel implements WorkPanel {
       `<i style="background-image:url(${effectIcon(id)})"></i>${label ? `<b>${label}</b>` : ''}</button>`;
     const tiers = BEACON_EFFECTS.slice(0, 3).map((list, i) =>
       `<div class="bcn-tier" data-tier="${i + 1}"><span class="bcn-pyr">${'▲'.repeat(i + 1)}</span>${list.map((id) => btn('p', id)).join('')}</div>`).join('');
-    return '<h3>Faro</h3><div class="bcn">' +
-      `<div class="bcn-col"><p class="bcn-title">Poder principal</p>${tiers}</div>` +
-      `<div class="bcn-col"><p class="bcn-title">Poder secundario</p><div class="bcn-tier" data-tier="4"><span class="bcn-pyr">▲▲▲▲</span>` +
+    return '<h3>信标</h3><div class="bcn">' +
+      `<div class="bcn-col"><p class="bcn-title">主效果</p>${tiers}</div>` +
+      `<div class="bcn-col"><p class="bcn-title">辅助效果</p><div class="bcn-tier" data-tier="4"><span class="bcn-pyr">▲▲▲▲</span>` +
       `${btn('s', EFFECT_REGENERATION)}<span class="bcn-second"></span></div></div>` +
       '<div class="bcn-pay"><div class="bcn-coins"></div>' +
-      `<div class="slot2" data-s="grid:${PAY}" data-hint="Pago"></div>` +
-      '<button type="button" class="bcn-ok" data-work="ok" data-tip="Confirmar">✔</button></div></div>';
+      `<div class="slot2" data-s="grid:${PAY}" data-hint="支付"></div>` +
+      '<button type="button" class="bcn-ok" data-work="ok" data-tip="确认">✔</button></div></div>';
   }
 
   accepts(i: number, s: ItemStack): number {

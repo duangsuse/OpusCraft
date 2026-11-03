@@ -8,7 +8,7 @@ import { SOUL_SAND } from './deepDarkBlocks';
 /** Edad máxima de la verruga del Nether. */
 export const NETHER_WART_MAX_AGE = 3;
 
-export const NETHER_WART_CROP = family('nether_wart', 'Verruga del Nether', [['age', 4]], (st) => ({
+export const NETHER_WART_CROP = family('nether_wart', '下界疣', [['age', 4]], (st) => ({
   render: R_CROP, solid: false, opaque: false, lightOpacity: 0, sound: 'grass', hardness: 0, category: null, noItem: true,
   all: `nether_wart_stage${st.age === 0 ? 0 : st.age < 3 ? 1 : 2}`, selection: [0, 0, 0, 1, (5 + st.age * 3) / 16, 1],
   support: (get: NeighborGet) => get(0, -1, 0) === SOUL_SAND,

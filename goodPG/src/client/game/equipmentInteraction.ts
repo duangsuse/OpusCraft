@@ -46,7 +46,7 @@ export function equipmentUse(
   if (target && target.deathT < 0) {
     const baby = (target.flags & EF_BABY) !== 0;
     if (target.type === MOB_HORSE && HORSE_ARMORS.has(heldId)) {
-      if (!(target.flags & EF_TAMED) || baby) g.ui.toast('Primero tienes que domarlo.');
+      if (!(target.flags & EF_TAMED) || baby) g.ui.toast('你需要先驯服它。');
       else if (!target.gear) ia.interactEntity(target, heldId, undefined, held?.data ? held : undefined); // (con su color)
       return true;
     }

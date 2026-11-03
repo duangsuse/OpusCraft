@@ -54,7 +54,7 @@ export function fireSupport(get: NeighborGet): boolean {
   return false;
 }
 
-export const FIRE = family('fire', 'Fuego', [['age', FIRE_AGES]], () => ({
+export const FIRE = family('fire', '火', [['age', FIRE_AGES]], () => ({
   render: R_MODEL, solid: false, opaque: false, lightOpacity: 0, emission: 15, hardness: 0, sound: 'wool', all: 'fire',
   replaceable: true, walkThrough: true, noItem: true, category: null, model: fireBoxes(), shape: fireShape, collision: [],
   selection: [0, 0, 0, 1, 1 / 16, 1], support: fireSupport,
@@ -144,7 +144,7 @@ function conduitBoxes(active: boolean): ModelBox[] {
   return [mbox(5, 5, 5, 11, 11, 11, t)];
 }
 
-export const CONDUIT = family('conduit', 'Conducto', [['water', 2], ['active', 2]], (st) => ({
+export const CONDUIT = family('conduit', '潮涌核心', [['water', 2], ['active', 2]], (st) => ({
   render: R_MODEL, opaque: false, lightOpacity: 0, emission: 15, hardness: 3, tool: 'pickaxe', sound: 'stone', all: 'conduit_closed',
   category: 'decoracion', model: conduitBoxes(st.active === 1), itemModel: conduitBoxes(false),
   collision: [5 / 16, 5 / 16, 5 / 16, 11 / 16, 11 / 16, 11 / 16], selection: [5 / 16, 5 / 16, 5 / 16, 11 / 16, 11 / 16, 11 / 16],

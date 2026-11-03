@@ -63,19 +63,19 @@ export interface DimensionDef {
 
 const DEFS: DimensionDef[] = [
   {
-    id: DIM_OVERWORLD, key: 'overworld', name: 'Mundo normal', scale: 1, skyLight: true, sky: true, weather: true,
+    id: DIM_OVERWORLD, key: 'overworld', name: '主世界', scale: 1, skyLight: true, sky: true, weather: true,
     ambient: 0, fog: [192, 216, 255], fogDistance: 1, gravity: 1, breathable: true, evaporatesWater: false, fastLava: false,
     beds: true, respawn: true, compass: true, anchors: false,
   },
   {
-    id: DIM_NETHER, key: 'nether', name: 'El Nether', scale: 8, skyLight: false, sky: false, weather: false,
+    id: DIM_NETHER, key: 'nether', name: '下界', scale: 8, skyLight: false, sky: false, weather: false,
     ambient: 0.1, fog: [51, 8, 8], fogDistance: 0.5, gravity: 1, breathable: true, evaporatesWater: true, fastLava: true,
     beds: false, respawn: false, compass: false, anchors: true, lavaSea: 31 + 8 / 9,
   },
   // Fase 8.6: el End (dimension_type the_end de la 26.3): hay luz del cielo pero no sol, ni tiempo, ni clima; luz
   // ambiental 0,25 en gris verdoso (#3f473f), niebla #181318 y su propio cielo con los destellos.
   {
-    id: DIM_END, key: 'end', name: 'El End', scale: 1, skyLight: true, sky: false, weather: false,
+    id: DIM_END, key: 'end', name: '末地', scale: 1, skyLight: true, sky: false, weather: false,
     ambient: 0.25, ambientColor: [63, 71, 63], fog: [24, 19, 24], fogDistance: 1, gravity: 1, breathable: true, evaporatesWater: false,
     fastLava: false, beds: false, respawn: false, compass: false, anchors: false, skybox: 'end',
   },

@@ -63,45 +63,45 @@ export const PT_MUNDANE = P('mundane', '');
 export const PT_THICK = P('thick', '');
 export const PT_AWKWARD = P('awkward', '');
 // Con efecto (duraciones de Minecraft Java: normal, alargada con redstone, reforzada con piedra luminosa).
-export const PT_NIGHT_VISION = P('night_vision', 'de visión nocturna', [[EFFECT_NIGHT_VISION, 180, 0]]);
-export const PT_LONG_NIGHT_VISION = P('long_night_vision', 'de visión nocturna', [[EFFECT_NIGHT_VISION, 480, 0]]);
-export const PT_INVISIBILITY = P('invisibility', 'de invisibilidad', [[EFFECT_INVISIBILITY, 180, 0]]);
-export const PT_LONG_INVISIBILITY = P('long_invisibility', 'de invisibilidad', [[EFFECT_INVISIBILITY, 480, 0]]);
-export const PT_LEAPING = P('leaping', 'de salto', [[EFFECT_JUMP_BOOST, 180, 0]]);
-export const PT_LONG_LEAPING = P('long_leaping', 'de salto', [[EFFECT_JUMP_BOOST, 480, 0]]);
-export const PT_STRONG_LEAPING = P('strong_leaping', 'de salto', [[EFFECT_JUMP_BOOST, 90, 1]]);
-export const PT_FIRE_RESISTANCE = P('fire_resistance', 'de resistencia al fuego', [[EFFECT_FIRE_RESISTANCE, 180, 0]]);
-export const PT_LONG_FIRE_RESISTANCE = P('long_fire_resistance', 'de resistencia al fuego', [[EFFECT_FIRE_RESISTANCE, 480, 0]]);
-export const PT_SWIFTNESS = P('swiftness', 'de velocidad', [[EFFECT_SPEED, 180, 0]]);
-export const PT_LONG_SWIFTNESS = P('long_swiftness', 'de velocidad', [[EFFECT_SPEED, 480, 0]]);
-export const PT_STRONG_SWIFTNESS = P('strong_swiftness', 'de velocidad', [[EFFECT_SPEED, 90, 1]]);
-export const PT_SLOWNESS = P('slowness', 'de lentitud', [[EFFECT_SLOWNESS, 90, 0]]);
-export const PT_LONG_SLOWNESS = P('long_slowness', 'de lentitud', [[EFFECT_SLOWNESS, 240, 0]]);
-export const PT_STRONG_SLOWNESS = P('strong_slowness', 'de lentitud', [[EFFECT_SLOWNESS, 20, 3]]);
-export const PT_TURTLE_MASTER = P('turtle_master', 'del maestro tortuga', [[EFFECT_SLOWNESS, 20, 3], [EFFECT_RESISTANCE, 20, 2]]);
-export const PT_LONG_TURTLE_MASTER = P('long_turtle_master', 'del maestro tortuga', [[EFFECT_SLOWNESS, 40, 3], [EFFECT_RESISTANCE, 40, 2]]);
-export const PT_STRONG_TURTLE_MASTER = P('strong_turtle_master', 'del maestro tortuga', [[EFFECT_SLOWNESS, 20, 5], [EFFECT_RESISTANCE, 20, 3]]);
-export const PT_WATER_BREATHING = P('water_breathing', 'de respiración acuática', [[EFFECT_WATER_BREATHING, 180, 0]]);
-export const PT_LONG_WATER_BREATHING = P('long_water_breathing', 'de respiración acuática', [[EFFECT_WATER_BREATHING, 480, 0]]);
-export const PT_HEALING = P('healing', 'de curación', [[EFFECT_INSTANT_HEALTH, 0, 0]]);
-export const PT_STRONG_HEALING = P('strong_healing', 'de curación', [[EFFECT_INSTANT_HEALTH, 0, 1]]);
-export const PT_HARMING = P('harming', 'de daño', [[EFFECT_INSTANT_DAMAGE, 0, 0]]);
-export const PT_STRONG_HARMING = P('strong_harming', 'de daño', [[EFFECT_INSTANT_DAMAGE, 0, 1]]);
-export const PT_POISON = P('poison', 'de veneno', [[EFFECT_POISON, 45, 0]]);
-export const PT_LONG_POISON = P('long_poison', 'de veneno', [[EFFECT_POISON, 90, 0]]);
-export const PT_STRONG_POISON = P('strong_poison', 'de veneno', [[EFFECT_POISON, 21.6, 1]]);
-export const PT_REGENERATION = P('regeneration', 'de regeneración', [[EFFECT_REGENERATION, 45, 0]]);
-export const PT_LONG_REGENERATION = P('long_regeneration', 'de regeneración', [[EFFECT_REGENERATION, 90, 0]]);
-export const PT_STRONG_REGENERATION = P('strong_regeneration', 'de regeneración', [[EFFECT_REGENERATION, 22.5, 1]]);
-export const PT_STRENGTH = P('strength', 'de fuerza', [[EFFECT_STRENGTH, 180, 0]]);
-export const PT_LONG_STRENGTH = P('long_strength', 'de fuerza', [[EFFECT_STRENGTH, 480, 0]]);
-export const PT_STRONG_STRENGTH = P('strong_strength', 'de fuerza', [[EFFECT_STRENGTH, 90, 1]]);
-export const PT_WEAKNESS = P('weakness', 'de debilidad', [[EFFECT_WEAKNESS, 90, 0]]);
-export const PT_LONG_WEAKNESS = P('long_weakness', 'de debilidad', [[EFFECT_WEAKNESS, 240, 0]]);
+export const PT_NIGHT_VISION = P('night_vision', '夜视', [[EFFECT_NIGHT_VISION, 180, 0]]);
+export const PT_LONG_NIGHT_VISION = P('long_night_vision', '夜视', [[EFFECT_NIGHT_VISION, 480, 0]]);
+export const PT_INVISIBILITY = P('invisibility', '隐身', [[EFFECT_INVISIBILITY, 180, 0]]);
+export const PT_LONG_INVISIBILITY = P('long_invisibility', '隐身', [[EFFECT_INVISIBILITY, 480, 0]]);
+export const PT_LEAPING = P('leaping', '跳跃', [[EFFECT_JUMP_BOOST, 180, 0]]);
+export const PT_LONG_LEAPING = P('long_leaping', '跳跃', [[EFFECT_JUMP_BOOST, 480, 0]]);
+export const PT_STRONG_LEAPING = P('strong_leaping', '跳跃', [[EFFECT_JUMP_BOOST, 90, 1]]);
+export const PT_FIRE_RESISTANCE = P('fire_resistance', '抗火', [[EFFECT_FIRE_RESISTANCE, 180, 0]]);
+export const PT_LONG_FIRE_RESISTANCE = P('long_fire_resistance', '抗火', [[EFFECT_FIRE_RESISTANCE, 480, 0]]);
+export const PT_SWIFTNESS = P('swiftness', '速度', [[EFFECT_SPEED, 180, 0]]);
+export const PT_LONG_SWIFTNESS = P('long_swiftness', '速度', [[EFFECT_SPEED, 480, 0]]);
+export const PT_STRONG_SWIFTNESS = P('strong_swiftness', '速度', [[EFFECT_SPEED, 90, 1]]);
+export const PT_SLOWNESS = P('slowness', '缓慢', [[EFFECT_SLOWNESS, 90, 0]]);
+export const PT_LONG_SLOWNESS = P('long_slowness', '缓慢', [[EFFECT_SLOWNESS, 240, 0]]);
+export const PT_STRONG_SLOWNESS = P('strong_slowness', '缓慢', [[EFFECT_SLOWNESS, 20, 3]]);
+export const PT_TURTLE_MASTER = P('turtle_master', '神龟', [[EFFECT_SLOWNESS, 20, 3], [EFFECT_RESISTANCE, 20, 2]]);
+export const PT_LONG_TURTLE_MASTER = P('long_turtle_master', '神龟', [[EFFECT_SLOWNESS, 40, 3], [EFFECT_RESISTANCE, 40, 2]]);
+export const PT_STRONG_TURTLE_MASTER = P('strong_turtle_master', '神龟', [[EFFECT_SLOWNESS, 20, 5], [EFFECT_RESISTANCE, 20, 3]]);
+export const PT_WATER_BREATHING = P('water_breathing', '水肺', [[EFFECT_WATER_BREATHING, 180, 0]]);
+export const PT_LONG_WATER_BREATHING = P('long_water_breathing', '水肺', [[EFFECT_WATER_BREATHING, 480, 0]]);
+export const PT_HEALING = P('healing', '治疗', [[EFFECT_INSTANT_HEALTH, 0, 0]]);
+export const PT_STRONG_HEALING = P('strong_healing', '治疗', [[EFFECT_INSTANT_HEALTH, 0, 1]]);
+export const PT_HARMING = P('harming', '伤害', [[EFFECT_INSTANT_DAMAGE, 0, 0]]);
+export const PT_STRONG_HARMING = P('strong_harming', '伤害', [[EFFECT_INSTANT_DAMAGE, 0, 1]]);
+export const PT_POISON = P('poison', '剧毒', [[EFFECT_POISON, 45, 0]]);
+export const PT_LONG_POISON = P('long_poison', '剧毒', [[EFFECT_POISON, 90, 0]]);
+export const PT_STRONG_POISON = P('strong_poison', '剧毒', [[EFFECT_POISON, 21.6, 1]]);
+export const PT_REGENERATION = P('regeneration', '生命恢复', [[EFFECT_REGENERATION, 45, 0]]);
+export const PT_LONG_REGENERATION = P('long_regeneration', '生命恢复', [[EFFECT_REGENERATION, 90, 0]]);
+export const PT_STRONG_REGENERATION = P('strong_regeneration', '生命恢复', [[EFFECT_REGENERATION, 22.5, 1]]);
+export const PT_STRENGTH = P('strength', '力量', [[EFFECT_STRENGTH, 180, 0]]);
+export const PT_LONG_STRENGTH = P('long_strength', '力量', [[EFFECT_STRENGTH, 480, 0]]);
+export const PT_STRONG_STRENGTH = P('strong_strength', '力量', [[EFFECT_STRENGTH, 90, 1]]);
+export const PT_WEAKNESS = P('weakness', '虚弱', [[EFFECT_WEAKNESS, 90, 0]]);
+export const PT_LONG_WEAKNESS = P('long_weakness', '虚弱', [[EFFECT_WEAKNESS, 240, 0]]);
 /** Sólo en creativo (no se destila). */
-export const PT_LUCK = P('luck', 'de suerte', [[EFFECT_LUCK, 300, 0]]);
-export const PT_SLOW_FALLING = P('slow_falling', 'de caída lenta', [[EFFECT_SLOW_FALLING, 90, 0]]);
-export const PT_LONG_SLOW_FALLING = P('long_slow_falling', 'de caída lenta', [[EFFECT_SLOW_FALLING, 240, 0]]);
+export const PT_LUCK = P('luck', '幸运', [[EFFECT_LUCK, 300, 0]]);
+export const PT_SLOW_FALLING = P('slow_falling', '缓降', [[EFFECT_SLOW_FALLING, 90, 0]]);
+export const PT_LONG_SLOW_FALLING = P('long_slow_falling', '缓降', [[EFFECT_SLOW_FALLING, 240, 0]]);
 
 export const POTION_TYPE_COUNT = POTIONS.length;
 
@@ -171,20 +171,18 @@ export function isBasePotion(type: number): boolean {
 }
 
 const BASE_NAMES: Readonly<Record<PotionKind, [string, string, string, string]>> = {
-  drink: ['Frasco de agua', 'Poción mundana', 'Poción espesa', 'Poción rara'],
-  splash: ['Frasco de agua arrojadizo', 'Poción arrojadiza mundana', 'Poción arrojadiza espesa', 'Poción arrojadiza rara'],
-  lingering: ['Frasco de agua persistente', 'Poción persistente mundana', 'Poción persistente espesa', 'Poción persistente rara'],
-  arrow: ['Flecha de salpicadura', 'Flecha con efecto', 'Flecha con efecto', 'Flecha con efecto'],
+  drink: ['水瓶', '浑浊的药水', '浓稠的药水', '粗制的药水'],
+  splash: ['喷溅型水瓶', '喷溅型浑浊的药水', '喷溅型浓稠的药水', '喷溅型粗制的药水'],
+  lingering: ['滞留型水瓶', '滞留型浑浊的药水', '滞留型浓稠的药水', '滞留型粗制的药水'],
+  arrow: ['喷溅之箭', '浑浊之箭', '浓稠之箭', '粗制之箭'],
 };
-const KIND_PREFIX: Readonly<Record<PotionKind, string>> = {
-  drink: 'Poción', splash: 'Poción arrojadiza', lingering: 'Poción persistente', arrow: 'Flecha',
-};
-
 /** Nombre de una poción («Poción arrojadiza de curación», «Frasco de agua», «Flecha de veneno»…). */
 export function potionName(kind: PotionKind, type: number): string {
   const def = POTIONS[type] ?? POTIONS[PT_WATER];
   if (isBasePotion(def.id)) return BASE_NAMES[kind][def.id];
-  return `${KIND_PREFIX[kind]} ${def.suffix}`;
+  if (kind === 'arrow') return `${def.suffix}之箭`;
+  const pre = kind === 'splash' ? '喷溅型' : kind === 'lingering' ? '滞留型' : '';
+  return `${pre}${def.suffix}药水`;
 }
 
 /** Nombre visible de una pila (las pociones, según su tipo). */
@@ -299,7 +297,7 @@ export const CREATIVE_BREWING: readonly number[] = [
 /** Líneas de efecto de la descripción: [texto, beneficioso]. «Sin efectos» en las bases. */
 export function potionEffectLines(kind: PotionKind, type: number): [string, boolean][] {
   const list = potionEffects(type, kind);
-  if (list.length === 0) return [['Sin efectos', false]];
+  if (list.length === 0) return [['无效果', false]];
   return list.map(([id, secs, amp]) => {
     const d = EFFECTS[id];
     const lvl = amp > 0 ? ` ${['I', 'II', 'III', 'IV', 'V', 'VI'][Math.min(5, amp)]}` : '';

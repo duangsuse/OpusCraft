@@ -10,10 +10,10 @@ export class SmithingPanel implements WorkPanel {
   constructor(private host: WorkHost, private pos: [number, number, number]) {}
 
   html(): string {
-    return '<h3>Mejorar equipo</h3><div class="smith">' +
-      `<div class="smith-in"><div class="slot2" data-s="grid:${SMITH_TEMPLATE}" data-hint="Plantilla"></div>` +
-      `<div class="slot2" data-s="grid:${SMITH_BASE}" data-hint="Objeto"></div>` +
-      `<div class="slot2" data-s="grid:${SMITH_ADDITION}" data-hint="Material"></div></div>` +
+    return '<h3>升级装备</h3><div class="smith">' +
+      `<div class="smith-in"><div class="slot2" data-s="grid:${SMITH_TEMPLATE}" data-hint="锻造模板"></div>` +
+      `<div class="slot2" data-s="grid:${SMITH_BASE}" data-hint="物品"></div>` +
+      `<div class="slot2" data-s="grid:${SMITH_ADDITION}" data-hint="材料"></div></div>` +
       '<div class="arrow smith-arrow"></div><div class="slot2 big" data-s="out"></div>' +
       '<p class="smith-hint"></p></div>';
   }
@@ -40,8 +40,8 @@ export class SmithingPanel implements WorkPanel {
     const hint = panel.querySelector('.smith-hint') as HTMLElement | null;
     if (hint) {
       hint.textContent = grid[SMITH_TEMPLATE] && !grid[SMITH_BASE]
-        ? 'Pon una pieza de diamante'
-        : grid[SMITH_TEMPLATE] && !grid[SMITH_ADDITION] ? 'Pon un lingote de netherita' : '';
+        ? '放入一件钻石装备'
+        : grid[SMITH_TEMPLATE] && !grid[SMITH_ADDITION] ? '放入一个下界合金锭' : '';
     }
   }
 

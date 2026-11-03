@@ -105,10 +105,10 @@ export class Riding {
     if (!controlled) this.body = null;
     this.controlled = controlled;
     const md = MOUNTS[this.type];
-    if (again) this.g.ui.toast(md?.saddle ? '¡Domado! Ponle una silla para guiarlo.' : '¡Domada!');
-    else if (controlled) this.g.ui.toast(md?.chargeJump ? 'Mayús: bajarse · Espacio (mantener): saltar' : 'Mayús: bajarse');
-    else if (md?.tameable && ent && !(ent.flags & EF_TAMED)) this.g.ui.toast('Aguanta… a ver si se deja domar');
-    else this.g.ui.toast('Mayús: bajarse');
+    if (again) this.g.ui.toast(md?.saddle ? '已驯服！给它装上鞍即可骑乘。' : '已驯服！');
+    else if (controlled) this.g.ui.toast(md?.chargeJump ? 'Shift：下坐骑 · 空格（长按）：跳跃' : 'Shift：下坐骑');
+    else if (md?.tameable && ent && !(ent.flags & EF_TAMED)) this.g.ui.toast('再等等……看看它是否愿意被驯服');
+    else this.g.ui.toast('Shift：下坐骑');
   }
 
   /** Cuerpo local de la montura que guía (alto como montura y jinete, si cabe). */
@@ -159,7 +159,7 @@ export class Riding {
     if (item === SADDLE) {
       if (!md.saddle || baby || target.flags & EF_SADDLE) return false;
       if (md.tameable && !(target.flags & EF_TAMED)) {
-        this.g.ui.toast('Primero tienes que domarlo: móntate hasta que se deje.');
+        this.g.ui.toast('你需要先驯服它：反复骑乘直到它接受你。');
         return true;
       }
       this.g.interaction.interactEntity(target, SADDLE);
@@ -209,7 +209,7 @@ export class Riding {
     if (world) p.unstuck(world);
     if (thrown) {
       p.impulse(Math.sin(yaw) * 4, 5, Math.cos(yaw) * 4);
-      g.ui.toast('¡Te ha tirado! Vuelve a intentarlo (o dale de comer para calmarlo).');
+      g.ui.toast('它把你甩了下来！再试一次（或者喂它点吃的让它安静下来）。');
     }
     this.reset();
   }

@@ -58,7 +58,7 @@ const illagerBase = { hostile: true, burnsInSun: false, width: 0.6, height: 1.95
 
 export const ILLAGER_MOBS: MobDef[] = [
   model({
-    ...illagerBase, id: MOB_PILLAGER, key: 'pillager', name: 'Saqueador', health: 24, walk: 1.2, run: 2.8, damage: 2,
+    ...illagerBase, id: MOB_PILLAGER, key: 'pillager', name: '掠夺者', health: 24, walk: 1.2, run: 2.8, damage: 2,
     drops: [[ARROW, 0, 2]],
   }, 64, [
     ...illagerSpecs(),
@@ -68,7 +68,7 @@ export const ILLAGER_MOBS: MobDef[] = [
     ...bannerSpecs(),
   ]),
   model({
-    ...illagerBase, id: MOB_VINDICATOR, key: 'vindicator', name: 'Vindicador', health: 24, walk: 1.2, run: 3.3, damage: 13,
+    ...illagerBase, id: MOB_VINDICATOR, key: 'vindicator', name: '卫道士', health: 24, walk: 1.2, run: 3.3, damage: 13,
     drops: [[EMERALD, 0, 1]],
   }, 64, [
     ...illagerSpecs(),
@@ -78,11 +78,11 @@ export const ILLAGER_MOBS: MobDef[] = [
     ...bannerSpecs(),
   ]),
   model({
-    ...illagerBase, id: MOB_EVOKER, key: 'evoker', name: 'Evocador', health: 24, walk: 1.1, run: 2.2, damage: 0,
+    ...illagerBase, id: MOB_EVOKER, key: 'evoker', name: '唤魔者', health: 24, walk: 1.1, run: 2.2, damage: 0,
     drops: [[TOTEM_OF_UNDYING, 1, 1], [EMERALD, 0, 1]],
   }, 64, illagerSpecs()),
   model({
-    id: MOB_VEX, key: 'vex', name: 'Vex', hostile: true, burnsInSun: false, health: 14, walk: 3, run: 6.5, width: 0.4, height: 0.8,
+    id: MOB_VEX, key: 'vex', name: '恼鬼', hostile: true, burnsInSun: false, health: 14, walk: 3, run: 6.5, width: 0.4, height: 0.8,
     damage: 9, drops: [], anim: 'vex', scale: 0.45, flying: true, sound: 'vex',
   }, 64, [
     { name: 'body', pivot: [0, 14, 0], from: [-4, 0, -2], size: [8, 10, 4] },
@@ -96,7 +96,7 @@ export const ILLAGER_MOBS: MobDef[] = [
     { name: 'wingL', parent: 'body', pivot: [-1.5, 8, 2], from: [-12, -10, 0], size: [12, 14, 1], rot: [0, 0.5, -0.2], share: 'wingR' },
   ]),
   model({
-    id: MOB_RAVAGER, key: 'ravager', name: 'Devastador', hostile: true, burnsInSun: false, health: 100, walk: 1.2, run: 3.1,
+    id: MOB_RAVAGER, key: 'ravager', name: '劫掠兽', hostile: true, burnsInSun: false, health: 100, walk: 1.2, run: 3.1,
     width: 1.95, height: 2.2, damage: 12, drops: [[SADDLE, 1, 1]], anim: 'ravager', scale: 1, sound: 'ravager',
   }, 128, [
     { name: 'body', pivot: [0, 17, 0], from: [-7, 0, -11], size: [14, 15, 23] },
@@ -111,7 +111,7 @@ export const ILLAGER_MOBS: MobDef[] = [
     { name: 'leg3', pivot: [4.5, 17, 8], from: [-3, -17, -3], size: [6, 17, 6], share: 'leg0' },
   ]),
   model({
-    id: MOB_EVOKER_FANGS, key: 'evoker_fangs', name: 'Colmillos de evocador', hostile: true, burnsInSun: false, health: 1, walk: 0,
+    id: MOB_EVOKER_FANGS, key: 'evoker_fangs', name: '唤魔者尖牙', hostile: true, burnsInSun: false, health: 1, walk: 0,
     run: 0, width: 0.5, height: 0.8, damage: 6, drops: [], anim: 'fangs', scale: 1, inert: true,
   }, 64, [
     { name: 'base', pivot: [0, 0, 0], from: [-5, 0, -5], size: [10, 2, 10] },

@@ -8,9 +8,9 @@ const infested = (tex: string, hardness: number) => () => ({
   all: tex, hardness, tool: 'pickaxe' as const, category: 'naturaleza' as const,
 });
 
-export const INFESTED_STONE = family('infested_stone', 'Piedra infestada', [], infested('stone', 0.75));
-export const INFESTED_COBBLESTONE = family('infested_cobblestone', 'Adoquín infestado', [], infested('cobblestone', 1));
-export const INFESTED_STONE_BRICKS = family('infested_stone_bricks', 'Ladrillos de piedra infestados', [], infested('stone_bricks', 0.75));
+export const INFESTED_STONE = family('infested_stone', '虫蚀石头', [], infested('stone', 0.75));
+export const INFESTED_COBBLESTONE = family('infested_cobblestone', '虫蚀圆石', [], infested('cobblestone', 1));
+export const INFESTED_STONE_BRICKS = family('infested_stone_bricks', '虫蚀石砖', [], infested('stone_bricks', 0.75));
 
 /** Bloque infestado → el bloque normal que imita. */
 export const INFESTED_OF: Readonly<Record<number, number>> = {

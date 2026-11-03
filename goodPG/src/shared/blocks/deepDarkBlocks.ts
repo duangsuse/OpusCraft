@@ -33,7 +33,7 @@ const INVENTORY: number[] = [];
 const sculkish = (o: Opts): Opts => ({ tool: 'hoe', sound: 'sculk', category: 'naturaleza', ...o });
 
 /** Sculk: sin Toque de seda sólo suelta experiencia (1 punto). */
-export const SCULK = family('sculk', 'Sculk', [], () => sculkish({ all: 'sculk', hardness: 0.2 }));
+export const SCULK = family('sculk', '幽匿块', [], () => sculkish({ all: 'sculk', hardness: 0.2 }));
 
 /**
  * Venas de sculk: una capa fina en cualquiera de las seis caras de la celda (`faces`, un bit por cara en
@@ -57,7 +57,7 @@ function veinBoxes(mask: number): ModelBox[] {
   return out;
 }
 
-export const SCULK_VEIN = family('sculk_vein', 'Vena de sculk', [['faces', VEIN_FACES]], (st) => {
+export const SCULK_VEIN = family('sculk_vein', '幽匿脉络', [['faces', VEIN_FACES]], (st) => {
   const mask = st.faces;
   const boxes = veinBoxes(mask || 8);
   const sel: number[] = [];
@@ -103,7 +103,7 @@ export const VEIN_DIRS: readonly (readonly [number, number, number])[] = FACE_DX
 // ------------------------------------------------------------------ catalizador
 
 /** Catalizador de sculk: florece (`bloom`) un momento cuando muere algo cerca y extiende el sculk. */
-export const SCULK_CATALYST = family('sculk_catalyst', 'Catalizador de sculk', [['bloom', 2]], (st) => sculkish({
+export const SCULK_CATALYST = family('sculk_catalyst', '幽匿催发体', [['bloom', 2]], (st) => sculkish({
   top: st.bloom ? 'sculk_catalyst_top_bloom' : 'sculk_catalyst_top',
   side: st.bloom ? 'sculk_catalyst_side_bloom' : 'sculk_catalyst_side',
   bottom: 'sculk_catalyst_bottom', hardness: 3, emission: 6,
@@ -141,7 +141,7 @@ function sensorBoxes(active: boolean, calibrated: boolean, facing: number): Mode
 
 const HALF_BOX = [0, 0, 0, 1, 0.5, 1];
 
-export const SCULK_SENSOR = family('sculk_sensor', 'Sensor de sculk', [['phase', 3], ['water', 2]], (st) => sculkish({
+export const SCULK_SENSOR = family('sculk_sensor', '幽匿感测体', [['phase', 3], ['water', 2]], (st) => sculkish({
   render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 1.5, emission: 1, category: 'redstone', all: 'sculk_sensor_side',
   model: sensorBoxes(st.phase === PHASE_ACTIVE, false, 0), itemModel: sensorBoxes(false, false, 0),
   collision: HALF_BOX, selection: HALF_BOX, ...(st.water ? WET : {}),
@@ -149,7 +149,7 @@ export const SCULK_SENSOR = family('sculk_sensor', 'Sensor de sculk', [['phase',
 markWet(SCULK_SENSOR);
 
 export const CALIBRATED_SCULK_SENSOR = family(
-  'calibrated_sculk_sensor', 'Sensor de sculk calibrado', [['facing', 4], ['phase', 3], ['water', 2]], (st) => sculkish({
+  'calibrated_sculk_sensor', '校准幽匿感测体', [['facing', 4], ['phase', 3], ['water', 2]], (st) => sculkish({
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 1.5, emission: 1, category: 'redstone',
     all: 'calibrated_sculk_sensor_side', model: sensorBoxes(st.phase === PHASE_ACTIVE, true, st.facing),
     itemModel: sensorBoxes(false, true, 2), collision: HALF_BOX, selection: HALF_BOX, ...(st.water ? WET : {}),
@@ -230,7 +230,7 @@ function shriekerBoxes(canSummon: boolean): ModelBox[] {
  * (sólo ésos avisan al warden y lo invocan; los que pone un jugador o hace crecer un catalizador, no).
  */
 export const SCULK_SHRIEKER = family(
-  'sculk_shrieker', 'Chillador de sculk', [['shrieking', 2], ['can_summon', 2], ['water', 2]], (st) => sculkish({
+  'sculk_shrieker', '幽匿尖啸体', [['shrieking', 2], ['can_summon', 2], ['water', 2]], (st) => sculkish({
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 3, all: 'sculk_shrieker_side', category: 'redstone',
     model: shriekerBoxes(st.can_summon === 1), itemModel: shriekerBoxes(false), collision: HALF_BOX, selection: HALF_BOX,
     ...(st.water ? WET : {}),
@@ -262,7 +262,7 @@ INVENTORY.push(SCULK, SCULK_VEIN, SCULK_CATALYST, SCULK_SENSOR, CALIBRATED_SCULK
 // ------------------------------------------------------------------ pizarra reforzada
 
 /** Pizarra profunda reforzada: dureza 55 y resistencia 1200; no suelta nada ni la mueven los pistones. */
-export const REINFORCED_DEEPSLATE = family('reinforced_deepslate', 'Pizarra profunda reforzada', [], () => ({
+export const REINFORCED_DEEPSLATE = family('reinforced_deepslate', '强化深板岩', [], () => ({
   top: 'reinforced_deepslate_top', side: 'reinforced_deepslate_side', bottom: 'reinforced_deepslate_bottom', hardness: 55,
   sound: 'stone', category: 'construccion',
 }));
@@ -271,11 +271,11 @@ INVENTORY.push(REINFORCED_DEEPSLATE);
 // ------------------------------------------------------------------ bloques de alma
 
 /** Arena de alma: se hunde un poco (su colisión mide 14/16) y frena al andar por ella. */
-export const SOUL_SAND = family('soul_sand', 'Arena de alma', [], () => ({
+export const SOUL_SAND = family('soul_sand', '灵魂沙', [], () => ({
   all: 'soul_sand', hardness: 0.5, tool: 'shovel', sound: 'soul_sand', category: 'naturaleza', collision: [0, 0, 0, 1, 14 / 16, 1],
   selection: [0, 0, 0, 1, 1, 1],
 }));
-export const SOUL_SOIL = family('soul_soil', 'Tierra de alma', [], () => ({
+export const SOUL_SOIL = family('soul_soil', '灵魂土', [], () => ({
   all: 'soul_soil', hardness: 0.5, tool: 'shovel', sound: 'soul_soil', category: 'naturaleza',
 }));
 
@@ -295,16 +295,16 @@ function soulFireBoxes(): ModelBox[] {
 }
 
 /** Fuego de alma: azul, luz 10 y el doble de daño; sólo arde sobre arena o tierra de alma. */
-export const SOUL_FIRE = family('soul_fire', 'Fuego de alma', [], () => ({
+export const SOUL_FIRE = family('soul_fire', '灵魂火', [], () => ({
   render: R_MODEL, solid: false, opaque: false, lightOpacity: 0, emission: 10, hardness: 0, sound: 'wool', all: 'soul_fire',
   replaceable: true, walkThrough: true, noItem: true, category: null, model: soulFireBoxes(), collision: [],
   selection: [0, 0, 0, 1, 1 / 16, 1], support: (get: NeighborGet) => isSoulGround(get(0, -1, 0)),
 }));
 
-export const SOUL_TORCH = family('soul_torch', 'Antorcha de alma', [], () => ({
+export const SOUL_TORCH = family('soul_torch', '灵魂火把', [], () => ({
   render: R_TORCH, solid: false, lightOpacity: 0, emission: 10, sound: 'wood', all: 'soul_torch', hardness: 0, category: 'decoracion',
 }));
-export const SOUL_WALL_TORCH = family('soul_wall_torch', 'Antorcha de alma', [['facing', 4]], (st) => ({
+export const SOUL_WALL_TORCH = family('soul_wall_torch', '灵魂火把', [['facing', 4]], (st) => ({
   render: R_TORCH, solid: false, lightOpacity: 0, emission: 10, sound: 'wood', all: 'soul_torch', hardness: 0, category: null,
   wall: st.facing, base: SOUL_TORCH, selection: rotateFlat([5.5 / 16, 3 / 16, 11 / 16, 10.5 / 16, 13 / 16, 1], st.facing),
 }));
@@ -323,7 +323,7 @@ function soulLanternBoxes(hanging: boolean): ModelBox[] {
   return out;
 }
 
-export const SOUL_LANTERN = family('soul_lantern', 'Farol de alma', [['hanging', 2]], (st) => {
+export const SOUL_LANTERN = family('soul_lantern', '灵魂灯笼', [['hanging', 2]], (st) => {
   const hanging = st.hanging === 1;
   const box = hanging ? [5 / 16, 1 / 16, 5 / 16, 11 / 16, 10 / 16, 11 / 16] : [5 / 16, 0, 5 / 16, 11 / 16, 9 / 16, 11 / 16];
   return {

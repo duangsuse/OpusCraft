@@ -263,14 +263,14 @@ const GRID: GridType[] = [
 
 /** Nombres en español de las estructuras (y las claves que acepta /localizar). */
 export const STRUCTURE_NAMES: Readonly<Record<string, string>> = {
-  desert_pyramid: 'Templo del desierto', jungle_temple: 'Templo de la jungla', shipwreck: 'Naufragio',
-  ruined_portal: 'Portal en ruinas', igloo: 'Iglú', desert_well: 'Pozo del desierto', mineshaft: 'Mina abandonada',
-  village: 'Aldea', pillager_outpost: 'Puesto de saqueadores',
-  ancient_city: 'Ciudad antigua', // Fase 7.5 (abismo)
+  desert_pyramid: '沙漠神殿', jungle_temple: '丛林神庙', shipwreck: '沉船',
+  ruined_portal: '废弃传送门', igloo: '雪屋', desert_well: '沙漠水井', mineshaft: '废弃矿井',
+  village: '村庄', pillager_outpost: '掠夺者前哨站',
+  ancient_city: '远古城市', // Fase 7.5 (abismo)
   ...OCEAN_STRUCTURE_NAMES, // Fase 7.5 (océano)
-  swamp_hut: 'Cabaña de bruja', fossil: 'Fósil', // Fase 7.5 (fauna)
-  mansion: 'Mansión del bosque', // Fase 7.5 (mansión)
-  stronghold: 'Fortaleza', // Fase 8.6 (el End)
+  swamp_hut: '沼泽小屋', fossil: '埋藏的化石', // Fase 7.5 (fauna)
+  mansion: '林地府邸', // Fase 7.5 (mansión)
+  stronghold: '要塞', // Fase 8.6 (el End)
 };
 
 const startCache = new Map<string, Start | null>();

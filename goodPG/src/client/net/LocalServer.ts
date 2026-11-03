@@ -25,7 +25,7 @@ export class LocalServer {
           for (const w of this.flushWaiters.splice(0)) w();
           break;
         case 'error':
-          console.error('Servidor local:', m.message);
+          console.error('本地服务器：', m.message);
           tr?.fireClose(1011, m.message ?? 'error');
           break;
       }

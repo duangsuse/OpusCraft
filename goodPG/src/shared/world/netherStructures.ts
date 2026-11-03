@@ -29,10 +29,10 @@ const hasBase = (gen: TerrainGenerator): gen is TerrainGenerator & NetherBaseCol
 
 /** Nombres en español (y las claves que acepta /localizar en el Nether). */
 export const NETHER_STRUCTURE_NAMES: Readonly<Record<string, string>> = {
-  fortress: 'Fortaleza del Nether',
-  bastion_remnant: 'Bastión en ruinas',
-  nether_fossil: 'Fósil del Nether',
-  ruined_portal_nether: 'Portal en ruinas',
+  fortress: '下界要塞',
+  bastion_remnant: '堡垒遗迹',
+  nether_fossil: '下界化石',
+  ruined_portal_nether: '废弃传送门',
 };
 
 /** Las claves del mundo normal que en el Nether son las suyas (/localizar fosil o portal_en_ruinas). */

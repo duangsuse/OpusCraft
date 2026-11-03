@@ -27,26 +27,26 @@ const mineral = (tex: string, hardness: number, tier: number, o: Opts = {}): Opt
 
 // ------------------------------------------------------------------ bloques de almacenamiento
 
-export const RAW_IRON_BLOCK = block('raw_iron_block', 'Bloque de hierro en bruto', mineral('raw_iron_block', 5, 2));
-export const RAW_GOLD_BLOCK = block('raw_gold_block', 'Bloque de oro en bruto', mineral('raw_gold_block', 5, 3));
-export const COAL_BLOCK = block('coal_block', 'Bloque de carbón', mineral('coal_block', 5, 1));
-export const LAPIS_BLOCK = block('lapis_block', 'Bloque de lapislázuli', mineral('lapis_block', 3, 2));
+export const RAW_IRON_BLOCK = block('raw_iron_block', '粗铁块', mineral('raw_iron_block', 5, 2));
+export const RAW_GOLD_BLOCK = block('raw_gold_block', '粗金块', mineral('raw_gold_block', 5, 3));
+export const COAL_BLOCK = block('coal_block', '煤炭块', mineral('coal_block', 5, 1));
+export const LAPIS_BLOCK = block('lapis_block', '青金石块', mineral('lapis_block', 3, 2));
 /** Bloque de huesos: de pie; tumbado a lo largo de X o de Z con BONE_BLOCK_AXIS (como los troncos). */
-export const BONE_BLOCK = block('bone_block', 'Bloque de huesos', {
+export const BONE_BLOCK = block('bone_block', '骨块', {
   top: 'bone_block_top', side: 'bone_block_side', hardness: 2, tool: 'pickaxe', tier: 1, sound: 'stone', category: 'construccion',
 });
-export const BONE_BLOCK_AXIS = addAxisLogs('bone_block', 'Bloque de huesos', BONE_BLOCK, 'bone_block_top', 'bone_block_side', undefined, {
+export const BONE_BLOCK_AXIS = addAxisLogs('bone_block', '骨块', BONE_BLOCK, 'bone_block_top', 'bone_block_side', undefined, {
   hardness: 2, tool: 'pickaxe', tier: 1, sound: 'stone',
 });
 /** Bloque de slime: translúcido; rebota a quien cae encima (sin daño) y frena al caminar por él. */
-export const SLIME_BLOCK = block('slime_block', 'Bloque de slime', {
+export const SLIME_BLOCK = block('slime_block', '黏液块', {
   all: 'slime_block', render: R_TRANSLUCENT, lightOpacity: 1, hardness: 0, sound: 'wool', category: 'decoracion',
 });
 
 // ------------------------------------------------------------------ hielo
 
 /** Hielo azul: nueve de hielo compacto; más resbaladizo aún y no se derrite. */
-export const BLUE_ICE = block('blue_ice', 'Hielo azul', {
+export const BLUE_ICE = block('blue_ice', '蓝冰', {
   all: 'blue_ice', hardness: 2.8, tool: 'pickaxe', sound: 'glass', category: 'naturaleza',
 });
 
@@ -54,13 +54,13 @@ export const BLUE_ICE = block('blue_ice', 'Hielo azul', {
 
 const soil = (o: Opts): Opts => ({ hardness: 0.5, tool: 'shovel', sound: 'dirt', category: 'naturaleza', ...o });
 /** Tierra gruesa: la hierba no se extiende por ella; con la azada se vuelve tierra. */
-export const COARSE_DIRT = block('coarse_dirt', 'Tierra gruesa', soil({ all: 'coarse_dirt', sound: 'gravel' }));
+export const COARSE_DIRT = block('coarse_dirt', '砂土', soil({ all: 'coarse_dirt', sound: 'gravel' }));
 /** Podsol: el suelo de las taigas; suelta tierra. */
-export const PODZOL = block('podzol', 'Podsol', soil({ top: 'podzol_top', side: 'podzol_side', bottom: 'dirt' }));
+export const PODZOL = block('podzol', '灰化土', soil({ top: 'podzol_top', side: 'podzol_side', bottom: 'dirt' }));
 /** Tierra enraizada: bajo las azaleas; con la azada se vuelve tierra y suelta raíces colgantes. */
-export const ROOTED_DIRT = block('rooted_dirt', 'Tierra enraizada', soil({ all: 'rooted_dirt' }));
+export const ROOTED_DIRT = block('rooted_dirt', '缠根泥土', soil({ all: 'rooted_dirt' }));
 /** Camino de tierra: 15/16 de alto; vuelve a ser tierra si se pone un bloque sólido encima. Suelta tierra. */
-export const DIRT_PATH = family('dirt_path', 'Camino de tierra', [], () => {
+export const DIRT_PATH = family('dirt_path', '土径', [], () => {
   const top = L('dirt_path_top'), side = L('dirt_path_side'), bottom = L('dirt');
   return {
     render: R_MODEL, top: 'dirt_path_top', side: 'dirt_path_side', bottom: 'dirt', hardness: 0.65, tool: 'shovel', sound: 'grass',
@@ -77,7 +77,7 @@ export const PATHABLE: ReadonlySet<number> = new Set([GRASS, SNOWY_GRASS, DIRT, 
  * despacio y, si se queda, se congela. Con botas de cuero se puede andar por encima. No es objeto: se
  * recoge y se pone con el cubo.
  */
-export const POWDER_SNOW = block('powder_snow', 'Nieve polvo', {
+export const POWDER_SNOW = block('powder_snow', '细雪', {
   all: 'powder_snow', solid: false, hardness: 0.25, tool: 'shovel', sound: 'snow', category: null, noItem: true,
 });
 
@@ -89,10 +89,10 @@ const infested = (key: string, name: string, mimics: number, hardness: number): 
   addInfested(id, mimics);
   return id;
 };
-export const INFESTED_CRACKED_STONE_BRICKS = infested('infested_cracked_stone_bricks', 'Ladrillos de piedra agrietados infestados', CRACKED_STONE_BRICKS, 0.75);
-export const INFESTED_MOSSY_STONE_BRICKS = infested('infested_mossy_stone_bricks', 'Ladrillos de piedra musgosos infestados', MOSSY_STONE_BRICKS, 0.75);
-export const INFESTED_CHISELED_STONE_BRICKS = infested('infested_chiseled_stone_bricks', 'Ladrillos de piedra cincelados infestados', CHISELED_STONE_BRICKS, 0.75);
-export const INFESTED_DEEPSLATE = infested('infested_deepslate', 'Pizarra profunda infestada', DEEPSLATE, 1.5);
+export const INFESTED_CRACKED_STONE_BRICKS = infested('infested_cracked_stone_bricks', '虫蚀裂纹石砖', CRACKED_STONE_BRICKS, 0.75);
+export const INFESTED_MOSSY_STONE_BRICKS = infested('infested_mossy_stone_bricks', '虫蚀苔石砖', MOSSY_STONE_BRICKS, 0.75);
+export const INFESTED_CHISELED_STONE_BRICKS = infested('infested_chiseled_stone_bricks', '虫蚀雕纹石砖', CHISELED_STONE_BRICKS, 0.75);
+export const INFESTED_DEEPSLATE = infested('infested_deepslate', '虫蚀深板岩', DEEPSLATE, 1.5);
 
 // ------------------------------------------------------------------ tartas con vela
 
@@ -127,8 +127,8 @@ function candleCake(candle: number, key: string, name: string, bodyTex: string):
   CANDLE_OF_CAKE.set(id + 1, candle);
   return id;
 }
-candleCake(CANDLE, 'candle_cake', 'Tarta con vela', 'candle');
-for (const c of DYE_COLORS) candleCake(CANDLES[c], `${c}_candle_cake`, `Tarta con vela ${COLOR_NAMES[c][1]}`, `${c}_concrete`);
+candleCake(CANDLE, 'candle_cake', '蜡烛蛋糕', 'candle');
+for (const c of DYE_COLORS) candleCake(CANDLES[c], `${c}_candle_cake`, `${COLOR_NAMES[c][1]}蜡烛蛋糕`, `${c}_concrete`);
 
 /** ¿Tarta con vela (encendida o no)? */
 export const isCandleCake = (id: number): boolean => CANDLE_OF_CAKE.has(id);
@@ -144,7 +144,7 @@ export function candleCakeOf(candle: number, lit: boolean): number {
 // ------------------------------------------------------------------ huevos de rana
 
 /** Huevos de rana: planos sobre una fuente de agua (como el nenúfar); se atraviesan y eclosionan en renacuajos. */
-export const FROGSPAWN = family('frogspawn', 'Huevos de rana', [], () => {
+export const FROGSPAWN = family('frogspawn', '青蛙卵', [], () => {
   const t = L('frogspawn');
   return {
     render: R_MODEL, solid: false, opaque: false, lightOpacity: 0, hardness: 0, sound: 'grass', category: 'naturaleza',

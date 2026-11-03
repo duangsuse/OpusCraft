@@ -17,13 +17,13 @@ export type SkullKind = (typeof SKULL_KINDS)[number] | 'wither_skeleton' | 'pigl
 export const ALL_SKULL_KINDS: SkullKind[] = [];
 
 const SKULL_NAMES: Readonly<Record<SkullKind, string>> = {
-  zombie: 'Cabeza de zombi',
-  skeleton: 'Cráneo de esqueleto',
-  creeper: 'Cabeza de creeper',
-  player: 'Cabeza de jugador',
-  wither_skeleton: 'Cráneo de esqueleto wither',
-  piglin: 'Cabeza de piglin',
-  dragon: 'Cabeza de dragón',
+  zombie: '僵尸头颅',
+  skeleton: '骷髅头颅',
+  creeper: '苦力怕头颅',
+  player: '玩家头颅',
+  wither_skeleton: '凋灵骷髅头颅',
+  piglin: '猪灵头颅',
+  dragon: '龙首',
 };
 
 /** Caras de una cabeza (su derecha es +X cuando mira al norte, −Z). */
@@ -130,7 +130,7 @@ export function skullPlacement(base: number, face: 'up' | 'down' | 'side', nx: n
 // ------------------------------------------------------------------ tocadiscos
 
 /** Tocadiscos: `disc` 1 cuando tiene un disco dentro (qué disco lo sabe el servidor). */
-export const JUKEBOX = family('jukebox', 'Tocadiscos', [['disc', 2]], () => ({
+export const JUKEBOX = family('jukebox', '唱片机', [['disc', 2]], () => ({
   side: 'jukebox_side', top: 'jukebox_top', bottom: 'jukebox_bottom', hardness: 2, tool: 'axe', sound: 'wood',
   category: 'decoracion',
 }));
@@ -151,7 +151,7 @@ export function jukeboxWith(disc: boolean): number {
 // ------------------------------------------------------------------ marco brillante
 
 /** Bloque oculto con el que se dibuja el marco brillante (como ITEM_FRAME_MODEL). */
-export const GLOW_ITEM_FRAME_MODEL = family('glow_item_frame_model', 'Marco brillante', [], () => ({
+export const GLOW_ITEM_FRAME_MODEL = family('glow_item_frame_model', '荧光物品展示框', [], () => ({
   tex: ['birch_planks', 'birch_planks', 'birch_planks', 'birch_planks', 'glow_item_frame', 'birch_planks'], noItem: true,
   category: null, hardness: 0, sound: 'wood',
 }));

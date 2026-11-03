@@ -31,7 +31,7 @@ const KEY = 'vc-recipebook-open';
 
 /** El botón del libro (va junto a la cuadrícula de fabricación o a la del horno). */
 export const BOOK_BUTTON =
-  '<button class="rb-btn" data-rb title="Libro de recetas" type="button"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">' +
+  '<button class="rb-btn" data-rb title="配方书" type="button"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">' +
   '<path d="M4 4.5A1.5 1.5 0 0 1 5.5 3H19v15H6a2 2 0 0 0-2 2z" fill="#3f8f2a"/><path d="M4 20a2 2 0 0 1 2-2h13v3H6a2 2 0 0 1-2-1z" fill="#e8dfc4"/>' +
   '<path d="M8 7h7M8 10h5" stroke="#dff2c9" stroke-width="1.6" stroke-linecap="round"/></svg></button>';
 
@@ -74,12 +74,12 @@ export class RecipeBook {
     this.el = document.createElement('aside');
     this.el.className = 'panel rbook hidden';
     this.el.innerHTML =
-      `<div class="rb-head"><input type="search" class="rb-search" placeholder="Buscar receta…" maxlength="40" autocomplete="off" spellcheck="false">` +
-      `<button class="rb-only" type="button" title="Sólo lo que puedes hacer ahora">Hacer ya</button></div>` +
+      `<div class="rb-head"><input type="search" class="rb-search" placeholder="搜索配方…" maxlength="40" autocomplete="off" spellcheck="false">` +
+      `<button class="rb-only" type="button" title="只显示现在能合成的配方">可合成</button></div>` +
       `<div class="rb-tabs"></div><div class="rb-grid"></div>` +
-      `<div class="rb-foot"><button class="rb-prev" type="button" aria-label="Página anterior">‹</button><span class="rb-page"></span>` +
-      `<button class="rb-next" type="button" aria-label="Página siguiente">›</button></div>` +
-      `<p class="rb-hint">Clic: colocar · Mayús + clic: tantas como puedas</p>`;
+      `<div class="rb-foot"><button class="rb-prev" type="button" aria-label="上一页">‹</button><span class="rb-page"></span>` +
+      `<button class="rb-next" type="button" aria-label="下一页">›</button></div>` +
+      `<p class="rb-hint">点击：放入配方 · Shift + 点击：尽可能多次合成</p>`;
     parent.insertBefore(this.el, parent.firstChild);
     this.search = this.el.querySelector('.rb-search') as HTMLInputElement;
     this.tabsEl = this.el.querySelector('.rb-tabs') as HTMLElement;
@@ -202,7 +202,7 @@ export class RecipeBook {
     this.cells = shown;
     this.grid.innerHTML = shown.length
       ? shown.map((r, i) => `<div class="rb-cell ${r.can ? 'can' : 'no'}" data-i="${i}"><i style="background-image:url(${this.host.icons.get(r.group.out) ?? ''})"></i></div>`).join('')
-      : `<p class="rb-empty">${this.query ? 'Nada con ese nombre.' : this.only ? 'Ahora no puedes hacer nada.' : 'Aún no conoces ninguna receta: coge materiales.'}</p>`;
+      : `<p class="rb-empty">${this.query ? '没有匹配该名称的配方。' : this.only ? '现在没有可合成的配方。' : '你还不认识任何配方：先去收集材料。'}</p>`;
     this.pageEl.textContent = `${this.page + 1} / ${pages}`;
     (this.el.querySelector('.rb-prev') as HTMLButtonElement).disabled = this.page === 0;
     (this.el.querySelector('.rb-next') as HTMLButtonElement).disabled = this.page >= pages - 1;
@@ -219,7 +219,7 @@ export class RecipeBook {
     const all: (BookTab | 'all')[] = ['all', ...tabs];
     this.tabsEl.innerHTML = all.map((t) => {
       const id = tabIcon(ctx.kind, t);
-      return `<button type="button" class="rb-tab${t === this.tab ? ' sel' : ''}" data-tab="${t}" title="${t === 'all' ? 'Todas' : TAB_LABEL[t]}">` +
+      return `<button type="button" class="rb-tab${t === this.tab ? ' sel' : ''}" data-tab="${t}" title="${t === 'all' ? '全部' : TAB_LABEL[t]}">` +
         `<i style="background-image:url(${this.host.icons.get(id) ?? ''})"></i></button>`;
     }).join('');
   }
@@ -229,7 +229,7 @@ export class RecipeBook {
     const rows = r.needs.map((n) => {
       const have = n.alts.some((id) => (stock.get(id) ?? 0) >= n.n);
       const first = n.alts.find((id) => (stock.get(id) ?? 0) > 0) ?? n.alts[0];
-      const many = n.alts.length > 1 ? ' (o similar)' : '';
+      const many = n.alts.length > 1 ? '（或类似）' : '';
       return `<div class="rb-ing${have ? '' : ' miss'}"><i style="background-image:url(${this.host.icons.get(first) ?? ''})"></i>${n.n}× ${itemName(first)}${many}</div>`;
     }).join('');
     const out: ItemStack = r.out;

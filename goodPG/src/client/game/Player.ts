@@ -60,6 +60,8 @@ export class Player {
   pitch = 0;
   onGround = false;
   flying = false;
+  /** Modo /穿墙: sin colisión ni gravedad (sólo cliente, para depurar). */
+  noclip = false;
   sneaking = false;
   sprinting = false;
   inWater = false;
@@ -265,6 +267,27 @@ export class Player {
     let wz = -cy * fwd - sy * str;
     const wl = Math.hypot(wx, wz);
     if (wl > 1) { wx /= wl; wz /= wl; }
+
+    // /穿墙 (noclip): atraviesa bloques sin colisión ni gravedad; espacio y agacharse suben y bajan.
+    if (this.noclip) {
+      const speed = (this.sprinting ? 21.6 : 10.9) * this.slow;
+      const k = 1 - Math.exp(-dt * 8);
+      this.vx += (wx * speed - this.vx) * k;
+      this.vz += (wz * speed - this.vz) * k;
+      const vyT = ((c.jump ? 1 : 0) - (c.sneak ? 1 : 0)) * (this.sprinting ? 12 : 8);
+      this.vy += (vyT - this.vy) * (1 - Math.exp(-dt * 10));
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.z += this.vz * dt;
+      this.inWater = this.inLava = this.inPowder = false;
+      this.onGround = false;
+      this.hitWall = false;
+      this.justLanded = false;
+      this.landedFall = 0;
+      this.fallDistance = 0;
+      this.walkDistance += Math.hypot(this.vx, this.vz) * dt;
+      return;
+    }
 
     // Fase 8.6: los élitros se abren al pulsar saltar en el aire (tryToStartFallFlying) y se cierran al tocar el suelo,
     // un líquido o una escalera de mano, con Levitación, volando en creativo o si ya no sirven.

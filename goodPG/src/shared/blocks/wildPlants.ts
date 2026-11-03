@@ -48,14 +48,14 @@ function tallPlant(key: string, name: string, o: Opts = {}): number {
   return id;
 }
 
-export const SUNFLOWER = tallPlant('sunflower', 'Girasol');
-export const LILAC = tallPlant('lilac', 'Lila');
-export const ROSE_BUSH = tallPlant('rose_bush', 'Rosal');
-export const PEONY = tallPlant('peony', 'Peonía');
-export const PITCHER_PLANT = tallPlant('pitcher_plant', 'Planta odre');
-export const TALL_GRASS = tallPlant('tall_grass', 'Hierba alta', { replaceable: true });
-export const LARGE_FERN = tallPlant('large_fern', 'Helecho grande', { replaceable: true });
-export const SMALL_DRIPLEAF = tallPlant('small_dripleaf', 'Plantaforma pequeña');
+export const SUNFLOWER = tallPlant('sunflower', '向日葵');
+export const LILAC = tallPlant('lilac', '丁香');
+export const ROSE_BUSH = tallPlant('rose_bush', '玫瑰丛');
+export const PEONY = tallPlant('peony', '牡丹');
+export const PITCHER_PLANT = tallPlant('pitcher_plant', '瓶子草');
+export const TALL_GRASS = tallPlant('tall_grass', '高草丛', { replaceable: true });
+export const LARGE_FERN = tallPlant('large_fern', '大型蕨', { replaceable: true });
+export const SMALL_DRIPLEAF = tallPlant('small_dripleaf', '小型垂滴叶');
 
 /** ¿Planta de dos bloques (cualquier mitad)? */
 export function isTallPlant(id: number): boolean {
@@ -73,14 +73,14 @@ export const TALL_FLOWERS: readonly number[] = [SUNFLOWER, LILAC, ROSE_BUSH, PEO
 /** Planta pequeña → su versión de dos bloques (polvo de hueso). */
 export const GROWS_TALL: ReadonlyMap<number, number> = new Map([[SHORT_GRASS, TALL_GRASS], [FERN, LARGE_FERN]]);
 
-export const TORCHFLOWER = family('torchflower', 'Anflorcha', [], () => plant('torchflower', { support: onGround }));
+export const TORCHFLOWER = family('torchflower', '火把花', [], () => plant('torchflower', { support: onGround }));
 
 // ------------------------------------------------------------------ bayas dulces
 
 const BERRY_SOIL = new Set([GRASS, DIRT, SNOWY_GRASS, FARMLAND, FARMLAND + 1, MOSS_BLOCK]);
 
 /** Arbusto de bayas dulces: `age` 0 brote, 1 arbusto, 2 con bayas verdes, 3 maduro. Se planta con las bayas. */
-export const SWEET_BERRY_BUSH = family('sweet_berry_bush', 'Arbusto de bayas dulces', [['age', 4]], (st) => ({
+export const SWEET_BERRY_BUSH = family('sweet_berry_bush', '甜浆果丛', [['age', 4]], (st) => ({
   ...plant(`sweet_berry_bush_stage${st.age}`),
   noItem: true,
   walkThrough: true,
@@ -98,17 +98,17 @@ export const isPricklyBush = (id: number): boolean => berryAge(id) >= 1;
 
 // ------------------------------------------------------------------ azaleas
 
-export const AZALEA_LEAVES = family('azalea_leaves', 'Hojas de azalea', [], () => ({
+export const AZALEA_LEAVES = family('azalea_leaves', '杜鹃花叶', [], () => ({
   all: 'azalea_leaves', render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', hardness: 0.2, category: 'naturaleza',
 }));
-export const FLOWERING_AZALEA_LEAVES = family('flowering_azalea_leaves', 'Hojas de azalea florida', [], () => ({
+export const FLOWERING_AZALEA_LEAVES = family('flowering_azalea_leaves', '盛开的杜鹃花叶', [], () => ({
   all: 'flowering_azalea_leaves', render: R_CUTOUT, lightOpacity: 1, sound: 'leaves', hardness: 0.2, category: 'naturaleza',
 }));
 
 // ------------------------------------------------------------------ plantaformas
 
 /** Hoja de la plantaforma grande: `tilt` 0 plana, 1 inclinándose, 2 inclinada del todo (no aguanta). */
-export const BIG_DRIPLEAF = family('big_dripleaf', 'Plantaforma grande', [['tilt', 3]], (st) => {
+export const BIG_DRIPLEAF = family('big_dripleaf', '大型垂滴叶', [['tilt', 3]], (st) => {
   const leaf = L('big_dripleaf_top'), stem = L('big_dripleaf_stem');
   const y = [15, 13, 9][st.tilt];
   const plate: ModelBox = st.tilt < 2
@@ -129,7 +129,7 @@ export const BIG_DRIPLEAF = family('big_dripleaf', 'Plantaforma grande', [['tilt
   };
 });
 /** Tallo de la plantaforma grande (sólo en el mundo: suelta la plantaforma). */
-export const BIG_DRIPLEAF_STEM = family('big_dripleaf_stem', 'Plantaforma grande', [], () => ({
+export const BIG_DRIPLEAF_STEM = family('big_dripleaf_stem', '大型垂滴叶', [], () => ({
   ...plant('big_dripleaf_stem'),
   noItem: true,
   base: BIG_DRIPLEAF,
@@ -146,7 +146,7 @@ export const dripleafTilt = (id: number): number => (isBigDripleaf(id) ? id - BI
 // ------------------------------------------------------------------ cuevas frondosas
 
 /** Liquen luminoso: `face` es el lado de la celda que cubre (0 N, 1 E, 2 S, 3 O, 4 techo, 5 suelo). */
-export const GLOW_LICHEN = family('glow_lichen', 'Liquen luminoso', [['face', 6]], (st) => {
+export const GLOW_LICHEN = family('glow_lichen', '发光地衣', [['face', 6]], (st) => {
   const t = L('glow_lichen');
   const f = st.face;
   const box = f < 4 ? rotateBoxes([mbox(0, 0, 0, 16, 16, 1, t)], f)[0] : f === 4 ? mbox(0, 15, 0, 16, 16, 16, t) : mbox(0, 0, 0, 16, 1, 16, t);
@@ -166,10 +166,10 @@ export const GLOW_LICHEN = family('glow_lichen', 'Liquen luminoso', [['face', 6]
 export const LICHEN_DIRS: readonly (readonly [number, number, number])[] = [[0, 0, -1], [1, 0, 0], [0, 0, 1], [-1, 0, 0], [0, 1, 0], [0, -1, 0]];
 export const isGlowLichen = (id: number): boolean => id >= GLOW_LICHEN && id < GLOW_LICHEN + 6;
 
-export const HANGING_ROOTS = family('hanging_roots', 'Raíces colgantes', [], () => plant('hanging_roots', { replaceable: true, support: underCeiling }));
+export const HANGING_ROOTS = family('hanging_roots', '垂根', [], () => plant('hanging_roots', { replaceable: true, support: underCeiling }));
 
 /** Flor de esporas: cuelga del techo y suelta esporas verdes. */
-export const SPORE_BLOSSOM = family('spore_blossom', 'Flor de esporas', [], () => {
+export const SPORE_BLOSSOM = family('spore_blossom', '孢子花', [], () => {
   const t = L('spore_blossom');
   return {
     render: R_MODEL, solid: false, opaque: false, lightOpacity: 0, hardness: 0, sound: 'grass', all: 'spore_blossom',

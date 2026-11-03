@@ -9,7 +9,7 @@ import { mbox } from '../blockModels';
 const INVENTORY: number[] = [];
 
 /** Portal del Nether (una lámina de 4/16 de grueso en el plano de su marco). */
-export const NETHER_PORTAL = family('nether_portal', 'Portal del Nether', [['axis', 2]], (st) => {
+export const NETHER_PORTAL = family('nether_portal', '下界传送门', [['axis', 2]], (st) => {
   const t = L('nether_portal');
   const box = st.axis === 0 ? mbox(0, 0, 6, 16, 16, 10, t) : mbox(6, 0, 0, 10, 16, 16, t);
   return {
@@ -18,13 +18,13 @@ export const NETHER_PORTAL = family('nether_portal', 'Portal del Nether', [['axi
   };
 });
 
-export const NETHER_QUARTZ_ORE = family('nether_quartz_ore', 'Mena de cuarzo del Nether', [], () => ({
+export const NETHER_QUARTZ_ORE = family('nether_quartz_ore', '下界石英矿石', [], () => ({
   all: 'nether_quartz_ore', hardness: 3, tool: 'pickaxe', tier: 1, category: 'minerales', sound: 'nether_ore',
 }));
-export const NETHER_GOLD_ORE = family('nether_gold_ore', 'Mena de oro del Nether', [], () => ({
+export const NETHER_GOLD_ORE = family('nether_gold_ore', '下界金矿石', [], () => ({
   all: 'nether_gold_ore', hardness: 3, tool: 'pickaxe', tier: 1, category: 'minerales', sound: 'nether_ore',
 }));
-export const MAGMA_BLOCK = family('magma_block', 'Bloque de magma', [], () => ({
+export const MAGMA_BLOCK = family('magma_block', '岩浆块', [], () => ({
   all: 'magma', hardness: 0.5, tool: 'pickaxe', tier: 1, emission: 3, category: 'naturaleza',
 }));
 INVENTORY.push(NETHER_QUARTZ_ORE, NETHER_GOLD_ORE, MAGMA_BLOCK);

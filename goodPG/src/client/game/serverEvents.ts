@@ -84,7 +84,7 @@ export class ServerEvents {
           // Fase 8.6: el cofre de ender y las cajas de shulker, con su nombre.
           const mech = mechanismTitle(here) || (isEnderChest(here) || isShulkerBox(here) ? BLOCKS[familyBase(here)].name : ''); // Fase 7 (mecanismos): tolva, dispensador, soltador
           if (c.kind === 'brewing') this.g.openScreen('brewing', pos); // Fase 7 (pociones): alambique
-          else this.g.openScreen(c.kind === 'chest' ? 'chest' : 'furnace', pos, barrel ? 'Barril' : mech || (this.g.vehicles.containerTitle(pos) ?? (c.kind === 'chest' ? '' : ['Horno', 'Ahumador', 'Alto horno'][Math.max(0, variant)]))); // Fase 7: barcas y vagonetas con cofre
+          else this.g.openScreen(c.kind === 'chest' ? 'chest' : 'furnace', pos, barrel ? '木桶' : mech || (this.g.vehicles.containerTitle(pos) ?? (c.kind === 'chest' ? '' : ['熔炉', '烟熏炉', '高炉'][Math.max(0, variant)]))); // Fase 7: barcas y vagonetas con cofre
           this.g.audio.playUi('open');
         }
         if (this.g.screen.isOpen() && same(this.g.screen.containerPos)) this.g.screen.setContainer(c);
@@ -193,7 +193,7 @@ export class ServerEvents {
     const rp = new RemotePlayer(p);
     this.g.remote.set(p.id, rp);
     if (announce) {
-      this.g.ui.addChat(null, `${p.name} se unió al mundo.`);
+      this.g.ui.addChat(null, `${p.name} 加入了世界。`);
       this.g.audio.playUi('join');
     }
   }
@@ -270,7 +270,7 @@ export class ServerEvents {
     if (m === 's') this.g.player.flying = false;
     this.g.interaction.mining = null;
     if (this.g.ui.isInventoryOpen()) this.g.toggleInventory();
-    this.g.ui.toast(m === 's' ? 'Modo supervivencia' : 'Modo creativo');
+    this.g.ui.toast(m === 's' ? '生存模式' : '创造模式');
     this.g.refreshHotbar(true);
   }
 }

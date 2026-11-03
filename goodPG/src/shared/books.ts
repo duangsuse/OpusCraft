@@ -6,7 +6,7 @@ import { WRITABLE_BOOK, WRITTEN_BOOK, type ItemStack } from './items';
 import { sanitizePages, sanitizeTitle, type ItemData } from './itemData';
 
 /** Nombre de cada generación de un libro escrito. */
-export const BOOK_GENERATIONS = ['Original', 'Copia del original', 'Copia de una copia', 'Hecho jirones'];
+export const BOOK_GENERATIONS = ['原作', '原作的副本', '副本的副本', '破烂不堪'];
 
 /** ¿Se puede poner en un atril? (libros con texto: el libro y pluma o el escrito). */
 export function isLecternBook(id: number): boolean {
@@ -57,5 +57,5 @@ export function bookCopy(grid: readonly (ItemStack | null)[]): { out: ItemStack;
 
 /** Nombre visible de un libro escrito: su título (o el del objeto). */
 export function bookTitle(s: ItemStack): string {
-  return s.id === WRITTEN_BOOK && s.data?.title ? s.data.title : 'Libro escrito';
+  return s.id === WRITTEN_BOOK && s.data?.title ? s.data.title : '成书';
 }

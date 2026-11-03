@@ -9,22 +9,22 @@ export type Keybinds = Record<KeyAction, string>;
 
 /** [acción, nombre, tecla por defecto], en el orden en que se muestran. */
 export const KEY_ACTIONS: readonly [KeyAction, string, string][] = [
-  ['forward', 'Avanzar', 'KeyW'],
-  ['back', 'Retroceder', 'KeyS'],
-  ['left', 'Izquierda', 'KeyA'],
-  ['right', 'Derecha', 'KeyD'],
-  ['jump', 'Saltar', 'Space'],
-  ['sneak', 'Agacharse', 'ShiftLeft'],
-  ['sprint', 'Correr', 'ControlLeft'],
-  ['inventory', 'Inventario', 'KeyE'],
-  ['drop', 'Tirar objeto', 'KeyQ'],
-  ['swapHands', 'Cambiar de mano', 'KeyF'],
-  ['chat', 'Chat', 'KeyT'],
-  ['command', 'Comando', 'Slash'],
-  ['playerList', 'Lista de jugadores', 'Tab'],
-  ['perspective', 'Cambiar cámara', 'F5'],
-  ['voice', 'Hablar (chat de voz)', 'KeyV'],
-  ['whisper', 'Susurrar (chat de voz)', 'KeyB'],
+  ['forward', '前进', 'KeyW'],
+  ['back', '后退', 'KeyS'],
+  ['left', '向左', 'KeyA'],
+  ['right', '向右', 'KeyD'],
+  ['jump', '跳跃', 'Space'],
+  ['sneak', '潜行', 'ShiftLeft'],
+  ['sprint', '疾跑', 'ControlLeft'],
+  ['inventory', '物品栏', 'KeyE'],
+  ['drop', '丢弃物品', 'KeyQ'],
+  ['swapHands', '交换副手', 'KeyF'],
+  ['chat', '聊天', 'KeyT'],
+  ['command', '命令', 'Slash'],
+  ['playerList', '玩家列表', 'Tab'],
+  ['perspective', '切换视角', 'F5'],
+  ['voice', '说话（语音聊天）', 'KeyV'],
+  ['whisper', '耳语（语音聊天）', 'KeyB'],
 ];
 
 /** Teclas que no se pueden asignar (las usa el juego para otra cosa). */
@@ -59,10 +59,10 @@ export function assignKey(keys: Keybinds, action: KeyAction, code: string): bool
 }
 
 const NAMES: Record<string, string> = {
-  Space: 'Espacio', ShiftLeft: 'Mayús izq.', ShiftRight: 'Mayús der.', ControlLeft: 'Ctrl izq.', ControlRight: 'Ctrl der.',
-  AltLeft: 'Alt izq.', AltRight: 'Alt der.', Tab: 'Tab', Enter: 'Intro', Backspace: 'Retroceso', CapsLock: 'Bloq Mayús',
-  Slash: '/', Minus: '-', Period: '.', Comma: ',', Semicolon: 'Ñ', Quote: '´', BracketLeft: '`', BracketRight: '+',
-  Backquote: 'º', Backslash: 'Ç', IntlBackslash: '<', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+  Space: '空格', ShiftLeft: '左 Shift', ShiftRight: '右 Shift', ControlLeft: '左 Ctrl', ControlRight: '右 Ctrl',
+  AltLeft: '左 Alt', AltRight: '右 Alt', Tab: 'Tab', Enter: '回车', Backspace: '退格', CapsLock: '大写锁定',
+  Slash: '/', Minus: '-', Period: '.', Comma: ',', Semicolon: ';', Quote: '\'', BracketLeft: '[', BracketRight: ']',
+  Backquote: '`', Backslash: '\\', IntlBackslash: '<', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
 };
 
 /** Nombre corto de una tecla (código de KeyboardEvent.code). */
@@ -70,6 +70,6 @@ export function keyLabel(code: string): string {
   if (NAMES[code]) return NAMES[code];
   if (/^Key[A-Z]$/.test(code)) return code.slice(3);
   if (/^Digit\d$/.test(code)) return code.slice(5);
-  if (/^Numpad\d$/.test(code)) return 'Num ' + code.slice(6);
+  if (/^Numpad\d$/.test(code)) return '小键盘 ' + code.slice(6);
   return code;
 }

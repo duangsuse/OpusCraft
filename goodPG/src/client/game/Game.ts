@@ -173,6 +173,8 @@ export class Game {
   debug = false;
   hudHidden = false;
   fps = 0;
+  /** Milisegundos del último fotograma simulado (update + dibujo), para el HUD de F3. */
+  simMs = 0;
   private fpsAcc = 0;
   private fpsFrames = 0;
   playing = false;
@@ -243,7 +245,7 @@ export class Game {
 
   async start(): Promise<void> {
     const { ui } = this;
-    ui.showLoading(this.cfg.offline ? 'Preparando el mundo local…' : 'Conectando con el servidor…', 0.05);
+    ui.showLoading(this.cfg.offline ? '正在准备本地世界…' : '正在连接服务器…', 0.05);
     let welcome: Welcome | null = null;
     const events: NetEvents = {
       onWelcome: (w, reconnect) => {
@@ -252,9 +254,9 @@ export class Game {
       },
       onMessage: (m) => this.network.onServerMessage(m),
       onStatus: (st) => {
-        this.statusText = st === 'reconnecting' ? 'Conexión perdida · reconectando…' : st === 'closed' && this.playing && !this.offline ? 'Desconectado del servidor' : null;
+        this.statusText = st === 'reconnecting' ? '连接中断 · 正在重连…' : st === 'closed' && this.playing && !this.offline ? '已断开与服务器的连接' : null;
         ui.setStatus(this.statusText);
-        if (st === 'connected' && this.playing) ui.addChat(null, 'Reconectado al servidor.');
+        if (st === 'connected' && this.playing) ui.addChat(null, '已重新连接到服务器。');
       },
     };
     if (!this.cfg.offline) {
@@ -262,20 +264,20 @@ export class Game {
       try {
         await this.net.connect();
       } catch (e) {
-        console.warn('Sin servidor, modo un jugador:', e);
+        console.warn('无服务器，使用单人模式：', e);
         this.net.close();
         this.net = null;
       }
     }
     if (!this.net) {
       this.offline = true;
-      ui.showLoading('Preparando el mundo local…', 0.08);
+      ui.showLoading('正在准备本地世界…', 0.08);
       this.local = new LocalServer(this.cfg.room, this.cfg.seed ?? hashSeed(this.cfg.room));
       this.net = new Net(this.local.factory, this.cfg.name, this.cfg.shirt, this.cfg.mode, events, true);
       await this.net.connect(30000);
     }
     const w = welcome as Welcome | null;
-    if (!w) throw new Error('El servidor no envió la bienvenida.');
+    if (!w) throw new Error('服务器未发送欢迎信息。');
     if (!this.offline) {
       // Diagnóstico de la latencia: en qué centro de datos vive este mundo.
       void fetch(`/api/room/${encodeURIComponent(this.cfg.room)}/donde`)
@@ -310,7 +312,7 @@ export class Game {
     this.world.loadEdits(w.edits);
 
     // Estado guardado del jugador o aparición nueva.
-    ui.showLoading('Buscando un buen lugar para aparecer…', 0.1);
+    ui.showLoading('正在寻找合适的出生点…', 0.1);
     this.restore(w.save);
 
     // Carga inicial alrededor del jugador.
@@ -327,7 +329,7 @@ export class Game {
             if (world.isReady(pcx + dx, pcz + dz)) ready++;
           }
         }
-        ui.showLoading(this.offline ? 'Generando el mundo (modo un jugador)…' : 'Generando el mundo…', 0.15 + 0.85 * (ready / total));
+        ui.showLoading(this.offline ? '正在生成世界（单人模式）…' : '正在生成世界…', 0.15 + 0.85 * (ready / total));
         if (ready >= total) resolve();
         else setTimeout(tick, 30);
       };
@@ -339,12 +341,12 @@ export class Game {
     ui.showHud();
     this.refreshHotbar(true);
     ui.addChat(null, this.offline
-      ? 'Modo un jugador: el mundo se guarda en este navegador. Escribe /ayuda para ver los comandos.'
-      : `Bienvenido a «${this.cfg.room}». E: inventario · T: chat · /ayuda: comandos. Comparte el enlace para jugar con amigos.`);
+      ? '单人模式：世界保存在此浏览器中。输入 /帮助 查看命令。'
+      : `欢迎来到「${this.cfg.room}」。E：物品栏 · T：聊天 · /帮助：命令。分享链接即可与朋友一起游玩。`);
     if (this.cfg.seed !== undefined && this.cfg.seed !== null && w.seed !== this.cfg.seed) {
-      ui.addChat(null, `Este mundo ya existía: sigue con su semilla (${w.seed}). La semilla sólo vale para mundos nuevos.`);
+      ui.addChat(null, `这个世界已存在：继续使用它的种子（${w.seed}）。种子只对新世界有效。`);
     }
-    ui.addChat(null, this.creative ? 'Modo creativo: vuela con doble espacio y rompe al instante.' : 'Modo supervivencia: consigue madera, fabrica herramientas y sobrevive a la noche.');
+    ui.addChat(null, this.creative ? '创造模式：双击空格飞行，可瞬间破坏方块。' : '生存模式：收集木材、制作工具，并熬过夜晚。');
     this.playing = true;
     this.running = true;
     this.renderer.resetTemporal();
@@ -352,7 +354,7 @@ export class Game {
     this.input.requestLock();
     setTimeout(() => {
       if (this.playing && !this.input.locked && !this.anyScreenOpen()) {
-        this.ui.showPause('Haz clic en «Volver al juego» para capturar el ratón y empezar a jugar.');
+        this.ui.showPause('点击「返回游戏」以捕获鼠标并开始游玩。');
       }
     }, 400);
     this.cfg.canvas.addEventListener('mousedown', this.onCanvasClick);
@@ -412,7 +414,7 @@ export class Game {
     this.changingDim = true;
     this.portalFx.reset();
     this.renderer.resetTemporal();
-    this.ui.showLoading(`Entrando en ${dimensionDef(w.dim).name}…`, 0.1);
+    this.ui.showLoading(`正在进入${dimensionDef(w.dim).name}…`, 0.1);
     this.audio.playUi('portal');
   }
 
@@ -429,7 +431,7 @@ export class Game {
         if (world.isReady(pcx + dx, pcz + dz)) ready++;
       }
     }
-    this.ui.showLoading(`Entrando en ${dimensionDef(world.dim).name}…`, 0.15 + 0.85 * (ready / total));
+    this.ui.showLoading(`正在进入${dimensionDef(world.dim).name}…`, 0.15 + 0.85 * (ready / total));
     if (ready < total) return;
     this.changingDim = false;
     p.unstuck(world);
@@ -541,19 +543,39 @@ export class Game {
 
   private sendChat(text: string): void {
     if (this.voice.command(text)) return; // /voz y /grupo: los resuelve el chat de voz
-    if (text.startsWith('/tp ')) {
-      const target = text.slice(4).trim().toLowerCase();
-      for (const rp of this.remote.values()) {
-        if (rp.name.toLowerCase() === target) {
-          this.player.x = rp.view.x;
-          this.player.y = rp.view.y + 0.1;
-          this.player.z = rp.view.z;
-          this.player.fallDistance = 0;
-          this.ui.addChat(null, `Teletransportado a ${rp.name}.`);
-          return;
-        }
+    const tp = /^\/(?:tp|传送)(?:\s+(.*))?$/i.exec(text.trim());
+    if (tp) {
+      const raw = (tp[1] ?? '').trim();
+      const q = raw.toLowerCase();
+      if (!q) {
+        this.ui.addChat(null, '用法：/传送 <玩家>');
+        return;
       }
-      this.ui.addChat(null, `No hay ningún jugador llamado «${text.slice(4).trim()}».`);
+      const list = [...this.remote.values()];
+      // Nombre exacto y, si no hay, por prefijo (si sólo encaja uno).
+      const exact = list.find((rp) => rp.name.toLowerCase() === q);
+      const near = exact ? [] : list.filter((rp) => rp.name.toLowerCase().startsWith(q));
+      const target = exact ?? (near.length === 1 ? near[0] : undefined);
+      if (!target) {
+        this.ui.addChat(null, near.length
+          ? `有多个玩家符合「${raw}」：${near.map((rp) => rp.name).join('、')}。`
+          : `没有名为「${raw}」的玩家。`);
+        return;
+      }
+      this.player.x = target.view.x;
+      this.player.y = target.view.y + 0.1;
+      this.player.z = target.view.z;
+      this.player.fallDistance = 0;
+      this.ui.addChat(null, `已传送到 ${target.name}。`);
+      return;
+    }
+    // /穿墙 (noclip): sólo afecta a la física local; no se envía al servidor.
+    const nc = /^\/(?:noclip|穿墙|无碰撞)(?:\s+(on|off|开|关))?$/i.exec(text.trim());
+    if (nc) {
+      const arg = (nc[1] ?? '').toLowerCase();
+      const p = this.player;
+      p.noclip = arg ? ['on', '开'].includes(arg) : !p.noclip;
+      this.ui.addChat(null, p.noclip ? '穿墙已开启：不受方块阻挡，空格/Shift 上下移动。' : '穿墙已关闭。');
       return;
     }
     if (!text.startsWith('/')) this.ui.addChat(this.cfg.name, text, lighten(this.cfg.shirt));
@@ -608,7 +630,7 @@ export class Game {
     }
     if (!this.anyScreenOpen()) {
       const n = this.remote.size + 1;
-      this.ui.showPause(this.offline ? 'Modo un jugador' : `Mundo «${this.cfg.room}» · ${n} jugador${n === 1 ? '' : 'es'} conectado${n === 1 ? '' : 's'}`);
+      this.ui.showPause(this.offline ? '单人模式' : `世界「${this.cfg.room}」· ${n} 名玩家已连接`);
     }
   }
 
@@ -699,7 +721,7 @@ export class Game {
       a.download = name;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-      this.ui.toast(`Captura guardada: ${name}`);
+      this.ui.toast(`截图已保存：${name}`);
       this.audio.playUi('click');
     }, 'image/png');
   }
@@ -762,11 +784,13 @@ export class Game {
     this.raf = requestAnimationFrame(this.frame);
     const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
+    const t0 = performance.now();
     try {
       this.update(dt);
     } catch (e) {
       console.error(e);
     }
+    this.simMs = performance.now() - t0;
     this.input.endFrame();
   };
 

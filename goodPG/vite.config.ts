@@ -12,6 +12,11 @@ export default defineConfig({
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 4000,
+    rollupOptions: {
+      // Nombres estables (sin hash) para que index.html pueda cargar el build por una ruta fija cuando se
+      // sirve como carpeta estática (ver el cargador de reserva al final de index.html).
+      output: { entryFileNames: 'assets/[name].js', chunkFileNames: 'assets/[name].js', assetFileNames: 'assets/[name][extname]' },
+    },
   },
   worker: {
     format: 'es',

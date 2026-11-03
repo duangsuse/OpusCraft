@@ -7,15 +7,15 @@ import { BREW_BOTTLES, BREW_FUEL, BREW_FUEL_USES, BREW_INGREDIENT, BREW_TIME } f
 import type { ContainerState } from '../../shared/containers';
 
 export const BREWING_HTML =
-  '<h3>Soporte para pociones</h3><div class="brew">' +
-  `<div class="brew-fuel"><div class="slot2" data-s="cont:${BREW_FUEL}" data-hint="Polvo de blaze"></div>` +
-  '<div class="brew-blaze" title="Combustible"><i></i></div></div>' +
+  '<h3>酿造台</h3><div class="brew">' +
+  `<div class="brew-fuel"><div class="slot2" data-s="cont:${BREW_FUEL}" data-hint="烈焰粉"></div>` +
+  '<div class="brew-blaze" title="燃料"><i></i></div></div>' +
   '<div class="brew-main">' +
   '<div class="brew-top"><div class="brew-bubbles"><i></i><i></i><i></i></div>' +
-  `<div class="slot2" data-s="cont:${BREW_INGREDIENT}" data-hint="Ingrediente"></div>` +
+  `<div class="slot2" data-s="cont:${BREW_INGREDIENT}" data-hint="原料"></div>` +
   '<div class="brew-arrow"><i></i></div></div>' +
   '<div class="brew-pipes"><i></i><i></i><i></i></div>' +
-  `<div class="brew-bottles">${BREW_BOTTLES.map((i) => `<div class="slot2${i === 1 ? ' low' : ''}" data-s="cont:${i}" data-hint="Frasco"></div>`).join('')}</div>` +
+  `<div class="brew-bottles">${BREW_BOTTLES.map((i) => `<div class="slot2${i === 1 ? ' low' : ''}" data-s="cont:${i}" data-hint="玻璃瓶"></div>`).join('')}</div>` +
   '</div></div>';
 
 /** Barra del combustible, flecha del progreso y burbujas (sólo mientras destila). */

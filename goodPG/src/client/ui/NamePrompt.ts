@@ -11,10 +11,10 @@ export class NamePrompt {
     this.root = document.createElement('div');
     this.root.id = 'name-prompt';
     this.root.className = 'hidden';
-    this.root.innerHTML = '<div class="panel"><h3>Ponle un nombre</h3><input type="text" spellcheck="false" autocomplete="off">' +
-      '<div class="row"><button type="button" class="btn" data-k="no">Cancelar</button>' +
-      '<button type="button" class="btn primary" data-k="ok">Poner nombre</button></div>' +
-      '<p>Intro: aceptar · Esc: cancelar. La etiqueta se gasta.</p></div>';
+    this.root.innerHTML = '<div class="panel"><h3>给它起个名字</h3><input type="text" spellcheck="false" autocomplete="off">' +
+      '<div class="row"><button type="button" class="btn" data-k="no">取消</button>' +
+      '<button type="button" class="btn primary" data-k="ok">设置名字</button></div>' +
+      '<p>Enter：确定 · Esc：取消。命名牌会被消耗。</p></div>';
     this.input = this.root.querySelector('input')!;
     this.input.maxLength = max;
     this.input.addEventListener('keydown', (e) => {

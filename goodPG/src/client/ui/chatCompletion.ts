@@ -160,9 +160,15 @@ export class ChatCompletion {
     let pool: Option[] = [];
     if (t.index === 0) {
       // Comandos (también por sus alias).
-      pool = COMMAND_SPECS.map((c) => ({ value: c.name, label: c.desc, alias: c.aliases }))
-        .map((o) => ({ ...o, s: Math.min(...[o.value, ...(o.alias ?? [])].map((a) => score({ value: a, label: o.label }, w)).map((s) => (s < 0 ? 99 : s))) }))
-        .filter((o) => o.s < 99)
+      pool = COMMAND_SPECS.map((c) => {
+        // Se sugiere el nombre (o el alias) que mejor encaje con lo escrito: /帮 → /帮助, /mod → /modo.
+        const best = [c.name, ...(c.aliases ?? [])]
+          .map((a) => ({ a, s: score({ value: a, label: c.desc }, w) }))
+          .filter((x) => x.s >= 0)
+          .sort((x, y) => x.s - y.s || x.a.length - y.a.length)[0];
+        return best ? { value: best.a, label: c.desc, s: best.s } : null;
+      })
+        .filter((o): o is { value: string; label: string; s: number } => o !== null)
         .sort((a, b) => a.s - b.s || a.value.localeCompare(b.value))
         .map(({ value, label }) => ({ value, label }));
     } else if (this.cmd) {
@@ -246,12 +252,12 @@ export class ChatCompletion {
       const parts = [`<span class="${t.index === 0 ? 'cur' : 'cmd'}">/${esc(c.name)}</span>`];
       c.args.forEach((a, i) => parts.push(`<span class="${t.index === i + 1 ? 'cur' : 'arg'}">${a.optional ? '[' : '&lt;'}${esc(a.name)}${a.optional ? ']' : '&gt;'}</span>`));
       const arg = t.index > 0 ? c.args[t.index - 1] : undefined;
-      const help = t.index === 0 ? c.desc : arg ? arg.desc : c.args.length ? 'Sobran argumentos' : 'Este comando no lleva argumentos';
+      const help = t.index === 0 ? c.desc : arg ? arg.desc : c.args.length ? '参数过多' : '该命令不带参数';
       sigHtml = `<div class="line">${parts.join(' ')}</div><div class="help${!arg && t.index > 0 ? ' warn' : ''}">${esc(help)}</div>`;
     } else if (t.index > 0) {
-      sigHtml = `<div class="help warn">Comando desconocido: escribe /ayuda</div>`;
+      sigHtml = `<div class="help warn">未知命令：请输入 /帮助</div>`;
     } else if (this.options.length > 0) {
-      sigHtml = `<div class="kbd-hints"><kbd>↑</kbd><kbd>↓</kbd> elegir · <kbd>Tab</kbd> completar · <kbd>Esc</kbd> cerrar</div>`;
+      sigHtml = `<div class="kbd-hints"><kbd>↑</kbd><kbd>↓</kbd> 选择 · <kbd>Tab</kbd> 补全 · <kbd>Esc</kbd> 关闭</div>`;
     }
     this.sig.innerHTML = sigHtml;
     this.sig.classList.toggle('hidden', !sigHtml);

@@ -43,14 +43,6 @@ function resound(id: number, sound: SoundMaterial): void {
 
 // ------------------------------------------------------------------ maderas del Nether
 
-/** Adjetivo de cada madera en sus cuatro formas: masculino, femenino, masculino plural y femenino plural. */
-interface Adj {
-  m: string;
-  f: string;
-  mp: string;
-  fp: string;
-}
-
 export interface NetherWood {
   key: string;
   stem: number;
@@ -62,39 +54,39 @@ export interface NetherWood {
 
 const STEM_OPTS: Opts = { sound: 'stem', hardness: 2, tool: 'axe', category: 'naturaleza' };
 
-function netherWood(key: string, a: Adj): NetherWood {
+function netherWood(key: string, name: string, wood: string): NetherWood {
   const side = `${key}_stem_side`, top = `${key}_stem_top`, sSide = `stripped_${key}_stem_side`, sTop = `stripped_${key}_stem_top`;
-  const stem = family(`${key}_stem`, `Tallo ${a.m}`, [], () => ({ ...STEM_OPTS, top, side }));
-  const axis = addAxisLogs(`${key}_stem`, `Tallo ${a.m}`, stem, top, side, undefined, { sound: 'stem' });
-  const strippedStem = family(`stripped_${key}_stem`, `Tallo ${a.m} sin corteza`, [], () => ({ ...STEM_OPTS, top: sTop, side: sSide }));
-  const sAxis = addAxisLogs(`stripped_${key}_stem`, `Tallo ${a.m} sin corteza`, strippedStem, sTop, sSide, undefined, { sound: 'stem' });
-  const hyphae = family(`${key}_hyphae`, `Hifas ${a.fp}`, [], () => ({ ...STEM_OPTS, all: side }));
-  const strippedHyphae = family(`stripped_${key}_hyphae`, `Hifas ${a.fp} sin corteza`, [], () => ({ ...STEM_OPTS, all: sSide }));
+  const stem = family(`${key}_stem`, `${name}菌柄`, [], () => ({ ...STEM_OPTS, top, side }));
+  const axis = addAxisLogs(`${key}_stem`, `${name}菌柄`, stem, top, side, undefined, { sound: 'stem' });
+  const strippedStem = family(`stripped_${key}_stem`, `去皮${name}菌柄`, [], () => ({ ...STEM_OPTS, top: sTop, side: sSide }));
+  const sAxis = addAxisLogs(`stripped_${key}_stem`, `去皮${name}菌柄`, strippedStem, sTop, sSide, undefined, { sound: 'stem' });
+  const hyphae = family(`${key}_hyphae`, `${name}菌核`, [], () => ({ ...STEM_OPTS, all: side }));
+  const strippedHyphae = family(`stripped_${key}_hyphae`, `去皮${name}菌核`, [], () => ({ ...STEM_OPTS, all: sSide }));
   // El hacha descorteza los tallos (de pie y tumbados) y las hifas.
   addStrip(stem, strippedStem);
   addStrip(hyphae, strippedHyphae);
   for (const a2 of [AXIS_X, AXIS_Z]) addStrip(axis + a2, sAxis + a2);
-  const planks = family(`${key}_planks`, `Tablones ${a.mp}`, [], () => ({
+  const planks = family(`${key}_planks`, `${name}木板`, [], () => ({
     all: `${key}_planks`, sound: 'nether_wood', hardness: 2, tool: 'axe',
   }));
   addPlanks(planks);
-  const m: Material = { key, name: a.f, block: planks, hardness: 2, tool: 'axe', tier: 0, sound: 'nether_wood' };
+  const m: Material = { key, name: wood, block: planks, hardness: 2, tool: 'axe', tier: 0, sound: 'nether_wood' };
   addMaterialShapes(m);
   addWoodShapes(m);
-  addSign(key, a.m);
-  addHangingSign(key, a.m, strippedStem, sSide);
-  addButton(key, a.m, `${key}_planks`, 'nether_wood', true);
-  addPressurePlate(key, a.f, `${key}_planks`, 'nether_wood', true);
-  // Nombres con su género y el sonido de la madera del Nether en todas las formas.
-  rename(STAIRS[key], `Escaleras ${a.fp}`);
-  rename(FENCE_GATES[key], `Portillo ${a.m}`);
+  addSign(key, wood);
+  addHangingSign(key, wood, strippedStem, sSide);
+  addButton(key, wood, `${key}_planks`, 'nether_wood', true);
+  addPressurePlate(key, wood, `${key}_planks`, 'nether_wood', true);
+  // Nombres de las formas y el sonido de la madera del Nether en todas ellas.
+  rename(STAIRS[key], `${wood}楼梯`);
+  rename(FENCE_GATES[key], `${wood}栅栏门`);
   for (const id of [DOORS[key], TRAPDOORS[key], SIGNS[key], WALL_SIGNS[key], HANGING_SIGNS[key], WALL_HANGING_SIGNS[key]]) resound(id, 'nether_wood');
   INVENTORY.push(stem, strippedStem, hyphae, strippedHyphae, planks);
   return { key, stem, strippedStem, hyphae, strippedHyphae, planks };
 }
 
-export const CRIMSON = netherWood('crimson', { m: 'carmesí', f: 'carmesí', mp: 'carmesíes', fp: 'carmesíes' });
-export const WARPED = netherWood('warped', { m: 'distorsionado', f: 'distorsionada', mp: 'distorsionados', fp: 'distorsionadas' });
+export const CRIMSON = netherWood('crimson', '绯红', '绯红木');
+export const WARPED = netherWood('warped', '诡异', '诡异木');
 export const NETHER_WOODS: readonly NetherWood[] = [CRIMSON, WARPED];
 export const CRIMSON_STEM = CRIMSON.stem, WARPED_STEM = WARPED.stem;
 export const CRIMSON_PLANKS = CRIMSON.planks, WARPED_PLANKS = WARPED.planks;
@@ -115,8 +107,8 @@ function nylium(key: string, name: string): number {
     category: 'naturaleza',
   }));
 }
-export const CRIMSON_NYLIUM = nylium('crimson', 'Necelio carmesí');
-export const WARPED_NYLIUM = nylium('warped', 'Necelio distorsionado');
+export const CRIMSON_NYLIUM = nylium('crimson', '绯红菌岩');
+export const WARPED_NYLIUM = nylium('warped', '诡异菌岩');
 /** ¿Necelio? (la etiqueta nylium de Java). */
 export function isNylium(id: number): boolean {
   return id === CRIMSON_NYLIUM || id === WARPED_NYLIUM;
@@ -148,11 +140,11 @@ const px = (v: number) => v / 16;
 const FUNGUS_BOX = [px(4), 0, px(4), px(12), px(9), px(12)];
 const ROOTS_BOX = [px(2), 0, px(2), px(14), px(13), px(14)];
 const SPROUTS_BOX = [px(2), 0, px(2), px(14), px(3), px(14)];
-export const CRIMSON_FUNGUS = netherPlant('crimson_fungus', 'Hongo carmesí', 'fungus', true, FUNGUS_BOX);
-export const WARPED_FUNGUS = netherPlant('warped_fungus', 'Hongo distorsionado', 'fungus', true, FUNGUS_BOX);
-export const CRIMSON_ROOTS = netherPlant('crimson_roots', 'Raíces carmesíes', 'roots', false, ROOTS_BOX, { replaceable: true });
-export const WARPED_ROOTS = netherPlant('warped_roots', 'Raíces distorsionadas', 'roots', false, ROOTS_BOX, { replaceable: true });
-export const NETHER_SPROUTS = netherPlant('nether_sprouts', 'Brotes del Nether', 'roots', false, SPROUTS_BOX, { replaceable: true });
+export const CRIMSON_FUNGUS = netherPlant('crimson_fungus', '绯红菌', 'fungus', true, FUNGUS_BOX);
+export const WARPED_FUNGUS = netherPlant('warped_fungus', '诡异菌', 'fungus', true, FUNGUS_BOX);
+export const CRIMSON_ROOTS = netherPlant('crimson_roots', '绯红菌索', 'roots', false, ROOTS_BOX, { replaceable: true });
+export const WARPED_ROOTS = netherPlant('warped_roots', '诡异菌索', 'roots', false, ROOTS_BOX, { replaceable: true });
+export const NETHER_SPROUTS = netherPlant('nether_sprouts', '下界苗', 'roots', false, SPROUTS_BOX, { replaceable: true });
 
 /** ¿Hongo del Nether? */
 export function isNetherFungus(id: number): boolean {
@@ -207,8 +199,8 @@ function netherVine(key: string, name: string, down: boolean): { head: number; b
   }));
   return { head, body };
 }
-const WEEPING = netherVine('weeping_vines', 'Enredaderas lloronas', true);
-const TWISTING = netherVine('twisting_vines', 'Enredaderas retorcidas', false);
+const WEEPING = netherVine('weeping_vines', '垂泪藤', true);
+const TWISTING = netherVine('twisting_vines', '缠怨藤', false);
 export const WEEPING_VINES = WEEPING.head, WEEPING_VINES_PLANT = WEEPING.body;
 export const TWISTING_VINES = TWISTING.head, TWISTING_VINES_PLANT = TWISTING.body;
 
@@ -229,13 +221,13 @@ export function vineHead(head: number, age: number): number {
   return stateOf(head, { age: Math.max(0, Math.min(VINE_MAX_AGE, age)) });
 }
 
-export const NETHER_WART_BLOCK = family('nether_wart_block', 'Bloque de verrugas del Nether', [], () => ({
+export const NETHER_WART_BLOCK = family('nether_wart_block', '下界疣块', [], () => ({
   all: 'nether_wart_block', hardness: 1, tool: 'hoe', sound: 'wart', category: 'naturaleza',
 }));
-export const WARPED_WART_BLOCK = family('warped_wart_block', 'Bloque de verrugas distorsionado', [], () => ({
+export const WARPED_WART_BLOCK = family('warped_wart_block', '诡异疣块', [], () => ({
   all: 'warped_wart_block', hardness: 1, tool: 'hoe', sound: 'wart', category: 'naturaleza',
 }));
-export const SHROOMLIGHT = family('shroomlight', 'Luz de hongo', [], () => ({
+export const SHROOMLIGHT = family('shroomlight', '菌光体', [], () => ({
   all: 'shroomlight', hardness: 1, tool: 'hoe', sound: 'shroomlight', emission: 15, category: 'naturaleza',
 }));
 
@@ -248,61 +240,61 @@ INVENTORY.push(
 
 const PICK = (hardness: number, sound: SoundMaterial): Opts => ({ hardness, tool: 'pickaxe', tier: 1, sound });
 
-export const BASALT = family('basalt', 'Basalto', [], () => ({ ...PICK(1.25, 'basalt'), top: 'basalt_top', side: 'basalt_side', category: 'naturaleza' }));
-addAxisLogs('basalt', 'Basalto', BASALT, 'basalt_top', 'basalt_side', undefined, PICK(1.25, 'basalt'));
-export const POLISHED_BASALT = family('polished_basalt', 'Basalto pulido', [], () => ({
+export const BASALT = family('basalt', '玄武岩', [], () => ({ ...PICK(1.25, 'basalt'), top: 'basalt_top', side: 'basalt_side', category: 'naturaleza' }));
+addAxisLogs('basalt', '玄武岩', BASALT, 'basalt_top', 'basalt_side', undefined, PICK(1.25, 'basalt'));
+export const POLISHED_BASALT = family('polished_basalt', '磨制玄武岩', [], () => ({
   ...PICK(1.25, 'basalt'), top: 'polished_basalt_top', side: 'polished_basalt_side',
 }));
-addAxisLogs('polished_basalt', 'Basalto pulido', POLISHED_BASALT, 'polished_basalt_top', 'polished_basalt_side', undefined, PICK(1.25, 'basalt'));
+addAxisLogs('polished_basalt', '磨制玄武岩', POLISHED_BASALT, 'polished_basalt_top', 'polished_basalt_side', undefined, PICK(1.25, 'basalt'));
 
-export const BLACKSTONE = family('blackstone', 'Piedra negra', [], () => ({
+export const BLACKSTONE = family('blackstone', '黑石', [], () => ({
   ...PICK(1.5, 'stone'), top: 'blackstone_top', side: 'blackstone', category: 'naturaleza',
 }));
-export const POLISHED_BLACKSTONE = family('polished_blackstone', 'Piedra negra pulida', [], () => ({ ...PICK(2, 'stone'), all: 'polished_blackstone' }));
-export const POLISHED_BLACKSTONE_BRICKS = family('polished_blackstone_bricks', 'Ladrillos de piedra negra pulida', [], () => ({
+export const POLISHED_BLACKSTONE = family('polished_blackstone', '磨制黑石', [], () => ({ ...PICK(2, 'stone'), all: 'polished_blackstone' }));
+export const POLISHED_BLACKSTONE_BRICKS = family('polished_blackstone_bricks', '磨制黑石砖', [], () => ({
   ...PICK(1.5, 'stone'), all: 'polished_blackstone_bricks',
 }));
-export const CRACKED_POLISHED_BLACKSTONE_BRICKS = family('cracked_polished_blackstone_bricks', 'Ladrillos de piedra negra pulida agrietados', [], () => ({
+export const CRACKED_POLISHED_BLACKSTONE_BRICKS = family('cracked_polished_blackstone_bricks', '裂纹磨制黑石砖', [], () => ({
   ...PICK(1.5, 'stone'), all: 'cracked_polished_blackstone_bricks',
 }));
-export const CHISELED_POLISHED_BLACKSTONE = family('chiseled_polished_blackstone', 'Piedra negra pulida cincelada', [], () => ({
+export const CHISELED_POLISHED_BLACKSTONE = family('chiseled_polished_blackstone', '雕纹磨制黑石', [], () => ({
   ...PICK(1.5, 'stone'), all: 'chiseled_polished_blackstone',
 }));
-export const GILDED_BLACKSTONE = family('gilded_blackstone', 'Piedra negra dorada', [], () => ({
+export const GILDED_BLACKSTONE = family('gilded_blackstone', '镶金黑石', [], () => ({
   ...PICK(1.5, 'nether_ore'), all: 'gilded_blackstone', category: 'minerales',
 }));
 
 // ------------------------------------------------------------------ ladrillos del Nether
 
-export const NETHER_BRICKS = family('nether_bricks', 'Ladrillos del Nether', [], () => ({ ...PICK(2, 'nether_bricks'), all: 'nether_bricks' }));
-export const CRACKED_NETHER_BRICKS = family('cracked_nether_bricks', 'Ladrillos del Nether agrietados', [], () => ({
+export const NETHER_BRICKS = family('nether_bricks', '下界砖块', [], () => ({ ...PICK(2, 'nether_bricks'), all: 'nether_bricks' }));
+export const CRACKED_NETHER_BRICKS = family('cracked_nether_bricks', '裂纹下界砖块', [], () => ({
   ...PICK(2, 'nether_bricks'), all: 'cracked_nether_bricks',
 }));
-export const CHISELED_NETHER_BRICKS = family('chiseled_nether_bricks', 'Ladrillos del Nether cincelados', [], () => ({
+export const CHISELED_NETHER_BRICKS = family('chiseled_nether_bricks', '雕纹下界砖块', [], () => ({
   ...PICK(2, 'nether_bricks'), all: 'chiseled_nether_bricks',
 }));
-export const RED_NETHER_BRICKS = family('red_nether_bricks', 'Ladrillos rojos del Nether', [], () => ({
+export const RED_NETHER_BRICKS = family('red_nether_bricks', '红色下界砖块', [], () => ({
   ...PICK(2, 'nether_bricks'), all: 'red_nether_bricks',
 }));
 
 // Losas, escaleras y muros de cada piedra (la dureza de su bloque) y la valla de ladrillos del Nether.
 const SHAPED: [key: string, name: string, block: number, hardness: number, sound: SoundMaterial][] = [
-  ['blackstone', 'de piedra negra', BLACKSTONE, 1.5, 'stone'],
-  ['polished_blackstone', 'de piedra negra pulida', POLISHED_BLACKSTONE, 2, 'stone'],
-  ['polished_blackstone_brick', 'de ladrillos de piedra negra pulida', POLISHED_BLACKSTONE_BRICKS, 1.5, 'stone'],
-  ['nether_brick', 'de ladrillos del Nether', NETHER_BRICKS, 2, 'nether_bricks'],
-  ['red_nether_brick', 'de ladrillos rojos del Nether', RED_NETHER_BRICKS, 2, 'nether_bricks'],
+  ['blackstone', '黑石', BLACKSTONE, 1.5, 'stone'],
+  ['polished_blackstone', '磨制黑石', POLISHED_BLACKSTONE, 2, 'stone'],
+  ['polished_blackstone_brick', '磨制黑石砖', POLISHED_BLACKSTONE_BRICKS, 1.5, 'stone'],
+  ['nether_brick', '下界砖', NETHER_BRICKS, 2, 'nether_bricks'],
+  ['red_nether_brick', '红色下界砖', RED_NETHER_BRICKS, 2, 'nether_bricks'],
 ];
 for (const [key, name, block, hardness, sound] of SHAPED) {
   addMaterialShapes({ key, name, block, hardness, tool: 'pickaxe', tier: 1, sound });
   resound(addWall({ key, name, block, hardness }), sound);
 }
 export const NETHER_BRICK_FENCE = addFence(
-  { key: 'nether_brick', name: 'de ladrillos del Nether', block: NETHER_BRICKS, hardness: 2, tool: 'pickaxe', tier: 1, sound: 'nether_bricks' },
+  { key: 'nether_brick', name: '下界砖', block: NETHER_BRICKS, hardness: 2, tool: 'pickaxe', tier: 1, sound: 'nether_bricks' },
   false, 'nether_brick_fence',
 );
-export const POLISHED_BLACKSTONE_BUTTON = addButton('polished_blackstone', 'de piedra negra pulida', 'polished_blackstone', 'stone', false);
-export const POLISHED_BLACKSTONE_PRESSURE_PLATE = addPressurePlate('polished_blackstone', 'de piedra negra pulida', 'polished_blackstone', 'stone', false);
+export const POLISHED_BLACKSTONE_BUTTON = addButton('polished_blackstone', '磨制黑石', 'polished_blackstone', 'stone', false);
+export const POLISHED_BLACKSTONE_PRESSURE_PLATE = addPressurePlate('polished_blackstone', '磨制黑石', 'polished_blackstone', 'stone', false);
 
 INVENTORY.push(
   BASALT, POLISHED_BASALT, BLACKSTONE, POLISHED_BLACKSTONE, POLISHED_BLACKSTONE_BRICKS, CRACKED_POLISHED_BLACKSTONE_BRICKS,
@@ -313,7 +305,7 @@ INVENTORY.push(
 // ------------------------------------------------------------------ lava rápida
 
 /** Lava que corre de niveles 1, 3, 5 y 7 (la del Nether baja de 1 en 1; la del mundo normal, de 2 en 2). */
-export const LAVA_FLOW_ODD = family('lava_flow_odd', 'Lava', [['n', 4]], (st) => ({
+export const LAVA_FLOW_ODD = family('lava_flow_odd', '熔岩', [['n', 4]], (st) => ({
   all: 'lava', render: R_LAVA, solid: false, opaque: false, lightOpacity: 15, emission: 15, sound: 'lava', replaceable: true,
   category: null, fluid: 2, level: 1 + st.n * 2, hardness: -1, noItem: true,
 }));

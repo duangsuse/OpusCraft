@@ -99,7 +99,7 @@ const ROUTES: { [T in ClientMsg['t']]?: Route } = {
     h.sys.onDied(s);
     if (typeof m.m === 'string' && h.ctx.allow(s, 5)) {
       const text = m.m.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80);
-      if (text) h.ctx.broadcast({ t: 'chat', id: null, name: '', m: `☠ ${s.name} ${text}.` });
+      if (text) h.ctx.broadcast({ t: 'chat', id: null, name: '', m: `☠ ${s.name} ${text}。` });
     }
   }),
   omen: route<'omen'>(1, (h, s, m) => h.sys.raids.onOmen(s, m.a)), // Fase 6 (asaltos)

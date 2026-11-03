@@ -31,15 +31,15 @@ export interface NameTagInfo {
 type InvCategory = BlockCategory | 'todo' | 'objetos' | 'pociones'; // Fase 7 (pociones)
 
 const CATEGORIES: { id: InvCategory; label: string }[] = [
-  { id: 'todo', label: 'Todo' },
-  { id: 'construccion', label: 'Construcción' },
-  { id: 'naturaleza', label: 'Naturaleza' },
-  { id: 'decoracion', label: 'Decoración' },
-  { id: 'minerales', label: 'Minerales' },
-  { id: 'colores', label: 'Colores' },
-  { id: 'objetos', label: 'Objetos' },
-  { id: 'pociones', label: 'Pociones' }, // Fase 7 (pociones): alambique, ingredientes y pociones
-  { id: 'redstone', label: 'Redstone' }, // Fase 7 (redstone): el polvo y los componentes
+  { id: 'todo', label: '全部' },
+  { id: 'construccion', label: '建筑' },
+  { id: 'naturaleza', label: '自然' },
+  { id: 'decoracion', label: '装饰' },
+  { id: 'minerales', label: '矿物' },
+  { id: 'colores', label: '颜色' },
+  { id: 'objetos', label: '物品' },
+  { id: 'pociones', label: '药水' }, // Fase 7 (pociones): alambique, ingredientes y pociones
+  { id: 'redstone', label: '红石' }, // Fase 7 (redstone): el polvo y los componentes
 ];
 
 function escapeHtml(s: string): string {
@@ -235,12 +235,12 @@ export class UI {
   renderRecentWorlds(list: RecentWorld[], onForget: (w: RecentWorld) => void): void {
     const box = $('recent-worlds');
     box.classList.toggle('hidden', list.length === 0);
-    box.innerHTML = '<span class="recent-title">Recientes</span>';
+    box.innerHTML = '<span class="recent-title">最近</span>';
     for (const w of list) {
       const chip = document.createElement('button');
       chip.className = 'chip';
-      chip.title = `${w.offline ? 'Sin conexión' : 'En línea'} · ${ago(w.at)}`;
-      chip.innerHTML = `<span>${escapeHtml(w.room)}</span>${w.offline ? '<i>local</i>' : ''}<b title="Quitar de la lista">×</b>`;
+      chip.title = `${w.offline ? '离线' : '在线'} · ${ago(w.at)}`;
+      chip.innerHTML = `<span>${escapeHtml(w.room)}</span>${w.offline ? '<i>本地</i>' : ''}<b title="从列表中移除">×</b>`;
       chip.addEventListener('click', (e) => {
         this.onUiSound?.('click');
         if ((e.target as HTMLElement).tagName === 'B') {
@@ -276,15 +276,15 @@ export class UI {
     if (!stats) return;
     box.classList.toggle('idle', stats.players === 0);
     $('stat-servers').textContent = String(stats.servers);
-    $('stat-servers-label').textContent = stats.servers === 1 ? 'servidor activo' : 'servidores activos';
+    $('stat-servers-label').textContent = '个活跃世界';
     $('stat-players').textContent = String(stats.players);
-    $('stat-players-label').textContent = stats.players === 1 ? 'conectado' : 'conectados';
+    $('stat-players-label').textContent = '人在线';
   }
 
   setPlayEnabled(on: boolean): void {
     const b = $('btn-play') as HTMLButtonElement;
     b.disabled = !on;
-    b.textContent = on ? 'Jugar' : 'Preparando gráficos…';
+    b.textContent = on ? '开始游戏' : '正在准备图形…';
   }
 
   // ------------------------------------------------------------------ carga
@@ -366,7 +366,7 @@ export class UI {
     fill.style.height = `${Math.round(f * 100)}%`;
     fill.style.background = `hsl(${Math.round(f * 120)}, 85%, 52%)`;
     el.querySelector('.hd-num')!.textContent = String(left);
-    el.title = `${ITEMS[s.id]!.name}: ${left} de ${max} usos`;
+    el.title = `${ITEMS[s.id]!.name}：剩余 ${left} / ${max} 次使用`;
   }
 
   /** Mano secundaria: un hueco a la izquierda de la barra (sólo si lleva algo). */
@@ -511,9 +511,9 @@ export class UI {
   private async copy(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
-      this.toast('Enlace copiado: compártelo con tus amigos');
+      this.toast('链接已复制：分享给你的好友');
     } catch {
-      window.prompt('Copia este enlace:', text);
+      window.prompt('复制此链接：', text);
     }
   }
 
@@ -591,10 +591,10 @@ export class UI {
     const el = $('playerlist');
     el.classList.remove('hidden');
     el.innerHTML =
-      `<h4>Mundo «${escapeHtml(room)}» · ${players.length} jugador${players.length === 1 ? '' : 'es'}${ping !== null ? ` · ${Math.round(ping)} ms` : ''}</h4>` +
-      (server ? `<div class="pl-server">Servidor en ${escapeHtml(server)}</div>` : '') +
+      `<h4>世界「${escapeHtml(room)}」· ${players.length} 名玩家${ping !== null ? ` · ${Math.round(ping)} ms` : ''}</h4>` +
+      (server ? `<div class="pl-server">服务器：${escapeHtml(server)}</div>` : '') +
       players
-        .map((p) => `<div class="p"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${p.me ? ' <span style="color:var(--muted)">(tú)</span>' : ''}</div>`)
+        .map((p) => `<div class="p"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${p.me ? ' <span style="color:var(--muted)">（你）</span>' : ''}</div>`)
         .join('');
   }
 
@@ -788,7 +788,7 @@ export class UI {
     if (!s) return;
     const presets = $('presets');
     presets.innerHTML = '';
-    const names: [PresetName, string][] = [['bajo', 'Bajo'], ['medio', 'Medio'], ['alto', 'Alto'], ['ultra', 'Ultra']];
+    const names: [PresetName, string][] = [['bajo', '低'], ['medio', '中'], ['alto', '高'], ['ultra', '极致']];
     for (const [p, label] of names) {
       const b = document.createElement('button');
       b.textContent = label;
@@ -808,48 +808,48 @@ export class UI {
     const render = $('settings-render');
     render.innerHTML = '';
     render.append(
-      this.slider('Distancia de visión', r.renderDistance, 4, 16, 1, (v) => `${v} chunks`, (v) => { r.renderDistance = v; custom(); }),
-      this.slider('Escala de resolución', r.renderScale, 0.5, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { r.renderScale = v; custom(); }),
-      this.select('Sombras', r.shadowSize, [[0, 'Desactivadas'], [1024, 'Bajas'], [2048, 'Altas'], [4096, 'Ultra']], (v) => { r.shadowSize = v; custom(); }),
-      this.slider('Distancia de sombras', r.shadowDistance, 48, 256, 16, (v) => `${v} bloques`, (v) => { r.shadowDistance = v; custom(); }),
-      this.slider('Suavizado de sombras', r.pcfSamples, 1, 16, 1, (v) => `${v} muestras`, (v) => { r.pcfSamples = v; custom(); }),
-      this.slider('Calidad de nubes', r.cloudSteps, 12, 72, 4, (v) => `${v} pasos`, (v) => { r.cloudSteps = v; custom(); }),
-      this.slider('Reflejos del agua (SSR)', r.ssrSteps, 0, 48, 4, (v) => (v === 0 ? 'Sólo cielo' : `${v} pasos`), (v) => { r.ssrSteps = v; custom(); }),
-      this.slider('Rayos de luz volumétricos', r.volumetricSteps, 4, 32, 2, (v) => `${v} pasos`, (v) => { r.volumetricSteps = v; custom(); }),
-      this.toggle('Nubes volumétricas', r.clouds, (v) => { r.clouds = v; custom(); }),
-      this.toggle('Luz volumétrica', r.volumetric, (v) => { r.volumetric = v; custom(); }),
-      this.toggle('Antialiasing temporal (TAA)', r.taa, (v) => { r.taa = v; custom(); }),
-      this.toggle('Resplandor (bloom)', r.bloom, (v) => { r.bloom = v; custom(); }),
-      this.toggle('Relieve de texturas (POM)', r.pom, (v) => { r.pom = v; custom(); }),
+      this.slider('渲染距离', r.renderDistance, 4, 16, 1, (v) => `${v} 区块`, (v) => { r.renderDistance = v; custom(); }),
+      this.slider('分辨率缩放', r.renderScale, 0.5, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { r.renderScale = v; custom(); }),
+      this.select('阴影', r.shadowSize, [[0, '关闭'], [1024, '低'], [2048, '高'], [4096, '极高']], (v) => { r.shadowSize = v; custom(); }),
+      this.slider('阴影距离', r.shadowDistance, 48, 256, 16, (v) => `${v} 方块`, (v) => { r.shadowDistance = v; custom(); }),
+      this.slider('阴影抗锯齿', r.pcfSamples, 1, 16, 1, (v) => `${v} 采样`, (v) => { r.pcfSamples = v; custom(); }),
+      this.slider('云层质量', r.cloudSteps, 12, 72, 4, (v) => `${v} 步`, (v) => { r.cloudSteps = v; custom(); }),
+      this.slider('水面反射 (SSR)', r.ssrSteps, 0, 48, 4, (v) => (v === 0 ? '仅天空' : `${v} 步`), (v) => { r.ssrSteps = v; custom(); }),
+      this.slider('体积光', r.volumetricSteps, 4, 32, 2, (v) => `${v} 步`, (v) => { r.volumetricSteps = v; custom(); }),
+      this.toggle('体积云', r.clouds, (v) => { r.clouds = v; custom(); }),
+      this.toggle('体积光照', r.volumetric, (v) => { r.volumetric = v; custom(); }),
+      this.toggle('时间抗锯齿 (TAA)', r.taa, (v) => { r.taa = v; custom(); }),
+      this.toggle('泛光 (bloom)', r.bloom, (v) => { r.bloom = v; custom(); }),
+      this.toggle('视差贴图 (POM)', r.pom, (v) => { r.pom = v; custom(); }),
     );
     const controls = $('settings-controls');
     controls.innerHTML = '';
     controls.append(
-      this.slider('Campo de visión', r.fov, 50, 110, 1, (v) => `${v}°`, (v) => { r.fov = v; }),
-      this.slider('Brillo', r.brightness, -2, 2, 0.1, (v) => (v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1)), (v) => { r.brightness = v; }),
-      this.slider('Sensibilidad del ratón', s.sensitivity, 0.2, 3, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.sensitivity = v; }),
-      this.toggle('Invertir eje Y', s.invertY, (v) => { s.invertY = v; }),
-      this.toggle('Balanceo de la cámara', s.viewBobbing, (v) => { s.viewBobbing = v; }),
-      this.toggle('Agacharse con una pulsación (alternar)', s.toggleSneak, (v) => { s.toggleSneak = v; }),
-      this.toggle('Correr con una pulsación (alternar)', s.toggleSprint, (v) => { s.toggleSprint = v; }),
+      this.slider('视场角', r.fov, 50, 110, 1, (v) => `${v}°`, (v) => { r.fov = v; }),
+      this.slider('亮度', r.brightness, -2, 2, 0.1, (v) => (v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1)), (v) => { r.brightness = v; }),
+      this.slider('鼠标灵敏度', s.sensitivity, 0.2, 3, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.sensitivity = v; }),
+      this.toggle('反转 Y 轴', s.invertY, (v) => { s.invertY = v; }),
+      this.toggle('视角摇晃', s.viewBobbing, (v) => { s.viewBobbing = v; }),
+      this.toggle('潜行切换（按一下保持）', s.toggleSneak, (v) => { s.toggleSneak = v; }),
+      this.toggle('疾跑切换（按一下保持）', s.toggleSprint, (v) => { s.toggleSprint = v; }),
     );
     this.renderKeys();
     const audio = $('settings-audio');
     audio.innerHTML = '';
     audio.append(
-      this.slider('Volumen general', s.master, 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.master = v; }),
-      this.slider('Música', s.music, 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.music = v; }),
-      this.slider('Ambiente', s.ambient, 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.ambient = v; }),
-      this.toggle('Chat de voz por proximidad', s.voiceEnabled, (v) => { s.voiceEnabled = v; }),
-      this.select('Micrófono', s.voiceMode === 'vad' ? 1 : 0, [[0, `Pulsar para hablar (${keyLabel(s.keys.voice)})`], [1, 'Se abre al hablar']], (v) => { s.voiceMode = v === 1 ? 'vad' : 'ptt'; }),
-      this.slider('Sensibilidad (al hablar)', 1 - s.voiceThreshold, 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.voiceThreshold = 1 - v; }),
-      this.slider('Volumen de las voces', s.voiceVolume, 0, 2, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.voiceVolume = v; }),
+      this.slider('总音量', s.master, 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.master = v; }),
+      this.slider('音乐', s.music, 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.music = v; }),
+      this.slider('环境音', s.ambient, 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.ambient = v; }),
+      this.toggle('近距离语音聊天', s.voiceEnabled, (v) => { s.voiceEnabled = v; }),
+      this.select('麦克风', s.voiceMode === 'vad' ? 1 : 0, [[0, `按键说话（${keyLabel(s.keys.voice)}）`], [1, '说话时自动开启']], (v) => { s.voiceMode = v === 1 ? 'vad' : 'ptt'; }),
+      this.slider('灵敏度（说话时）', 1 - s.voiceThreshold, 0, 1, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.voiceThreshold = 1 - v; }),
+      this.slider('语音音量', s.voiceVolume, 0, 2, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => { s.voiceVolume = v; }),
     );
     // Volumen de cada jugador con voz que haya ahora (0 = silenciado).
     for (const name of this.voicePlayers?.() ?? []) {
       const key = name.toLowerCase();
       const cur = s.voicePlayers[key] ?? 1;
-      audio.append(this.slider(`Voz de ${escapeHtml(name)}`, cur, 0, 2, 0.05, (v) => (v === 0 ? 'Silenciado' : `${Math.round(v * 100)}%`), (v) => {
+      audio.append(this.slider(`${escapeHtml(name)} 的语音`, cur, 0, 2, 0.05, (v) => (v === 0 ? '已静音' : `${Math.round(v * 100)}%`), (v) => {
         if (v === 1) delete s.voicePlayers[key];
         else s.voicePlayers[key] = v;
       }));
@@ -870,7 +870,7 @@ export class UI {
       btn.textContent = keyLabel(s.keys[action]);
       btn.addEventListener('click', () => {
         this.onUiSound?.('click');
-        btn.textContent = 'Pulsa una tecla…';
+        btn.textContent = '请按下按键…';
         btn.classList.add('waiting');
         const onKey = (e: KeyboardEvent) => {
           e.preventDefault();

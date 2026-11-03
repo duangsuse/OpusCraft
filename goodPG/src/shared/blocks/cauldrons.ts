@@ -26,9 +26,9 @@ function cauldronOpts(surface: string, level: number) {
   };
 }
 
-export const WATER_CAULDRON = family('water_cauldron', 'Caldero con agua', [['level', 3]], (st) => cauldronOpts('water', st.level + 1));
-export const LAVA_CAULDRON = family('lava_cauldron', 'Caldero con lava', [], () => ({ ...cauldronOpts('lava', 3), emission: 15 }));
-export const POWDER_SNOW_CAULDRON = family('powder_snow_cauldron', 'Caldero con nieve polvo', [['level', 3]], (st) =>
+export const WATER_CAULDRON = family('water_cauldron', '装有水的炼药锅', [['level', 3]], (st) => cauldronOpts('water', st.level + 1));
+export const LAVA_CAULDRON = family('lava_cauldron', '装有熔岩的炼药锅', [], () => ({ ...cauldronOpts('lava', 3), emission: 15 }));
+export const POWDER_SNOW_CAULDRON = family('powder_snow_cauldron', '装有细雪的炼药锅', [['level', 3]], (st) =>
   cauldronOpts('powder_snow', st.level + 1));
 
 /** Qué lleva un caldero y hasta dónde (0 si no es un caldero; nivel 0..3). */

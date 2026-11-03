@@ -19,7 +19,7 @@ const PX = 1, NX = 2, UP = 4, DN = 8, PZ = 16, NZ = 32;
 
 for (const w of WOOD_TYPES) {
   const top = `${w.key}_log_top`, side = `${w.key}_log_side`;
-  const base = family(`${w.key}_log_axis`, `Tronco ${w.name}`, [['axis', 2]], (st) => {
+  const base = family(`${w.key}_log_axis`, `${w.name}原木`, [['axis', 2]], (st) => {
     const alongX = st.axis === AXIS_X;
     const tex: BlockDef['tex'] = alongX ? [top, top, side, side, side, side] : [side, side, side, side, top, top];
     return {

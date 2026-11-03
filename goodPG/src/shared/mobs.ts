@@ -218,7 +218,7 @@ function mob(d: MobDef): void {
 }
 
 mob({
-  id: MOB_PIG, key: 'pig', name: 'Cerdo', hostile: false, health: 10, walk: 1.2, run: 2.6, width: 0.9, height: 0.9,
+  id: MOB_PIG, key: 'pig', name: '猪', hostile: false, health: 10, walk: 1.2, run: 2.6, width: 0.9, height: 0.9,
   damage: 0, burnsInSun: false, drops: [[RAW_PORKCHOP, 1, 3]], atlas: [64, 64], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 6, 0], from: [-5, 0, -8], size: [10, 8, 16], uv: [0, 32] },
@@ -230,7 +230,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_COW, key: 'cow', name: 'Vaca', hostile: false, health: 10, walk: 1.1, run: 2.4, width: 0.9, height: 1.4,
+  id: MOB_COW, key: 'cow', name: '牛', hostile: false, health: 10, walk: 1.1, run: 2.4, width: 0.9, height: 1.4,
   damage: 0, burnsInSun: false, drops: [[LEATHER, 0, 2], [RAW_BEEF, 1, 3]], atlas: [64, 64], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 12, 0], from: [-6, 0, -9], size: [12, 10, 18], uv: [0, 16] },
@@ -241,7 +241,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_SHEEP, key: 'sheep', name: 'Oveja', hostile: false, health: 8, walk: 1.1, run: 2.4, width: 0.9, height: 1.3,
+  id: MOB_SHEEP, key: 'sheep', name: '羊', hostile: false, health: 8, walk: 1.1, run: 2.4, width: 0.9, height: 1.3,
   damage: 0, burnsInSun: false, drops: [[WHITE_WOOL, 1, 1], [RAW_MUTTON, 1, 2]], atlas: [64, 96], anim: 'quadruped', scale: 1,
   parts: [
     // Cuerpo esquilado (piel) y, encima, la capa de lana que desaparece al esquilarla.
@@ -252,7 +252,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_CHICKEN, key: 'chicken', name: 'Gallina', hostile: false, health: 4, walk: 1.0, run: 2.2, width: 0.4, height: 0.7,
+  id: MOB_CHICKEN, key: 'chicken', name: '鸡', hostile: false, health: 4, walk: 1.0, run: 2.2, width: 0.4, height: 0.7,
   damage: 0, burnsInSun: false, drops: [[FEATHER, 0, 2], [RAW_CHICKEN, 1, 1]], atlas: [64, 64], anim: 'chicken', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 5, 0], from: [-3, 0, -4], size: [6, 6, 8], uv: [0, 9] },
@@ -266,27 +266,27 @@ mob({
   ],
 });
 mob({
-  id: MOB_ZOMBIE, key: 'zombie', name: 'Zombi', hostile: true, health: 20, walk: 1.0, run: 2.4, width: 0.6, height: 1.95,
+  id: MOB_ZOMBIE, key: 'zombie', name: '僵尸', hostile: true, health: 20, walk: 1.0, run: 2.4, width: 0.6, height: 1.95,
   damage: 3, burnsInSun: true, drops: [[ROTTEN_FLESH, 0, 2]], atlas: [64, 64], anim: 'zombie', scale: 1,
   parts: humanoid(false),
 });
 mob({
-  id: MOB_HUSK, key: 'husk', name: 'Zombi momificado', hostile: true, health: 20, walk: 1.0, run: 2.4, width: 0.6, height: 1.95,
+  id: MOB_HUSK, key: 'husk', name: '尸壳', hostile: true, health: 20, walk: 1.0, run: 2.4, width: 0.6, height: 1.95,
   damage: 3, burnsInSun: false, drops: [[ROTTEN_FLESH, 0, 2]], atlas: [64, 64], anim: 'zombie', scale: 1.06,
   parts: humanoid(false),
 });
 mob({
-  id: MOB_SKELETON, key: 'skeleton', name: 'Esqueleto', hostile: true, health: 20, walk: 1.1, run: 2.3, width: 0.6, height: 1.99,
+  id: MOB_SKELETON, key: 'skeleton', name: '骷髅', hostile: true, health: 20, walk: 1.1, run: 2.3, width: 0.6, height: 1.99,
   damage: 2, burnsInSun: true, drops: [[BONE, 0, 2], [ARROW, 0, 2]], atlas: [64, 64], anim: 'skeleton', scale: 1,
   parts: humanoid(true),
 });
 mob({
-  id: MOB_STRAY, key: 'stray', name: 'Esqueleto errante', hostile: true, health: 20, walk: 1.1, run: 2.3, width: 0.6, height: 1.99,
+  id: MOB_STRAY, key: 'stray', name: '流浪者', hostile: true, health: 20, walk: 1.1, run: 2.3, width: 0.6, height: 1.99,
   damage: 2, burnsInSun: true, drops: [[BONE, 0, 2], [ARROW, 0, 2]], atlas: [64, 64], anim: 'skeleton', scale: 1,
   parts: humanoid(true),
 });
 mob({
-  id: MOB_CREEPER, key: 'creeper', name: 'Creeper', hostile: true, health: 20, walk: 1.0, run: 2.2, width: 0.6, height: 1.7,
+  id: MOB_CREEPER, key: 'creeper', name: '苦力怕', hostile: true, health: 20, walk: 1.0, run: 2.2, width: 0.6, height: 1.7,
   damage: 0, burnsInSun: false, drops: [[GUNPOWDER, 0, 2]], atlas: [64, 64], anim: 'creeper', scale: 1,
   parts: [
     { name: 'head', pivot: [0, 18, 0], from: [-4, 0, -4], size: [8, 8, 8], uv: [0, 0] },
@@ -295,7 +295,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_SPIDER, key: 'spider', name: 'Araña', hostile: true, neutral: true, health: 16, walk: 1.3, run: 3.0,
+  id: MOB_SPIDER, key: 'spider', name: '蜘蛛', hostile: true, neutral: true, health: 16, walk: 1.3, run: 3.0,
   width: 1.4, height: 0.9, damage: 2, burnsInSun: false, drops: [[STRING, 0, 2], [SPIDER_EYE, 0, 1]], atlas: [64, 64], anim: 'spider', scale: 1,
   parts: [
     { name: 'thorax', pivot: [0, 9, 0], from: [-3, -3, -3], size: [6, 6, 6], uv: [0, 0] },
@@ -305,7 +305,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_ENDERMAN, key: 'enderman', name: 'Enderman', hostile: true, neutral: true, health: 40, walk: 1.2, run: 3.4,
+  id: MOB_ENDERMAN, key: 'enderman', name: '末影人', hostile: true, neutral: true, health: 40, walk: 1.2, run: 3.4,
   width: 0.6, height: 2.9, damage: 7, burnsInSun: false, drops: [[ENDER_PEARL, 0, 1]], atlas: [64, 64], anim: 'enderman',
   scale: 0.93,
   parts: [
@@ -318,14 +318,14 @@ mob({
   ],
 });
 mob({
-  id: MOB_SQUID, key: 'squid', name: 'Calamar', hostile: false, health: 10, walk: 1.2, run: 2.5, width: 0.8, height: 0.8,
+  id: MOB_SQUID, key: 'squid', name: '鱿鱼', hostile: false, health: 10, walk: 1.2, run: 2.5, width: 0.8, height: 0.8,
   damage: 0, burnsInSun: false, drops: [[INK_SAC, 1, 3]], atlas: [64, 32], anim: 'squid', scale: 0.8, aquatic: true,
   parts: [{ name: 'body', pivot: [0, 18, 0], from: [-6, -8, -6], size: [12, 16, 12], uv: [0, 0] }, ...squidTentacles()],
 });
 
 // ---------------------------------------------------------------- fase 6: animales salvajes
 mob({
-  id: MOB_FOX, key: 'fox', name: 'Zorro', hostile: false, health: 10, walk: 1.3, run: 3.2, width: 0.6, height: 0.7,
+  id: MOB_FOX, key: 'fox', name: '狐狸', hostile: false, health: 10, walk: 1.3, run: 3.2, width: 0.6, height: 0.7,
   damage: 0, burnsInSun: false, drops: [], atlas: [64, 48], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 6, 0], from: [-3, 0, -6], size: [6, 6, 11], uv: [0, 12] },
@@ -338,7 +338,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_GOAT, key: 'goat', name: 'Cabra', hostile: false, health: 10, walk: 1.2, run: 2.8, width: 0.9, height: 1.3,
+  id: MOB_GOAT, key: 'goat', name: '山羊', hostile: false, health: 10, walk: 1.2, run: 2.8, width: 0.9, height: 1.3,
   damage: 0, burnsInSun: false, drops: [], atlas: [64, 64], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 10, 0], from: [-4, 0, -7], size: [8, 8, 14], uv: [0, 20] },
@@ -352,7 +352,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_POLAR_BEAR, key: 'polar_bear', name: 'Oso polar', hostile: false, neutral: true, health: 30, walk: 1.0, run: 2.6,
+  id: MOB_POLAR_BEAR, key: 'polar_bear', name: '北极熊', hostile: false, neutral: true, health: 30, walk: 1.0, run: 2.6,
   width: 1.4, height: 1.4, damage: 6, burnsInSun: false, drops: [[COD, 0, 2], [SALMON, 0, 2]], atlas: [128, 64],
   anim: 'quadruped', scale: 1,
   parts: [
@@ -365,7 +365,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_RABBIT, key: 'rabbit', name: 'Conejo', hostile: false, health: 3, walk: 1.6, run: 3.6, width: 0.4, height: 0.5,
+  id: MOB_RABBIT, key: 'rabbit', name: '兔子', hostile: false, health: 3, walk: 1.6, run: 3.6, width: 0.4, height: 0.5,
   damage: 0, burnsInSun: false, drops: [[RAW_RABBIT, 0, 1], [RABBIT_HIDE, 0, 1]], atlas: [32, 32], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 3, 0], from: [-2, 0, -3], size: [4, 4, 6], uv: [0, 0] },
@@ -377,7 +377,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_WOLF, key: 'wolf', name: 'Lobo', hostile: false, neutral: true, health: 8, walk: 1.2, run: 3.4, width: 0.6, height: 0.85,
+  id: MOB_WOLF, key: 'wolf', name: '狼', hostile: false, neutral: true, health: 8, walk: 1.2, run: 3.4, width: 0.6, height: 0.85,
   damage: 4, burnsInSun: false, drops: [], atlas: [64, 48], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 8, 0], from: [-3, 0, -2], size: [6, 6, 9], uv: [30, 10] },
@@ -395,7 +395,7 @@ mob({
 
 // ---------------------------------------------------------------- Fase 6 (gólems/domesticar)
 mob({
-  id: MOB_IRON_GOLEM, key: 'iron_golem', name: 'Gólem de hierro', hostile: false, health: 100, walk: 0.9, run: 2.2,
+  id: MOB_IRON_GOLEM, key: 'iron_golem', name: '铁傀儡', hostile: false, health: 100, walk: 0.9, run: 2.2,
   width: 1.4, height: 2.7, damage: 11, burnsInSun: false, drops: [[IRON_INGOT, 3, 5], [POPPY, 0, 2]], atlas: [128, 64],
   anim: 'golem', scale: 1,
   parts: [
@@ -410,7 +410,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_SNOW_GOLEM, key: 'snow_golem', name: 'Gólem de nieve', hostile: false, health: 4, walk: 1.0, run: 1.6,
+  id: MOB_SNOW_GOLEM, key: 'snow_golem', name: '雪傀儡', hostile: false, health: 4, walk: 1.0, run: 1.6,
   width: 0.7, height: 1.9, damage: 0, burnsInSun: false, drops: [[SNOWBALL, 0, 15]], atlas: [64, 64], anim: 'golem', scale: 1,
   parts: [
     { name: 'lower', pivot: [0, 0, 0], from: [-6, 0, -6], size: [12, 12, 12], uv: [0, 36] },
@@ -421,7 +421,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_CAT, key: 'cat', name: 'Gato', hostile: false, health: 10, walk: 1.1, run: 3.0, width: 0.6, height: 0.7,
+  id: MOB_CAT, key: 'cat', name: '猫', hostile: false, health: 10, walk: 1.1, run: 3.0, width: 0.6, height: 0.7,
   damage: 0, burnsInSun: false, drops: [[STRING, 0, 2]], atlas: [64, 32], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 5, 0], from: [-2, 0, -7], size: [4, 5, 14], uv: [0, 13] },
@@ -454,19 +454,19 @@ const horseParts = (earH: number): ModelPart[] => [
 ];
 
 mob({
-  id: MOB_HORSE, key: 'horse', name: 'Caballo', hostile: false, health: 22, walk: 1.4, run: 3.4, width: 1.3, height: 1.6,
+  id: MOB_HORSE, key: 'horse', name: '马', hostile: false, health: 22, walk: 1.4, run: 3.4, width: 1.3, height: 1.6,
   damage: 0, burnsInSun: false, drops: [[LEATHER, 0, 2]], atlas: [128, 64], anim: 'quadruped', scale: 1, parts: horseParts(3),
 });
 mob({
-  id: MOB_DONKEY, key: 'donkey', name: 'Burro', hostile: false, health: 20, walk: 1.3, run: 3, width: 1.2, height: 1.4,
+  id: MOB_DONKEY, key: 'donkey', name: '驴', hostile: false, health: 20, walk: 1.3, run: 3, width: 1.2, height: 1.4,
   damage: 0, burnsInSun: false, drops: [[LEATHER, 0, 2]], atlas: [128, 64], anim: 'quadruped', scale: 0.87, parts: horseParts(7),
 });
 mob({
-  id: MOB_MULE, key: 'mule', name: 'Mula', hostile: false, health: 22, walk: 1.3, run: 3, width: 1.25, height: 1.5,
+  id: MOB_MULE, key: 'mule', name: '骡', hostile: false, health: 22, walk: 1.3, run: 3, width: 1.25, height: 1.5,
   damage: 0, burnsInSun: false, drops: [[LEATHER, 0, 2]], atlas: [128, 64], anim: 'quadruped', scale: 0.92, parts: horseParts(6),
 });
 mob({
-  id: MOB_LLAMA, key: 'llama', name: 'Llama', hostile: false, neutral: true, health: 20, walk: 1.2, run: 2.8, width: 0.9,
+  id: MOB_LLAMA, key: 'llama', name: '羊驼', hostile: false, neutral: true, health: 20, walk: 1.2, run: 2.8, width: 0.9,
   height: 1.87, damage: 1, burnsInSun: false, drops: [[LEATHER, 0, 2]], atlas: [128, 64], anim: 'quadruped', scale: 0.85,
   parts: [
     { name: 'body', pivot: [0, 13, 0], from: [-6, 0, -9], size: [12, 10, 18], uv: [0, 36] },
@@ -480,7 +480,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_CAMEL, key: 'camel', name: 'Camello', hostile: false, health: 32, walk: 1.1, run: 2.6, width: 1.5, height: 2.3,
+  id: MOB_CAMEL, key: 'camel', name: '骆驼', hostile: false, health: 32, walk: 1.1, run: 2.6, width: 1.5, height: 2.3,
   damage: 0, burnsInSun: false, drops: [], atlas: [128, 64], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 18, 0], from: [-7, 0, -11], size: [14, 11, 22], uv: [0, 28] },
@@ -509,11 +509,11 @@ const villagerParts = (): ModelPart[] => [
   { name: 'legL', pivot: [-2, 12, 0], from: [-2, -12, -2], size: [4, 12, 4], uv: [0, 22] },
 ];
 mob({
-  id: MOB_VILLAGER, key: 'villager', name: 'Aldeano', hostile: false, health: 20, walk: 0.9, run: 2.2, width: 0.6, height: 1.95,
+  id: MOB_VILLAGER, key: 'villager', name: '村民', hostile: false, health: 20, walk: 0.9, run: 2.2, width: 0.6, height: 1.95,
   damage: 0, burnsInSun: false, drops: [], atlas: [64, 64], anim: 'villager', scale: 0.94, parts: villagerParts(),
 });
 mob({
-  id: MOB_WANDERING_TRADER, key: 'wandering_trader', name: 'Comerciante ambulante', hostile: false, health: 20, walk: 0.9,
+  id: MOB_WANDERING_TRADER, key: 'wandering_trader', name: '流浪商人', hostile: false, health: 20, walk: 0.9,
   run: 2.2, width: 0.6, height: 1.95, damage: 0, burnsInSun: false, drops: [], atlas: [64, 64], anim: 'villager', scale: 0.94,
   parts: villagerParts(),
 });
@@ -539,12 +539,12 @@ const slime = (id: number, key: string, name: string, size: number, health: numb
 });
 
 mob({
-  id: MOB_DROWNED, key: 'drowned', name: 'Ahogado', hostile: true, health: 20, walk: 1.0, run: 2.2, width: 0.6, height: 1.95,
+  id: MOB_DROWNED, key: 'drowned', name: '溺尸', hostile: true, health: 20, walk: 1.0, run: 2.2, width: 0.6, height: 1.95,
   damage: 3, burnsInSun: true, drops: [[ROTTEN_FLESH, 0, 2]], atlas: [64, 64], anim: 'zombie', scale: 1, sound: 'zombie',
   parts: humanoid(false),
 });
 mob({
-  id: MOB_WITCH, key: 'witch', name: 'Bruja', hostile: true, health: 26, walk: 1.0, run: 1.7, width: 0.6, height: 1.95,
+  id: MOB_WITCH, key: 'witch', name: '女巫', hostile: true, health: 26, walk: 1.0, run: 1.7, width: 0.6, height: 1.95,
   damage: 0, burnsInSun: false, atlas: [64, 72], anim: 'humanoid', scale: 1,
   drops: [[STICK, 0, 2], [SUGAR, 0, 2], [GUNPOWDER, 0, 1], [REDSTONE, 0, 2], [SPIDER_EYE, 0, 1]],
   parts: [
@@ -556,11 +556,11 @@ mob({
     { name: 'hat4', parent: 'hat3', pivot: [0, 4, 0.5], from: [-0.5, 0, -0.5], size: [1, 2, 1], uv: [40, 0], rot: [-0.22, 0, 0.1] },
   ],
 });
-slime(MOB_SLIME, 'slime', 'Slime', 4, 16, 4);
-slime(MOB_SLIME_MEDIUM, 'slime_medium', 'Slime mediano', 2, 4, 2);
-slime(MOB_SLIME_SMALL, 'slime_small', 'Slime pequeño', 1, 1, 0);
+slime(MOB_SLIME, 'slime', '史莱姆', 4, 16, 4);
+slime(MOB_SLIME_MEDIUM, 'slime_medium', '中型史莱姆', 2, 4, 2);
+slime(MOB_SLIME_SMALL, 'slime_small', '小型史莱姆', 1, 1, 0);
 mob({
-  id: MOB_PHANTOM, key: 'phantom', name: 'Phantom', hostile: true, health: 20, walk: 5, run: 9, width: 0.9, height: 0.5,
+  id: MOB_PHANTOM, key: 'phantom', name: '幻翼', hostile: true, health: 20, walk: 5, run: 9, width: 0.9, height: 0.5,
   damage: 4, burnsInSun: true, drops: [[PHANTOM_MEMBRANE, 0, 1]], atlas: [64, 48], anim: 'phantom', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 4, 0], from: [-2.5, -1.5, -4.5], size: [5, 3, 9], uv: [0, 8] },
@@ -574,7 +574,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_SILVERFISH, key: 'silverfish', name: 'Lepisma', hostile: true, health: 8, walk: 1.3, run: 2.8, width: 0.4, height: 0.3,
+  id: MOB_SILVERFISH, key: 'silverfish', name: '蠹虫', hostile: true, health: 8, walk: 1.3, run: 2.8, width: 0.4, height: 0.3,
   damage: 1, burnsInSun: false, drops: [], atlas: [32, 32], anim: 'silverfish', scale: 1,
   // Siete segmentos de la cabeza (delante, -Z) a la cola: [tamaño, z del centro, uv].
   parts: ([
@@ -585,7 +585,7 @@ mob({
   })),
 });
 mob({
-  id: MOB_CAVE_SPIDER, key: 'cave_spider', name: 'Araña de cueva', hostile: true, neutral: true, health: 12, walk: 1.3, run: 3.1,
+  id: MOB_CAVE_SPIDER, key: 'cave_spider', name: '洞穴蜘蛛', hostile: true, neutral: true, health: 12, walk: 1.3, run: 3.1,
   width: 0.7, height: 0.5, damage: 2, burnsInSun: false, drops: [[STRING, 0, 2], [SPIDER_EYE, 0, 1]], atlas: [64, 64],
   anim: 'spider', scale: 0.7, sound: 'spider',
   parts: [
@@ -596,7 +596,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_ZOMBIE_VILLAGER, key: 'zombie_villager', name: 'Aldeano zombi', hostile: true, health: 20, walk: 1.0, run: 2.4,
+  id: MOB_ZOMBIE_VILLAGER, key: 'zombie_villager', name: '僵尸村民', hostile: true, health: 20, walk: 1.0, run: 2.4,
   width: 0.6, height: 2.0, damage: 3, burnsInSun: true, drops: [[ROTTEN_FLESH, 0, 2]], atlas: [64, 64], anim: 'zombie', scale: 1,
   sound: 'zombie', parts: villagerLike(),
 });
@@ -605,7 +605,7 @@ for (const d of AQUATIC_MOBS) mob(d);
 
 // ---------------------------------------------------------------- fase 6 (fauna): abejas, pandas, loros y armadillos
 mob({
-  id: MOB_BEE, key: 'bee', name: 'Abeja', hostile: false, neutral: true, health: 10, walk: 2.2, run: 4.2, width: 0.7, height: 0.6,
+  id: MOB_BEE, key: 'bee', name: '蜜蜂', hostile: false, neutral: true, health: 10, walk: 2.2, run: 4.2, width: 0.7, height: 0.6,
   damage: 2, burnsInSun: false, drops: [], atlas: [64, 32], anim: 'flyer', scale: 1, flying: true,
   parts: [
     { name: 'body', pivot: [0, 3, 0], from: [-3.5, 0, -5], size: [7, 7, 10], uv: [0, 0] },
@@ -620,7 +620,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_PANDA, key: 'panda', name: 'Panda', hostile: false, neutral: true, health: 20, walk: 0.9, run: 2.2, width: 1.3, height: 1.25,
+  id: MOB_PANDA, key: 'panda', name: '熊猫', hostile: false, neutral: true, health: 20, walk: 0.9, run: 2.2, width: 1.3, height: 1.25,
   damage: 6, burnsInSun: false, drops: [], atlas: [128, 64], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 8, 0], from: [-7.5, 0, -11], size: [15, 12, 22], uv: [0, 17] },
@@ -633,7 +633,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_PARROT, key: 'parrot', name: 'Loro', hostile: false, health: 6, walk: 3, run: 5.5, width: 0.5, height: 0.7,
+  id: MOB_PARROT, key: 'parrot', name: '鹦鹉', hostile: false, health: 6, walk: 3, run: 5.5, width: 0.5, height: 0.7,
   damage: 0, burnsInSun: false, drops: [[FEATHER, 1, 2]], atlas: [32, 32], anim: 'flyer', scale: 1, flying: true,
   parts: [
     { name: 'body', pivot: [0, 2, 0], from: [-1.5, 0, -1.5], size: [3, 6, 3], uv: [0, 0], rot: [-0.28, 0, 0] },
@@ -648,7 +648,7 @@ mob({
   ],
 });
 mob({
-  id: MOB_ARMADILLO, key: 'armadillo', name: 'Armadillo', hostile: false, health: 12, walk: 1.1, run: 2.6, width: 0.7, height: 0.65,
+  id: MOB_ARMADILLO, key: 'armadillo', name: '犰狳', hostile: false, health: 12, walk: 1.1, run: 2.6, width: 0.7, height: 0.65,
   damage: 0, burnsInSun: false, drops: [], atlas: [64, 32], anim: 'quadruped', scale: 1,
   parts: [
     { name: 'body', pivot: [0, 3, 0], from: [-3.5, 0, -5], size: [7, 6, 10], uv: [0, 0] },

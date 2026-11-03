@@ -229,32 +229,56 @@ export function updateNameTags(g: Game, cam: CameraPose): void {
   g.ui.updateNameTags(tags);
 }
 
-/** Texto de depuración (F3). */
+/** Texto de depuración (F3): el panel de la esquina superior izquierda, al estilo del HUD de OpusCraft. */
 export function debugText(g: Game, eye: EyeLight, sky: SkyState, counts: { mobs: number; drops: number }, target: ClientEntity | null): string {
   const p = g.player;
   const world = g.world!;
   const gen = world.generator;
   // Fase 7.5 (abismo): el Deep Dark es un bioma de cueva (depende también de la altura).
-  const bx = Math.floor(p.x), bz = Math.floor(p.z);
+  const bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
   // Fase 7.6: bajo tierra, también las cuevas frondosas y las de goteo.
   const cave = p.y < gen.columnInfo(bx, bz).height - 12 ? gen.caveBiomeAt(bx, bz) : 0;
-  const biome = isDeepDark(gen, bx, Math.floor(p.y), bz) ? 'Deep Dark'
+  const biome = isDeepDark(gen, bx, by, bz) ? '深暗之域'
     : cave === 1 ? BIOME_NAMES[BIOME_LUSH_CAVES] : cave === 2 ? BIOME_NAMES[BIOME_DRIPSTONE_CAVES]
       : BIOME_NAMES[gen.biomeAt(bx, bz)];
   const hours = Math.floor(((sky.dayTime * 24 + 6) % 24));
   const mins = Math.floor(((sky.dayTime * 24 * 60) % 60));
   const r = g.renderer;
-  return (
-    `VoxelCraft · ${g.fps.toFixed(0)} FPS\n` +
-    `XYZ: ${p.x.toFixed(2)} / ${p.y.toFixed(2)} / ${p.z.toFixed(2)}\n` +
-    `Chunk: ${Math.floor(p.x / 16)}, ${Math.floor(p.z / 16)} · Bioma: ${biome} · ${dimensionDef(world.dim).name}\n` +
-    `Hora: ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')} · Día ${sky.day + 1}\n` +
-    `Luz: cielo ${eye.le >> 4} · bloque ${eye.le & 15}\n` +
-    `Chunks: ${world.meshedCount} mallados · ${r.stats.drawCalls} draws · ${(r.stats.quads / 1000).toFixed(0)}k caras\n` +
-    `Entidades: ${counts.mobs} criaturas · ${counts.drops} objetos\n` +
-    `Modo: ${g.creative ? 'creativo' : 'supervivencia'} · ${g.offline ? 'sin conexión' : `ping ${Math.round(g.net?.latency ?? 0)} ms · ${g.remote.size + 1} jugadores`}\n` +
-    (g.hit ? `Mirando: ${BLOCKS[g.hit.id].name} (${g.hit.x}, ${g.hit.y}, ${g.hit.z})\n` : '') +
-    (target ? `Criatura: ${MOBS[target.type]?.name ?? 'transporte'}\n` : '') + // Fase 7: también barcas y vagonetas
-    `GPU: ${r.caps.renderer}`
-  );
+  // Estado de los chunks alrededor: cargados, ya generados, ya mallados y cuántos están en cola.
+  let loaded = 0, generated = 0, genPending = 0, meshPending = 0;
+  for (const col of world.columns.values()) {
+    loaded++;
+    if (col.blocks) generated++;
+    if (col.genPending) genPending++;
+    if (col.meshPending) meshPending++;
+  }
+  const dim = dimensionDef(world.dim);
+  const weather = !dim.weather ? '无天气' : sky.snow ? '下雪' : g.rainNow > 0.15 ? '下雨' : g.rainNow > 0.01 ? '小雨' : '晴';
+  // En este juego la mirada 0 apunta a -Z: norte, oeste, sur y este en sentido horario.
+  const heading = ['北', '西', '南', '东'][((Math.round(p.yaw / (Math.PI / 2)) % 4) + 4) % 4];
+  const mob = target
+    ? `${MOBS[target.type]?.name ?? '载具'} · ${Math.ceil(target.health)}/${MOBS[target.type]?.health ?? target.health}`
+    : '—';
+  const block = g.hit ? `${BLOCKS[g.hit.id]?.name ?? '空气'} (${g.hit.x}, ${g.hit.y}, ${g.hit.z})` : '—';
+  const particles = g.renderer.entities.particles.n;
+  return [
+    `Seed ${world.seed}`,
+    '',
+    `Draw calls ${r.stats.drawCalls} · Tris ${((r.stats.quads * 2) / 1000).toFixed(0)}k`,
+    `队列 +${genPending} 待生成 · ${meshPending} 待网格`,
+    `Sun ${eye.le >> 4} · torch ${eye.le & 15}`,
+    '',
+    `Chunk (${bx >> 4}, ${bz >> 4})`,
+    `Biome ${biome}（${dim.name}）`,
+    `Day ${sky.day + 1}, ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')} is ${weather}`,
+    '',
+    `Chunks ${loaded} · XZP ${generated} · X2V ${world.meshedCount}`,
+    `Ents ${counts.drops} · Mobs ${counts.mobs} · Particles ${particles}`,
+    `Mob ${mob}`,
+    `XYZB ${block}`,
+    '',
+    `VoxelCraft ${g.fps.toFixed(0)} fps · sim ${g.simMs.toFixed(1)} ms` +
+      (g.offline ? '' : ` · ping ${Math.round(g.net?.latency ?? 0)} ms`) + (g.player.noclip ? ' · 穿墙' : ''),
+    `p1 #(${bx},${by},${bz})  ↑ ${heading} #(${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)})`,
+  ].join('\n');
 }

@@ -171,17 +171,17 @@ const common = { hostile: false, burnsInSun: false, damage: 0 };
 
 export const AQUATIC_MOBS: MobDef[] = [
   model(
-    { ...common, id: MOB_COD, key: 'cod', name: 'Bacalao', health: 3, walk: 1.4, run: 3.2, width: 0.5, height: 0.3, drops: [[COD, 1, 1]], anim: 'fish', scale: 0.75 },
+    { ...common, id: MOB_COD, key: 'cod', name: '鳕鱼', health: 3, walk: 1.4, run: 3.2, width: 0.5, height: 0.3, drops: [[COD, 1, 1]], anim: 'fish', scale: 0.75 },
     32,
     fishSpecs({ w: 2, h: 4, len: 7, head: 3, fin: 1, tail: 4 }),
   ),
   model(
-    { ...common, id: MOB_SALMON, key: 'salmon', name: 'Salmón', health: 3, walk: 1.6, run: 3.6, width: 0.6, height: 0.4, drops: [[SALMON, 1, 1]], anim: 'fish', scale: 0.8 },
+    { ...common, id: MOB_SALMON, key: 'salmon', name: '鲑鱼', health: 3, walk: 1.6, run: 3.6, width: 0.6, height: 0.4, drops: [[SALMON, 1, 1]], anim: 'fish', scale: 0.8 },
     32,
     fishSpecs({ w: 3, h: 5, len: 8, head: 3, fin: 2, tail: 5 }),
   ),
   model(
-    { ...common, id: MOB_TROPICAL_FISH, key: 'tropical_fish', name: 'Pez tropical', health: 3, walk: 1.3, run: 3.2, width: 0.5, height: 0.4, drops: [[TROPICAL_FISH, 1, 1]], anim: 'fish', scale: 0.7 },
+    { ...common, id: MOB_TROPICAL_FISH, key: 'tropical_fish', name: '热带鱼', health: 3, walk: 1.3, run: 3.2, width: 0.5, height: 0.4, drops: [[TROPICAL_FISH, 1, 1]], anim: 'fish', scale: 0.7 },
     32,
     [
       { name: 'body', pivot: [0, 1, 0], from: [-1, 0, -3], size: [2, 5, 6] },
@@ -193,7 +193,7 @@ export const AQUATIC_MOBS: MobDef[] = [
     ],
   ),
   model(
-    { ...common, id: MOB_PUFFERFISH, key: 'pufferfish', name: 'Pez globo', health: 3, walk: 1.1, run: 2.4, width: 0.6, height: 0.6, drops: [[PUFFERFISH, 1, 1]], anim: 'puffer', scale: 0.8 },
+    { ...common, id: MOB_PUFFERFISH, key: 'pufferfish', name: '河豚', health: 3, walk: 1.1, run: 2.4, width: 0.6, height: 0.6, drops: [[PUFFERFISH, 1, 1]], anim: 'puffer', scale: 0.8 },
     64,
     [
       { name: 'body', pivot: [0, 0, 0], from: [-4, 0, -4], size: [8, 8, 8] },
@@ -205,7 +205,7 @@ export const AQUATIC_MOBS: MobDef[] = [
     ],
   ),
   model(
-    { ...common, id: MOB_DOLPHIN, key: 'dolphin', name: 'Delfín', health: 10, walk: 2.6, run: 6, width: 0.9, height: 0.6, damage: 3, neutral: true, drops: [[COD, 0, 1]], anim: 'dolphin', scale: 0.8 },
+    { ...common, id: MOB_DOLPHIN, key: 'dolphin', name: '海豚', health: 10, walk: 2.6, run: 6, width: 0.9, height: 0.6, damage: 3, neutral: true, drops: [[COD, 0, 1]], anim: 'dolphin', scale: 0.8 },
     64,
     [
       { name: 'body', pivot: [0, 0, 0], from: [-4, 0, -6], size: [8, 7, 13] },
@@ -219,7 +219,7 @@ export const AQUATIC_MOBS: MobDef[] = [
     ],
   ),
   model(
-    { ...common, id: MOB_TURTLE, key: 'turtle', name: 'Tortuga', health: 30, walk: 0.7, run: 1.4, width: 1.2, height: 0.4, drops: [], anim: 'turtle', scale: 1 },
+    { ...common, id: MOB_TURTLE, key: 'turtle', name: '海龟', health: 30, walk: 0.7, run: 1.4, width: 1.2, height: 0.4, drops: [], anim: 'turtle', scale: 1 },
     128,
     [
       { name: 'body', pivot: [0, 2, 0], from: [-8, 0, -9], size: [16, 5, 18] },
@@ -232,7 +232,7 @@ export const AQUATIC_MOBS: MobDef[] = [
     ],
   ),
   model(
-    { ...common, id: MOB_AXOLOTL, key: 'axolotl', name: 'Ajolote', health: 14, walk: 0.6, run: 2.4, width: 0.75, height: 0.42, damage: 2, drops: [], anim: 'axolotl', scale: 1 },
+    { ...common, id: MOB_AXOLOTL, key: 'axolotl', name: '美西螈', health: 14, walk: 0.6, run: 2.4, width: 0.75, height: 0.42, damage: 2, drops: [], anim: 'axolotl', scale: 1 },
     64,
     [
       { name: 'body', pivot: [0, 2, 0], from: [-4, 0, -5], size: [8, 4, 10] },
@@ -248,7 +248,7 @@ export const AQUATIC_MOBS: MobDef[] = [
     ],
   ),
   model(
-    { ...common, id: MOB_FROG, key: 'frog', name: 'Rana', health: 10, walk: 1.4, run: 2.8, width: 0.5, height: 0.5, drops: [], anim: 'frog', scale: 1 },
+    { ...common, id: MOB_FROG, key: 'frog', name: '青蛙', health: 10, walk: 1.4, run: 2.8, width: 0.5, height: 0.5, drops: [], anim: 'frog', scale: 1 },
     64,
     [
       { name: 'body', pivot: [0, 1, 0], from: [-3.5, 0, -4], size: [7, 3, 8] },
@@ -264,7 +264,7 @@ export const AQUATIC_MOBS: MobDef[] = [
     ],
   ),
   model(
-    { ...common, id: MOB_TADPOLE, key: 'tadpole', name: 'Renacuajo', health: 6, walk: 1, run: 2.2, width: 0.4, height: 0.3, drops: [], anim: 'tadpole', scale: 1 },
+    { ...common, id: MOB_TADPOLE, key: 'tadpole', name: '蝌蚪', health: 6, walk: 1, run: 2.2, width: 0.4, height: 0.3, drops: [], anim: 'tadpole', scale: 1 },
     32,
     [
       { name: 'body', pivot: [0, 0, 0], from: [-1.5, 0, -2], size: [3, 2, 3] },
@@ -273,7 +273,7 @@ export const AQUATIC_MOBS: MobDef[] = [
   ),
   // Fase 6.5 (colecciones): el calamar brillante suelta sacos de tinta brillante.
   model(
-    { ...common, id: MOB_GLOW_SQUID, key: 'glow_squid', name: 'Calamar brillante', health: 10, walk: 1.2, run: 2.5, width: 0.8, height: 0.8, drops: [[GLOW_INK_SAC, 1, 3]], anim: 'squid', scale: 0.8, aquatic: true },
+    { ...common, id: MOB_GLOW_SQUID, key: 'glow_squid', name: '发光鱿鱼', health: 10, walk: 1.2, run: 2.5, width: 0.8, height: 0.8, drops: [[GLOW_INK_SAC, 1, 3]], anim: 'squid', scale: 0.8, aquatic: true },
     64,
     [{ name: 'body', pivot: [0, 18, 0], from: [-6, -8, -6], size: [12, 16, 12] }, ...tentacles()],
   ),

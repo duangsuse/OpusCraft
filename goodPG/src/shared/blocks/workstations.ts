@@ -11,7 +11,7 @@ import { mbox, rotateBoxes, rotateFlat, DIR_FACE } from '../blockModels';
  * Mitad de un cofre doble: `facing` como el cofre y `side` 0 = mitad izquierda (vista de frente; su
  * pareja está a su derecha) y 1 = mitad derecha. El frente y la trasera se dibujan unidos.
  */
-export const CHEST_DOUBLE = family('chest_double', 'Cofre', [['facing', 4], ['side', 2]], (st) => {
+export const CHEST_DOUBLE = family('chest_double', '箱子', [['facing', 4], ['side', 2]], (st) => {
   const tex: BlockDef['tex'] = ['chest_side', 'chest_side', 'chest_top', 'chest_top', 'chest_side', 'chest_side'];
   tex[DIR_FACE[st.facing]] = st.side === 0 ? 'chest_front_seam_right' : 'chest_front_seam_left';
   tex[DIR_FACE[(st.facing + 2) & 3]] = st.side === 0 ? 'chest_side_seam_left' : 'chest_side_seam_right';
@@ -34,14 +34,14 @@ function fastFurnace(key: string, name: string): number {
   });
 }
 /** Ahumador: sólo comida, el doble de rápido. */
-export const SMOKER = fastFurnace('smoker', 'Ahumador');
+export const SMOKER = fastFurnace('smoker', '烟熏炉');
 /** Alto horno: sólo minerales y metal, el doble de rápido. */
-export const BLAST_FURNACE = fastFurnace('blast_furnace', 'Alto horno');
+export const BLAST_FURNACE = fastFurnace('blast_furnace', '高炉');
 
 // ------------------------------------------------------------------ fogata
 
 /** Fogata: cuatro troncos cruzados, brasas y llamas si está encendida. */
-export const CAMPFIRE = family('campfire', 'Fogata', [['lit', 2]], (st) => campfireOpts(st.lit === 1, false));
+export const CAMPFIRE = family('campfire', '营火', [['lit', 2]], (st) => campfireOpts(st.lit === 1, false));
 
 /** Fase 8.5: la fogata y la de almas (fuego turquesa, luz 10) son el mismo modelo con otras texturas. */
 export function campfireOpts(lit: boolean, soul: boolean): Opts {
@@ -70,7 +70,7 @@ export function campfireOpts(lit: boolean, soul: boolean): Opts {
 // ------------------------------------------------------------------ cortapiedras
 
 /** Cortapiedras: base de piedra y la sierra girada según hacia dónde mira. */
-export const STONECUTTER = family('stonecutter', 'Cortapiedras', [['facing', 4]], (st) => {
+export const STONECUTTER = family('stonecutter', '切石机', [['facing', 4]], (st) => {
   const side = L('stonecutter_side'), top = L('stonecutter_top'), bottom = L('stonecutter_bottom'), saw = L('stonecutter_saw');
   return {
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 3.5, tool: 'pickaxe', tier: 1, sound: 'stone',

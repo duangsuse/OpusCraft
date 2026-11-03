@@ -40,13 +40,13 @@ export function regionFor(geo: GeoInfo | undefined | null): RegionHint | undefin
 
 /** Nombre legible de un centro de datos de Cloudflare (su código IATA), para la lista de jugadores. */
 const CITIES: Record<string, string> = {
-  MIA: 'Miami', EWR: 'Newark', IAD: 'Washington', ATL: 'Atlanta', DFW: 'Dallas', ORD: 'Chicago', LAX: 'Los Ángeles',
-  SJC: 'San José (EE. UU.)', SEA: 'Seattle', DEN: 'Denver', PHX: 'Phoenix', YYZ: 'Toronto', GRU: 'São Paulo',
-  GIG: 'Río de Janeiro', SCL: 'Santiago', EZE: 'Buenos Aires', BOG: 'Bogotá', LIM: 'Lima', UIO: 'Quito', GYE: 'Guayaquil',
-  CCS: 'Caracas', MEX: 'Ciudad de México', QRO: 'Querétaro', GDL: 'Guadalajara', PTY: 'Panamá', SJO: 'San José (Costa Rica)',
-  MVD: 'Montevideo', ASU: 'Asunción', LPB: 'La Paz', LHR: 'Londres', FRA: 'Fráncfort', AMS: 'Ámsterdam', CDG: 'París',
-  MAD: 'Madrid', BCN: 'Barcelona', MXP: 'Milán', WAW: 'Varsovia', ARN: 'Estocolmo', NRT: 'Tokio', HKG: 'Hong Kong',
-  SIN: 'Singapur', SYD: 'Sídney', JNB: 'Johannesburgo', DXB: 'Dubái',
+  MIA: '迈阿密', EWR: '纽瓦克', IAD: '华盛顿', ATL: '亚特兰大', DFW: '达拉斯', ORD: '芝加哥', LAX: '洛杉矶',
+  SJC: '圣何塞（美国）', SEA: '西雅图', DEN: '丹佛', PHX: '凤凰城', YYZ: '多伦多', GRU: '圣保罗',
+  GIG: '里约热内卢', SCL: '圣地亚哥', EZE: '布宜诺斯艾利斯', BOG: '波哥大', LIM: '利马', UIO: '基多', GYE: '瓜亚基尔',
+  CCS: '加拉加斯', MEX: '墨西哥城', QRO: '克雷塔罗', GDL: '瓜达拉哈拉', PTY: '巴拿马城', SJO: '圣何塞（哥斯达黎加）',
+  MVD: '蒙得维的亚', ASU: '亚松森', LPB: '拉巴斯', LHR: '伦敦', FRA: '法兰克福', AMS: '阿姆斯特丹', CDG: '巴黎',
+  MAD: '马德里', BCN: '巴塞罗那', MXP: '米兰', WAW: '华沙', ARN: '斯德哥尔摩', NRT: '东京', HKG: '香港',
+  SIN: '新加坡', SYD: '悉尼', JNB: '约翰内斯堡', DXB: '迪拜',
 };
 
 export function cityOf(colo: string): string {

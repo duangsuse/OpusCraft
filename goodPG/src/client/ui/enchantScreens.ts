@@ -66,10 +66,10 @@ export class EnchantPanel implements WorkPanel {
   constructor(private host: WorkHost, private pos: [number, number, number]) {}
 
   html(): string {
-    return '<h3>Encantar</h3><div class="ench">' +
+    return '<h3>附魔</h3><div class="ench">' +
       '<div class="ench-left"><div class="ench-book"><i class="p1"></i><i class="p2"></i><i class="flip"></i></div>' +
-      `<div class="ench-in"><div class="slot2" data-s="grid:${TABLE_ITEM}" data-hint="Objeto"></div>` +
-      `<div class="slot2 lapis" data-s="grid:${TABLE_LAPIS}" data-hint="Lapislázuli"></div></div></div>` +
+      `<div class="ench-in"><div class="slot2" data-s="grid:${TABLE_ITEM}" data-hint="物品"></div>` +
+      `<div class="slot2 lapis" data-s="grid:${TABLE_LAPIS}" data-hint="青金石"></div></div></div>` +
       '<div class="ench-offers">' + [0, 1, 2].map((i) => `<button type="button" class="ench-offer" data-work="${i}"></button>`).join('') +
       '</div></div>';
   }
@@ -140,11 +140,11 @@ export class EnchantPanel implements WorkPanel {
       // Vista previa (la pista) y lo que falta, como en Minecraft: la enseña la pantalla al pasar el ratón.
       const need: string[] = [];
       if (!this.host.creative()) {
-        if (lapis < i + 1) need.push(`Hace falta${i ? 'n' : ''} ${i + 1} lapislázuli${i ? 's' : ''}`);
-        if (levels < o.cost) need.push(`Nivel de experiencia necesario: ${o.cost}`);
+        if (lapis < i + 1) need.push(`需要 ${i + 1} 个青金石`);
+        if (levels < o.cost) need.push(`所需经验等级：${o.cost}`);
       }
       b.dataset.tip = `<b class="tt-ench">${esc(clue)}</b>` +
-        `<span class="tt-dim">${i + 1} lapislázuli${i ? 's' : ''} · ${i + 1} nivel${i ? 'es' : ''} de experiencia</span>` +
+        `<span class="tt-dim">${i + 1} 个青金石 · 需要 ${i + 1} 级经验</span>` +
         need.map((n) => `<span class="tt-bad">${esc(n)}</span>`).join('');
     });
   }
@@ -186,8 +186,8 @@ export class AnvilPanel implements WorkPanel {
   constructor(private host: WorkHost, private pos: [number, number, number], private rerender: () => void) {}
 
   html(): string {
-    return '<h3>Reparar y renombrar</h3><div class="anvil">' +
-      `<input class="anvil-name" type="text" maxlength="${ITEM_NAME_CHARS}" spellcheck="false" autocomplete="off" disabled placeholder="Nombre">` +
+    return '<h3>修复与重命名</h3><div class="anvil">' +
+      `<input class="anvil-name" type="text" maxlength="${ITEM_NAME_CHARS}" spellcheck="false" autocomplete="off" disabled placeholder="名称">` +
       '<div class="anvil-row">' +
       `<div class="slot2" data-s="grid:${ANVIL_LEFT}"></div><span class="anvil-plus">+</span>` +
       `<div class="slot2" data-s="grid:${ANVIL_RIGHT}"></div><div class="arrow"></div>` +
@@ -256,10 +256,10 @@ export class AnvilPanel implements WorkPanel {
     const ok = this.affordable(r);
     panel.querySelector('[data-s="out"]')?.classList.toggle('locked', !!r.out && !ok);
     if (r.tooExpensive) {
-      cost.textContent = '¡Demasiado caro!';
+      cost.textContent = '过于昂贵！';
       cost.className = 'anvil-cost no';
     } else if (r.out && r.cost > 0) {
-      cost.textContent = `Coste de encantamiento: ${r.cost}`;
+      cost.textContent = `附魔花费：${r.cost}`;
       cost.className = `anvil-cost${ok ? '' : ' no'}`;
     } else {
       cost.textContent = '';
@@ -283,7 +283,7 @@ export class GrindstonePanel implements WorkPanel {
   constructor(private host: WorkHost, private pos: [number, number, number]) {}
 
   html(): string {
-    return '<h3>Afiladora</h3><div class="grind">' +
+    return '<h3>砂轮</h3><div class="grind">' +
       '<div class="grind-in"><div class="slot2" data-s="grid:0"></div><div class="slot2" data-s="grid:1"></div></div>' +
       '<div class="grind-wheel"></div><div class="slot2 big" data-s="out"></div><p class="grind-xp"></p></div>';
   }
@@ -316,7 +316,7 @@ export class GrindstonePanel implements WorkPanel {
       for (const [id, lvl] of s ? enchantsForAnvil(s) : []) if (!ENCHANTS[id]?.curse) sum += minCost(id, lvl);
     }
     const half = Math.ceil(sum / 2);
-    p.textContent = this.result(grid) && sum > 0 ? `Experiencia: ${half}–${Math.max(half, 2 * half - 1)}` : '';
+    p.textContent = this.result(grid) && sum > 0 ? `经验：${half}–${Math.max(half, 2 * half - 1)}` : '';
   }
 
   click(): boolean {

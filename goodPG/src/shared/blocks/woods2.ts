@@ -15,14 +15,14 @@ import { mbox } from '../blockModels';
 
 // ------------------------------------------------------------------ maderas nuevas
 
-const MANGROVE = addWoodType('mangrove', 'de mangle');
-const PALE_OAK = addWoodType('pale_oak', 'de roble pálido');
+const MANGROVE = addWoodType('mangrove', '红树', '红树木');
+const PALE_OAK = addWoodType('pale_oak', '苍白橡木', '苍白橡木');
 
 // El brote del mangle es un propágulo (como en Minecraft).
 {
   const d = defs[MANGROVE.sapling];
   d.key = 'mangrove_propagule';
-  d.name = 'Propágulo de mangle';
+  d.name = '红树胎生苗';
   d.tex = ['mangrove_propagule', 'mangrove_propagule', 'mangrove_propagule', 'mangrove_propagule', 'mangrove_propagule', 'mangrove_propagule'];
 }
 
@@ -32,10 +32,10 @@ export const PALE_OAK_LOG = PALE_OAK.log, PALE_OAK_PLANKS = PALE_OAK.planks, PAL
 export const PALE_OAK_SAPLING = PALE_OAK.sapling;
 
 // Troncos tumbados de las maderas nuevas (las siete primeras ya los tienen, de logAxis.ts).
-for (const w of [MANGROVE, PALE_OAK]) addAxisLogs(w.key, `Tronco ${w.name}`, w.log, `${w.key}_log_top`, `${w.key}_log_side`, w);
+for (const w of [MANGROVE, PALE_OAK]) addAxisLogs(w.key, `${w.name}原木`, w.log, `${w.key}_log_top`, `${w.key}_log_side`, w);
 
 /** Propágulo colgando bajo unas hojas de mangle (al generarse el mundo); suelta el propágulo. */
-export const HANGING_PROPAGULE = family('mangrove_propagule_hanging', 'Propágulo de mangle', [], () => ({
+export const HANGING_PROPAGULE = family('mangrove_propagule_hanging', '红树胎生苗', [], () => ({
   render: R_CROSS, solid: false, opaque: false, lightOpacity: 0, sound: 'grass', hardness: 0, all: 'mangrove_propagule',
   category: null, base: MANGROVE.sapling,
   support: (get) => {
@@ -45,12 +45,12 @@ export const HANGING_PROPAGULE = family('mangrove_propagule_hanging', 'Propágul
 }));
 
 /** Raíces de mangle: se ve a través de ellas. */
-export const MANGROVE_ROOTS = family('mangrove_roots', 'Raíces de mangle', [], () => ({
+export const MANGROVE_ROOTS = family('mangrove_roots', '红树根', [], () => ({
   all: 'mangrove_roots', render: R_CUTOUT, lightOpacity: 1, sound: 'wood', hardness: 0.7, tool: 'axe', category: 'naturaleza',
 }));
 
 /** Raíces de mangle lodosas: el pie de las raíces, metido en el fango. */
-export const MUDDY_MANGROVE_ROOTS = family('muddy_mangrove_roots', 'Raíces de mangle lodosas', [], () => ({
+export const MUDDY_MANGROVE_ROOTS = family('muddy_mangrove_roots', '泥泞的红树根', [], () => ({
   top: 'muddy_mangrove_roots_top', side: 'muddy_mangrove_roots_side', sound: 'dirt', hardness: 0.7, tool: 'shovel',
   category: 'naturaleza',
 }));
@@ -67,7 +67,7 @@ export const BAMBOO_NO_LEAVES = 0, BAMBOO_SMALL_LEAVES = 1, BAMBOO_LARGE_LEAVES 
  * Planta de bambú: un tallo fino que crece hacia arriba; los tres de arriba llevan hojas. Se apoya en
  * otro tallo o en el suelo: al romper uno, se caen (y se sueltan) todos los de encima.
  */
-export const BAMBOO = family('bamboo', 'Bambú', [['leaves', 3]], (st) => {
+export const BAMBOO = family('bamboo', '竹子', [['leaves', 3]], (st) => {
   const stalk = L('bamboo_stalk'), end = L('bamboo_block_top');
   const boxes = [mbox(6, 0, 6, 9, 16, 9, [stalk, stalk, end, end, stalk, stalk])];
   if (st.leaves > 0) {
@@ -92,27 +92,27 @@ export const bambooWithLeaves = (leaves: number): number => BAMBOO + leaves;
 
 const WOOD_OPTS: Opts = { sound: 'wood', hardness: 2, tool: 'axe' };
 
-export const BAMBOO_BLOCK = family('bamboo_block', 'Bloque de bambú', [], () => ({
+export const BAMBOO_BLOCK = family('bamboo_block', '竹块', [], () => ({
   ...WOOD_OPTS, top: 'bamboo_block_top', side: 'bamboo_block_side',
 }));
-export const STRIPPED_BAMBOO_BLOCK = family('stripped_bamboo_block', 'Bloque de bambú sin piel', [], () => ({
+export const STRIPPED_BAMBOO_BLOCK = family('stripped_bamboo_block', '去皮竹块', [], () => ({
   ...WOOD_OPTS, top: 'stripped_bamboo_block_top', side: 'stripped_bamboo_block_side',
 }));
-const BAMBOO_BLOCK_AXIS = addAxisLogs('bamboo_block', 'Bloque de bambú', BAMBOO_BLOCK, 'bamboo_block_top', 'bamboo_block_side');
+const BAMBOO_BLOCK_AXIS = addAxisLogs('bamboo_block', '竹块', BAMBOO_BLOCK, 'bamboo_block_top', 'bamboo_block_side');
 const STRIPPED_BAMBOO_AXIS = addAxisLogs(
-  'stripped_bamboo_block', 'Bloque de bambú sin piel', STRIPPED_BAMBOO_BLOCK, 'stripped_bamboo_block_top', 'stripped_bamboo_block_side',
+  'stripped_bamboo_block', '去皮竹块', STRIPPED_BAMBOO_BLOCK, 'stripped_bamboo_block_top', 'stripped_bamboo_block_side',
 );
 
-export const BAMBOO_PLANKS = family('bamboo_planks', 'Tablones de bambú', [], () => ({ ...WOOD_OPTS, all: 'bamboo_planks' }));
+export const BAMBOO_PLANKS = family('bamboo_planks', '竹板', [], () => ({ ...WOOD_OPTS, all: 'bamboo_planks' }));
 addPlanks(BAMBOO_PLANKS);
 {
-  const m: Material = { key: 'bamboo', name: 'de bambú', block: BAMBOO_PLANKS, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' };
+  const m: Material = { key: 'bamboo', name: '竹', block: BAMBOO_PLANKS, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' };
   addMaterialShapes(m);
   addWoodShapes(m);
-  addSign('bamboo', 'de bambú');
+  addSign('bamboo', '竹');
 }
-export const BAMBOO_MOSAIC = family('bamboo_mosaic', 'Mosaico de bambú', [], () => ({ ...WOOD_OPTS, all: 'bamboo_mosaic' }));
-addMaterialShapes({ key: 'bamboo_mosaic', name: 'de mosaico de bambú', block: BAMBOO_MOSAIC, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' });
+export const BAMBOO_MOSAIC = family('bamboo_mosaic', '竹马赛克', [], () => ({ ...WOOD_OPTS, all: 'bamboo_mosaic' }));
+addMaterialShapes({ key: 'bamboo_mosaic', name: '竹马赛克', block: BAMBOO_MOSAIC, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' });
 
 // ------------------------------------------------------------------ sin corteza y leños
 
@@ -131,12 +131,12 @@ const STRIP = new Map<number, number>();
 export const WOOD_EXTRAS: readonly WoodExtras[] = WOOD_TYPES.map((w) => {
   const k = w.key;
   const sTop = `stripped_${k}_log_top`, sSide = `stripped_${k}_log_side`;
-  const strippedLog = family(`stripped_${k}_log`, `Tronco ${w.name} sin corteza`, [], () => ({
+  const strippedLog = family(`stripped_${k}_log`, `去皮${w.name}原木`, [], () => ({
     ...WOOD_OPTS, top: sTop, side: sSide,
   }));
-  const sAxis = addAxisLogs(`stripped_${k}`, `Tronco ${w.name} sin corteza`, strippedLog, sTop, sSide, w);
-  const woodBlock = family(`${k}_wood`, `Leño ${w.name}`, [], () => ({ ...WOOD_OPTS, all: `${k}_log_side` }));
-  const strippedWood = family(`stripped_${k}_wood`, `Leño ${w.name} sin corteza`, [], () => ({ ...WOOD_OPTS, all: sSide }));
+  const sAxis = addAxisLogs(`stripped_${k}`, `去皮${w.name}原木`, strippedLog, sTop, sSide, w);
+  const woodBlock = family(`${k}_wood`, w.wood, [], () => ({ ...WOOD_OPTS, all: `${k}_log_side` }));
+  const strippedWood = family(`stripped_${k}_wood`, `去皮${w.wood}`, [], () => ({ ...WOOD_OPTS, all: sSide }));
   for (const id of [strippedLog, woodBlock, strippedWood]) addWoodLog(id, w);
   STRIP.set(w.log, strippedLog);
   STRIP.set(woodBlock, strippedWood);

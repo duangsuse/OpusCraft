@@ -26,7 +26,7 @@ export class Beds {
     const foot: [number, number, number] = st.part === 0 ? [x, y, z] : (partnerOf(x, y, z, id) as [number, number, number]);
     const fail = (m: string) => ctx.send(s, { t: 'sleep', ok: false, m });
     const footId = ctx.world.getBlock(foot[0], foot[1], foot[2]);
-    if (!isBed(footId)) return fail('La cama está rota.');
+    if (!isBed(footId)) return fail('床已损坏。');
     // Fase 8: donde no se puede dormir (el Nether), la cama explota (potencia 5, con fuego), como en Minecraft.
     if (!dimensionDef(ctx.dim).beds) {
       this.explodeBed(foot[0], foot[1], foot[2], footId);
@@ -40,17 +40,17 @@ export class Beds {
       s.bedDim = ctx.dim; // Fase 8.5: el punto de reaparición es de una dimensión
       ctx.savePlayer(s);
       ctx.send(s, { t: 'spawn', p: foot, d: ctx.dim });
-      ctx.tell(s, 'Punto de reaparición establecido.');
+      ctx.tell(s, '已设置重生点。');
     }
-    if (!canSleepAt(ctx.worldTime())) return fail('Sólo puedes dormir de noche.');
+    if (!canSleepAt(ctx.worldTime())) return fail('你只能在夜晚睡觉。');
     const key = posKey(foot[0], foot[1], foot[2]);
-    for (const o of ctx.sessions()) if (o !== s && o.sleeping === key) return fail('Esta cama está ocupada.');
+    for (const o of ctx.sessions()) if (o !== s && o.sleeping === key) return fail('这张床已被占用。');
     if (s.mode !== 'c') {
       for (const e of ctx.entities.list.values()) {
         const def = MOBS[e.type];
         if (!def || !def.hostile || e.dead) continue;
         if (Math.abs(e.x - (foot[0] + 0.5)) <= 8 && Math.abs(e.z - (foot[2] + 0.5)) <= 8 && Math.abs(e.y - foot[1]) <= 5) {
-          return fail('No puedes descansar ahora: hay monstruos cerca.');
+          return fail('你现在无法休息：附近有怪物。');
         }
       }
     }
@@ -61,7 +61,7 @@ export class Beds {
     const n = ctx.playerCount;
     let sleeping = 0;
     for (const o of ctx.sessions()) if (o.joined && o.sleeping !== null) sleeping++;
-    if (n > 1) ctx.broadcast({ t: 'chat', id: null, name: '', m: `${s.name} se fue a dormir (${sleeping}/${n}).` });
+    if (n > 1) ctx.broadcast({ t: 'chat', id: null, name: '', m: `${s.name} 已入睡（${sleeping}/${n}）。` });
   }
 
   /** Fase 8: la cama explota y prende fuego alrededor. */
@@ -114,7 +114,7 @@ export class Beds {
     if (!any || !all) return;
     ctx.setTime(Math.floor(ctx.worldTime()) + 1.01);
     for (const s of ctx.sessions()) this.wake(s, true);
-    ctx.broadcast({ t: 'chat', id: null, name: '', m: 'Amaneció. ¡Buenos días!' });
+    ctx.broadcast({ t: 'chat', id: null, name: '', m: '天亮了。早上好！' });
   }
 
   /** Camas rotas: ya no sirven para reaparecer. */

@@ -13,37 +13,37 @@ const rock = (tex: string, hardness: number, o: Opts = {}): Opts => ({
 
 // ------------------------------------------------------------------ pizarra profunda y rocas
 
-export const DEEPSLATE = family('deepslate', 'Pizarra profunda', [], () => rock('deepslate', 3, { top: 'deepslate_top', side: 'deepslate' }));
-export const COBBLED_DEEPSLATE = family('cobbled_deepslate', 'Pizarra profunda rocosa', [], () => rock('cobbled_deepslate', 3.5, { category: 'construccion' }));
-export const TUFF = family('tuff', 'Toba', [], () => rock('tuff', 1.5));
-export const CALCITE = family('calcite', 'Calcita', [], () => rock('calcite', 0.75));
-export const SMOOTH_BASALT = family('smooth_basalt', 'Basalto liso', [], () => rock('smooth_basalt', 1.25));
-export const DRIPSTONE_BLOCK = family('dripstone_block', 'Bloque de espeleotema', [], () => rock('dripstone_block', 1.5));
+export const DEEPSLATE = family('deepslate', '深板岩', [], () => rock('deepslate', 3, { top: 'deepslate_top', side: 'deepslate' }));
+export const COBBLED_DEEPSLATE = family('cobbled_deepslate', '深板岩圆石', [], () => rock('cobbled_deepslate', 3.5, { category: 'construccion' }));
+export const TUFF = family('tuff', '凝灰岩', [], () => rock('tuff', 1.5));
+export const CALCITE = family('calcite', '方解石', [], () => rock('calcite', 0.75));
+export const SMOOTH_BASALT = family('smooth_basalt', '平滑玄武岩', [], () => rock('smooth_basalt', 1.25));
+export const DRIPSTONE_BLOCK = family('dripstone_block', '滴水石块', [], () => rock('dripstone_block', 1.5));
 addMaterialShapes({
-  key: 'cobbled_deepslate', name: 'de pizarra profunda rocosa', block: COBBLED_DEEPSLATE, hardness: 3.5, tool: 'pickaxe', tier: 1,
+  key: 'cobbled_deepslate', name: '深板岩圆石', block: COBBLED_DEEPSLATE, hardness: 3.5, tool: 'pickaxe', tier: 1,
   sound: 'stone',
 });
 
 // ------------------------------------------------------------------ menas
 
 const ore = (tex: string, hardness: number, tier: number): Opts => ({ all: tex, hardness, tool: 'pickaxe', tier, category: 'minerales' });
-export const COPPER_ORE = family('copper_ore', 'Mena de cobre', [], () => ore('copper_ore', 3, 2));
-export const EMERALD_ORE = family('emerald_ore', 'Mena de esmeralda', [], () => ore('emerald_ore', 3, 3));
+export const COPPER_ORE = family('copper_ore', '铜矿石', [], () => ore('copper_ore', 3, 2));
+export const EMERALD_ORE = family('emerald_ore', '绿宝石矿石', [], () => ore('emerald_ore', 3, 3));
 
 /** Menas de pizarra profunda: la mena normal → su versión en pizarra (y al revés). */
 export const DEEPSLATE_ORE: Record<number, number> = {};
 export const SURFACE_ORE: Record<number, number> = {};
 const DEEP_ORES: [number, string, string, number][] = [
-  [COAL_ORE, 'coal', 'carbón', 1], [IRON_ORE, 'iron', 'hierro', 2], [COPPER_ORE, 'copper', 'cobre', 2],
-  [GOLD_ORE, 'gold', 'oro', 3], [REDSTONE_ORE, 'redstone', 'redstone', 3], [LAPIS_ORE, 'lapis', 'lapislázuli', 2],
-  [DIAMOND_ORE, 'diamond', 'diamante', 3], [EMERALD_ORE, 'emerald', 'esmeralda', 3],
+  [COAL_ORE, 'coal', '煤', 1], [IRON_ORE, 'iron', '铁', 2], [COPPER_ORE, 'copper', '铜', 2],
+  [GOLD_ORE, 'gold', '金', 3], [REDSTONE_ORE, 'redstone', '红石', 3], [LAPIS_ORE, 'lapis', '青金石', 2],
+  [DIAMOND_ORE, 'diamond', '钻石', 3], [EMERALD_ORE, 'emerald', '绿宝石', 3],
 ];
 for (const [base, key, name, tier] of DEEP_ORES) {
-  const id = family(`deepslate_${key}_ore`, `Mena de ${name} de pizarra profunda`, [], () => ore(`deepslate_${key}_ore`, 4.5, tier));
+  const id = family(`deepslate_${key}_ore`, `深层${name}矿石`, [], () => ore(`deepslate_${key}_ore`, 4.5, tier));
   DEEPSLATE_ORE[base] = id;
   SURFACE_ORE[id] = base;
 }
-export const EMERALD_BLOCK = family('emerald_block', 'Bloque de esmeralda', [], () => ({
+export const EMERALD_BLOCK = family('emerald_block', '绿宝石块', [], () => ({
   all: 'emerald_block', hardness: 5, tool: 'pickaxe', tier: 3, sound: 'metal', category: 'minerales',
 }));
 
@@ -54,10 +54,10 @@ const needsFloor = (get: (dx: number, dy: number, dz: number) => number): boolea
   return b < 0 || BLOCK_SOLID[b] === 1;
 };
 
-export const MOSS_BLOCK = family('moss_block', 'Bloque de musgo', [], () => ({
+export const MOSS_BLOCK = family('moss_block', '苔藓块', [], () => ({
   all: 'moss_block', hardness: 0.1, tool: 'axe', sound: 'grass', category: 'naturaleza',
 }));
-export const MOSS_CARPET = family('moss_carpet', 'Alfombra de musgo', [], () => {
+export const MOSS_CARPET = family('moss_carpet', '苔藓地毯', [], () => {
   const t = L('moss_block');
   return {
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 0.1, sound: 'grass', all: 'moss_block', category: 'naturaleza',
@@ -67,11 +67,11 @@ export const MOSS_CARPET = family('moss_carpet', 'Alfombra de musgo', [], () => 
 const plant = (tex: string): Opts => ({
   render: R_CROSS, solid: false, opaque: false, lightOpacity: 0, sound: 'grass', hardness: 0, all: tex, category: 'naturaleza',
 });
-export const AZALEA = family('azalea', 'Azalea', [], () => plant('azalea'));
-export const FLOWERING_AZALEA = family('flowering_azalea', 'Azalea florida', [], () => plant('flowering_azalea'));
+export const AZALEA = family('azalea', '杜鹃花丛', [], () => plant('azalea'));
+export const FLOWERING_AZALEA = family('flowering_azalea', '盛开的杜鹃花丛', [], () => plant('flowering_azalea'));
 
 /** Enredaderas de cueva: cuelgan del techo o de otra, y con bayas dan luz. */
-export const CAVE_VINES = family('cave_vines', 'Enredaderas de cueva', [['berries', 2]], (st) => ({
+export const CAVE_VINES = family('cave_vines', '洞穴藤蔓', [['berries', 2]], (st) => ({
   ...plant(st.berries ? 'cave_vines_lit' : 'cave_vines'),
   emission: st.berries ? 14 : 0,
   climbable: true,
@@ -89,7 +89,7 @@ export const isCaveVines = (id: number): boolean => id === CAVE_VINES || id === 
  * Espeleotema puntiagudo: `dir` 0 hacia arriba (estalagmita) o 1 hacia abajo (estalactita);
  * `part` 0 punta, 1 tramo medio, 2 base.
  */
-export const POINTED_DRIPSTONE = family('pointed_dripstone', 'Espeleotema puntiagudo', [['dir', 2], ['part', 3]], (st) => {
+export const POINTED_DRIPSTONE = family('pointed_dripstone', '滴水石锥', [['dir', 2], ['part', 3]], (st) => {
   const t = L('pointed_dripstone');
   const w = [3, 5, 6][st.part];
   const a = 8 - w / 2, b = 8 + w / 2;
@@ -108,20 +108,20 @@ export const POINTED_DRIPSTONE = family('pointed_dripstone', 'Espeleotema puntia
 
 // ------------------------------------------------------------------ geodas de amatista
 
-export const AMETHYST_BLOCK = family('amethyst_block', 'Bloque de amatista', [], () => ({
+export const AMETHYST_BLOCK = family('amethyst_block', '紫水晶块', [], () => ({
   all: 'amethyst_block', hardness: 1.5, tool: 'pickaxe', sound: 'glass', category: 'minerales',
 }));
-export const BUDDING_AMETHYST = family('budding_amethyst', 'Amatista con brotes', [], () => ({
+export const BUDDING_AMETHYST = family('budding_amethyst', '紫水晶母岩', [], () => ({
   all: 'budding_amethyst', hardness: 1.5, tool: 'pickaxe', sound: 'glass', category: 'minerales',
 }));
 /** Brotes de amatista que crecen sobre la amatista con brotes: 0 pequeño, 1 mediano, 2 grande, 3 racimo. */
-export const AMETHYST_BUD = family('amethyst_bud', 'Racimo de amatista', [['stage', 4]], (st) => ({
+export const AMETHYST_BUD = family('amethyst_bud', '紫水晶簇', [['stage', 4]], (st) => ({
   ...plant(['small_amethyst_bud', 'medium_amethyst_bud', 'large_amethyst_bud', 'amethyst_cluster'][st.stage]),
   sound: 'glass', hardness: 1.5, tool: 'pickaxe', category: 'minerales', emission: [1, 2, 4, 5][st.stage],
   support: needsFloor,
 }));
 
 /** Cristal tintado: deja ver a través pero no pasa la luz. */
-export const TINTED_GLASS = family('tinted_glass', 'Cristal tintado', [], () => ({
+export const TINTED_GLASS = family('tinted_glass', '遮光玻璃', [], () => ({
   all: 'tinted_glass', render: R_TRANSLUCENT, lightOpacity: 15, hardness: 0.3, sound: 'glass',
 }));

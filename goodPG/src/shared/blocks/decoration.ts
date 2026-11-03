@@ -15,14 +15,14 @@ export interface WallMaterial {
   hardness: number;
 }
 const WALL_MATERIALS: WallMaterial[] = [
-  { key: 'cobblestone', name: 'de roca', block: COBBLESTONE, hardness: 2 },
-  { key: 'mossy_cobblestone', name: 'de roca musgosa', block: MOSSY_COBBLESTONE, hardness: 2 },
-  { key: 'stone_brick', name: 'de ladrillos de piedra', block: STONE_BRICKS, hardness: 1.5 },
-  { key: 'brick', name: 'de ladrillos', block: BRICKS, hardness: 2 },
-  { key: 'sandstone', name: 'de arenisca', block: SANDSTONE, hardness: 0.8 },
-  { key: 'granite', name: 'de granito', block: GRANITE, hardness: 1.5 },
-  { key: 'diorite', name: 'de diorita', block: DIORITE, hardness: 1.5 },
-  { key: 'andesite', name: 'de andesita', block: ANDESITE, hardness: 1.5 },
+  { key: 'cobblestone', name: '圆石', block: COBBLESTONE, hardness: 2 },
+  { key: 'mossy_cobblestone', name: '苔石', block: MOSSY_COBBLESTONE, hardness: 2 },
+  { key: 'stone_brick', name: '石砖', block: STONE_BRICKS, hardness: 1.5 },
+  { key: 'brick', name: '红砖', block: BRICKS, hardness: 2 },
+  { key: 'sandstone', name: '砂岩', block: SANDSTONE, hardness: 0.8 },
+  { key: 'granite', name: '花岗岩', block: GRANITE, hardness: 1.5 },
+  { key: 'diorite', name: '闪长岩', block: DIORITE, hardness: 1.5 },
+  { key: 'andesite', name: '安山岩', block: ANDESITE, hardness: 1.5 },
 ];
 
 /** Muro de cada material (por la clave del material). */
@@ -46,7 +46,7 @@ export function addWall(m: WallMaterial): number {
   /** Sin poste sólo en un tramo recto (dos lados opuestos) sin nada encima. */
   const needsPost = (c: boolean[], above: number) =>
     !((c[0] && c[2] && !c[1] && !c[3]) || (c[1] && c[3] && !c[0] && !c[2])) || above > 0;
-  const wall = family(`${m.key}_wall`, `Muro ${m.name}`, [], () => ({
+  const wall = family(`${m.key}_wall`, `${m.name}墙`, [], () => ({
     hardness: m.hardness, tool: 'pickaxe', tier: 1, sound: 'stone', render: R_MODEL, tex: defs[m.block].tex,
     shape: (get) => {
       const c = conns(get);
@@ -79,13 +79,13 @@ for (const m of WALL_MATERIALS) addWall(m);
 
 /** Colores de cama (los de la lana que hay); la roja ya existía. */
 export const BED_COLORS: [key: string, name: string][] = [
-  ['white', 'blanca'], ['black', 'negra'], ['orange', 'naranja'], ['yellow', 'amarilla'], ['lime', 'verde lima'],
-  ['blue', 'azul'], ['purple', 'morada'],
+  ['white', '白色'], ['black', '黑色'], ['orange', '橙色'], ['yellow', '黄色'], ['lime', '黄绿色'],
+  ['blue', '蓝色'], ['purple', '紫色'],
 ];
 /** Cama de cada color (incluida la roja). */
 export const BEDS: Record<string, number> = { red: RED_BED };
 for (const [color, name] of BED_COLORS) {
-  BEDS[color] = family(`${color}_bed`, `Cama ${name}`, [['facing', 4], ['part', 2]], (st) => {
+  BEDS[color] = family(`${color}_bed`, `${name}床`, [['facing', 4], ['part', 2]], (st) => {
     const wool = L(`${color}_wool`), pillow = L('white_wool'), wood = L('oak_planks');
     const mattress = mbox(0, 3, 0, 16, 9, 16, [wool, wool, wool, wood, wool, wool]);
     const boxes = st.part === 0
@@ -100,7 +100,7 @@ for (const [color, name] of BED_COLORS) {
 
 // ------------------------------------------------------------------ carteles
 
-const SIGN_WOODS: [key: string, name: string][] = [['oak', 'de roble'], ['birch', 'de abedul'], ['spruce', 'de abeto']];
+const SIGN_WOODS: [key: string, name: string][] = [['oak', '橡木'], ['birch', '白桦木'], ['spruce', '云杉木']];
 /** Cartel de pie de cada madera (el objeto) y su versión de pared. */
 export const SIGNS: Record<string, number> = {};
 export const WALL_SIGNS: Record<string, number> = {};
@@ -115,7 +115,7 @@ export function addSign(wood: string, name: string): void {
     all: `${wood}_planks`, category: null,
   };
   // De pie: tablero de 16×8 sobre un palo; `facing` es hacia donde mira el texto (el frente es -Z mirando al norte).
-  SIGNS[wood] = family(`${wood}_sign`, `Cartel ${name}`, [['facing', 4]], (st) => {
+  SIGNS[wood] = family(`${wood}_sign`, `${name}告示牌`, [['facing', 4]], (st) => {
     const t = L(`${wood}_planks`);
     return {
       ...common,
@@ -125,7 +125,7 @@ export function addSign(wood: string, name: string): void {
     };
   });
   // En la pared: tablero pegado a la pared de detrás (como la escalera de mano).
-  WALL_SIGNS[wood] = family(`${wood}_wall_sign`, `Cartel ${name}`, [['facing', 4]], (st) => {
+  WALL_SIGNS[wood] = family(`${wood}_wall_sign`, `${name}告示牌`, [['facing', 4]], (st) => {
     const t = L(`${wood}_planks`);
     return {
       ...common,

@@ -18,14 +18,14 @@ export interface Material {
 }
 
 export const MATERIALS: Material[] = [
-  { key: 'oak', name: 'de roble', block: OAK_PLANKS, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' },
-  { key: 'birch', name: 'de abedul', block: BIRCH_PLANKS, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' },
-  { key: 'spruce', name: 'de abeto', block: SPRUCE_PLANKS, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' },
-  { key: 'cobblestone', name: 'de roca', block: COBBLESTONE, hardness: 2, tool: 'pickaxe', tier: 1, sound: 'stone' },
-  { key: 'stone', name: 'de piedra', block: STONE, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone' },
-  { key: 'stone_brick', name: 'de ladrillos de piedra', block: STONE_BRICKS, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone' },
-  { key: 'brick', name: 'de ladrillos', block: BRICKS, hardness: 2, tool: 'pickaxe', tier: 1, sound: 'stone' },
-  { key: 'sandstone', name: 'de arenisca', block: SANDSTONE, hardness: 0.8, tool: 'pickaxe', tier: 1, sound: 'stone' },
+  { key: 'oak', name: '橡木', block: OAK_PLANKS, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' },
+  { key: 'birch', name: '白桦木', block: BIRCH_PLANKS, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' },
+  { key: 'spruce', name: '云杉木', block: SPRUCE_PLANKS, hardness: 2, tool: 'axe', tier: 0, sound: 'wood' },
+  { key: 'cobblestone', name: '圆石', block: COBBLESTONE, hardness: 2, tool: 'pickaxe', tier: 1, sound: 'stone' },
+  { key: 'stone', name: '石头', block: STONE, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone' },
+  { key: 'stone_brick', name: '石砖', block: STONE_BRICKS, hardness: 1.5, tool: 'pickaxe', tier: 1, sound: 'stone' },
+  { key: 'brick', name: '红砖', block: BRICKS, hardness: 2, tool: 'pickaxe', tier: 1, sound: 'stone' },
+  { key: 'sandstone', name: '砂岩', block: SANDSTONE, hardness: 0.8, tool: 'pickaxe', tier: 1, sound: 'stone' },
 ];
 export const WOODS = MATERIALS.slice(0, 3);
 
@@ -39,11 +39,11 @@ export const STAIRS: Record<string, number> = {};
 export function addMaterialShapes(m: Material): void {
   if (!MATERIALS.includes(m)) MATERIALS.push(m);
   const t = texOf(m.block);
-  SLABS[m.key] = family(`${m.key}_slab`, `Losa ${m.name}`, [['type', 3]], (st) => {
+  SLABS[m.key] = family(`${m.key}_slab`, `${m.name}台阶`, [['type', 3]], (st) => {
     if (st.type === 2) return { ...matOpts(m), render: R_CUBE };
     return { ...matOpts(m), render: R_MODEL, model: [st.type === 0 ? mbox(0, 0, 0, 16, 8, 16, t) : mbox(0, 8, 0, 16, 16, 16, t)] };
   });
-  STAIRS[m.key] = family(`${m.key}_stairs`, `Escaleras ${m.name}`, [['facing', 4], ['half', 2]], (st) => {
+  STAIRS[m.key] = family(`${m.key}_stairs`, `${m.name}楼梯`, [['facing', 4], ['half', 2]], (st) => {
     const boxes = st.half === 0
       ? [mbox(0, 0, 0, 16, 8, 16, t), mbox(0, 8, 0, 16, 16, 8, t)]
       : [mbox(0, 8, 0, 16, 16, 16, t), mbox(0, 0, 0, 16, 8, 8, t)];
@@ -79,7 +79,7 @@ function fenceConnectsTo(wooden: boolean, id: number): boolean {
 }
 
 /** Valla de un material (`wooden`: de madera; la de ladrillos del Nether no lo es). */
-export function addFence(w: Material, wooden = true, key = `${w.key}_fence`, name = `Valla ${w.name}`): number {
+export function addFence(w: Material, wooden = true, key = `${w.key}_fence`, name = `${w.name}栅栏`): number {
   const t = texOf(w.block);
   const post = mbox(6, 0, 6, 10, 16, 10, t);
   const arm = (d: number) => rotateBoxes([mbox(7, 6, 0, 9, 9, 6, t), mbox(7, 12, 0, 9, 15, 6, t)], d);
@@ -115,7 +115,7 @@ export function addWoodShapes(w: Material): void {
   if (!WOODS.includes(w)) WOODS.push(w);
   const t = texOf(w.block);
   addFence(w);
-  FENCE_GATES[w.key] = family(`${w.key}_fence_gate`, `Portillo ${w.name}`, [['facing', 4], ['open', 2]], (st) => {
+  FENCE_GATES[w.key] = family(`${w.key}_fence_gate`, `${w.name}栅栏门`, [['facing', 4], ['open', 2]], (st) => {
     const closed = [
       mbox(0, 5, 7, 2, 16, 9, t), mbox(14, 5, 7, 16, 16, 9, t), mbox(2, 6, 7, 14, 9, 9, t), mbox(2, 12, 7, 14, 15, 9, t),
       mbox(6, 9, 7, 10, 12, 9, t),
@@ -137,7 +137,7 @@ export function addWoodShapes(w: Material): void {
     };
   });
   GATE_BASES.add(FENCE_GATES[w.key]);
-  DOORS[w.key] = family(`${w.key}_door`, `Puerta ${w.name}`, [['facing', 4], ['half', 2], ['open', 2], ['hinge', 2]], (st) => {
+  DOORS[w.key] = family(`${w.key}_door`, `${w.name}门`, [['facing', 4], ['half', 2], ['open', 2], ['hinge', 2]], (st) => {
     const tx = L(`${w.key}_door_${st.half ? 'top' : 'bottom'}`);
     const panel = !st.open ? mbox(0, 0, 13, 16, 16, 16, tx) : st.hinge === 0 ? mbox(0, 0, 0, 3, 16, 16, tx) : mbox(13, 0, 0, 16, 16, 16, tx);
     const name = `${w.key}_door_bottom`;
@@ -146,7 +146,7 @@ export function addWoodShapes(w: Material): void {
       tex: [name, name, name, name, name, name], walkThrough: st.open === 1,
     };
   });
-  TRAPDOORS[w.key] = family(`${w.key}_trapdoor`, `Trampilla ${w.name}`, [['facing', 4], ['half', 2], ['open', 2]], (st) => {
+  TRAPDOORS[w.key] = family(`${w.key}_trapdoor`, `${w.name}活板门`, [['facing', 4], ['half', 2], ['open', 2]], (st) => {
     const name = `${w.key}_trapdoor`;
     const tx = L(name);
     const box = st.open ? rotateBoxes([mbox(0, 0, 13, 16, 16, 16, tx)], st.facing)
@@ -156,7 +156,7 @@ export function addWoodShapes(w: Material): void {
 }
 for (const w of [...WOODS]) addWoodShapes(w);
 
-export const LADDER = family('ladder', 'Escalera de mano', [['facing', 4]], (st) => {
+export const LADDER = family('ladder', '梯子', [['facing', 4]], (st) => {
   const tl = L('ladder');
   return {
     render: R_MODEL, hardness: 0.4, tool: 'axe', sound: 'wood', all: 'ladder', category: 'decoracion',
@@ -172,7 +172,7 @@ export const PANE_IDS = new Set<number>();
 export function paneConnects(id: number): boolean {
   return id > 0 && (PANE_IDS.has(id) || id === GLASS || BLOCK_OPAQUE[id] === 1);
 }
-export const GLASS_PANE = family('glass_pane', 'Panel de cristal', [], () => {
+export const GLASS_PANE = family('glass_pane', '玻璃板', [], () => {
   const g = L('glass');
   const arm = (d: number) => rotateBoxes([mbox(7, 0, 0, 9, 16, 7, g)], d);
   const flat = (d: number) => rotateFlat([7 / 16, 0, 0, 9 / 16, 1, 7 / 16], d);
@@ -192,13 +192,13 @@ export const GLASS_PANE = family('glass_pane', 'Panel de cristal', [], () => {
 });
 PANE_IDS.add(GLASS_PANE);
 
-export const WALL_TORCH = family('wall_torch', 'Antorcha', [['facing', 4]], (st) => ({
+export const WALL_TORCH = family('wall_torch', '火把', [['facing', 4]], (st) => ({
   render: R_TORCH, solid: false, lightOpacity: 0, emission: 14, sound: 'wood', all: 'torch', hardness: 0, category: null,
   wall: st.facing, base: TORCH, selection: rotateFlat([5.5 / 16, 3 / 16, 11 / 16, 10.5 / 16, 13 / 16, 1], st.facing),
 }));
 
 /** Cama roja: orientación hacia la cabecera y parte (0 pies, 1 cabecera). */
-export const RED_BED = family('red_bed', 'Cama roja', [['facing', 4], ['part', 2]], (st) => {
+export const RED_BED = family('red_bed', '红色床', [['facing', 4], ['part', 2]], (st) => {
   const red = L('red_wool'), white = L('white_wool'), wood = L('oak_planks');
   const mattress = mbox(0, 3, 0, 16, 9, 16, [red, red, red, wood, red, red]);
   const boxes = st.part === 0

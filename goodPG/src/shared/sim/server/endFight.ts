@@ -206,7 +206,7 @@ export class EndFight {
       if (last !== undefined && Math.abs(last - h) < 0.002 && tick % 40 !== 0) continue;
       if (h < 0) this.bossSent.delete(s.id);
       else this.bossSent.set(s.id, h);
-      const name = dr && this.ctx.entities.dragon.furious(dr) ? 'Dragón de Ender (furioso)' : 'Dragón de Ender';
+      const name = dr && this.ctx.entities.dragon.furious(dr) ? '末影龙（狂暴）' : '末影龙';
       this.ctx.send(s, h < 0 ? { t: 'boss', h: -1 } : { t: 'boss', n: name, h: Math.round(h * 1000) / 1000 });
     }
   }
@@ -320,7 +320,7 @@ export class EndFight {
     const link = this.save.links.find((l) => (l[0] === x && l[1] === y && l[2] === z) || (l[3] === x && l[4] === y && l[5] === z));
     if (!link) return;
     const there = link[0] === x && link[1] === y && link[2] === z ? [link[3], link[4], link[5]] : [link[0], link[1], link[2]];
-    this.ctx.tell(s, `Puerta del End al otro lado: ${there[0]}, ${there[1]}, ${there[2]}. Apúntala para volver.`);
+    this.ctx.tell(s, `末地折跃门另一侧：${there[0]}，${there[1]}，${there[2]}。记下坐标以便返回。`);
   }
 
   /** A dónde lleva la puerta de (x, y, z) (TheEndGatewayBlockEntity.getPortalPosition). */

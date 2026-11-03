@@ -138,7 +138,7 @@ export class BlockTextures {
     const levels = Math.log2(size) + 1;
     // WebGL 2 garantiza 256 capas; casi todas las tarjetas admiten 2048.
     const maxLayers = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS) as number;
-    if (count > maxLayers) console.error(`La tarjeta gráfica admite ${maxLayers} capas de textura y hacen falta ${count}.`);
+    if (count > maxLayers) console.error(`显卡仅支持 ${maxLayers} 层纹理，但需要 ${count} 层。`);
     const t = gl.createTexture()!;
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, t);
     gl.texStorage3D(gl.TEXTURE_2D_ARRAY, levels, internalFormat, size, size, count);

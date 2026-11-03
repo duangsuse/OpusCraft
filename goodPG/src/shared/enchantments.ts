@@ -56,49 +56,49 @@ function ench(key: string, name: string, max: number, weight: number, minCost: [
 }
 
 // ------------------------------------------------------------------ registro (ids fijos: sólo añadir)
-export const PROTECTION = ench('protection', 'Protección', 4, 10, [1, 11], [12, 11], 1, 'armor', { exclusive: 'armor' });
-export const FIRE_PROTECTION = ench('fire_protection', 'Protección contra el fuego', 4, 5, [10, 8], [18, 8], 2, 'armor', { exclusive: 'armor' });
-export const FEATHER_FALLING = ench('feather_falling', 'Caída de pluma', 4, 5, [5, 6], [11, 6], 2, 'feet');
-export const BLAST_PROTECTION = ench('blast_protection', 'Protección contra explosiones', 4, 2, [5, 8], [13, 8], 4, 'armor', { exclusive: 'armor' });
-export const PROJECTILE_PROTECTION = ench('projectile_protection', 'Protección contra proyectiles', 4, 5, [3, 6], [9, 6], 2, 'armor', { exclusive: 'armor' });
-export const RESPIRATION = ench('respiration', 'Respiración', 3, 2, [10, 10], [40, 10], 4, 'head');
-export const AQUA_AFFINITY = ench('aqua_affinity', 'Afinidad acuática', 1, 2, [1, 0], [41, 0], 4, 'head');
-export const THORNS = ench('thorns', 'Espinas', 3, 1, [10, 20], [60, 20], 8, 'armor', { primary: 'chest' });
-export const DEPTH_STRIDER = ench('depth_strider', 'Agilidad acuática', 3, 2, [10, 10], [25, 10], 4, 'feet', { exclusive: 'boots' });
-export const FROST_WALKER = ench('frost_walker', 'Paso helado', 2, 2, [10, 10], [25, 10], 4, 'feet', { exclusive: 'boots', treasure: true });
-export const BINDING_CURSE = ench('binding_curse', 'Maldición de ligamiento', 1, 1, [25, 0], [50, 0], 8, 'equippable', { treasure: true, curse: true });
-export const SHARPNESS = ench('sharpness', 'Filo', 5, 10, [1, 11], [21, 11], 1, 'sharp', { primary: 'melee', exclusive: 'damage' });
-export const SMITE = ench('smite', 'Castigo', 5, 5, [5, 8], [25, 8], 2, 'sharp', { primary: 'melee', exclusive: 'damage' });
-export const BANE_OF_ARTHROPODS = ench('bane_of_arthropods', 'Perdición de los artrópodos', 5, 5, [5, 8], [25, 8], 2, 'sharp', { primary: 'melee', exclusive: 'damage' });
-export const KNOCKBACK = ench('knockback', 'Empuje', 2, 5, [5, 20], [55, 20], 2, 'melee');
-export const FIRE_ASPECT = ench('fire_aspect', 'Aspecto de fuego', 2, 2, [10, 20], [60, 20], 4, 'melee');
-export const LOOTING = ench('looting', 'Saqueo', 3, 2, [15, 9], [65, 9], 4, 'melee');
-export const SWEEPING_EDGE = ench('sweeping_edge', 'Barrido', 3, 2, [5, 9], [20, 9], 4, 'sweeping');
-export const EFFICIENCY = ench('efficiency', 'Eficiencia', 5, 10, [1, 10], [51, 10], 1, 'mining');
-export const SILK_TOUCH = ench('silk_touch', 'Toque de seda', 1, 1, [15, 0], [65, 0], 8, 'mining_loot', { exclusive: 'mining' });
-export const UNBREAKING = ench('unbreaking', 'Irrompibilidad', 3, 5, [5, 8], [55, 8], 2, 'durability');
-export const FORTUNE = ench('fortune', 'Fortuna', 3, 2, [15, 9], [65, 9], 4, 'mining_loot', { exclusive: 'mining' });
-export const POWER = ench('power', 'Poder', 5, 10, [1, 10], [16, 10], 1, 'bow');
-export const PUNCH = ench('punch', 'Retroceso', 2, 2, [12, 20], [37, 20], 4, 'bow');
-export const FLAME = ench('flame', 'Fuego', 1, 2, [20, 0], [50, 0], 4, 'bow');
-export const INFINITY = ench('infinity', 'Infinidad', 1, 1, [20, 0], [50, 0], 8, 'bow', { exclusive: 'bow' });
-export const LUCK_OF_THE_SEA = ench('luck_of_the_sea', 'Suerte marina', 3, 2, [15, 9], [65, 9], 4, 'fishing');
-export const LURE = ench('lure', 'Atracción', 3, 2, [15, 9], [65, 9], 4, 'fishing');
-export const LOYALTY = ench('loyalty', 'Lealtad', 3, 5, [12, 7], [50, 0], 2, 'trident');
-export const IMPALING = ench('impaling', 'Empalamiento', 5, 2, [1, 8], [21, 8], 4, 'trident', { exclusive: 'damage' });
-export const RIPTIDE = ench('riptide', 'Propulsión acuática', 3, 2, [17, 7], [50, 0], 4, 'trident', { exclusive: 'riptide' });
-export const CHANNELING = ench('channeling', 'Conductividad', 1, 1, [25, 0], [50, 0], 8, 'trident');
-export const MULTISHOT = ench('multishot', 'Multidisparo', 1, 2, [20, 0], [50, 0], 4, 'crossbow', { exclusive: 'crossbow' });
-export const QUICK_CHARGE = ench('quick_charge', 'Carga rápida', 3, 5, [12, 20], [50, 0], 2, 'crossbow');
-export const PIERCING = ench('piercing', 'Perforación', 4, 10, [1, 10], [50, 0], 1, 'crossbow', { exclusive: 'crossbow' });
-export const MENDING = ench('mending', 'Reparación', 1, 2, [25, 25], [75, 25], 4, 'durability', { treasure: true });
-export const VANISHING_CURSE = ench('vanishing_curse', 'Maldición de desaparición', 1, 1, [25, 0], [50, 0], 8, 'vanishing', { treasure: true, curse: true });
+export const PROTECTION = ench('protection', '保护', 4, 10, [1, 11], [12, 11], 1, 'armor', { exclusive: 'armor' });
+export const FIRE_PROTECTION = ench('fire_protection', '火焰保护', 4, 5, [10, 8], [18, 8], 2, 'armor', { exclusive: 'armor' });
+export const FEATHER_FALLING = ench('feather_falling', '摔落保护', 4, 5, [5, 6], [11, 6], 2, 'feet');
+export const BLAST_PROTECTION = ench('blast_protection', '爆炸保护', 4, 2, [5, 8], [13, 8], 4, 'armor', { exclusive: 'armor' });
+export const PROJECTILE_PROTECTION = ench('projectile_protection', '弹射物保护', 4, 5, [3, 6], [9, 6], 2, 'armor', { exclusive: 'armor' });
+export const RESPIRATION = ench('respiration', '水下呼吸', 3, 2, [10, 10], [40, 10], 4, 'head');
+export const AQUA_AFFINITY = ench('aqua_affinity', '水下速掘', 1, 2, [1, 0], [41, 0], 4, 'head');
+export const THORNS = ench('thorns', '荆棘', 3, 1, [10, 20], [60, 20], 8, 'armor', { primary: 'chest' });
+export const DEPTH_STRIDER = ench('depth_strider', '深海探索者', 3, 2, [10, 10], [25, 10], 4, 'feet', { exclusive: 'boots' });
+export const FROST_WALKER = ench('frost_walker', '冰霜行者', 2, 2, [10, 10], [25, 10], 4, 'feet', { exclusive: 'boots', treasure: true });
+export const BINDING_CURSE = ench('binding_curse', '绑定诅咒', 1, 1, [25, 0], [50, 0], 8, 'equippable', { treasure: true, curse: true });
+export const SHARPNESS = ench('sharpness', '锋利', 5, 10, [1, 11], [21, 11], 1, 'sharp', { primary: 'melee', exclusive: 'damage' });
+export const SMITE = ench('smite', '亡灵杀手', 5, 5, [5, 8], [25, 8], 2, 'sharp', { primary: 'melee', exclusive: 'damage' });
+export const BANE_OF_ARTHROPODS = ench('bane_of_arthropods', '节肢杀手', 5, 5, [5, 8], [25, 8], 2, 'sharp', { primary: 'melee', exclusive: 'damage' });
+export const KNOCKBACK = ench('knockback', '击退', 2, 5, [5, 20], [55, 20], 2, 'melee');
+export const FIRE_ASPECT = ench('fire_aspect', '火焰附加', 2, 2, [10, 20], [60, 20], 4, 'melee');
+export const LOOTING = ench('looting', '抢夺', 3, 2, [15, 9], [65, 9], 4, 'melee');
+export const SWEEPING_EDGE = ench('sweeping_edge', '横扫之刃', 3, 2, [5, 9], [20, 9], 4, 'sweeping');
+export const EFFICIENCY = ench('efficiency', '效率', 5, 10, [1, 10], [51, 10], 1, 'mining');
+export const SILK_TOUCH = ench('silk_touch', '精准采集', 1, 1, [15, 0], [65, 0], 8, 'mining_loot', { exclusive: 'mining' });
+export const UNBREAKING = ench('unbreaking', '耐久', 3, 5, [5, 8], [55, 8], 2, 'durability');
+export const FORTUNE = ench('fortune', '时运', 3, 2, [15, 9], [65, 9], 4, 'mining_loot', { exclusive: 'mining' });
+export const POWER = ench('power', '力量', 5, 10, [1, 10], [16, 10], 1, 'bow');
+export const PUNCH = ench('punch', '冲击', 2, 2, [12, 20], [37, 20], 4, 'bow');
+export const FLAME = ench('flame', '火矢', 1, 2, [20, 0], [50, 0], 4, 'bow');
+export const INFINITY = ench('infinity', '无限', 1, 1, [20, 0], [50, 0], 8, 'bow', { exclusive: 'bow' });
+export const LUCK_OF_THE_SEA = ench('luck_of_the_sea', '海之眷顾', 3, 2, [15, 9], [65, 9], 4, 'fishing');
+export const LURE = ench('lure', '饵钓', 3, 2, [15, 9], [65, 9], 4, 'fishing');
+export const LOYALTY = ench('loyalty', '忠诚', 3, 5, [12, 7], [50, 0], 2, 'trident');
+export const IMPALING = ench('impaling', '穿刺', 5, 2, [1, 8], [21, 8], 4, 'trident', { exclusive: 'damage' });
+export const RIPTIDE = ench('riptide', '激流', 3, 2, [17, 7], [50, 0], 4, 'trident', { exclusive: 'riptide' });
+export const CHANNELING = ench('channeling', '引雷', 1, 1, [25, 0], [50, 0], 8, 'trident');
+export const MULTISHOT = ench('multishot', '多重射击', 1, 2, [20, 0], [50, 0], 4, 'crossbow', { exclusive: 'crossbow' });
+export const QUICK_CHARGE = ench('quick_charge', '快速装填', 3, 5, [12, 20], [50, 0], 2, 'crossbow');
+export const PIERCING = ench('piercing', '穿透', 4, 10, [1, 10], [50, 0], 1, 'crossbow', { exclusive: 'crossbow' });
+export const MENDING = ench('mending', '经验修补', 1, 2, [25, 25], [75, 25], 4, 'durability', { treasure: true });
+export const VANISHING_CURSE = ench('vanishing_curse', '消失诅咒', 1, 1, [25, 0], [50, 0], 8, 'vanishing', { treasure: true, curse: true });
 // Fase 7.5 (abismo): sigilo rápido (grebas): +15 % de velocidad agachado por nivel. Sólo en los libros de las
 // ciudades antiguas: ni en la mesa, ni al azar en otros cofres, ni en el comercio.
-export const SWIFT_SNEAK = ench('swift_sneak', 'Sigilo rápido', 3, 1, [25, 25], [75, 25], 8, 'legs', { treasure: true, special: true });
+export const SWIFT_SNEAK = ench('swift_sneak', '迅捷潜行', 3, 1, [25, 25], [75, 25], 8, 'legs', { treasure: true, special: true });
 // Fase 8.3 (criaturas del Nether): velocidad de alma (botas): corre más sobre arena y tierra de alma (y no la frena
 // la arena). Sólo del trueque con los piglins (y de los bastiones): ni en la mesa, ni al azar, ni en el comercio.
-export const SOUL_SPEED = ench('soul_speed', 'Velocidad de alma', 3, 1, [10, 10], [25, 10], 8, 'feet', { treasure: true, special: true });
+export const SOUL_SPEED = ench('soul_speed', '灵魂疾行', 3, 1, [10, 10], [25, 10], 8, 'feet', { treasure: true, special: true });
 
 /** Número de encantamientos registrados (el mayor id). */
 export const ENCHANT_COUNT = ENCHANTS.length - 1;

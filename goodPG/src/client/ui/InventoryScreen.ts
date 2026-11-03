@@ -229,7 +229,7 @@ export class InventoryScreen {
     if (this.kind === 'player') return { kind: 'craft', size: 2 };
     if (this.kind === 'table') return { kind: 'craft', size: 3 };
     if (this.kind !== 'furnace') return null;
-    return { kind: this.title === 'Ahumador' ? 'smoker' : this.title === 'Alto horno' ? 'blast' : 'furnace', size: 1 };
+    return { kind: this.title === '烟熏炉' ? 'smoker' : this.title === '高炉' ? 'blast' : 'furnace', size: 1 };
   }
 
   /** Fase 7 (encantamientos): panel de la mesa, el yunque o la afiladora (null en las demás pantallas). */
@@ -320,19 +320,19 @@ export class InventoryScreen {
     let top = '';
     if (kind === 'player' || kind === 'table') {
       const n = this.gridSize;
-      top = `<h3>${kind === 'table' ? 'Mesa de trabajo' : 'Fabricación'}</h3><div class="craft">${this.book ? BOOK_BUTTON : ''}` +
+      top = `<h3>${kind === 'table' ? '工作台' : '合成'}</h3><div class="craft">${this.book ? BOOK_BUTTON : ''}` +
         `<div class="grid g${n}">${Array.from({ length: n * n }, (_, i) => `<div class="slot2" data-s="grid:${i}"></div>`).join('')}</div>` +
         `<div class="arrow"></div><div class="slot2 big" data-s="out"></div></div>`;
       // Inventario del jugador: la armadura en columna (cabeza arriba) a la izquierda.
       if (kind === 'player') {
         top = `<div class="armor-col">${Array.from({ length: 4 }, (_, i) => `<div class="slot2 armor-slot" data-s="armor:${i}"></div>`).join('')}` +
-          `<div class="slot2 off-slot" data-s="off:0" title="Mano secundaria (F)"></div></div>` +
+          `<div class="slot2 off-slot" data-s="off:0" title="副手（F）"></div></div>` +
           `<div class="armor-craft">${top}</div>`;
       }
     } else if (kind === 'chest') {
       const n = this.chestSlots;
       const cols = n === 9 ? 3 : n === 5 ? 5 : 9; // Fase 7 (mecanismos): dispensador y soltador (3×3) y tolva (5)
-      top = `<h3>${n > 27 ? 'Cofre grande' : this.title || 'Cofre'}</h3><div class="grid g${cols}">${Array.from({ length: n }, (_, i) => `<div class="slot2" data-s="cont:${i}"></div>`).join('')}</div>`;
+      top = `<h3>${n > 27 ? '大箱子' : this.title || '箱子'}</h3><div class="grid g${cols}">${Array.from({ length: n }, (_, i) => `<div class="slot2" data-s="cont:${i}"></div>`).join('')}</div>`;
     } else if (kind === 'loom') {
       top = LOOM_HTML;
     } else if (kind === 'brewing') {
@@ -341,14 +341,14 @@ export class InventoryScreen {
       top = this.work.html(); // Fase 7 (encantamientos)
     } else if (kind === 'cartography') {
       // Fase 7.6: el mapa arriba y el material debajo (papel, mapa vacío o panel de cristal).
-      top = `<h3>Mesa de cartografía</h3><div class="cutter carto"><div class="carto-in">` +
-        `<div class="slot2" data-s="grid:0" title="Mapa"></div><div class="slot2" data-s="grid:1" title="Papel, mapa vacío o panel de cristal"></div></div>` +
+      top = `<h3>制图台</h3><div class="cutter carto"><div class="carto-in">` +
+        `<div class="slot2" data-s="grid:0" title="地图"></div><div class="slot2" data-s="grid:1" title="纸、空地图或玻璃板"></div></div>` +
         `<div class="arrow"></div><div class="slot2 big" data-s="out"></div></div>`;
     } else if (kind === 'stonecutter') {
-      top = `<h3>Cortapiedras</h3><div class="cutter"><div class="slot2" data-s="grid:0"></div>` +
+      top = `<h3>切石机</h3><div class="cutter"><div class="slot2" data-s="grid:0"></div>` +
         `<div class="cut-list"></div><div class="arrow"></div><div class="slot2 big" data-s="out"></div></div>`;
     } else {
-      top = `<h3>${this.title || 'Horno'}</h3><div class="furnace">${this.book ? BOOK_BUTTON : ''}` +
+      top = `<h3>${this.title || '熔炉'}</h3><div class="furnace">${this.book ? BOOK_BUTTON : ''}` +
         `<div class="fcol"><div class="slot2" data-s="cont:${FURNACE_IN}"></div><div class="flame"><i></i></div>` +
         `<div class="slot2" data-s="cont:${FURNACE_FUEL}"></div></div>` +
         `<div class="arrow prog"><i></i></div><div class="slot2 big" data-s="cont:${FURNACE_OUT}"></div></div>`;
@@ -356,10 +356,10 @@ export class InventoryScreen {
     const keys = this.host.keys();
     this.panel.innerHTML =
       `<div class="inv2-top${kind === 'player' ? ' with-armor' : ''}">${top}</div>` +
-      `<h3>Inventario</h3>` +
+      `<h3>物品栏</h3>` +
       `<div class="grid g9">${Array.from({ length: 27 }, (_, i) => `<div class="slot2" data-s="inv:${i + 9}"></div>`).join('')}</div>` +
       `<div class="grid g9 hotrow">${Array.from({ length: 9 }, (_, i) => `<div class="slot2" data-s="inv:${i}"></div>`).join('')}</div>` +
-      `<p class="hint">Clic: coger/dejar · Clic derecho: la mitad / de uno en uno · Mayús + clic: mover rápido · 1–9: a la barra · ${keyLabel(keys.swapHands)}: a la otra mano · ${keyLabel(keys.drop)}: tirar · ${keyLabel(keys.inventory)}: cerrar</p>`;
+      `<p class="hint">点击：拿起/放下 · 右键：拿一半 / 逐个移动 · Shift + 点击：快速移动 · 1–9：移到快捷栏 · ${keyLabel(keys.swapHands)}：移到副手 · ${keyLabel(keys.drop)}：丢弃 · ${keyLabel(keys.inventory)}：关闭</p>`;
     this.panel.querySelectorAll<HTMLElement>('[data-s]').forEach((el) => {
       const key = el.dataset.s!;
       this.slotEls.set(key, el);

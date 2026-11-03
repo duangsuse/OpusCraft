@@ -345,6 +345,18 @@ npm run build       # compila cliente + Worker en dist/
 npm run preview     # compila y sirve la versión de producción en local
 ```
 
+### Hospedaje estático (sin servidor)
+
+`npm run build` deja el cliente en `dist/client/`: son ficheros estáticos que valen para cualquier servidor (nginx, http-server, GitHub Pages…).
+
+```bash
+npx http-server goodPG/dist/client -p 8080   # sirve dist/client como raíz
+```
+
+Si se sirve **la carpeta del proyecto** entera (como en este repo), también funciona `http://host/goodPG/`: `index.html` detecta que no hay Vite y carga el build de `dist/client` (por eso los nombres de fichero son fijos, `assets/index.js` y `assets/index.css`; ver `vite.config.ts`).
+
+En estático sólo hay **un jugador** (el mundo corre en un Web Worker y se guarda en IndexedDB); el multijugador necesita el Worker (Cloudflare o `wrangler dev` en local).
+
 ## Desplegar en Cloudflare
 
 1. Crea una cuenta gratuita en [Cloudflare](https://dash.cloudflare.com/sign-up).

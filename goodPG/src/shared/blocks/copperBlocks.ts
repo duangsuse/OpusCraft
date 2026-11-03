@@ -20,7 +20,7 @@ export const OXIDATION_STAGES = 4;
 export const OXIDIZED = 3;
 /** Prefijo de las claves y texturas de cada fase (como en Minecraft). */
 export const STAGE_PREFIX = ['', 'exposed_', 'weathered_', 'oxidized_'] as const;
-const STAGE_NAME = ['', ' expuesto', ' degradado', ' oxidado'];
+const STAGE_NAME = ['', '斑驳的', '风化的', '氧化的'];
 
 /** Texturas de cada fase de los tipos de bloque de cobre (lo que dibuja genCopper.ts). */
 export function copperTexture(base: string, stage: number): string {
@@ -47,9 +47,9 @@ const INVENTORY: number[] = [];
 
 const metal = (hardness: number, category: BlockCategory): Opts => ({ hardness, tool: 'pickaxe', tier: 1, sound: 'metal', category });
 
-/** Nombre visible: «Cobre cortado expuesto encerado», «Puerta de cobre oxidado»… */
+/** Nombre visible: «斑驳的切制铜块», «涂蜡的铜门»… */
 function copperName(noun: string, stage: number, waxed: boolean): string {
-  return noun + STAGE_NAME[stage] + (waxed ? ' encerado' : '');
+  return (waxed ? '涂蜡的' : '') + STAGE_NAME[stage] + noun;
 }
 
 /** Clave: «waxed_exposed_cut_copper», «oxidized_copper_door»… */
@@ -93,7 +93,7 @@ export function addCopperVariants(
 
 // ------------------------------------------------------------------ bloques completos
 /** Bloque de cobre en bruto (nueve de cobre en bruto). */
-export const RAW_COPPER_BLOCK = family('raw_copper_block', 'Bloque de cobre en bruto', [], () => ({
+export const RAW_COPPER_BLOCK = family('raw_copper_block', '粗铜块', [], () => ({
   all: 'raw_copper_block', hardness: 5, tool: 'pickaxe', tier: 2, sound: 'stone', category: 'minerales',
 }));
 INVENTORY.push(RAW_COPPER_BLOCK);
@@ -101,30 +101,28 @@ INVENTORY.push(RAW_COPPER_BLOCK);
 // El bloque de cobre clásico pasa a picarse como los demás bloques de cobre.
 Object.assign(defs[COPPER_BLOCK], { hardness: 3, tool: 'pickaxe', tier: 1 });
 
-variants('block', 'copper_block', 'Cobre', [], (s) => () => ({
+variants('block', 'copper_block', '铜块', [], (s) => () => ({
   ...metal(3, 'minerales'), all: copperTexture('copper_block', s),
 }), COPPER_BLOCK);
-// «Bloque de cobre» en la fase normal (con o sin cera), «Cobre expuesto»… en las demás.
-defs[COPPER.block[1][0]].name = 'Bloque de cobre encerado';
 
-variants('cut', 'cut_copper', 'Cobre cortado', [], (s) => () => ({ ...metal(3, 'construccion'), all: copperTexture('cut_copper', s) }));
-variants('chiseled', 'chiseled_copper', 'Cobre grabado', [], (s) => () => ({
+variants('cut', 'cut_copper', '切制铜块', [], (s) => () => ({ ...metal(3, 'construccion'), all: copperTexture('cut_copper', s) }));
+variants('chiseled', 'chiseled_copper', '雕纹铜块', [], (s) => () => ({
   ...metal(3, 'construccion'), all: copperTexture('chiseled_copper', s),
 }));
 /** Rejilla: cubo completo con agujeros (se ve a través y no tapa la luz). */
-variants('grate', 'copper_grate', 'Rejilla de cobre', [], (s) => () => ({
+variants('grate', 'copper_grate', '铜格栅', [], (s) => () => ({
   ...metal(3, 'construccion'), all: copperTexture('copper_grate', s), render: R_CUTOUT, lightOpacity: 0,
 }));
 
 // ------------------------------------------------------------------ escaleras y losas de cobre cortado
-variants('cut_slab', 'cut_copper_slab', 'Losa de cobre cortado', [['type', 3]], (s) => (st) => {
+variants('cut_slab', 'cut_copper_slab', '切制铜台阶', [['type', 3]], (s) => (st) => {
   const cut = COPPER.cut[0][s];
   const t = texOf(cut);
   const o: Opts = { ...metal(3, 'construccion'), tex: defs[cut].tex };
   if (st.type === 2) return { ...o, render: R_CUBE };
   return { ...o, render: R_MODEL, model: [st.type === 0 ? mbox(0, 0, 0, 16, 8, 16, t) : mbox(0, 8, 0, 16, 16, 16, t)] };
 });
-variants('cut_stairs', 'cut_copper_stairs', 'Escaleras de cobre cortado', [['facing', 4], ['half', 2]], (s) => (st) => {
+variants('cut_stairs', 'cut_copper_stairs', '切制铜楼梯', [['facing', 4], ['half', 2]], (s) => (st) => {
   const cut = COPPER.cut[0][s];
   const t = texOf(cut);
   const boxes = st.half === 0
@@ -135,7 +133,7 @@ variants('cut_stairs', 'cut_copper_stairs', 'Escaleras de cobre cortado', [['fac
 
 // ------------------------------------------------------------------ puertas y trampillas
 // Como las de madera (se abren con la mano), pero de metal y con pico.
-variants('door', 'copper_door', 'Puerta de cobre', [['facing', 4], ['half', 2], ['open', 2], ['hinge', 2]], (s) => (st) => {
+variants('door', 'copper_door', '铜门', [['facing', 4], ['half', 2], ['open', 2], ['hinge', 2]], (s) => (st) => {
   const name = copperTexture(st.half ? 'copper_door_top' : 'copper_door_bottom', s);
   const tx = L(name);
   const panel = !st.open ? mbox(0, 0, 13, 16, 16, 16, tx) : st.hinge === 0 ? mbox(0, 0, 0, 3, 16, 16, tx) : mbox(13, 0, 0, 16, 16, 16, tx);
@@ -145,7 +143,7 @@ variants('door', 'copper_door', 'Puerta de cobre', [['facing', 4], ['half', 2], 
     tex: [bottom, bottom, bottom, bottom, bottom, bottom], walkThrough: st.open === 1,
   };
 });
-variants('trapdoor', 'copper_trapdoor', 'Trampilla de cobre', [['facing', 4], ['half', 2], ['open', 2]], (s) => (st) => {
+variants('trapdoor', 'copper_trapdoor', '铜活板门', [['facing', 4], ['half', 2], ['open', 2]], (s) => (st) => {
   const name = copperTexture('copper_trapdoor', s);
   const tx = L(name);
   const box = st.open ? rotateBoxes([mbox(0, 0, 13, 16, 16, 16, tx)], st.facing)
@@ -158,7 +156,7 @@ variants('trapdoor', 'copper_trapdoor', 'Trampilla de cobre', [['facing', 4], ['
 function barsConnect(id: number): boolean {
   return id > 0 && (INFO.get(familyBase(id))?.kind === 'bars' || BLOCK_OPAQUE[id] === 1);
 }
-variants('bars', 'copper_bars', 'Barras de cobre', [], (s) => () => {
+variants('bars', 'copper_bars', '铜栏杆', [], (s) => () => {
   const name = copperTexture('copper_bars', s);
   const b = L(name);
   const arm = (d: number) => rotateBoxes([mbox(7, 0, 0, 9, 16, 7, b)], d);
@@ -194,7 +192,7 @@ const CHAIN_BOX = [
   [0, 6.5 / 16, 6.5 / 16, 1, 9.5 / 16, 9.5 / 16],
   [6.5 / 16, 6.5 / 16, 0, 9.5 / 16, 9.5 / 16, 1],
 ];
-variants('chain', 'copper_chain', 'Cadena de cobre', [['axis', 3]], (s) => (st) => {
+variants('chain', 'copper_chain', '铜链', [['axis', 3]], (s) => (st) => {
   const name = copperTexture('copper_chain', s);
   return {
     ...metal(5, 'decoracion'), render: R_MODEL, all: name, flatItem: name, model: chainBoxes(st.axis, L(name)),
@@ -217,7 +215,7 @@ function lanternBoxes(hanging: boolean, side: number, top: number): ModelBox[] {
   boxes.push(mbox(7, y0, 8, 9, y1, 8, [n, n, n, n, side, side]), mbox(8, y0, 7, 8, y1, 9, [side, side, n, n, n, n]));
   return boxes;
 }
-variants('lantern', 'copper_lantern', 'Farol de cobre', [['hanging', 2]], (s) => (st) => {
+variants('lantern', 'copper_lantern', '铜灯笼', [['hanging', 2]], (s) => (st) => {
   const name = copperTexture('copper_lantern', s);
   const hanging = st.hanging === 1;
   const box = hanging ? [5 / 16, 1 / 16, 5 / 16, 11 / 16, 10 / 16, 11 / 16] : [5 / 16, 0, 5 / 16, 11 / 16, 9 / 16, 11 / 16];
@@ -235,10 +233,10 @@ variants('lantern', 'copper_lantern', 'Farol de cobre', [['hanging', 2]], (s) =>
 
 // ------------------------------------------------------------------ antorcha de cobre
 /** Antorcha de cobre: como la normal, pero con la llama verde (no se oxida). */
-export const COPPER_TORCH = family('copper_torch', 'Antorcha de cobre', [], () => ({
+export const COPPER_TORCH = family('copper_torch', '铜火把', [], () => ({
   render: R_TORCH, solid: false, lightOpacity: 0, emission: 14, sound: 'wood', all: 'copper_torch', hardness: 0, category: 'decoracion',
 }));
-export const COPPER_WALL_TORCH = family('copper_wall_torch', 'Antorcha de cobre', [['facing', 4]], (st) => ({
+export const COPPER_WALL_TORCH = family('copper_wall_torch', '铜火把', [['facing', 4]], (st) => ({
   render: R_TORCH, solid: false, lightOpacity: 0, emission: 14, sound: 'wood', all: 'copper_torch', hardness: 0, category: null,
   wall: st.facing, base: COPPER_TORCH, selection: rotateFlat([5.5 / 16, 3 / 16, 11 / 16, 10.5 / 16, 13 / 16, 1], st.facing),
 }));

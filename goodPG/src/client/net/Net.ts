@@ -103,7 +103,7 @@ export class Net {
         settled = true;
         this.closedByUser = true;
         this.ws?.close();
-        reject(new Error('Tiempo de espera agotado al conectar con el servidor.'));
+        reject(new Error('连接服务器超时。'));
       }, timeoutMs);
       this.open(
         () => {
@@ -181,7 +181,7 @@ export class Net {
     };
     ws.onclose = (ev) => {
       this.clearTimers();
-      if (!this.welcomed) onFail?.(new Error(ev.reason || 'No se pudo conectar con el servidor.'));
+      if (!this.welcomed) onFail?.(new Error(ev.reason || '无法连接到服务器。'));
       if (this.closedByUser || !this.everConnected || TERMINAL.has(ev.code)) {
         this.events.onStatus('closed');
         return;

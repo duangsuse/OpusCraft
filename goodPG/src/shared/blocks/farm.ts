@@ -7,7 +7,7 @@ import { mbox, rotateBoxes, DIR_FACE } from '../blockModels';
 // ------------------------------------------------------------------ granja
 
 /** Tierra de cultivo (seca o húmeda); mide 15/16. Al romperla suelta tierra. */
-export const FARMLAND = family('farmland', 'Tierra de cultivo', [['moist', 2]], (st) => {
+export const FARMLAND = family('farmland', '耕地', [['moist', 2]], (st) => {
   const dirt = L('dirt'), top = L(st.moist ? 'farmland_wet' : 'farmland_dry');
   return {
     render: R_MODEL, hardness: 0.6, tool: 'shovel', sound: 'dirt', category: null, noItem: true,
@@ -25,15 +25,15 @@ function crop(key: string, name: string, ages: number, tex: (age: number) => str
 }
 /** Las zanahorias y patatas tienen 8 edades pero 4 dibujos (como en Minecraft). */
 const quarter = (age: number) => (age < 2 ? 0 : age < 4 ? 1 : age < 7 ? 2 : 3);
-export const WHEAT_CROP = crop('wheat_crop', 'Trigo', 8, (a) => `wheat_stage${a}`, (a) => 2 + a * 2);
-export const CARROTS = crop('carrots', 'Zanahorias', 8, (a) => `carrots_stage${quarter(a)}`, (a) => 2 + a);
-export const POTATOES = crop('potatoes', 'Patatas', 8, (a) => `potatoes_stage${quarter(a)}`, (a) => 2 + a);
-export const BEETROOTS = crop('beetroots', 'Remolachas', 4, (a) => `beetroots_stage${a}`, (a) => 2 + a * 2);
+export const WHEAT_CROP = crop('wheat_crop', '小麦', 8, (a) => `wheat_stage${a}`, (a) => 2 + a * 2);
+export const CARROTS = crop('carrots', '胡萝卜', 8, (a) => `carrots_stage${quarter(a)}`, (a) => 2 + a);
+export const POTATOES = crop('potatoes', '马铃薯', 8, (a) => `potatoes_stage${quarter(a)}`, (a) => 2 + a);
+export const BEETROOTS = crop('beetroots', '甜菜根', 4, (a) => `beetroots_stage${a}`, (a) => 2 + a * 2);
 /** Edad máxima de cada cultivo (por su estado base). */
 export const CROP_MAX_AGE: Record<number, number> = { [WHEAT_CROP]: 7, [CARROTS]: 7, [POTATOES]: 7, [BEETROOTS]: 3 };
 
 /** Tarta: siete porciones; cada mordisco quita 2/16 por el lado oeste. */
-export const CAKE = family('cake', 'Tarta', [['bites', 7]], (st) => {
+export const CAKE = family('cake', '蛋糕', [['bites', 7]], (st) => {
   const top = L('cake_top'), side = L('cake_side'), bottom = L('cake_bottom'), inner = L('cake_inner');
   return {
     render: R_MODEL, hardness: 0.5, sound: 'wool', category: 'decoracion', top: 'cake_top', side: 'cake_side', bottom: 'cake_bottom',
@@ -46,7 +46,7 @@ export const CAKE = family('cake', 'Tarta', [['bites', 7]], (st) => {
 // (Van después de la tarta para no mover los ids guardados.)
 
 /** Sandía: se rompe con cualquier cosa y suelta rodajas. */
-export const MELON = family('melon', 'Sandía', [], () => ({
+export const MELON = family('melon', '西瓜', [], () => ({
   top: 'melon_top', side: 'melon_side', hardness: 1, tool: 'axe', sound: 'wood', category: 'decoracion',
 }));
 
@@ -70,10 +70,10 @@ function attachedStem(key: string, name: string): number {
     };
   });
 }
-export const PUMPKIN_STEM = stem('pumpkin_stem', 'Tallo de calabaza');
-export const MELON_STEM = stem('melon_stem', 'Tallo de sandía');
-export const ATTACHED_PUMPKIN_STEM = attachedStem('attached_pumpkin_stem', 'Tallo de calabaza');
-export const ATTACHED_MELON_STEM = attachedStem('attached_melon_stem', 'Tallo de sandía');
+export const PUMPKIN_STEM = stem('pumpkin_stem', '南瓜茎');
+export const MELON_STEM = stem('melon_stem', '西瓜茎');
+export const ATTACHED_PUMPKIN_STEM = attachedStem('attached_pumpkin_stem', '南瓜茎');
+export const ATTACHED_MELON_STEM = attachedStem('attached_melon_stem', '西瓜茎');
 
 /** Cubo con un frente orientado (el frente mira hacia quien lo coloca). */
 function facingCube(key: string, name: string, front: string, o: Partial<BlockDef>): number {
@@ -83,11 +83,11 @@ function facingCube(key: string, name: string, front: string, o: Partial<BlockDe
     return { hardness: 1, tool: 'axe', sound: 'wood', category: 'decoracion', ...o, tex };
   });
 }
-export const CARVED_PUMPKIN = facingCube('carved_pumpkin', 'Calabaza tallada', 'carved_pumpkin', {});
-export const JACK_O_LANTERN = facingCube('jack_o_lantern', 'Farol de calabaza', 'jack_o_lantern', { emission: 15 });
+export const CARVED_PUMPKIN = facingCube('carved_pumpkin', '雕刻南瓜', 'carved_pumpkin', {});
+export const JACK_O_LANTERN = facingCube('jack_o_lantern', '南瓜灯', 'jack_o_lantern', { emission: 15 });
 
 /** Compostador: nueve niveles (0 vacío … 7 lleno, 8 listo para dar polvo de hueso). */
-export const COMPOSTER = family('composter', 'Compostador', [['level', 9]], (st) => {
+export const COMPOSTER = family('composter', '堆肥桶', [['level', 9]], (st) => {
   const side = L('composter_side'), top = L('composter_top'), bottom = L('composter_bottom');
   const wall = [side, side, top, -1, side, side];
   const model = [

@@ -9,7 +9,7 @@ import { mbox, type ModelBox } from '../blockModels';
 import { pointTo } from './redstoneBlocks';
 
 const STAGE_TEX = ['small_amethyst_bud', 'medium_amethyst_bud', 'large_amethyst_bud', 'amethyst_cluster'] as const;
-const STAGE_NAMES = ['Brote de amatista pequeño', 'Brote de amatista mediano', 'Brote de amatista grande', 'Racimo de amatista'] as const;
+const STAGE_NAMES = ['小型紫水晶芽', '中型紫水晶芽', '大型紫水晶芽', '紫水晶簇'] as const;
 /** [alto, margen] de cada tamaño (AmethystClusterBlock(height, aabbOffset)). */
 const SHAPE: readonly (readonly [number, number])[] = [[3, 4], [4, 3], [5, 3], [7, 3]];
 /** Direcciones de Java (get3DDataValue): 0 abajo, 1 arriba, 2 norte, 3 sur, 4 oeste, 5 este. */
@@ -29,7 +29,7 @@ function crossBoxes(t: number): ModelBox[] {
   return [mbox(8, 0, 0.5, 8, 16, 15.5, [t, t, -1, -1, -1, -1]), mbox(0.5, 0, 8, 15.5, 16, 8, [-1, -1, -1, -1, t, t])];
 }
 
-export const AMETHYST_BUD_SIDE = family('amethyst_bud_side', 'Brote de amatista', [['stage', 4], ['facing', 5]], (st) => {
+export const AMETHYST_BUD_SIDE = family('amethyst_bud_side', '紫水晶芽', [['stage', 4], ['facing', 5]], (st) => {
   const dir = SIDE_DIRS[st.facing];
   const face = POINT_FACE[dir];
   const [h, o] = SHAPE[st.stage];

@@ -29,8 +29,8 @@ const MODE_KEY = 'voxelcraft:mode';
 const OFFLINE_KEY = 'voxelcraft:offline';
 
 function randomName(): string {
-  const a = ['Zorro', 'Lobo', 'Búho', 'Tejón', 'Lince', 'Halcón', 'Oso', 'Nutria', 'Ciervo', 'Gato'];
-  const b = ['Veloz', 'Sabio', 'Audaz', 'Minero', 'Errante', 'Valiente', 'Curioso', 'Feliz'];
+  const a = ['红', '青', '金', '雪', '林', '云', '铁', '月', '火', '石'];
+  const b = ['狐', '狼', '枭', '獾', '猞猁', '隼', '熊', '獭', '鹿', '猫'];
   return a[Math.floor(Math.random() * a.length)] + b[Math.floor(Math.random() * b.length)];
 }
 
@@ -143,10 +143,10 @@ async function boot(): Promise<void> {
   } catch (e) {
     console.error(e);
     initError = e instanceof Error ? e.message : String(e);
-    ui.setMenuError(`No se pudo iniciar el renderizado 3D: ${initError}`);
+    ui.setMenuError(`无法启动 3D 渲染：${initError}`);
   }
   ui.setPlayEnabled(!initError);
-  ui.bindSettings(settings, renderer?.caps.renderer ?? 'desconocida');
+  ui.bindSettings(settings, renderer?.caps.renderer ?? '未知');
   prewarmIcons(ui.icons);
   const applyAudio = () => {
     audio.setMasterVolume(settings.master);
@@ -164,7 +164,7 @@ async function boot(): Promise<void> {
 
   canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault();
-    ui.setStatus('Se perdió el contexto gráfico. Recarga la página (F5).');
+    ui.setStatus('图形上下文已丢失。请重新加载页面（F5）。');
   });
 
   let game: Game | null = null;
@@ -178,7 +178,7 @@ async function boot(): Promise<void> {
     store(MODE_KEY, v.mode);
     store(OFFLINE_KEY, v.offline ? '1' : '0');
     ui.setMenuError('');
-    history.replaceState(null, '', `/?mundo=${encodeURIComponent(v.room)}${params.get('autostart') === '1' ? '&autostart=1' : ''}`);
+    history.replaceState(null, '', `${location.pathname}?mundo=${encodeURIComponent(v.room)}${params.get('autostart') === '1' ? '&autostart=1' : ''}`);
     // El audio nunca debe bloquear el arranque (sin gesto del usuario puede no activarse).
     void audio.resume().then(applyAudio, () => {});
     menuBg.stop();
@@ -204,7 +204,7 @@ async function boot(): Promise<void> {
       ui.hideLoading();
       ui.showMenu();
       menuBg.start();
-      ui.setMenuError(`Error al iniciar la partida: ${e instanceof Error ? e.message : String(e)}`);
+      ui.setMenuError(`启动游戏失败：${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -234,5 +234,5 @@ async function boot(): Promise<void> {
 boot().catch((e) => {
   console.error(e);
   const el = document.getElementById('menu-error');
-  if (el) el.textContent = `Error: ${e instanceof Error ? e.message : String(e)}`;
+  if (el) el.textContent = `错误：${e instanceof Error ? e.message : String(e)}`;
 });

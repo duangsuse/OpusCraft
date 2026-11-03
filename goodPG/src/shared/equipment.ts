@@ -35,7 +35,7 @@ export const RABBIT_FOOT_DROP = 0.1;
 export const GOAT_HORN_COOLDOWN = 7;
 export const GOAT_HORN_RANGE = 256;
 /** Tonadas del cuerno (la variante va en el desgaste de la pila: 1..8). */
-export const GOAT_HORN_TUNES = ['Reflexión', 'Canto', 'Búsqueda', 'Sentir', 'Admiración', 'Llamada', 'Anhelo', 'Sueño'] as const;
+export const GOAT_HORN_TUNES = ['沉思', '吟唱', '寻觅', '感受', '仰慕', '呼唤', '憧憬', '梦想'] as const;
 
 /** Nombre de la tonada de un cuerno (dmg 1..8; sin variante, la primera). */
 export function hornTune(dmg: number | undefined): string {

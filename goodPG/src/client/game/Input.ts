@@ -90,7 +90,7 @@ export class Input {
       if (document.fullscreenElement) await document.exitFullscreen();
       else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
     } catch (e) {
-      console.warn('Pantalla completa no disponible', e);
+      console.warn('无法进入全屏', e);
     }
   }
 

@@ -110,7 +110,7 @@ export class Trading {
     }
     if (done === 0) {
       this.g.audio.playUi('click');
-      this.g.ui.toast(o[6] >= o[7] ? 'Esta oferta está agotada.' : 'No tienes lo que pide.');
+      this.g.ui.toast(o[6] >= o[7] ? '该交易已用完。' : '你没有它需要的东西。');
     }
     inv.changed();
     this.screen.render();

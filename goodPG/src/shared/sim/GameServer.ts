@@ -413,7 +413,7 @@ export class GameServer {
     this.sys.onLeave(s);
     this.savePlayer(s);
     this.broadcast({ t: 'leave', id: s.id });
-    this.chatAll({ t: 'chat', id: null, name: '', m: `${s.name} salió del mundo.` });
+    this.chatAll({ t: 'chat', id: null, name: '', m: `${s.name} 离开了世界。` });
     if (this.playerCount === 0) this.flush(true);
   }
 
@@ -432,7 +432,7 @@ export class GameServer {
   kickName(name: string, except?: Session): void {
     for (const other of [...this.sessions.values()]) {
       if (other === except || !other.joined || other.name.toLowerCase() !== name.toLowerCase()) continue;
-      this.send(other, { t: 'error', m: 'Has entrado con este nombre desde otra ventana.' });
+      this.send(other, { t: 'error', m: '你已从另一个窗口以该名称进入。' });
       this.disconnect(other.conn);
       try {
         other.conn.close(4005, 'replaced');
@@ -511,7 +511,7 @@ export class GameServer {
       s.bedDim = DIM_OVERWORLD;
       this.savePlayer(s);
       this.send(s, { t: 'spawn', p: null });
-      this.ctx.tell(s, 'No tenías cama o nexo de reaparición cargado, o estaba obstruido.');
+      this.ctx.tell(s, '你的床或重生锚未加载或已被阻挡。');
     }
     if (this.dim !== DIM_OVERWORLD) {
       this.ctx.travel(s, DIM_OVERWORLD, { kind: 'spawn' });
@@ -606,7 +606,7 @@ export class GameServer {
   private onHello(s: Session, msg: Extract<ClientMsg, { t: 'hello' }>): void {
     if (s.joined) return;
     if (msg.v !== PROTOCOL_VERSION) {
-      this.send(s, { t: 'error', m: 'Versión del juego desactualizada: recarga la página.' });
+      this.send(s, { t: 'error', m: '游戏版本已过时：请刷新页面。' });
       s.conn.close(4000, 'version');
       return;
     }
@@ -617,7 +617,7 @@ export class GameServer {
     this.kickName(name, s);
     this.hub?.evictName(this, name);
     if ((this.hub?.totalPlayers() ?? this.playerCount) >= MAX_PLAYERS) {
-      this.send(s, { t: 'error', m: `La sala está llena (máximo ${MAX_PLAYERS} jugadores).` });
+      this.send(s, { t: 'error', m: `房间已满（最多 ${MAX_PLAYERS} 名玩家）。` });
       s.conn.close(4001, 'full');
       return;
     }

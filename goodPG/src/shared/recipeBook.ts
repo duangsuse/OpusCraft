@@ -85,7 +85,7 @@ export function tabsFor(kind: BookKind): BookTab[] {
 }
 
 export const TAB_LABEL: Record<BookTab, string> = {
-  building: 'Bloques de construcción', redstone: 'Redstone', equipment: 'Equipo', misc: 'Varios', food: 'Comida', blocks: 'Bloques',
+  building: '建筑方块', redstone: '红石', equipment: '装备', misc: '杂项', food: '食物', blocks: '方块',
 };
 
 // ------------------------------------------------------------------ el catálogo

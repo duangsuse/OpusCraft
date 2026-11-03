@@ -88,7 +88,7 @@ export class Interaction {
       const broken = this.g.inv.wearArmor(amount);
       if (broken > 0) {
         this.g.audio.playBreak('metal', [this.g.player.x, this.g.player.eyeY, this.g.player.z]);
-        this.g.ui.toast('¡Se rompió la armadura!');
+        this.g.ui.toast('护甲已损坏！');
       }
       return broken;
     },
@@ -520,7 +520,7 @@ export class Interaction {
     if (this.g.creative) return;
     if (this.g.inv.wear(slot, amount)) {
       this.g.audio.playBreak('stone', [this.g.player.x, this.g.player.eyeY, this.g.player.z]);
-      this.g.ui.toast('¡Se rompió la herramienta!');
+      this.g.ui.toast('工具已损坏！');
     }
   }
 
@@ -855,7 +855,7 @@ export class Interaction {
     if (p.item && this.g.inv.slots[slot]?.id !== p.item) slot = this.g.inv.slots.findIndex((st) => st?.id === p.item);
     if (slot < 0) return;
     if (msg.take && !this.g.creative) this.g.inv.consume(slot, msg.take);
-    if (msg.wear && !this.g.creative && this.g.inv.wear(slot, msg.wear)) this.g.ui.toast('¡Se rompió la herramienta!');
+    if (msg.wear && !this.g.creative && this.g.inv.wear(slot, msg.wear)) this.g.ui.toast('工具已损坏！');
     if (msg.give && isValidItem(msg.give.id)) {
       const give = { id: msg.give.id, count: Math.max(1, msg.give.count | 0), ...(msg.give.dmg ? { dmg: msg.give.dmg } : {}), ...(msg.give.data ? { data: msg.give.data } : {}) }; // Fase 6.5: con su desgaste y sus datos
       if (!this.g.inv.slots[slot]) this.g.inv.set(slot, give);

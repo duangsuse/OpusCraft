@@ -13,7 +13,7 @@ import { BLOCK_LEAVES_WATER } from './ocean';
 
 // ------------------------------------------------------------------ mesa de encantamientos
 
-export const ENCHANTING_TABLE = family('enchanting_table', 'Mesa de encantamientos', [], () => {
+export const ENCHANTING_TABLE = family('enchanting_table', '附魔台', [], () => {
   const side = L('enchanting_table_side'), top = L('enchanting_table_top'), bottom = L('enchanting_table_bottom');
   return {
     render: R_MODEL, opaque: false, lightOpacity: 0, emission: 7, hardness: 5, tool: 'pickaxe', tier: 1, sound: 'stone',
@@ -48,9 +48,9 @@ function anvil(key: string, name: string, topTex: string): number {
   }));
 }
 
-export const ANVIL = anvil('anvil', 'Yunque', 'anvil_top');
-export const CHIPPED_ANVIL = anvil('chipped_anvil', 'Yunque dañado', 'chipped_anvil_top');
-export const DAMAGED_ANVIL = anvil('damaged_anvil', 'Yunque muy dañado', 'damaged_anvil_top');
+export const ANVIL = anvil('anvil', '铁砧', 'anvil_top');
+export const CHIPPED_ANVIL = anvil('chipped_anvil', '开裂的铁砧', 'chipped_anvil_top');
+export const DAMAGED_ANVIL = anvil('damaged_anvil', '损坏的铁砧', 'damaged_anvil_top');
 /** Los tres yunques, del intacto al muy dañado. */
 export const ANVILS: readonly number[] = [ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL];
 
@@ -79,7 +79,7 @@ export function anvilFacing(base: number, facing: number): number {
 
 export const FROSTED_ICE_AGES = 4;
 
-export const FROSTED_ICE = family('frosted_ice', 'Hielo escarchado', [['age', FROSTED_ICE_AGES]], (st) => ({
+export const FROSTED_ICE = family('frosted_ice', '霜冰', [['age', FROSTED_ICE_AGES]], (st) => ({
   all: `frosted_ice_${st.age}`, render: R_TRANSLUCENT, lightOpacity: 2, hardness: 0.5, sound: 'glass', noItem: true,
   category: null,
 }));

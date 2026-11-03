@@ -195,7 +195,7 @@ export class Raids {
     ctx.entities.raidCenters.set(r.id, [x, y, z]);
     ctx.fx('raid_horn', x, y + 2, z);
     for (const s of ctx.sessions()) {
-      if (s.joined && Math.hypot(s.p[0] - x, s.p[2] - z) < RAID_RANGE) ctx.tell(s, '¡Un asalto se acerca a la aldea!');
+      if (s.joined && Math.hypot(s.p[0] - x, s.p[2] - z) < RAID_RANGE) ctx.tell(s, '一队袭击者正在逼近村庄！');
     }
     return r;
   }
@@ -293,13 +293,13 @@ export class Raids {
     for (const s of ctx.sessions()) {
       if (!s.joined || Math.hypot(s.p[0] - r.cx, s.p[2] - r.cz) >= RAID_RANGE) continue;
       if (won) {
-        ctx.tell(s, '¡Victoria! Has defendido la aldea.');
+        ctx.tell(s, '胜利！你守住了村庄。');
         if (!(s.s & STATE_DEAD)) {
           this.heroes.set(s.name.toLowerCase(), { amp: r.amp, until: ctx.now() + HERO_SECONDS * 1000 });
           this.dirty = true;
           ctx.send(s, { t: 'effect', id: EFFECT_HERO, s: HERO_SECONDS, a: r.amp });
         }
-      } else ctx.tell(s, 'Derrota: los saqueadores han arrasado la aldea.');
+      } else ctx.tell(s, '失败：掠夺者摧毁了村庄。');
     }
   }
 

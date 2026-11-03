@@ -76,7 +76,7 @@ function potModel(k: number): ModelBox[] {
 
 const POT_BOX = [5 / 16, 0, 5 / 16, 11 / 16, 6 / 16, 11 / 16];
 
-export const FLOWER_POT = family('flower_pot', 'Maceta', [['plant', POT_STATES]], (st) => ({
+export const FLOWER_POT = family('flower_pot', '花盆', [['plant', POT_STATES]], (st) => ({
   render: R_MODEL, hardness: 0, sound: 'stone', category: 'decoracion', all: 'flower_pot', lightOpacity: 0,
   shape: () => potModel(st.plant),
   itemModel: potModel(0),
@@ -121,7 +121,7 @@ const CHAIN_SEL = [
   [6 / 16, 6 / 16, 0, 10 / 16, 10 / 16, 1],
 ];
 
-export const IRON_CHAIN = family('iron_chain', 'Cadena de hierro', [['axis', 3]], (st) => ({
+export const IRON_CHAIN = family('iron_chain', '铁链', [['axis', 3]], (st) => ({
   render: R_MODEL, hardness: 5, tool: 'pickaxe', sound: 'metal', category: 'decoracion', all: 'chain', lightOpacity: 0,
   model: chainBoxes(st.axis), collision: CHAIN_SEL[st.axis], selection: CHAIN_SEL[st.axis], flatItem: 'chain',
 }));
@@ -154,7 +154,7 @@ function lanternBoxes(hanging: boolean): ModelBox[] {
   return out;
 }
 
-export const LANTERN = family('lantern', 'Farol', [['hanging', 2]], (st) => {
+export const LANTERN = family('lantern', '灯笼', [['hanging', 2]], (st) => {
   const boxes = lanternBoxes(st.hanging === 1);
   const sel = flatBoxes(boxes.slice(0, 2));
   return {
@@ -175,7 +175,7 @@ function barsConnect(id: number): boolean {
   return id > 0 && (BAR_IDS.has(id) || id === GLASS || familyBase(id) === GLASS_PANE || BLOCK_OPAQUE[id] === 1);
 }
 
-export const IRON_BARS = family('iron_bars', 'Barrotes de hierro', [], () => {
+export const IRON_BARS = family('iron_bars', '铁栏杆', [], () => {
   const b = L('iron_bars');
   const arm = (d: number) => rotateBoxes([mbox(7, 0, 0, 9, 16, 7, b)], d);
   const flat = (d: number) => flatBoxes(arm(d));
@@ -212,7 +212,7 @@ function bellBoxes(facing: number, attach: number): ModelBox[] {
   return rotateBoxes([...frame, ...bell], facing);
 }
 
-export const BELL = family('bell', 'Campana', [['facing', 4], ['attach', 2]], (st) => {
+export const BELL = family('bell', '钟', [['facing', 4], ['attach', 2]], (st) => {
   const boxes = bellBoxes(st.facing, st.attach);
   return {
     render: R_MODEL, hardness: 5, tool: 'pickaxe', sound: 'metal', category: 'decoracion', all: 'bell', lightOpacity: 0,
@@ -271,7 +271,7 @@ export function scaffoldSupported(get: NeighborGet): boolean {
   return false;
 }
 
-export const SCAFFOLDING = family('scaffolding', 'Andamio', [], () => ({
+export const SCAFFOLDING = family('scaffolding', '脚手架', [], () => ({
   render: R_CUTOUT, solid: false, opaque: false, lightOpacity: 0, hardness: 0, sound: 'wood', category: 'decoracion',
   // Se trepa a su manera (ver scaffoldPhysics.ts): de pie encima, saltando se sube y agachado se baja.
   top: 'scaffolding_top', bottom: 'scaffolding_top', side: 'scaffolding_side', walkThrough: true,
@@ -285,7 +285,7 @@ export function isScaffolding(id: number): boolean {
 
 // ------------------------------------------------------------------ vasija decorada
 
-export const DECORATED_POT = family('decorated_pot', 'Vasija decorada', [], () => {
+export const DECORATED_POT = family('decorated_pot', '饰纹陶罐', [], () => {
   const s = L('decorated_pot_side'), t = L('decorated_pot_top');
   const boxes = [
     mbox(1, 0, 1, 15, 13, 15, [s, s, t, t, s, s]),
@@ -309,7 +309,7 @@ export const PAINTING_CELLS: readonly (readonly number[])[] = PAINTINGS.map((v) 
   for (let cy = 0; cy < v.h; cy++) {
     for (let cx = 0; cx < v.w; cx++) {
       const art = paintingCellTexture(v, cx, cy);
-      cells.push(family(`painting_${v.key}_${cy * v.w + cx}`, `Cuadro «${v.name}»`, [], () => ({
+      cells.push(family(`painting_${v.key}_${cy * v.w + cx}`, `画作《${v.name}》`, [], () => ({
         tex: ['birch_planks', 'birch_planks', 'birch_planks', 'birch_planks', art, 'birch_planks'], noItem: true, category: null,
         hardness: 0, sound: 'wood',
       })));
@@ -318,7 +318,7 @@ export const PAINTING_CELLS: readonly (readonly number[])[] = PAINTINGS.map((v) 
   return cells;
 });
 
-export const ITEM_FRAME_MODEL = family('item_frame_model', 'Marco', [], () => ({
+export const ITEM_FRAME_MODEL = family('item_frame_model', '物品展示框', [], () => ({
   tex: ['oak_planks', 'oak_planks', 'oak_planks', 'oak_planks', 'item_frame', 'oak_planks'], noItem: true, category: null,
   hardness: 0, sound: 'wood',
 }));

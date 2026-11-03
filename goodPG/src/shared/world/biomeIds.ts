@@ -78,23 +78,23 @@ export function isEndBiome(b: number): boolean {
 }
 
 export const BIOME_NAMES = [
-  'Océano', 'Océano helado', 'Playa', 'Llanura', 'Bosque', 'Bosque de abedules', 'Taiga',
-  'Taiga nevada', 'Desierto', 'Sabana', 'Colinas ventosas', 'Laderas nevadas', 'Pantano', 'Jungla', 'Bosque oscuro',
-  'Tierras baldías', 'Campos de champiñones', 'Arboleda de cerezos', 'Pradera', 'Picos de hielo', 'Océano cálido',
-  'Océano frío', 'Océano profundo',
+  '海洋', '冰冻海洋', '沙滩', '平原', '森林', '桦木森林', '针叶林',
+  '积雪针叶林', '沙漠', '热带草原', '风袭丘陵', '积雪山坡', '沼泽', '丛林', '黑森林',
+  '恶地', '蘑菇岛', '樱花树林', '草甸', '冰刺之地', '暖水海洋',
+  '冷水海洋', '深海',
   // Fase 7.6
-  'Río', 'Río helado', 'Playa nevada', 'Costa pedregosa', 'Océano templado', 'Océano templado profundo',
-  'Océano frío profundo', 'Océano helado profundo', 'Llanura de girasoles', 'Bosque de flores',
-  'Bosque de abedules viejos', 'Colinas ventosas de grava', 'Bosque ventoso', 'Arboleda nevada', 'Picos helados',
-  'Picos escarpados', 'Picos pedregosos', 'Llanura nevada', 'Taiga de pinos viejos', 'Taiga de abetos viejos',
-  'Jungla dispersa', 'Jungla de bambú', 'Tierras baldías erosionadas', 'Tierras baldías boscosas',
-  'Meseta de sabana', 'Sabana ventosa', 'Pantano de manglares', 'Cuevas de goteo', 'Cuevas frondosas',
+  '河流', '冻河', '积雪沙滩', '石岸', '温水海洋', '温水深海',
+  '冷水深海', '冰冻深海', '向日葵平原', '繁花森林',
+  '原始桦木森林', '风袭沙砾丘陵', '风袭森林', '雪林', '冰封山峰',
+  '尖峭山峰', '裸岩山峰', '雪原', '原始松木针叶林', '原始云杉针叶林',
+  '稀疏丛林', '竹林', '风蚀恶地', '疏林恶地',
+  '热带高原', '风袭热带草原', '红树林沼泽', '溶洞', '繁茂洞穴',
   // Fase 8
-  'Desiertos del Nether',
+  '下界荒地',
   // Fase 8.2
-  'Valle de almas', 'Bosque carmesí', 'Bosque distorsionado', 'Deltas de basalto',
+  '灵魂沙峡谷', '绯红森林', '诡异森林', '玄武岩三角洲',
   // Fase 8.6
-  'El End', 'Tierras altas del End', 'Tierras medias del End', 'Islas pequeñas del End', 'Páramos del End',
+  '末地', '末地高地', '末地内陆', '末地小型岛屿', '末地荒地',
 ];
 
 /**

@@ -35,7 +35,7 @@ addCartKind({ type: ENT_MINECART, item: MINECART, rideable: true, slots: 0, bloc
 addCartKind({ type: ENT_CHEST_MINECART, item: CHEST_MINECART, rideable: false, slots: 27, block: CHEST });
 addCartKind({ type: ENT_FURNACE_MINECART, item: FURNACE_MINECART, rideable: false, slots: 0, block: FURNACE });
 // Fase 7 (mecanismos): con tolva (recoge objetos y los saca de los contenedores de encima) y con dinamita.
-addCartKind({ type: ENT_HOPPER_MINECART, item: HOPPER_MINECART, rideable: false, slots: 5, block: HOPPER, title: 'Vagoneta con tolva' });
+addCartKind({ type: ENT_HOPPER_MINECART, item: HOPPER_MINECART, rideable: false, slots: 5, block: HOPPER, title: '漏斗矿车' });
 addCartKind({ type: ENT_TNT_MINECART, item: TNT_MINECART, rideable: false, slots: 0, block: TNT });
 
 /** Qué pone un objeto: tipo de entidad y variante (madera de la barca). null si no es de transporte. */
@@ -65,8 +65,8 @@ export function vehicleSlots(type: number): number {
 /** Nombre de la ventana del cofre. */
 export function vehicleTitle(type: number, variant: number): string {
   return type === ENT_CHEST_BOAT
-    ? (variant === BOAT_WOODS.indexOf('bamboo') ? 'Balsa con cofre' : 'Barca con cofre')
-    : type === ENT_CHEST_MINECART ? 'Vagoneta con cofre' : CART_KINDS[type]?.title ?? 'Cofre'; // Fase 7 (mecanismos)
+    ? (variant === BOAT_WOODS.indexOf('bamboo') ? '竹运输筏' : '运输船')
+    : type === ENT_CHEST_MINECART ? '运输矿车' : CART_KINDS[type]?.title ?? '箱子'; // Fase 7 (mecanismos)
 }
 
 /** ¿Pueden montarse jugadores o criaturas? */

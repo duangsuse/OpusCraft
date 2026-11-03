@@ -29,7 +29,7 @@ function standBoxes(mask: number): ModelBox[] {
   return out;
 }
 
-export const BREWING_STAND = family('brewing_stand', 'Soporte para pociones', [['bottles', 8]], (st) => ({
+export const BREWING_STAND = family('brewing_stand', '酿造台', [['bottles', 8]], (st) => ({
   render: R_MODEL, opaque: false, lightOpacity: 0, emission: 1, hardness: 0.5, tool: 'pickaxe', sound: 'stone',
   category: 'decoracion', all: 'brewing_stand_base', model: standBoxes(st.bottles), itemModel: standBoxes(7),
   collision: [0, 0, 0, 1, 2 / 16, 1, 7 / 16, 0, 7 / 16, 9 / 16, 14 / 16, 9 / 16],

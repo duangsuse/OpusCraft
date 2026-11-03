@@ -124,7 +124,7 @@ export class CameraRig {
       if (this.slowTime > 3 && settings.render.renderScale * this.autoScale > 0.55) {
         this.autoScale = Math.max(0.5 / settings.render.renderScale, this.autoScale - 0.12);
         this.slowTime = 0;
-        g.ui.toast('Resolución reducida automáticamente para mantener la fluidez');
+        g.ui.toast('为保持流畅，已自动降低分辨率');
       }
     }
     g.renderer.settings = { ...settings.render, fov: this.fovCurrent, renderScale: settings.render.renderScale * this.autoScale };

@@ -23,7 +23,7 @@ function shelfBoxes(books: number): ModelBox[] {
 }
 
 /** `facing` es hacia donde mira el frente; `books`, un bit por hueco lleno. */
-export const CHISELED_BOOKSHELF = family('chiseled_bookshelf', 'Estantería', [['facing', 4], ['books', 64]], (st) => ({
+export const CHISELED_BOOKSHELF = family('chiseled_bookshelf', '雕纹书架', [['facing', 4], ['books', 64]], (st) => ({
   render: R_MODEL, opaque: true, hardness: 1.5, tool: 'axe', sound: 'wood', category: 'decoracion', all: 'chiseled_bookshelf_side',
   model: rotateBoxes(shelfBoxes(st.books), st.facing), itemModel: rotateBoxes(shelfBoxes(0), 2),
 }));

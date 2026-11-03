@@ -14,7 +14,7 @@ export function mobTextureSource(): (id: number, variant?: number) => MobTexture
       // Fase 6 (gólems/domesticar): gólems y gatos (la piel del gato es la variante).
       return companionTexture(skinKey(id, variant)) ?? generateMobTexture(id, variant);
     } catch (e) {
-      console.warn('Textura de criatura no disponible', id, e);
+      console.warn('生物纹理不可用', id, e);
       return null;
     }
   };

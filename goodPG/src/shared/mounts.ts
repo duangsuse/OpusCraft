@@ -46,10 +46,10 @@ export function mountDef(type: number): MountDef | undefined {
 }
 
 /** Colores de pelaje de los caballos (el pelaje es color + 7 · marcas). */
-export const HORSE_COLORS = ['Blanco', 'Crema', 'Castaño', 'Marrón', 'Negro', 'Gris', 'Marrón oscuro'] as const;
+export const HORSE_COLORS = ['白色', '奶油色', '栗色', '棕色', '黑色', '灰色', '深棕色'] as const;
 /** Marcas: ninguna, calcetines y lucero blancos, manchas blancas, lunares blancos, lunares negros. */
 export const HORSE_MARKINGS = 5;
-export const LLAMA_COLORS = ['Crema', 'Blanca', 'Marrón', 'Gris'] as const;
+export const LLAMA_COLORS = ['奶油色', '白色', '棕色', '灰色'] as const;
 
 export function horseColor(variant: number): number {
   return variant % HORSE_COLORS.length;

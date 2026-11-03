@@ -81,7 +81,7 @@ export const WARDEN_DEF: MobDef = (() => {
   return {
     // 500 de vida, 30 de daño en normal (15 corazones; 16 y 45 en fácil y difícil), ciego: sólo siente
     // vibraciones y olores. Al morir suelta un catalizador de sculk (y 5 de experiencia).
-    id: MOB_WARDEN, key: 'warden', name: 'Warden', hostile: true, health: 500, walk: 2, run: 5, width: 0.9, height: 2.9,
+    id: MOB_WARDEN, key: 'warden', name: '监守者', hostile: true, health: 500, walk: 2, run: 5, width: 0.9, height: 2.9,
     damage: 30, burnsInSun: false, drops: [[SCULK_CATALYST, 1, 1]], xp: 5, anim: 'warden', scale: 1, sound: 'warden', parts, atlas,
   };
 })();

@@ -13,7 +13,7 @@ function sides(top: string, bottom: string, side: string, front = side, back = f
 }
 
 /** Atril: base, poste y tablero inclinado para el libro. */
-export const LECTERN = family('lectern', 'Atril', [], () => {
+export const LECTERN = family('lectern', '讲台', [], () => {
   const top = L('lectern_top'), side = L('lectern_side'), front = L('lectern_front'), base = L('oak_planks');
   return {
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 2.5, tool: 'axe', sound: 'wood', category: 'decoracion',
@@ -29,32 +29,32 @@ export const LECTERN = family('lectern', 'Atril', [], () => {
 });
 
 /** Mesa de cartografía: tablero con un mapa y una brújula. */
-export const CARTOGRAPHY_TABLE = family('cartography_table', 'Mesa de cartografía', [], () => ({
+export const CARTOGRAPHY_TABLE = family('cartography_table', '制图台', [], () => ({
   tex: ['cartography_table_side1', 'cartography_table_side1', 'cartography_table_top', 'dark_oak_planks',
     'cartography_table_side2', 'cartography_table_side2'] as Tex,
   hardness: 2.5, tool: 'axe', sound: 'wood', category: 'decoracion',
 }));
 
 /** Mesa de flechas: abedul con plumas y pedernal. */
-export const FLETCHING_TABLE = family('fletching_table', 'Mesa de flechas', [], () => ({
+export const FLETCHING_TABLE = family('fletching_table', '制箭台', [], () => ({
   tex: sides('fletching_table_top', 'birch_planks', 'fletching_table_side', 'fletching_table_front'),
   hardness: 2.5, tool: 'axe', sound: 'wood', category: 'decoracion',
 }));
 
 /** Barril: guarda 27 pilas como un cofre (y da trabajo de pescador). */
-export const BARREL = family('barrel', 'Barril', [], () => ({
+export const BARREL = family('barrel', '木桶', [], () => ({
   tex: sides('barrel_top', 'barrel_bottom', 'barrel_side'),
   hardness: 2.5, tool: 'axe', sound: 'wood', category: 'decoracion',
 }));
 
 /** Telar: bastidor con hilos. */
-export const LOOM = family('loom', 'Telar', [], () => ({
+export const LOOM = family('loom', '织布机', [], () => ({
   tex: sides('loom_top', 'oak_planks', 'loom_side', 'loom_front'),
   hardness: 2.5, tool: 'axe', sound: 'wood', category: 'decoracion',
 }));
 
 /** Afiladora: rueda de piedra entre dos patas de madera. */
-export const GRINDSTONE = family('grindstone', 'Afiladora', [], () => {
+export const GRINDSTONE = family('grindstone', '砂轮', [], () => {
   const face = L('grindstone_side'), round = L('grindstone_round'), leg = L('dark_oak_planks');
   return {
     render: R_MODEL, opaque: false, lightOpacity: 0, hardness: 2, tool: 'pickaxe', sound: 'stone', category: 'decoracion',
@@ -70,13 +70,13 @@ export const GRINDSTONE = family('grindstone', 'Afiladora', [], () => {
 });
 
 /** Mesa de herrería: plancha de hierro sobre madera oscura. */
-export const SMITHING_TABLE = family('smithing_table', 'Mesa de herrería', [], () => ({
+export const SMITHING_TABLE = family('smithing_table', '锻造台', [], () => ({
   tex: sides('smithing_table_top', 'dark_oak_planks', 'smithing_table_side', 'smithing_table_front'),
   hardness: 2.5, tool: 'axe', sound: 'wood', category: 'decoracion',
 }));
 
 /** Caldero: olla de hierro hueca sobre cuatro patas. */
-export const CAULDRON = family('cauldron', 'Caldero', [], () => {
+export const CAULDRON = family('cauldron', '炼药锅', [], () => {
   const out = L('cauldron_side'), inner = L('cauldron_inner'), top = L('cauldron_top'), bottom = L('cauldron_bottom');
   // Paredes: la cara que da al interior usa la textura de dentro.
   const wx0 = [inner, out, top, bottom, out, out]; // pared oeste (su +X mira dentro)

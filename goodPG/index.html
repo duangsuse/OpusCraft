@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -18,7 +18,7 @@
       <div id="crosshair"></div>
       <div id="underwater-vignette"></div>
       <div id="hurt-overlay"></div>
-      <div id="sleep-overlay"><div id="sleep-hint">Durmiendo… · Mayús para levantarte</div></div>
+      <div id="sleep-overlay"><div id="sleep-hint">睡眠中… · 按 Shift 起身</div></div>
       <div id="survival-hud" class="hidden">
         <div id="armor-bar"></div>
         <div id="absorb"></div>
@@ -35,7 +35,7 @@
       <div id="status"></div>
       <div id="chat">
         <div id="chatlog"></div>
-        <input id="chatinput" maxlength="200" autocomplete="off" spellcheck="false" placeholder="Escribe un mensaje o /ayuda…" />
+        <input id="chatinput" maxlength="200" autocomplete="off" spellcheck="false" placeholder="输入消息或 /帮助…" />
       </div>
       <div id="playerlist" class="hidden"></div>
     </div>
@@ -49,10 +49,10 @@
     <!-- Muerte -->
     <div id="death" class="overlay hidden">
       <div class="death-box">
-        <h1>¡Has muerto!</h1>
+        <h1>你死了！</h1>
         <p id="death-msg"></p>
-        <button id="btn-respawn" class="btn primary">Reaparecer</button>
-        <button id="btn-death-quit" class="btn ghost">Salir al menú principal</button>
+        <button id="btn-respawn" class="btn primary">重生</button>
+        <button id="btn-death-quit" class="btn ghost">返回主菜单</button>
       </div>
     </div>
 
@@ -60,12 +60,12 @@
     <div id="inventory" class="overlay hidden">
       <div class="panel inv-panel">
         <div class="inv-head">
-          <h2>Creativo</h2>
-          <input id="invsearch" placeholder="Buscar…" autocomplete="off" spellcheck="false" />
+          <h2>创造模式</h2>
+          <input id="invsearch" placeholder="搜索…" autocomplete="off" spellcheck="false" />
         </div>
         <div id="invtabs"></div>
         <div id="invgrid"></div>
-        <p class="hint">Haz clic en un bloque u objeto para ponerlo en la ranura seleccionada · Pasa el ratón y pulsa 1–9 para asignarlo · <b>E</b> para cerrar</p>
+        <p class="hint">点击方块或物品即可放入选中的槽位 · 悬停并按 1–9 将其分配到快捷栏 · <b>E</b> 关闭</p>
         <div id="invhotbar"></div>
       </div>
     </div>
@@ -73,12 +73,12 @@
     <!-- Pausa -->
     <div id="pause" class="overlay hidden">
       <div class="panel menu-panel">
-        <h2>Juego en pausa</h2>
-        <button id="btn-resume" class="btn primary">Volver al juego</button>
-        <button id="btn-invite" class="btn">Copiar enlace de invitación</button>
-        <button id="btn-settings2" class="btn">Ajustes gráficos y controles</button>
-        <button id="btn-fullscreen" class="btn two-line">Pantalla completa<span class="btn-hint">Ctrl + W no cierra la pestaña</span></button>
-        <button id="btn-quit" class="btn ghost">Salir al menú principal</button>
+        <h2>游戏已暂停</h2>
+        <button id="btn-resume" class="btn primary">继续游戏</button>
+        <button id="btn-invite" class="btn">复制邀请链接</button>
+        <button id="btn-settings2" class="btn">图形与控制设置</button>
+        <button id="btn-fullscreen" class="btn two-line">全屏<span class="btn-hint">Ctrl + W 不会关闭标签页</span></button>
+        <button id="btn-quit" class="btn ghost">返回主菜单</button>
         <p id="pause-info" class="hint"></p>
       </div>
     </div>
@@ -87,26 +87,26 @@
     <div id="settings" class="overlay hidden">
       <div class="panel settings-panel">
         <div class="settings-head">
-          <h2>Ajustes</h2>
-          <button id="btn-settings-close" class="btn small">Listo</button>
+          <h2>设置</h2>
+          <button id="btn-settings-close" class="btn small">完成</button>
         </div>
         <div class="settings-body">
           <section>
-            <h3>Calidad gráfica</h3>
+            <h3>图形质量</h3>
             <div id="presets" class="seg"></div>
             <div id="settings-render" class="grid"></div>
           </section>
           <section>
-            <h3>Juego y controles</h3>
+            <h3>游戏与控制</h3>
             <div id="settings-controls" class="grid"></div>
           </section>
           <section>
-            <h3>Teclas</h3>
+            <h3>按键</h3>
             <div id="settings-keys" class="keys"></div>
-            <button id="btn-keys-reset" class="btn small">Restablecer teclas</button>
+            <button id="btn-keys-reset" class="btn small">重置按键</button>
           </section>
           <section>
-            <h3>Sonido</h3>
+            <h3>声音</h3>
             <div id="settings-audio" class="grid"></div>
           </section>
           <p id="gpu-info" class="hint"></p>
@@ -118,7 +118,7 @@
     <div id="loading" class="overlay hidden">
       <div class="loading-box">
         <div class="logo small">VoxelCraft</div>
-        <div id="loading-text">Cargando…</div>
+        <div id="loading-text">加载中…</div>
         <div class="bar"><div id="loading-bar"></div></div>
       </div>
     </div>
@@ -129,77 +129,93 @@
       <div class="menu-content">
         <header class="menu-head">
           <div class="logo">VoxelCraft</div>
-          <p class="tagline">Construye un mundo infinito con tus amigos</p>
-          <div id="live-stats" class="live-stats hidden" title="Mundos usados en las últimas 48 horas y jugadores conectados ahora">
+          <p class="tagline">与好友一起建造无限世界</p>
+          <div id="live-stats" class="live-stats hidden" title="最近 48 小时内玩过的世界数与当前在线玩家数">
             <span class="live-dot"></span>
-            <span><b id="stat-servers">0</b> <span id="stat-servers-label">servidores activos</span></span>
+            <span><b id="stat-servers">0</b> <span id="stat-servers-label">个活跃世界</span></span>
             <span class="live-sep"></span>
-            <span><b id="stat-players">0</b> <span id="stat-players-label">conectados</span></span>
+            <span><b id="stat-players">0</b> <span id="stat-players-label">人在线</span></span>
           </div>
         </header>
         <div class="menu-grid">
           <section class="panel menu-card main-card">
-            <h3 class="card-title">Jugar</h3>
+            <h3 class="card-title">开始游戏</h3>
             <label class="field">
-              <span>Tu nombre</span>
+              <span>你的名字</span>
               <div class="row">
                 <input id="in-name" maxlength="16" autocomplete="off" spellcheck="false" placeholder="Steve" />
-                <label class="color-pick" title="Color de tu camiseta">
+                <label class="color-pick" title="你的上衣颜色">
                   <input id="in-color" type="color" value="#3a7bd5" />
                 </label>
               </div>
             </label>
             <label class="field">
-              <span>Mundo <em>· comparte el nombre o el enlace con tus amigos</em></span>
+              <span>世界 <em>· 与好友分享名称或链接</em></span>
               <div class="row">
                 <input id="in-room" maxlength="32" autocomplete="off" spellcheck="false" />
-                <button id="btn-random" class="btn icon" title="Nombre aleatorio">⟳</button>
+                <button id="btn-random" class="btn icon" title="随机名称">⟳</button>
               </div>
             </label>
             <div id="recent-worlds" class="recent hidden"></div>
-            <button id="btn-play" class="btn primary big" disabled>Preparando…</button>
+            <button id="btn-play" class="btn primary big" disabled>准备中…</button>
             <div class="row">
-              <button id="btn-copy" class="btn">Copiar invitación</button>
-              <button id="btn-settings" class="btn">Ajustes</button>
+              <button id="btn-copy" class="btn">复制邀请</button>
+              <button id="btn-settings" class="btn">设置</button>
             </div>
             <p id="menu-error" class="error"></p>
           </section>
           <section class="panel menu-card side-card">
-            <h3 class="card-title">Mundo nuevo</h3>
+            <h3 class="card-title">新世界</h3>
             <div class="field">
-              <span>Modo de juego</span>
+              <span>游戏模式</span>
               <div id="mode-seg" class="seg">
-                <button data-mode="s" class="active">Supervivencia</button>
-                <button data-mode="c">Creativo</button>
+                <button data-mode="s" class="active">生存</button>
+                <button data-mode="c">创造</button>
               </div>
             </div>
             <label class="field">
-              <span>Semilla</span>
-              <input id="in-seed" maxlength="32" autocomplete="off" spellcheck="false" placeholder="Aleatoria" />
+              <span>种子</span>
+              <input id="in-seed" maxlength="32" autocomplete="off" spellcheck="false" placeholder="随机" />
             </label>
             <label class="check">
               <input id="in-offline" type="checkbox" />
-              <span>Jugar sin conexión <em>(el mundo se guarda en este navegador)</em></span>
+              <span>离线游玩 <em>（世界保存在此浏览器中）</em></span>
             </label>
-            <p class="side-note">El modo y la semilla sólo cuentan al crear un mundo; si ya existe, se entra en el suyo. Un mundo sin nadie durante 48 horas se borra.</p>
+            <p class="side-note">模式与种子仅在创建世界时生效；若该世界已存在，则进入其原有设置。48 小时无人进入的世界会被删除。</p>
           </section>
         </div>
         <div class="controls-help">
-          <span><kbd>WASD</kbd> moverse</span>
-          <span><kbd>Espacio</kbd> saltar · doble = volar</span>
-          <span><kbd>Shift</kbd> agacharse</span>
-          <span><kbd>Ctrl</kbd> correr</span>
-          <span><kbd>Clic izq.</kbd> romper · atacar</span>
-          <span><kbd>Clic der.</kbd> colocar · usar</span>
-          <span><kbd>E</kbd> inventario</span>
-          <span><kbd>T</kbd> chat</span>
-          <span><kbd>V</kbd> hablar</span>
-          <span><kbd>F5</kbd> cámara</span>
+          <span><kbd>WASD</kbd> 移动</span>
+          <span><kbd>空格</kbd> 跳跃 · 连按两次 = 飞行</span>
+          <span><kbd>Shift</kbd> 潜行</span>
+          <span><kbd>Ctrl</kbd> 疾跑</span>
+          <span><kbd>鼠标左键</kbd> 破坏 · 攻击</span>
+          <span><kbd>鼠标右键</kbd> 放置 · 使用</span>
+          <span><kbd>E</kbd> 物品栏</span>
+          <span><kbd>T</kbd> 聊天</span>
+          <span><kbd>V</kbd> 语音</span>
+          <span><kbd>F5</kbd> 视角</span>
         </div>
       </div>
     </div>
 
     <div id="toast"></div>
+    <script type="module" src="/src/client/main.ts"></script>
+    <!-- Reserva estática: servido como carpeta sin Vite (p. ej. http://localhost:8765/goodPG/), el módulo de
+         abajo devuelve 404 y aquí se carga el build ya compilado de ./dist/client (nombres estables,
+         ver vite.config.ts). En `npm run dev` el script carga bien y esto no se activa. -->
+    <script>
+      window.addEventListener('error', (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLScriptElement) || !/\/src\/client\/main\.ts$/.test(t.src)) return;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = './dist/client/assets/index.css';
+        document.head.append(link);
+        import(/* @vite-ignore */ new URL('./dist/client/assets/index.js', location.href).href)
+          .catch((err) => console.error('没有找到 dist/client 里的静态构建，先运行 pnpm build', err));
+      }, true);
+    </script>
     <script type="module" src="/src/client/main.ts"></script>
   </body>
 </html>

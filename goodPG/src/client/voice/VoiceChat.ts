@@ -224,7 +224,7 @@ export class VoiceChat {
     if (this.micState === 'asking') return false;
     if (!navigator.mediaDevices?.getUserMedia) {
       this.micState = 'denied';
-      this.g.ui.toast('Este navegador no permite usar el micrófono');
+      this.g.ui.toast('此浏览器不允许使用麦克风');
       return false;
     }
     this.micState = 'asking';
@@ -234,9 +234,9 @@ export class VoiceChat {
         video: false,
       });
     } catch (e) {
-      console.warn('Micrófono no disponible:', e);
+      console.warn('麦克风不可用：', e);
       this.micState = 'denied';
-      this.g.ui.toast('No se pudo usar el micrófono');
+      this.g.ui.toast('无法使用麦克风');
       return false;
     }
     this.micState = 'ready';
@@ -380,7 +380,7 @@ export class VoiceChat {
       const sdp = p.pc.localDescription;
       if (sdp && this.peers.get(id) === p) this.g.net?.send({ t: 'rtc', to: id, d: { sdp: { type: 'offer', sdp: sdp.sdp } } });
     } catch (e) {
-      console.warn('Voz: no se pudo crear la oferta', e);
+      console.warn('语音：无法创建提议', e);
       this.closePeer(id);
       this.retryAt.set(id, performance.now() + RETRY_MS);
     }
@@ -418,7 +418,7 @@ export class VoiceChat {
         else if (p.pending.length < 64) p.pending.push(d.ice);
       }
     } catch (e) {
-      console.warn('Voz: señal rechazada', e);
+      console.warn('语音：信令被拒绝', e);
     }
   }
 
@@ -685,65 +685,72 @@ export class VoiceChat {
   command(text: string): boolean {
     const parts = text.trim().split(/\s+/);
     const cmd = parts[0].toLowerCase();
-    if (cmd !== '/voz' && cmd !== '/grupo') return false;
+    const isGroup = cmd === '/grupo' || cmd === '/组队' || cmd === '/队伍';
+    if (cmd !== '/voz' && cmd !== '/语音' && !isGroup) return false;
     const say = (m: string) => this.g.ui.addChat(null, m);
+    // Nombre exacto o, si sólo encaja uno, por prefijo (los nombres pueden ser largos o en chino).
     const findName = (raw: string | undefined): string | null => {
       if (!raw) return null;
-      const r = [...this.g.remote.values()].find((p) => p.name.toLowerCase() === raw.toLowerCase());
-      return r ? r.name : raw;
+      const q = raw.toLowerCase();
+      const list = [...this.g.remote.values()];
+      const exact = list.find((p) => p.name.toLowerCase() === q);
+      if (exact) return exact.name;
+      const near = list.filter((p) => p.name.toLowerCase().startsWith(q));
+      return near.length === 1 ? near[0].name : near.length > 1 ? null : raw;
     };
-    if (cmd === '/grupo') {
+    if (isGroup) {
       const arg = parts.slice(1).join(' ');
       if (!arg) {
-        say(this.group ? `Estás en el grupo «${this.group}». /grupo salir para dejarlo.` : 'No estás en ningún grupo. Uso: /grupo <nombre> (los del mismo grupo os oís a cualquier distancia).');
-      } else if (arg.toLowerCase() === 'salir') {
-        say(this.group ? `Has dejado el grupo «${this.group}».` : 'No estabas en ningún grupo.');
+        say(this.group ? `你位于小组「${this.group}」中。输入 /组队 退出 离开。` : '你不在任何小组中。用法：/组队 <名称>（同一小组的成员在任何距离都能互相听见）。');
+      } else if (['salir', '退出', '离开'].includes(arg.toLowerCase())) {
+        say(this.group ? `你已退出小组「${this.group}」。` : '你之前不在任何小组中。');
         this.group = '';
       } else {
         const g = cleanGroup(arg);
-        if (!g) say('Ese nombre de grupo no vale: usa letras, números, _ o -.');
+        if (!g) say('该小组名称无效：请使用字母、数字、_ 或 -。');
         else {
           this.group = g;
           const mates = [...this.peers.values()].filter((p) => p.group === g).map((p) => this.g.remote.get(p.id)?.name).filter(Boolean);
-          say(`Ahora estás en el grupo «${g}»${mates.length ? ` con ${mates.join(', ')}` : ''}. Os oís a cualquier distancia en esta dimensión.`);
+          say(`你现在位于小组「${g}」中${mates.length ? `，成员：${mates.join('、')}` : ''}。在此维度内，你们在任何距离都能互相听见。`);
         }
       }
       return true;
     }
     const sub = (parts[1] ?? '').toLowerCase();
     const s = this.settings;
-    if (sub === 'on' || sub === 'off') {
-      s.voiceEnabled = sub === 'on';
+    if (['on', '开启', '开'].includes(sub) || ['off', '关闭', '关'].includes(sub)) {
+      s.voiceEnabled = ['on', '开启', '开'].includes(sub);
       this.g.ui.commitSettings();
-      say(s.voiceEnabled ? 'Chat de voz activado.' : 'Chat de voz desactivado.');
-    } else if (sub === 'silenciar' || sub === 'activar') {
+      say(s.voiceEnabled ? '语音聊天已开启。' : '语音聊天已关闭。');
+    } else if (['silenciar', '静音'].includes(sub) || ['activar', '取消静音', '恢复'].includes(sub)) {
+      const mute = ['silenciar', '静音'].includes(sub);
       const name = findName(parts[2]);
-      if (!name) say(`Uso: /voz ${sub} <jugador>`);
+      if (!name) say(`用法：/语音 ${mute ? '静音' : '取消静音'} <玩家>`);
       else {
-        this.setPlayerVolume(name, sub === 'silenciar' ? 0 : 1);
-        say(sub === 'silenciar' ? `Ya no oyes a ${name}.` : `Vuelves a oír a ${name}.`);
+        this.setPlayerVolume(name, mute ? 0 : 1);
+        say(mute ? `你已听不到 ${name}。` : `你又能听见 ${name} 了。`);
       }
-    } else if (sub === 'volumen') {
+    } else if (['volumen', '音量'].includes(sub)) {
       const name = findName(parts[2]);
       const pct = Number(parts[3]);
-      if (!name || !Number.isFinite(pct)) say('Uso: /voz volumen <jugador> <0-200>');
+      if (!name || !Number.isFinite(pct)) say('用法：/语音 音量 <玩家> <0-200>');
       else {
         this.setPlayerVolume(name, Math.round(Math.max(0, Math.min(200, pct))) / 100);
-        say(`Voz de ${name} al ${Math.round(this.playerVolume(name) * 100)} %.`);
+        say(`${name} 的语音音量为 ${Math.round(this.playerVolume(name) * 100)}%。`);
       }
     } else if (sub === '') {
-      if (!this.active) say(this.g.offline ? 'El chat de voz sólo funciona en un mundo con servidor.' : 'El chat de voz está desactivado (/voz on).');
+      if (!this.active) say(this.g.offline ? '语音聊天仅在连接服务器的世界中可用。' : '语音聊天已关闭（/语音 开启）。');
       else {
-        const mode = s.voiceMode === 'vad' ? 'se abre al hablar' : `pulsa ${keyLabel(s.keys.voice)} para hablar`;
+        const mode = s.voiceMode === 'vad' ? '说话时自动开启' : `按 ${keyLabel(s.keys.voice)} 说话`;
         const list = [...this.g.remote.values()].filter((r) => r.voice).map((r) => {
           const vol = this.playerVolume(r.name);
-          const state = !this.connected(r.id) ? 'conectando' : vol === 0 ? 'silenciado' : `${Math.round(vol * 100)} %`;
+          const state = !this.connected(r.id) ? '连接中' : vol === 0 ? '已静音' : `${Math.round(vol * 100)}%`;
           return `${r.name} (${state})`;
         });
-        say(`Chat de voz: ${mode}, ${keyLabel(s.keys.whisper)} para susurrar${this.group ? `, grupo «${this.group}»` : ''}. ` +
-          (list.length ? `Con voz: ${list.join(', ')}.` : 'Nadie más tiene la voz activada en esta dimensión.'));
+        say(`语音聊天：${mode}，${keyLabel(s.keys.whisper)} 用于耳语${this.group ? `，小组「${this.group}」` : ''}。` +
+          (list.length ? `已开启语音：${list.join('、')}。` : '此维度内没有其他人开启语音。'));
       }
-    } else say('Uso: /voz [on|off], /voz silenciar <jugador>, /voz activar <jugador>, /voz volumen <jugador> <0-200>');
+    } else say('用法：/语音 开启|关闭，/语音 静音 <玩家>，/语音 取消静音 <玩家>，/语音 音量 <玩家> <0-200>');
     return true;
   }
 
@@ -792,7 +799,7 @@ export class VoiceChat {
     }
     const st = !this.active ? 'off' : this.micState === 'denied' ? 'denied' : this.whispering ? 'whisper' : this.transmitting ? 'talking' : 'idle';
     const key = this.settings.keys.voice;
-    const text = st === 'denied' ? 'Sin micrófono' : st === 'whisper' ? 'Susurro'
+    const text = st === 'denied' ? '无麦克风' : st === 'whisper' ? '耳语'
       : (st === 'idle' && this.settings.voiceMode === 'ptt' ? keyLabel(key) : '') + (this.group ? ` · ${this.group}` : '');
     if (this.hud.dataset.state !== st || this.hud.dataset.text !== text) {
       this.hud.dataset.state = st;

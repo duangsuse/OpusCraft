@@ -304,12 +304,12 @@ export class EnchantClient {
     const s = g.heldStack;
     const list = sanitizeEnchList(msg.e) ?? [];
     if (!s || !list.length) {
-      g.ui.addChat(null, 'Pon en la mano lo que quieras encantar.');
+      g.ui.addChat(null, '把想要附魔的物品拿在手中。');
       return true;
     }
     const [[id, lvl]] = list;
     if (!canApply(id, s.id)) {
-      g.ui.addChat(null, `${ENCHANTS[id].name} no se puede poner a ${ITEMS[s.id]?.name ?? 'eso'}.`);
+      g.ui.addChat(null, `${ENCHANTS[id].name} 无法附魔到 ${ITEMS[s.id]?.name ?? '该物品'} 上。`);
       return true;
     }
     const cur = enchantsOf(s).filter(([e]) => e !== id);

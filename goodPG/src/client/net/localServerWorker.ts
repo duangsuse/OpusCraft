@@ -64,7 +64,7 @@ self.onmessage = async (e: MessageEvent<In>) => {
         try {
           game!.tick();
         } catch (err) {
-          console.error('Error en el tick del servidor local', err);
+          console.error('本地服务器 tick 出错', err);
         }
       }, 1000 / TICK_RATE);
       post({ t: 'ready' });

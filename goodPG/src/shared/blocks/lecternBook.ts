@@ -5,7 +5,7 @@ import { family, defs, L, R_MODEL } from './registry';
 import { LECTERN } from './villagerBlocks';
 import { mbox } from '../blockModels';
 
-export const LECTERN_BOOK = family('lectern_book', 'Atril', [], () => {
+export const LECTERN_BOOK = family('lectern_book', '讲台', [], () => {
   const lectern = defs[LECTERN];
   const pages = L('lectern_book'), cover = L('brown_concrete');
   return {

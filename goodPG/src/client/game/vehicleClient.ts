@@ -128,7 +128,7 @@ export class VehicleClient {
       }
       if (mine !== 0) this.body = null;
       if (!again) {
-        this.g.ui.toast(isBoatType(this.type) ? 'W/A/S/D: remar · Mayús: bajarse' : 'Mayús: bajarse');
+        this.g.ui.toast(isBoatType(this.type) ? 'W/A/S/D：划桨 · Shift：下船' : 'Shift：下船');
         this.g.audio.playTransportSfx('vehicle_board', [this.g.player.x, this.g.player.y, this.g.player.z], isCartType(this.type) ? 1 : 0);
       }
     } else if (this.entityId === e) {
@@ -244,7 +244,7 @@ export class VehicleClient {
     const id = vehicleOfContainer(pos[0], pos[1], pos[2]);
     if (id < 0) return null;
     const e = this.g.ents.list.get(id);
-    return e ? vehicleTitle(e.type, e.variant) : 'Cofre';
+    return e ? vehicleTitle(e.type, e.variant) : '箱子';
   }
 
   // ------------------------------------------------------------------ bajarse

@@ -180,7 +180,7 @@ const CAT_STYLES: CatStyle[] = [
   // blanco
   { pal: [[218, 216, 212], [232, 230, 226], [244, 242, 238]], stripe: null, belly: [248, 246, 242], eye: [90, 150, 230] },
 ];
-if (CAT_STYLES.length !== CAT_SKINS.length) throw new Error('Pieles de gato desalineadas');
+if (CAT_STYLES.length !== CAT_SKINS.length) throw new Error('猫的皮肤未对齐');
 
 function cat(t: Texel, st: CatStyle): Paint {
   const seed = 2222;

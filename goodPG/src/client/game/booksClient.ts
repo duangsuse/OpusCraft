@@ -148,7 +148,7 @@ export class BooksClient {
         const signed = cur && signBook(cur, title, g.cfg.name);
         if (signed) {
           g.inv.set(slot, signed);
-          g.ui.toast(`Libro firmado: «${signed.data?.title}»`);
+          g.ui.toast(`书已署名：「${signed.data?.title}」`);
         }
       },
     }, () => g.afterScreenClosed());
@@ -161,7 +161,7 @@ export class BooksClient {
     g.audio.playUi('open');
     const d = book.data;
     const info: BookReadInfo = { pages: bookPages(book), take };
-    if (book.id === WRITTEN_BOOK) Object.assign(info, { title: d?.title ?? 'Libro escrito', author: d?.author, gen: d?.gen });
+    if (book.id === WRITTEN_BOOK) Object.assign(info, { title: d?.title ?? '成书', author: d?.author, gen: d?.gen });
     this.screen.openRead(info, () => g.afterScreenClosed());
   }
 }

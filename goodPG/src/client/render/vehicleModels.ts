@@ -141,15 +141,15 @@ function model(id: number, key: string, name: string, boxes: Box[], mask: [numbe
 
 const MODELS = new Map<number, VehicleModel>();
 const add = (m: VehicleModel) => MODELS.set(m.def.id, m);
-add(model(ENT_BOAT, 'boat', 'Barca', boatBoxes(false), [-8, -14, 8, 14, 8]));
-add(model(ENT_CHEST_BOAT, 'chest_boat', 'Barca con cofre', boatBoxes(true), [-8, -14, 8, 14, 8]));
-add(model(RAFT_MODEL, 'raft', 'Balsa', raftBoxes(false), null));
-add(model(CHEST_RAFT_MODEL, 'chest_raft', 'Balsa con cofre', raftBoxes(true), null));
-add(model(ENT_MINECART, 'minecart', 'Vagoneta', cartBoxes('none'), null));
-add(model(ENT_CHEST_MINECART, 'chest_minecart', 'Vagoneta con cofre', cartBoxes('chest'), null));
-add(model(ENT_FURNACE_MINECART, 'furnace_minecart', 'Vagoneta con horno', cartBoxes('furnace'), null));
-add(model(ENT_HOPPER_MINECART, 'hopper_minecart', 'Vagoneta con tolva', cartBoxes('hopper'), null)); // Fase 7 (mecanismos)
-add(model(ENT_TNT_MINECART, 'tnt_minecart', 'Vagoneta con dinamita', cartBoxes('tnt'), null));
+add(model(ENT_BOAT, 'boat', '船', boatBoxes(false), [-8, -14, 8, 14, 8]));
+add(model(ENT_CHEST_BOAT, 'chest_boat', '运输船', boatBoxes(true), [-8, -14, 8, 14, 8]));
+add(model(RAFT_MODEL, 'raft', '木筏', raftBoxes(false), null));
+add(model(CHEST_RAFT_MODEL, 'chest_raft', '带箱子的木筏', raftBoxes(true), null));
+add(model(ENT_MINECART, 'minecart', '矿车', cartBoxes('none'), null));
+add(model(ENT_CHEST_MINECART, 'chest_minecart', '运输矿车', cartBoxes('chest'), null));
+add(model(ENT_FURNACE_MINECART, 'furnace_minecart', '动力矿车', cartBoxes('furnace'), null));
+add(model(ENT_HOPPER_MINECART, 'hopper_minecart', '漏斗矿车', cartBoxes('hopper'), null)); // Fase 7 (mecanismos)
+add(model(ENT_TNT_MINECART, 'tnt_minecart', 'TNT矿车', cartBoxes('tnt'), null));
 
 /** Modelo de un id de modelo (el tipo de entidad, o el de la balsa). */
 export function vehicleModelById(id: number): VehicleModel | undefined {

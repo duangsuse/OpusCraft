@@ -213,7 +213,7 @@ const TOOL_SHAPES: Record<string, readonly string[]> = {
 function toolSprite(material: string, kind: string): SpriteDef {
   const m = TOOL_MATERIALS[material];
   const rows = TOOL_SHAPES[kind];
-  if (!m || !rows) throw new Error('Herramienta desconocida: ' + material + '_' + kind);
+  if (!m || !rows) throw new Error('未知的工具：' + material + '_' + kind);
   return { rows, inks: { ...HANDLE, ...m, g: m['4'] } };
 }
 
@@ -327,7 +327,7 @@ const ARMOR_SHAPES: Record<string, readonly string[]> = {
 function armorSprite(material: string, piece: string): SpriteDef {
   const m = ARMOR_INKS[material];
   const rows = ARMOR_SHAPES[piece];
-  if (!m || !rows) throw new Error('Armadura desconocida: ' + material + '_' + piece);
+  if (!m || !rows) throw new Error('未知的盔甲：' + material + '_' + piece);
   return { rows, inks: { ...m, k: ARMOR_ACCENT[material] } };
 }
 
@@ -2345,7 +2345,7 @@ function spriteDef(name: string): SpriteDef {
   }
   const def = Object.prototype.hasOwnProperty.call(SPRITES, name) ? SPRITES[name] : undefined;
   if (!def) {
-    console.warn('Sprite de objeto sin dibujo (se usa un marcador): ' + name);
+    console.warn('物品精灵没有图案（使用占位图）：' + name);
     return PLACEHOLDER;
   }
   return def;
@@ -2353,11 +2353,11 @@ function spriteDef(name: string): SpriteDef {
 
 /** Dibuja un sprite con su contorno automático en `out` (desplazamiento `base`). */
 function drawSprite(name: string, def: SpriteDef, out: Uint8Array, base: number): void {
-  if (def.rows.length !== S) throw new Error(`Sprite ${name}: ${def.rows.length} filas`);
+  if (def.rows.length !== S) throw new Error(`精灵 ${name}：共 ${def.rows.length} 行`);
   const cell: (Ink | null)[] = new Array(S * S).fill(null);
   for (let y = 0; y < S; y++) {
     const row = def.rows[y];
-    if (row.length !== S) throw new Error(`Sprite ${name}: fila ${y} de ${row.length} px`);
+    if (row.length !== S) throw new Error(`精灵 ${name}：第 ${y} 行共 ${row.length} 像素`);
     for (let x = 0; x < S; x++) {
       const ch = row[x];
       if (ch === '.') continue;

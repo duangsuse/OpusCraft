@@ -135,7 +135,7 @@ export function generateTextures(): GeneratedTextures {
   for (let i = 0; i < count; i++) {
     const def = TEXTURE_DEFS[i];
     const gen = Object.prototype.hasOwnProperty.call(GENERATORS, def.name) ? GENERATORS[def.name] : placeholder;
-    if (gen === placeholder) console.warn('Textura sin generador procedural (se usa un marcador): ' + def.name);
+    if (gen === placeholder) console.warn('纹理没有程序化生成器（使用占位图）：' + def.name);
     const t = new Tex(def.name);
     gen(t);
     bake(t, def, albedo, normal, specular, i * layerBytes);

@@ -111,7 +111,7 @@ export class WitherBoss {
       if (last !== undefined && Math.abs(last - h) < 0.002 && ctx.tickCount % 40 !== 0) continue;
       if (h < 0) this.bossSent.delete(s.id);
       else this.bossSent.set(s.id, h);
-      const name = best && ctx.entities.wither.furious(best) ? 'Wither (furioso)' : best?.customName || 'Wither';
+      const name = best && ctx.entities.wither.furious(best) ? '凋灵（愤怒）' : best?.customName || '凋灵';
       ctx.send(s, h < 0 ? { t: 'boss', h: -1 } : { t: 'boss', n: name, h: Math.round(h * 1000) / 1000, c: 'purple' });
     }
   }

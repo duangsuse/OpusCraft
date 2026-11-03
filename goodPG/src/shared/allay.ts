@@ -38,7 +38,7 @@ export const ALLAY_DEF: MobDef = (() => {
     { name: 'wingL', pivot: [-0.5, 5.5, 1], from: [0, -5, 0], size: [0, 5, 8], rot: [0, -0.35, 0], share: 'wingR' },
   ]);
   return {
-    id: MOB_ALLAY, key: 'allay', name: 'Alay', hostile: false, health: 20, walk: 3.2, run: 5.5, width: 0.35, height: 0.6,
+    id: MOB_ALLAY, key: 'allay', name: '悦灵', hostile: false, health: 20, walk: 3.2, run: 5.5, width: 0.35, height: 0.6,
     damage: 0, burnsInSun: false, drops: [], anim: 'allay', scale: 1, flying: true, parts, atlas,
   };
 })();
