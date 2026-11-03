@@ -121,7 +121,90 @@ const PATCH_FILES = {
     ['d.wx, d.wy, d.wz, this.OB, this.TB);', 'd.wx, d.wy, d.wz, this.OB, this.TB, this.PB, d.cls);   // remix'],
   ],
   'renderer.js': [
-    ["    this.mk('shadow', GLSL.shadowVS, GLSL.shadowFS);\n", "    this.mk('shadow', GLSL.shadowVS, GLSL.shadowFS);\n    this.mk('shadowS', GLSL.shadowVS.replace('float df = length(sp.xy) * 0.9 + 0.1;', 'float df = 1.0;'), GLSL.shadowFS);   // remix: R3b 锐阴影图不做 df 扭曲\n"],
+    ["this.mk('fancy', GLSL.chunkVS, GLSL.fancyFS);", "/* remix: R5 fancy */"],
+    ["this.mk('water', GLSL.chunkVS, GLSL.waterFS);", "/* remix: R5 water */"],
+    ["this.use('fancy'); this.setFancyUniforms(F, false);\n    gl.drawBuffers(DB2);", "this.fm.hand = false; this.passes.fancy.use();   // remix: R5（rgl/shaders/fancy.js + common.js）\n    gl.drawBuffers(DB2);"],
+    [`    this.use('water'); this.setFancyUniforms(F, false); this.setSkyUniforms(F);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, T.copyC); this.u1i('u_sceneColor', 2);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, T.copyD); this.u1i('u_sceneDepth', 3);
+    this.m4('u_proj', F.proj); this.m4('u_view', F.view); this.u2f('u_res', F.w, F.h); this.u1f('u_near', F.near); this.u1f('u_far', F.far); this.u1f('u_camUnder', F.underwater ? 1 : 0);
+`, "    this.passes.water.use();   // remix: R5（rgl/shaders/water.js）\n"],
+    ["if (this.dynW.n) { this.use('fancy'); this.setFancyUniforms(F, false); this.u3f('u_offset', 0, 0, 0); this.u3v('u_origin', F.camPos);", "if (this.dynW.n) { this.fm.hand = false; this.passes.fancy.use(); this.setDraw(this.passes.fancy, 0, 0, 0, F.camPos[0], F.camPos[1], F.camPos[2]);"],
+    [`    if (fancy) { this.use('fancy'); this.setFancyUniforms(F, true); this.u3v('u_lightDir', F.handLightDir); this.u3v('u_lightCol', [F.lightCol[0] * F.handShadow, F.lightCol[1] * F.handShadow, F.lightCol[2] * F.handShadow]); }
+    else { this.use('vanilla'); this.setVanillaUniforms(F); this.u1f('u_fogStart', 1e5); this.u1f('u_fogEnd', 2e5); }
+    this.m4('u_viewProj', F.handProj); this.u1f('u_wind', 0);
+    this.u3f('u_offset', 0, 0, 0); this.u3f('u_origin', 0, 0, 0);
+`, `    if (fancy) { this.fm.hand = true; const P = this.passes.fancy; P.use(); this.setDraw(P, 0, 0, 0, 0, 0, 0); }   // remix: R5（hand 在 common.js 里切一组值）
+    else { this.use('vanilla'); this.setVanillaUniforms(F); this.u1f('u_fogStart', 1e5); this.u1f('u_fogEnd', 2e5); this.m4('u_viewProj', F.handProj); this.u1f('u_wind', 0); this.u3f('u_offset', 0, 0, 0); this.u3f('u_origin', 0, 0, 0); }
+`],
+    [`      this.u3f('u_offset', e.ox - cam[0], e.oy - cam[1], e.oz - cam[2]);
+      this.u3f('u_origin', e.ox, e.oy, e.oz);
+`, `      const P = this.passes[prog];   // remix: R5（已转的 program 走 setDraw；vanilla 还没转）
+      if (P) this.setDraw(P, e.ox - cam[0], e.oy - cam[1], e.oz - cam[2], e.ox, e.oy, e.oz);
+      else { this.u3f('u_offset', e.ox - cam[0], e.oy - cam[1], e.oz - cam[2]); this.u3f('u_origin', e.ox, e.oy, e.oz); }
+`],
+    [`      this.use('shadow'); this.m4('u_shadowMat', F.shadowMat); this.u1f('u_time', F.time); this.u1f('u_wind', F.waving ? 1 : 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.tex); this.u1i('u_tex', 0);
+      for (const e of F.all) {
+        const m = e.sec.opaque; if (!m || !m.n || e.dist > F.shadowDist + 24) continue;
+        this.u3f('u_offset', e.ox - F.shadowOrigin[0], e.oy - F.shadowOrigin[1], e.oz - F.shadowOrigin[2]); this.u3f('u_origin', e.ox, e.oy, e.oz);
+`, `      const SP = this.passes.shadow; SP.use();   // remix: R5（rgl/shaders/shadow.js；offset / origin 每次 draw 重传）
+      for (const e of F.all) {
+        const m = e.sec.opaque; if (!m || !m.n || e.dist > F.shadowDist + 24) continue;
+        this.setDraw(SP, e.ox - F.shadowOrigin[0], e.oy - F.shadowOrigin[1], e.oz - F.shadowOrigin[2], e.ox, e.oy, e.oz);
+`],
+    ["if (this.dyn.n) { this.u3f('u_offset', F.camPos[0] - F.shadowOrigin[0], F.camPos[1] - F.shadowOrigin[1], F.camPos[2] - F.shadowOrigin[2]); this.u3v('u_origin', F.camPos); gl.bindVertexArray(this.dyn.vao);", "if (this.dyn.n) { this.setDraw(SP, F.camPos[0] - F.shadowOrigin[0], F.camPos[1] - F.shadowOrigin[1], F.camPos[2] - F.shadowOrigin[2], F.camPos[0], F.camPos[1], F.camPos[2]); gl.bindVertexArray(this.dyn.vao);"],
+    ["this.mk('comp', GLSL.fsqVS, GLSL.compositeFS);", "/* remix: R5 comp */"],
+    [`this.use('comp'); this.setSkyUniforms(F);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.sceneC); this.u1i('u_color', 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, T.sceneD); this.u1i('u_depth', 1);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.shadowTex); this.u1i('u_shadow', 2);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, T.cloudC); this.u1i('u_clouds', 3); this.u1f('u_cloudsOn', F.clouds ? 1 : 0);
+    this.m4('u_invViewProj', F.invViewProj); this.m4('u_shadowMat', F.shadowMat); this.u3v('u_camToShadow', F.camToShadow); this.u3v('u_camPos', F.camPos);
+    this.u1f('u_renderDist', F.renderDist); this.u1f('u_shadowOn', 1); this.u1f('u_time', F.time);
+    this.u3v('u_lightDir', F.lightDir); this.u3v('u_lightCol', F.lightCol); this.u3v('u_ambCol', F.ambCol);
+    this.u1f('u_mist', F.mist); this.u1f('u_fogDensity', F.fogDensity); this.u1f('u_camUnder', F.underwater ? 1 : 0); this.u3v('u_waterFog', F.waterFog);
+    this.u2f('u_sunUV', F.sunUV[0], F.sunUV[1]); this.u1f('u_sunVis', F.sunVis); this.u1f('u_volOn', F.volumetric ? 1 : 0); this.u1f('u_caveFactor', F.caveFactor);
+    gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, T.gbufC); this.u1i('u_gbuf', 4); this.u1f('u_ssrOn', F.pbr === false ? 0 : 1);
+    this.m4('u_proj', F.proj); this.m4('u_view', F.view); this.u1f('u_near', F.near); this.u1f('u_far', F.far);
+`, "this.passes.comp.use();   // remix: R5（rgl/shaders/comp.js）\n"],
+    ["this.mk('skyF', GLSL.fsqVS, GLSL.skyFancyFS);", "/* remix: R5 skyF */"],
+    ["this.mk('bdown', GLSL.fsqVS, GLSL.bloomDownFS);", "/* remix: R5 bdown */"],
+    ["this.mk('bup', GLSL.fsqVS, GLSL.bloomUpFS);", "/* remix: R5 bup */"],
+    ["this.mk('final', GLSL.fsqVS, GLSL.finalFS);", "/* remix: R5 final */"],
+    ["this.mk('taa', GLSL.fsqVS, GLSL.taaFS);", "/* remix: R5 taa */"],
+    ["this.use('skyF'); this.setSkyUniforms(F); this.m4('u_invViewProj', F.invViewProjSky); this.u3v('u_camPos', F.camPos); this.u1f('u_time', F.time); this.u1f('u_starRot', F.starRot); this.u1f('u_moonPhase', F.moonPhase); this.u1f('u_aurora', F.aurora || 0);", "this.passes.skyF.use(); /* remix: R5 */"],
+    [`this.use('taa');
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.compC); this.u1i('u_cur', 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, src); this.u1i('u_hist', 1);
+      gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, T.sceneD); this.u1i('u_depth', 2);
+      this.m4('u_invViewProj', F.invViewProj); this.m4('u_prevViewProj', F.prevViewProj); this.u3v('u_camDelta', F.camDelta); this.u2f('u_texel', 1 / F.w, 1 / F.h);
+      this.u1f('u_reset', (F.taaReset || !T.histValid) ? 1 : 0);
+`, "this.passes.taa.use();   // remix: R5（贴图 / uniform 在 rgl/shaders/taa.js 用处内联）\n"],
+    [`this.use('bdown');
+    for (let i = 0; i < T.bloom.length; i++) {
+      const b = T.bloom[i]; gl.bindFramebuffer(gl.FRAMEBUFFER, b.f); gl.viewport(0, 0, b.w, b.h);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, src); this.u1i('u_src', 0); this.u2f('u_texel', 1 / sw, 1 / sh); this.u1f('u_first', i === 0 ? 1 : 0);
+`, `for (let i = 0; i < T.bloom.length; i++) {   // remix: R5（bl = 当前层的 src / texel / first，pass 的 uniform 读它）
+      const b = T.bloom[i]; gl.bindFramebuffer(gl.FRAMEBUFFER, b.f); gl.viewport(0, 0, b.w, b.h);
+      this.bl = { src, w: sw, h: sh, first: i === 0 ? 1 : 0 }; this.passes.bdown.use();
+`],
+    [`this.use('bup'); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);`, `gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);   // remix: R5`],
+    [`      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, s.t); this.u1i('u_src', 0); this.u2f('u_texel', 1 / s.w, 1 / s.h);
+`, `      this.bl = { src: s.t, w: s.w, h: s.h, first: 0 }; this.passes.bup.use();   // remix: R5
+`],
+    [`    this.use('final');
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.compC); this.u1i('u_src', 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, T.bloom[0].t); this.u1i('u_bloom', 1);
+    this.u1f('u_exposure', F.exposure); this.u1f('u_bloomAmt', F.bloomAmt); this.u1f('u_underwater', F.underwater ? 1 : 0); this.u1f('u_hurt', F.hurt); this.u1f('u_saturation', F.saturation); this.u3v('u_grade', F.grade);
+    this.u1f('u_scotopic', F.scotopic || 0); this.u1f('u_flare', F.flare || 0); this.u2f('u_sunUV', F.sunUV[0], F.sunUV[1]);
+`, `this.passes.final.use();   // remix: R5（rgl/shaders/final.js）
+`],
+    ["this.mk('clouds', GLSL.fsqVS, GLSL.cloudsFS); ", "/* remix: R5 clouds 由 rgl/pass.js 提供 */ "],
+    ["this.use('clouds'); this.setSkyUniforms(F); this.m4('u_invViewProj', F.invViewProjSky); this.u3v('u_camPos', F.camPos); this.u1f('u_time', F.time);", "this.passes.clouds.use(); /* remix: R5（uniform 在 rgl/shaders/clouds.js 用处内联） */"],
+    ["this.mk('skyLut', GLSL.fsqVS, GLSL.skyLutFS); ", "/* remix: R5 skyLut 由 rgl/pass.js 提供（this.passes.skyLut） */ "],
+    ["this.use('skyLut'); this.u3v('u_sunDir', F.sunDir); this.u3v('u_moonDir', F.moonDir); this.u1f('u_sunI', F.sunI); this.u1f('u_moonI', F.moonI); this.u1f('u_camAlt', F.camAlt); this.u1f('u_rain', F.rain || 0);", "this.passes.skyLut.use();   // remix: R5（uniform 在 rgl/shaders/skylut.js 用处内联）"],
+    ["    this.mk('shadow', GLSL.shadowVS, GLSL.shadowFS);\n", "    /* remix: R5 shadow / shadowS 由 rgl/pass.js 提供（rgl/shaders/shadow.js；R3b 的 shadowS 现在是同一份 VS 的宏变体） */\n"],
     ['this.shadowRes = 2048;', `this.shadowRes = 2048; this.sharpRes = ${SHARP_RES};   // remix`],
     ['      this.shadowFBO = this.fbo(null, this.shadowTex);\n', `      this.shadowFBO = this.fbo(null, this.shadowTex);
       this.sharpTex = this.makeTex(this.sharpRes, this.sharpRes, gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, gl.LINEAR);   // remix: R3b
@@ -149,6 +232,41 @@ const PATCH_FILES = {
     // 2. scene`],
     ["    this.drawSections(F, 'opaque', 'fancy', F.camPos);\n", "    this.drawSections(F, 'opaque', 'fancy', F.camPos);\n    this.drawSections(F, 'plant', 'fancy', F.camPos);   // remix: R3b 植物单独一个网格\n"],
     ["this.u1f('u_shadowRange', F.shadowDist);", "this.u1f('u_shadowRange', F.shadowDist);\n    this.m4('u_sharpMat', F.sharpMat); this.u1f('u_sharpDist', F.sharpDist); this.u1f('u_sharpSoft', F.sharpSoft); this.u1f('u_sharpRes', this.sharpRes); gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, this.sharpTex); this.u1i('u_sharp', 9);   // remix: R3b\n"],
+    // 以下依赖 R3b 补丁注入的文本，必须排在它们之后
+    [`      this.use('shadowS'); this.m4('u_shadowMat', F.sharpMat); this.u1f('u_time', F.time); this.u1f('u_wind', F.waving ? 1 : 0);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.tex); this.u1i('u_tex', 0);
+      for (const e of F.all) {
+        const m = e.sec.plant; if (!m || !m.n || e.dist > F.sharpDist + 24) continue;
+        this.u3f('u_offset', e.ox - F.shadowOrigin[0], e.oy - F.shadowOrigin[1], e.oz - F.shadowOrigin[2]); this.u3f('u_origin', e.ox, e.oy, e.oz);
+`, `      const SS = this.passes.shadowS; SS.use();   // remix: R5
+      for (const e of F.all) {
+        const m = e.sec.plant; if (!m || !m.n || e.dist > F.sharpDist + 24) continue;
+        this.setDraw(SS, e.ox - F.shadowOrigin[0], e.oy - F.shadowOrigin[1], e.oz - F.shadowOrigin[2], e.ox, e.oy, e.oz);
+`],
+    // R5：setFancyUniforms / setSkyUniforms 已无调用者（fancy / water / comp / skyF / clouds 的 uniform 都在 rgl/shaders/ 用处内联），整个删掉
+    [`  setFancyUniforms(F, hand) {
+    this.m4('u_viewProj', F.viewProj); this.u1f('u_time', F.time); this.u1f('u_wind', F.waving ? 1 : 0);
+    this.m4('u_shadowMat', F.shadowMat); this.u3v('u_camToShadow', F.camToShadow); this.u1f('u_shadowOn', hand ? 0 : 1); this.u1f('u_shadowRes', this.shadowRes); this.u1f('u_shadowDist', F.shadowDist);
+    this.u3v('u_lightDir', F.lightDir); this.u3v('u_lightCol', F.lightCol); this.u3v('u_ambCol', F.ambCol); this.u3v('u_torchCol', F.torchCol); this.u1f('u_flicker', F.flicker);
+    this.u4f('u_colorMul', 1, 1, 1, 1);
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.tex); this.u1i('u_tex', 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.shadowTex); this.u1i('u_shadow', 1);
+    gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, this.shadowTex); gl.bindSampler(5, this.rawSampler); this.u1i('u_shadowRaw', 5);
+    gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.nrmTex); this.u1i('u_nrm', 7);
+    gl.activeTexture(gl.TEXTURE8); gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.specTex); this.u1i('u_spec', 8);
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, this.lutTex); this.u1i('u_skyLut', 6); this.u1f('u_rain', F.rain || 0); this.u1f('u_flash', F.flash || 0);
+    this.u1f('u_pbrOn', F.pbr === false ? 0 : 1); this.u1f('u_pomOn', F.pom === false || hand ? 0 : 1);
+    this.u1f('u_shadowRange', F.shadowDist);
+    this.m4('u_sharpMat', F.sharpMat); this.u1f('u_sharpDist', F.sharpDist); this.u1f('u_sharpSoft', F.sharpSoft); this.u1f('u_sharpRes', this.sharpRes); gl.activeTexture(gl.TEXTURE9); gl.bindTexture(gl.TEXTURE_2D, this.sharpTex); this.u1i('u_sharp', 9);   // remix: R3b
+ this.u1f('u_wet', F.wet || 0); this.u1f('u_cloudShadowOn', F.clouds ? 1 : 0); this.u1f('u_cloudTime', F.cloudTime); this.u1f('u_cov', F.cov);
+  }
+`, '  /* remix: R5 setFancyUniforms 已删 */\n'],
+    [`  setSkyUniforms(F) {
+    const gl = this.gl; gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, this.lutTex); this.u1i('u_skyLut', 6); this.u1f('u_flash', F.flash || 0); this.u1f('u_cloudTime', F.cloudTime); this.u1f('u_cov', F.cov);
+    this.u3v('u_sunDir', F.sunDir); this.u3v('u_moonDir', F.moonDir); this.u3v('u_sunCol', F.sunCol); this.u3v('u_moonCol', F.moonCol); this.u1f('u_dayAmt', F.dayAmt); this.u3v('u_pathAxis', F.pathAxis); this.u1f('u_rain', F.rain || 0);
+  }
+`, '  /* remix: R5 setSkyUniforms 已删 */\n'],
   ],
 };
 

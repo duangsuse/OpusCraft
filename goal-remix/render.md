@@ -109,7 +109,7 @@ rgl/index.js：createRenderer(RCTX) → { name: 'gl', buildChunk, disposeChunk, 
 
 1. **位置决定种类**（同 glmod §1.1b-1）：`${f}` 在以 `#` 开头的行里是宏，其他位置是 uniform。正文里的 `${}` 只允许两种东西：`glsl` 片段（模块拼接）和函数（uniform）。数字、字符串这类裸值放在正文里直接报错，逼静态值走 `#` 行。
 2. **函数就是引用**：`c_.Gl.it.softStr` 本身是一个 getter 函数，调用它就是读当前值，和 `() => softStr` 走同一条路径。`set / As / path / key / meta` 放在共享原型 `RefProto` 上（原型链底是 `Function.prototype`），所以每个 Ref 只是一个闭包。`it` 对同一路径总返回同一个 Ref，可以当 Map 键。
-   - **Ref 就是 Tweakpane 绑定的 `(owner, key)`**（用户 11-03）：`${c_.Gl.it.softStr}` 对应 `c_.Gl` 这个对象的 `softStr` 键，即 `pane.addBinding(c_.Gl, 'softStr')` 的两个参数；嵌套表同理，`it` 挂在持有该键的那个对象上（`c_.Gl.ao.it.strength` ≡ `addBinding(c_.Gl.ao, 'strength')`）。所以 Ref 要能直接给出 `owner` 和 `key`：面板行、Pass 的 uniform 声明、`ref.set` 的副作用路由用的是同一个东西，不再有「路径字符串 → 解析」这一步。⚠ 写法待用户确认：`it` 在 key 的前一级（上面的写法），还是 panify §2 现在的 `o.it.ao.strength`（it 在表的根上、路径在后）；两者都能得到 `(owner, key)`，只是路径书写不同，R5 开工前定一种。
+   - **Ref 就是 Tweakpane 绑定的 `(owner, key)`**（用户 11-03）：`${c_.Gl.it.softStr}` 对应 `c_.Gl` 这个对象的 `softStr` 键，即 `pane.addBinding(c_.Gl, 'softStr')` 的两个参数；嵌套表同理，`it` 挂在持有该键的那个对象上（`c_.Gl.ao.it.strength` ≡ `addBinding(c_.Gl.ao, 'strength')`）。所以 Ref 要能直接给出 `owner` 和 `key`：面板行、Pass 的 uniform 声明、`ref.set` 的副作用路由用的是同一个东西，不再有「路径字符串 → 解析」这一步。**写法已定（用户 11-03）：`it` 在 key 的前一级**（`c_.Gl.ao.it.strength`）；每个 pass 局部先取别名再用：`const ao = c_.Gl.ao.it` → `${ao.strength}`。不采用 panify §2 的 `o.it.ao.strength`。`it` 只认声明过的 key，拼错直接抛错（声明式）。
 3. **名字**：Ref 用 `key`（`softStr`）；箭头函数用源码末尾的 `.xxx` 或裸标识符（`() => softStr` → `softStr`，`() => F.sunDir` → `sunDir`）；其余情况用 `u('名字', f)`。同一个 program 里名字相同时，如果是同一个 Ref、或箭头函数源码文本相同，就是同一个 uniform（所以同一个 uniform 可以在多处内联）；否则报错。
 4. **类型取自默认值，声明自动前置**：第一次编译时求值一次来定类型：`number` → `float`（`meta.glsl: 'int'` 时为 `int`）；`boolean` → `bool`；长度 2/3/4 的数组 → `vec2/3/4`；长度 16 的 `Float32Array` → `mat4`；纹理看 rgl 的纹理构造函数打在对象上的 `glslType`（`sampler2D / sampler2DArray / sampler2DShadow / usampler3D`，WebGLTexture 本身看不出类型）。`uniform <类型> <名字>;` 插在源码头部的 `#version` 和 `precision` 行之后：`#version` 必须在第一行，v2/pass.js 直接把兜底宏拼在最前面（`head + src`），这在 goodGL 的源码上会编译失败。上传函数（`uniform1f / 3fv / Matrix4fv / 1i`）在编译时按类型选好，每帧只调用。开发模式下，某帧值的类型变了就报错（"类型稳定"）。
 5. **宏**：`#if ${f}` 取数值（布尔转成 0/1）；`#ifdef ${f}` 按真假决定定义与否。只出现在 `#if` 里的宏，头部补 `#ifndef X / #define X 0`（同 glmod §1.1b-3）；只出现在 `#ifdef` 里的不补，否则它永远为真；同一个宏两种用法混用就报错。
@@ -323,3 +323,54 @@ goodGL 原版的效果上界（每项单独关，ms / 占比）：
 - 验证：同机位在 `D.time = 10 / 300 / 1000` 三个时间点拍，修前花头逐步上移直到只剩茎（t=300、t=1000 两张），修后三个时间点位置一致。`verify-renderer --only gl` 全 PASS。
 - 教训：涉及着色器 flags 位的改动，验证要包含「时间推进」这一维；`flora.mjs` 现在默认拍三个时间点。
 
+
+### R4 实体合成 spike（方案 B）记录
+- **做法**：`rgl/index.js` 的 `drawThree()`：`renderFancy`（含 final）之后，用 `depthOut` 全屏 pass 把 goodGL 的 `sceneD` 还原成线性视深、按宿主相机 near/far 重映射，只写深度（colorMask 关）进默认帧缓冲；然后 `renderer.render(scene, camera)`（autoClear 已关）画实体、掉落物、粒子、选框、裂纹。`sky / sun / moon / stars / clouds` 每帧隐藏（RCTX 新增 `sky, sun, moon`）。手仍由宿主 hudScene 在 `VR.render()` 之后画，无需改。
+- **验证（人眼）**：花旁的猪被地形遮挡正确；石块挡住的第二只猪只露出探出的部分；选框线框与花、地形深度关系正确；无 TAA 拖影（实体不进 TAA）。截图脚本 `/tmp/r2/ent.mjs`（未入库）。
+- **代价**：多一个全屏深度 pass（计时落在 `final` 段内）；实体不走 tonemap / bloom / 阴影（`MeshBasicMaterial` 原色，不受昼夜光照，夜里会偏亮）——这是 B 的固有缺点，A 方案（实体画进 `sceneRT` 再合成）才能解决。**待人挑：B 够用，还是上 A。**
+
+### 备忘：天空 / 雾 / 云隙光（用户意图，待 R5 / R7 / v2/gl 移植时落实）
+- **问题不在「有没有天空」**：`?r=gl` 的天空是 goodGL 自己的，但相对 goodGL 的体积雾 + 云隙光（`volumetric`）显得简陋，晨间雾与天空不搭，出戏风险大。
+- **计划**：goodGL 的夜空版本要进 v2/gl 的 Tweak，配合 Bliss 云做成一个选项；移植时雾（`fog / mist`）和云隙光（`volumetric`）各给一个面板文件夹（Tweakpane，`it` Refs），不再只是 `P` 里的裸参数。
+- **对 R5 / R7 的约束**：`pass.js / vars.js` 里这些量要按「面板文件夹」成组声明（雾、云隙光、夜空 / 云风格），而不是散落的 uniform；`fog / mist` 默认仍为 0（去雾版）。
+
+### R5 进度记录（第 1 段：基础设施 + skyLut 试点）
+- **`rgl/vars.js`**：Ref 核心（`it` 在 key 的前一级，见 §4.1 第 2 条；`tools/test-vars.mjs`）。
+- **`rgl/pass.js`**：`createPassKit(gl, { dev }).Pass({ vs?, attribs?, tag })\`…\``：位置决定种类（`#` 行 = 宏，其他 = uniform）、名字取 Ref key / 箭头函数末尾标识符 / `u('名字', f)`、类型取自默认值并自动前置声明（插在 `#version` / `precision` 之后）、`#if / #ifdef / #ifndef / #define` 的宏值进编译缓存键（切回旧值不新增变体）、链接后自检（活跃未绑定 → 抛错；绑定未活跃 → 开发模式警告一次）、正文裸值抛错、VS / FS 共用 uniform 表、采样器按声明顺序占纹理单元。`dev` 开关（`?passdev`）打开「类型稳定」检查。纯函数部分 `tools/test-pass.mjs`（node），GL 部分 `tools/test-pass-gl.mjs`（无头 Chromium：缓存命中、类型变化抛错、裸值抛错、活跃未绑定抛错）。**尚未做**：`KHR_parallel_shader_compile` 后台编译（宏切换现在同步编译）。
+- **试点 `skyLut`**：`rgl/shaders/skylut.js`（GLSL 一字不改，只有 `u_xxx` → 用处内联的 `${() => F.xxx}`；`rain` 因 `F.rain || 0` 用 `u('rain', …)`）；vendor 的 `renderer.js` 两处补丁（删 `mk('skyLut')`，`use + 6 个上传` → `this.passes.skyLut.use()`）；`rgl/frameref.js` 提供 `F` 句柄（`render()` 每帧 `setFrame(F)`）。
+- **验证**：`bench-v2 --r gl --ref` 四机位（plain / canopy / cave / water）转换前后 0 px 差（基线两次重复也是 0 px）；`?passdev` 下无警告、无错误；`R.programs.skyLut` 能导出带自动声明的源码。**shader-stats 未单独对（skyLut 太小进不了「最大几个」榜单）**。
+- **bench 修正**：`tools/bench-v2.mjs` 之前 `--ref` 的 plain 机位两次相差 4521 px —— 不是渲染不确定，而是 R4 之后 three 画的生物进了画面、随机刷怪；现在 settle 之后把 `g.mobs.push` 置空，四机位重复 0 px。（教训：`| tail -0` 会让 node 因 EPIPE 提前死，别用。）
+- **verify**：静态检查新增「rgl 里没有 u1f( 一类上传调用」+ vars / pass 单元测试。
+- **后面**：把其余 program 一个个转（每个都 `--ref` 0 px），再 Env→F（天气 / 雾 / 曝光）。每转一个 program，vendor `renderer.js` 里对应的 `use + 上传` 行加一条补丁。
+
+### R5 进度记录（第 2 段：fullscreen program 转换 + 工具）
+- **已转（模板 Pass，0 px）**：`skyLut`、`clouds`、`skyF`、`taa`、`bdown`、`bup`、`final`、`depthOut`（R4）。每个都是：`tools/pass-conv.mjs` 机械生成 `rgl/shaders/*.js`（删 `uniform` 声明、`u_xxx` → 用处内联的 `${…}`，GLSL 逻辑一字不改）+ `tools/vendor.mjs` 里对 `renderer.js` 的补丁（删 `mk`、`use + 上传` → `this.passes.X.use()`）+ `rgl/index.js` 的 `X`（纹理 / 循环状态等外部量）。
+- **验证**：`bench-v2 --r gl --ref` 四机位对「转换前」基线 0 px；`--ref` 会关 TAA，所以 `taa` 另做了非 ref（TAA 开）A/B：plain / water 转换前后 0 px，且同代码重复 0 px（TAA 在固定帧数下是确定的）。`verify-renderer --only gl` 全过，整体静态检查（rgl 无 `u1f(`、vars / pass 单元测试）全过。
+- **踩到的坑**：① 内联名字会和 GLSL 局部变量重名：`vec3 cur = tm(texture(cur, …))` 里局部 `cur` 在自己的初始化式里就可见，把 `u_cur` 内联成 `cur` 直接编译失败 → 采样器统一加 `Tex` 后缀（`curTex / histTex / depthTex`）。pass 编译失败时报整份带行号的源码，容易定位；以后转 program 先看有没有同名局部变量。② `u('rain', …)` 在同一份源码里出现多次是多个函数对象 → `sameSource` 对 `u()` 改成「同名 + 同源码文本」才算同一个。③ bench 里 `g.mobs.push = () => 0` 拦不住 `new Mob()` 构造函数自己 `scene.add(group)` → 孤儿生物网格进了场景，plain 机位每次不同 → 一并拦 `scene.add` 的 Group；注意 three 的 `add()` 零参数会打错误日志，过滤后为空要跳过。④ zsh 里 `C="node …"; $C args` 不分词；用函数。
+- **还没转**：`comp`（38 个 uniform，最大）、`fancy / water / shadow / shadowS / vanilla`（几何 pass，要 `Pass({ vs, attribs })` 和每段 VS 模板化）、`lines / overlay / blit`、`setFancyUniforms / setSkyUniforms` 本身（转完最后一个调用者后整个删掉）。之后才是 Env→F。
+
+### R5 进度记录（第 3 段：comp）
+- **`comp` 已转**（38 个 uniform，最大的全屏 program）：`rgl/shaders/comp.js`；`--ref` 四机位 0 px，非 ref（TAA 开）plain / water 对「taa / comp 转换前」基线 0 px；`verify --only gl` 全过。已转共 9 个：`skyLut / clouds / skyF / taa / bdown / bup / final / comp / depthOut`。
+- **坑：纹理单元上留着 Sampler 对象**。`comp` 的 `sampler2DShadow shadow` 被 Pass 分到单元 5，画第一下就 `INVALID_OPERATION`、整屏黑：goodGL 的 `setFancyUniforms` 在单元 5 绑了 `rawSampler`（`gl.bindSampler(5, …)`，compare 关、NEAREST）且永不解绑，其他单元则没有；有 Sampler 对象时它覆盖贴图参数，和 `sampler2DShadow` 冲突。→ Pass 上传采样器时一律 `bindSampler(unit, null)`（以贴图自带参数为准）；`setFancyUniforms` 下一帧自己会再绑。教训：Pass 不能假设单元是干净的；定位方法是在页面里手动把 `table.get(k).unit` 改成各种组合二分，比盯着代码快。
+- **还没转**：几何 pass（`fancy / water / shadow / shadowS / vanilla`）、`lines / overlay / blit`、`setSkyUniforms / setFancyUniforms`（最后整个删掉）；之后 Env→F。
+
+### R5 进度记录（第 4 段：几何 pass 试点 shadow / shadowS）
+- **已转**：`shadow`、`shadowS`（共 11 个 program）。`pass-conv.mjs` 新增 `--vs <键>`（VS 也转成 `glsl` 片段）；`rgl/shaders/shadow.js` 一份 VS 两个实例：R3b 的 `shadowS` 以前是对 VS 文本做 `.replace` 得到第二个 program，现在是 `#if ${() => sharp}` 宏变体（矩阵 `F.sharpMat / F.shadowMat` 也随实例）。
+- **每次 draw 都变的量**（`u_offset / u_origin`）：`Pass.touch(...names)` 只重传这几个；`R.setDraw(pass, ox,oy,oz, ax,ay,az)` 写进 `dr` 再 touch（fancy / water 以后同用）。
+- **Pass 修正**：VS / FS 共用一张 uniform 表，但声明各自只写本阶段用到的（VS 里声明 `sampler2DArray` 会因「没有精度」编译失败）。
+- **补丁顺序坑**：`tools/vendor.mjs` 的补丁按顺序应用，依赖「R3b 补丁注入的文本」的 R5 补丁必须排在 R3b 之后（shadowS 那块），只依赖供体原文的可以排前面。
+- **验证**：`--ref` 四机位 0 px；`flora`（锐阴影图真正被画的机位）单机位前后 0 px。注意：**`flora` 在多机位一次跑里和单独跑相差 ±1~23（2910 px），同代码也如此**（先跑别的机位会改变状态，疑似 TAA / 抖动序列或锐阴影的帧计数相关）→ flora 对比要单机位跑；多机位串跑下不能当 0 px 基线。（已知，待查。）
+
+### R5 进度记录（第 5 段：fancy / water + 删 setFancyUniforms / setSkyUniforms）
+- **已转**：`fancy`（+ chunkVS，含画手）、`water`（+ chunkVS）。共 13 个 program 已是模板 Pass；`setFancyUniforms / setSkyUniforms` 已无调用者，由补丁整体删除。`fancy` 一个 program 服务三处调用（场景、`dynW`、手）：`R.fm.hand` 在 `use()` 前置位，`rgl/shaders/common.js` 里 `viewProj / wind / shadowOn / lightDir / lightCol / pomOn` 按 hand 取另一组值，不重复编译。`tools/pass-conv.mjs` 支持 `@映射文件`（`tools/pass-maps/*.map`）。
+- **Pass 增强**：采样器的值可以是 `{ texture, sampler, glslType }`（`shadowRaw` 要用 goodGL 的 `rawSampler`；其余一律 `bindSampler(unit, null)`）。`drawSections` 补丁：已转的 program 走 `setDraw`，未转的（vanilla）仍旧路。
+- **验证**：`--ref` 四机位 0 px；`flora` 单机位 0 px；非 ref（TAA 开）plain / water 0 px；`verify --only gl` 全过。**手（`drawHand`）在 `?r=gl` 下不走**（宿主用 three 画手，`dynHand` 恒空），所以 `fm.hand = true` 那组值没有被像素验证过；等 R6 接宿主 B 才会走到。
+- **shader-stats**：当前 `?r=gl` 最大的片元着色器 SIMD8 4229 条指令、spill 81:97（fancy），其余在 2018 以下、spill 0。**没有 R5 之前的同口径基线**（R3 当时没记 gl 的 shader-stats），所以「每个 program 的 shader-stats 与 R3 基线相同」这条验收只能从现在起建基线、下次改 GLSL 时比，无法追溯；名字改动不改变生成的代码，`--ref` 0 px 是主要证据。
+- **还没转**：`vanilla / lines / overlay / blit`（`?r=gl` 恒走 fancy，vanilla 不会被调用；lines / overlay 只有 `F.crack / F.lines` 才画，宿主 A 用 three 画选框和裂纹，所以也不走）。它们可以最后一起转，或在 R6 接宿主 B 时转。**R5 下一步：Env → 帧对象（天气 / 雾 / 曝光）+ 面板文件夹**。
+
+### R5 进度记录（第 6 段：Env → F、P 变成 vars、面板文件夹）
+- **Env 补三项**（ts + 两个适配器）：`eyeInWater`、`eyeSky`（眼处天空光 0..1）、`weather?`（`{rain, thunder, wet}`，宿主 A 没有，`rgl` 当恒晴）。宿主 A：`RCTX.eyeInWater = player.eyeInWater`，`eyeSky = lightAt(相机格).sky / 15`；`v2/gl.js` 的 Env 适配器转发（v2 / v2/gl 自己不读）。
+- **`rgl/index.js` 的 `render()`**：`underwater / eyeSky / rain / flash / wet` 现在都从 Env 进 `fb.build`，并每帧调 `ENV.underwater(flag)` 隐藏宿主的水下 CSS 遮罩（goodGL 的 comp 自己画水下）。结果：`uw` 机位是真的水下（以前 `F.underwater` 恒假）；洞穴系数真的起作用（`cave` 机位平均亮度 4.3 → 7.8，曝光往上调，洞里本来就几乎没光所以仍很暗）。**所以 `cave` 的 0 px 基线从这里换新**（plain / canopy / water 不变，仍 0 px）。
+- **`P` 是 `vars()` 对象**（读写值照旧，bench 契约不变）；`meta.folder` 分组：渲染 / 雾（`mist`、`fog`）/ 云隙光（`volumetric`）/ 花草锐阴影 / 调试。`VR.apply(k)` = `P.it[k].set(P[k])`（hooks 以后路由宏切换）；`VR.panelRows = P.panelSpec` 给 R7 的面板用（`panelSpec` 仍是 `[]`：bench-v2 按 v2 的 `[[标题, 行]]` 格式遍历它，格式不同会炸）。云隙光现在只有一个开关（`volumetric`）；强度 / 光束参数在 GLSL 常量里，提成参数属于「调优」（§4.1：失去常量折叠，单独提交），留给夜空 / 云隙光 fork 时一起做。
+- **已知**：`water` 机位在「不同机位组合」的两次跑之间会差 16538 px（R5 之前就有，和 `flora` 的 ±1~23 同类，疑似机位顺序带来的状态）；比较时用同一组机位串。
+- **R5 还没做的**：`vanilla / lines / overlay / blit` 转换（?r=gl 不走，留给 R6）；宏来回切换命中编译缓存的 GL 级验收已有（`tools/test-pass-gl.mjs`）但尚未接 `P` 的宏开关（R7）；「人看晨、昏、雨三种天」要宿主 B（雨）；bench.md §4 确定性钉点除 `time / cloudX / ref` 外，`cov`、天气钉点等宿主 B 才有意义。

@@ -1328,9 +1328,11 @@ const RCTX = { THREE, scene, camera, renderer, U, GLSL, MeshBuilder, makeGeometr
   SOLID, OPAQUE, LIGHT_PASS, RENDER, EMIT, T_TOP, T_BOT, T_SIDE, R_NONE, R_CUBE, R_CROSS, R_TORCH, R_WATER,
   chunks, ck, getBlock, settings: null, TEX,
   get flying() { return !!(player.fly || player.noclip); },   // Env.flying（同样惰性）
+  get eyeInWater() { return !!player.eyeInWater; },   // Env.eyeInWater / eyeSky（rgl：水下、洞穴系数）；同样惰性
+  get eyeSky() { const p = camera.position; return lightAt(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))[0] / 15; },
   get worldTime() { return worldTime; },   // Env.dayTime 的来源（0..1，0 = 06:00）；getter 惰性读，createRenderer 期间不要碰（TDZ）
   clouds, cloudMat,   // 云层（v2 隐藏平面云，改为在 DDA 中绘制体积云）
-  stars, skyMat };    // 星星（v2 默认隐藏宿主星、在 DDA 天空分支程序化绘制）/ 天空球（天顶色给水面反射）
+  stars, skyMat, sky, sun, moon };   // sky / sun / moon：?r=gl 自己画天空，R4 把它们隐藏后让 three 只画实体、粒子、选框    // 星星（v2 默认隐藏宿主星、在 DDA 天空分支程序化绘制）/ 天空球（天顶色给水面反射）
 let VR;
 try { VR = (await import(`${RENDERERS[RENDERER_ID]}?t=${Date.now()}`)).createRenderer(RCTX); }
 catch (e) { console.error(`renderer ${RENDERER_ID} failed, falling back to v1`, e); VR = (await import('./v1.js')).createRenderer(RCTX); }

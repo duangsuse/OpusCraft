@@ -1,0 +1,311 @@
+// rgl/shaders/fancy.js —— goodGL fancyFS + chunkVS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
+import { u, glsl } from '../pass.js';
+import { F } from '../frameref.js';
+export const fancy = (Pass, X = {}) => Pass({ tag: 'fancy', vs: glsl`#version 300 es
+precision highp float;
+layout(location=0) in vec3 a_pos;
+layout(location=1) in vec4 a_uvl;
+layout(location=2) in vec4 a_light;
+layout(location=3) in vec4 a_tint;
+out vec3 v_uv; out vec4 v_tint; out vec3 v_light; out vec3 v_rel; out vec3 v_normal; out vec3 v_world;
+flat out int v_flags;
+const vec3 NRM[7] = vec3[7](vec3(1,0,0),vec3(-1,0,0),vec3(0,1,0),vec3(0,-1,0),vec3(0,0,1),vec3(0,0,-1),vec3(0,1,0));
+void main(){
+  int flags = int(a_uvl.w + 0.5);
+  vec3 p = a_pos;
+  vec3 wp = p + ${X.origin};
+  float wave = floor(a_tint.a*255.0+0.5);
+  if (wave > 0.5 && ${X.wind} > 0.0) {
+    float t = ${() => F.time};
+    vec3 off = vec3(sin(t*1.6 + wp.x*0.55 + wp.z*0.3 + wp.y*0.4), 0.0, cos(t*1.25 + wp.z*0.6 + wp.x*0.25));
+    off += 0.45*vec3(sin(t*3.3 + wp.x*1.7 + wp.y), 0.0, sin(t*2.9 + wp.z*1.9));
+    float amp = wave < 1.5 ? 0.03 : 0.085;
+    if (wave < 1.5) off.y = sin(t*2.1 + wp.x + wp.z) * 0.5;
+    p += off * amp * ${X.wind};
+  }
+  vec3 rel = p + ${X.offset};
+  v_rel = rel; v_world = p + ${X.origin};
+  gl_Position = ${X.viewProj} * vec4(rel, 1.0);
+  v_uv = vec3(a_uvl.xy / 256.0, a_uvl.z);
+  v_tint = a_tint; v_light = a_light.xyz;
+  v_normal = NRM[int(a_light.w * 255.0 + 0.5)];
+  v_flags = flags;
+}` })`#version 300 es
+
+precision highp float;
+precision highp sampler2DArray;
+precision highp sampler2DShadow;
+
+
+
+
+// remix: R3b 锐阴影图
+
+float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+float hash13(vec3 p3){ p3 = fract(p3 * 0.1031); p3 += dot(p3, p3.zyx + 31.32); return fract((p3.x + p3.y) * p3.z); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f*f*(3.0-2.0*f);
+  return mix(mix(hash12(i), hash12(i+vec2(1,0)), u.x), mix(hash12(i+vec2(0,1)), hash12(i+vec2(1,1)), u.x), u.y); }
+float vnoise3(vec3 p){ vec3 i = floor(p), f = fract(p); vec3 u = f*f*(3.0-2.0*f);
+  float a = mix(mix(hash13(i), hash13(i+vec3(1,0,0)), u.x), mix(hash13(i+vec3(0,1,0)), hash13(i+vec3(1,1,0)), u.x), u.y);
+  float b = mix(mix(hash13(i+vec3(0,0,1)), hash13(i+vec3(1,0,1)), u.x), mix(hash13(i+vec3(0,1,1)), hash13(i+vec3(1,1,1)), u.x), u.y);
+  return mix(a, b, u.z); }
+float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+
+
+const float CB = 185.0, CT = 262.0;
+float cloudMap(vec2 xz){
+  vec2 p = xz * (1.0 / 520.0) + vec2(${() => F.cloudTime} * 0.0045, ${() => F.cloudTime} * 0.0016);
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.07 + vec2(3.1, 1.7); a *= 0.5; }
+  return s / 0.9375;
+}
+float cloudCover(float n){ return clamp((n - (1.0 - ${() => F.cov})) * 2.6, 0.0, 1.0); }
+
+float shadowAt(vec3 wp){
+  vec4 sp = ${() => F.shadowMat} * vec4(wp, 1.0);
+  float df = length(sp.xy) * 0.9 + 0.1;
+  sp.xy /= df;
+  vec3 c = sp.xyz * 0.5 + 0.5;
+  if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0) return 1.0;
+  float a = ign(gl_FragCoord.xy) * 6.2831; mat2 R = mat2(cos(a), sin(a), -sin(a), cos(a));
+  float uvPerBlock = 1.0 / (2.0 * ${X.shadowRange}) / df;
+  // blocker search
+  float sr = 0.45 * uvPerBlock; float zb = 0.0, nb = 0.0;
+  for (int i = 0; i < 5; i++) { float fi = float(i); vec2 o2 = R * vec2(cos(fi * 2.4), sin(fi * 2.4)) * sqrt((fi + 0.5) / 5.0) * sr;
+    float z = texture(${X.shadowRaw}, c.xy + o2).r; if (z < c.z - 0.00002) { zb += z; nb += 1.0; } }
+  if (nb < 0.5) return 1.0;
+  zb /= nb;
+  float pen = clamp((c.z - zb) * 640.0 * 0.018, 0.02, 0.55) * uvPerBlock;
+  pen = max(pen, 0.8 / ${X.shadowRes});
+  float s = 0.0;
+  for (int i = 0; i < 8; i++) { float fi = float(i); vec2 o2 = R * vec2(cos(fi * 2.4), sin(fi * 2.4)) * sqrt((fi + 0.5) / 8.0) * pen;
+    s += texture(${X.shadow}, vec3(c.xy + o2, c.z)); }
+  return s / 8.0;
+}
+float sharpAt(vec3 wp){   // remix: R3b：锐图只有花草；影子边缘是像素画 alpha 剪影 + 阴影图 texel，直接单 tap 会是方块锯齿。
+  // 这里在 ~${() => F.sharpSoft} 个 texel 的圆盘里取 8 次比较（每次硬件 2x2 PCF），IGN 逐像素旋转，TAA 把噪声积分掉；不做遮挡物搜索，所以细草叶不漏
+  vec3 c = (${() => F.sharpMat} * vec4(wp, 1.0)).xyz * 0.5 + 0.5;
+  if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0) return 1.0;
+  float a = ign(gl_FragCoord.xy + 17.0) * 6.2831; mat2 R = mat2(cos(a), sin(a), -sin(a), cos(a));
+  float r = ${() => F.sharpSoft} / ${X.sharpRes}, s = 0.0;
+  for (int i = 0; i < 8; i++) { float fi = float(i); vec2 o2 = R * vec2(cos(fi * 2.4), sin(fi * 2.4)) * sqrt((fi + 0.5) / 8.0) * r; s += texture(${X.sharp}, vec3(c.xy + o2, c.z)); }
+  return s / 8.0;
+}
+float cloudShadow(vec3 wp){
+  if (${X.cloudShadowOn} < 0.5 || ${X.lightDir}.y < 0.02) return 1.0;
+  vec2 q = wp.xz + ${X.lightDir}.xz * ((CB + 25.0 - wp.y) / max(${X.lightDir}.y, 0.08));
+  return 1.0 - 0.78 * cloudCover(cloudMap(q));
+}
+float caustic(vec2 p, float t){
+  vec2 q = p * 0.9;
+  float c = 0.0;
+  for (int i = 0; i < 2; i++) {
+    vec2 w = q + vec2(vnoise(q * 0.8 + t * 0.35), vnoise(q * 0.8 - t * 0.3 + 5.0)) * 1.8;
+    float n = vnoise(w * 1.6 + float(i) * 7.0);
+    c += pow(1.0 - abs(n * 2.0 - 1.0), 7.0);
+    q *= 1.7;
+  }
+  return c;
+}
+float lb(float l){ float f = 1.0 - l; return (1.0 - f) / (f * 3.0 + 1.0); }
+in vec3 v_uv; in vec4 v_tint; in vec3 v_light; in vec3 v_rel; in vec3 v_normal; in vec3 v_world;
+flat in int v_flags;
+
+layout(location=0) out vec4 o; layout(location=1) out vec4 o2;
+vec2 octEnc(vec3 n){ n /= abs(n.x) + abs(n.y) + abs(n.z); vec2 e = n.xy; if (n.z < 0.0) e = (1.0 - abs(n.yx)) * vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0); return e * 0.5 + 0.5; }
+vec2 skyUV(vec3 d){ float el = asin(clamp(d.y, -1.0, 1.0)); float v = 0.5 + 0.5 * sign(el) * sqrt(abs(el) / 1.5707963); return vec2(atan(d.z, d.x) / 6.2831853 + 0.5, v); }
+vec3 skyEnv(vec3 d){
+  vec3 c = texture(${X.skyLut}, skyUV(normalize(vec3(d.x, max(d.y, 0.0), d.z)))).rgb;
+  float l = dot(c, vec3(0.3, 0.55, 0.15));
+  c = mix(c, vec3(l) * vec3(0.92, 0.96, 1.0), ${X.rain} * 0.75) * (1.0 - ${X.rain} * 0.35);
+  return c + vec3(0.55, 0.6, 0.8) * ${X.flash} * 0.6;
+}
+// expanding raindrop rings for puddles (analytic normal perturbation)
+vec2 ripples(vec2 p, float t){
+  vec2 g = floor(p); vec2 acc = vec2(0.0);
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 c0 = g + vec2(x, y); float h = hash12(c0);
+    float ph = fract(t * 0.9 + h);
+    vec2 c = c0 + vec2(hash12(c0 + 3.1), hash12(c0 + 7.7));
+    vec2 dv = p - c; float r = length(dv); float R = ph * 0.9;
+    float ring = sin((r - R) * 38.0) * smoothstep(0.12, 0.0, abs(r - R)) * (1.0 - ph) * (1.0 - ph);
+    acc += dv / max(r, 1e-3) * ring;
+  }
+  return acc;
+}
+vec3 envBRDF(vec3 F0, float r, float NoV){
+  const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022); const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+  vec4 rr = r * c0 + c1; float a004 = min(rr.x * rr.x, exp2(-9.28 * NoV)) * rr.x + rr.y;
+  vec2 AB = vec2(-1.04, 1.04) * a004 + rr.zw; return F0 * AB.x + AB.y;
+}
+void main(){
+  o2 = vec4(0.0);
+  vec3 uv = v_uv;
+  int mat = v_flags & 3; int tm = (v_flags >> 2) & 3;
+  if ((v_flags & 256) != 0) uv.xy += vec2(sin(${() => F.time}*0.3 + v_world.z*0.1)*0.03, ${() => F.time}*0.02);
+  // derivatives & tangent frame (computed before any divergent branch)
+  vec2 gdx = dFdx(uv.xy), gdy = dFdy(uv.xy);
+  if ((v_flags & 24576) != 0) uv.xy = clamp(uv.xy, vec2(0.002), vec2(0.998));   // remix: 植物贴图 v = 1.0 恰在边上，REPEAT 会绕回顶行（花瓣出现在底边）
+  vec3 dp1 = dFdx(v_rel), dp2 = dFdy(v_rel);
+  vec3 N0 = v_normal;
+  vec3 dp2p = cross(dp2, N0), dp1p = cross(N0, dp1);
+  vec3 Tg = dp2p * gdx.x + dp1p * gdy.x, Bg = dp2p * gdx.y + dp1p * gdy.y;
+  float tl = max(dot(Tg, Tg), 1e-12), bl = max(dot(Bg, Bg), 1e-12);
+  Tg *= inversesqrt(tl); Bg *= inversesqrt(bl);
+  bool foliage = (v_flags & 128) != 0;
+  if ((v_flags & 4096) != 0) { // weather particles
+    vec4 c = texture(${X.atlas}, uv);
+    vec3 albedo = pow(c.rgb * ${X.colorMul}.rgb, vec3(2.2));
+    float blk = v_light.y;
+    vec3 lc = ${() => F.ambCol} * 0.9 + ${X.lightCol} * 0.08 + ${() => F.torchCol} * lb(blk) * 0.3;
+    o = vec4(lc * mix(vec3(0.8, 0.85, 0.95), albedo, 0.5), c.a * 0.2); return;
+  }
+  vec3 V = normalize(-v_rel);
+  float d = length(v_rel);
+  float pbr = ${X.pbrOn};
+  vec4 sp = textureGrad(${X.spec}, uv, gdx, gdy);
+  // ---------------- parallax occlusion mapping
+  float pomD = sp.a * 0.25 * ${X.pomOn} * pbr * (1.0 - smoothstep(10.0, 18.0, d));
+  vec3 Vt = vec3(dot(V, Tg), dot(V, Bg), dot(V, N0));
+  float hgt = 1.0; float pomSh = 1.0;
+  if (pomD > 0.002 && Vt.z > 0.04 && mat == 0) {
+    const int NS = 14;
+    float stepL = 1.0 / float(NS);
+    vec2 delta = -Vt.xy / max(Vt.z, 0.25) * pomD * stepL;
+    vec2 cur = uv.xy; float layer = 0.0;
+    float hd = 1.0 - textureGrad(${X.nrm}, vec3(cur, uv.z), gdx, gdy).a;
+    float prevHd = hd; vec2 prev = cur;
+    for (int i = 0; i < NS; i++) {
+      if (layer >= hd) break;
+      prev = cur; prevHd = hd;
+      cur += delta; layer += stepL;
+      hd = 1.0 - textureGrad(${X.nrm}, vec3(cur, uv.z), gdx, gdy).a;
+    }
+    // interpolate between the last two samples
+    float after = hd - layer, before = prevHd - (layer - stepL);
+    float w = clamp(after / (after - before + 1e-5), 0.0, 1.0);
+    uv.xy = mix(cur, prev, w);
+    hgt = 1.0 - mix(layer, layer - stepL, w);
+    // self shadowing toward the light
+    vec3 Lt = vec3(dot(${X.lightDir}, Tg), dot(${X.lightDir}, Bg), dot(${X.lightDir}, N0));
+    if (Lt.z > 0.02) {
+      float lh = 1.0 - hgt; vec2 ld = Lt.xy / max(Lt.z, 0.2) * pomD * lh / 6.0; float occ = 0.0;
+      vec2 q = uv.xy;
+      for (int i = 1; i <= 6; i++) {
+        q += ld; float hh = 1.0 - textureGrad(${X.nrm}, vec3(q, uv.z), gdx, gdy).a;
+        float lay = lh - float(i) * (1.0 / 6.0) * lh - 0.02;
+        occ = max(occ, clamp((lay - hh) * 10.0, 0.0, 1.0));
+      }
+      pomSh = 1.0 - occ * 0.6;
+    }
+    sp = textureGrad(${X.spec}, uv, gdx, gdy);
+  }
+  vec4 c = textureGrad(${X.atlas}, uv, gdx, gdy);
+  if (mat == 1 && c.a < 0.5) discard;
+  vec3 tint = v_tint.rgb;
+  if (tm != 0 && pbr > 0.5) {
+    // natural variation: lush / dry patches and per-block jitter, slightly less saturated than the raw biome tint
+    vec2 wq = floor(v_world.xz + N0.xz * 0.01);
+    float pv = vnoise(v_world.xz * 0.045) * 0.65 + vnoise(v_world.xz * 0.17) * 0.35;
+    float jit = hash12(wq) - 0.5;
+    vec3 dry = tint * vec3(1.12, 1.02, 0.72), lush = tint * vec3(0.82, 0.95, 0.86);
+    tint = mix(lush, dry, smoothstep(0.3, 0.75, pv)) * (1.0 + jit * 0.07);
+    float tl2 = dot(tint, vec3(0.3, 0.59, 0.11)); tint = mix(vec3(tl2), tint, 0.86);
+  }
+  if (tm == 1) c.rgb *= tint; else if (tm == 2) c.rgb = mix(c.rgb * tint, c.rgb, step(0.5, c.a));
+  c.rgb *= ${X.colorMul}.rgb;
+  vec3 albedo = pow(c.rgb, vec3(2.2));
+  vec4 nm = textureGrad(${X.nrm}, uv, gdx, gdy);
+  if (pomD <= 0.002) hgt = nm.a;
+  // ---------------- material decode
+  vec2 nxy = (nm.xy * 2.0 - 1.0) * pbr;
+  vec3 nts = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));
+  vec3 N = normalize(Tg * nts.x + Bg * nts.y + N0 * nts.z);
+  N = normalize(mix(N, N0, smoothstep(32.0, 80.0, d)));
+  if (dot(N, V) < 0.0 && !foliage) N = normalize(N - V * dot(N, V) * 1.01);
+  float smooth_ = mix(0.2, sp.r, pbr);
+  float f0b = sp.g * 255.0; bool metal = f0b > 229.5 && pbr > 0.5;
+  float sb = sp.b * 255.0; float por = sb < 64.5 ? sb / 64.0 : 0.0; float sss = sb > 64.5 ? (sb - 65.0) / 190.0 : 0.0;
+  float cav = mix(1.0, nm.b, pbr);
+  float sky = v_light.x, blk = v_light.y, ao = v_light.z;
+  // ---------------- rain wetness (porous materials darken, puddles gather in low spots)
+  float wet = ${X.wet} * smoothstep(0.8, 1.0, sky) * (N0.y > 0.5 ? 1.0 : 0.35) * (foliage ? 0.4 : 1.0);
+  float puddle = 0.0;
+  if (wet > 0.0 && N0.y > 0.5 && !foliage) puddle = smoothstep(0.52, 0.72, vnoise(v_world.xz * 0.22) + (0.55 - hgt) * 0.35 - (tm != 0 ? 0.08 : 0.0)) * wet;
+  albedo *= mix(1.0, 1.0 - 0.5 * (0.35 + por * 0.65), max(wet, puddle));
+  smooth_ = mix(smooth_, 0.88, wet * (1.0 - por * 0.75) * (1.0 - sss * 0.9) * (foliage ? 0.3 : 1.0));
+  if (puddle > 0.0) { float t = ${() => F.time} * 2.0; vec2 rp = v_world.xz * 3.0;
+    vec2 rr = ripples(v_world.xz * 2.2, ${() => F.time}) * 0.35 * ${X.rain};
+    vec3 Np = normalize(vec3((vnoise(rp + t) - 0.5) * 0.08 + rr.x, 1.0, (vnoise(rp.yx - t) - 0.5) * 0.08 + rr.y));
+    N = normalize(mix(N, Np, puddle)); smooth_ = mix(smooth_, 0.98, puddle); cav = mix(cav, 1.0, puddle); }
+  float rough = max(pow(1.0 - smooth_, 2.0), 0.02);
+  vec3 F0 = metal ? albedo : vec3(f0b > 229.5 ? 0.04 : sp.g);
+  if (pbr < 0.5) F0 = vec3(0.02);
+  vec3 diffAlb = metal ? vec3(0.0) : albedo;
+  // ---------------- direct light
+  float NdotL0 = dot(N0, ${X.lightDir});
+  float NdotL = dot(N, ${X.lightDir});
+  float diffG = foliage ? 0.55 + 0.45 * abs(NdotL0) : max(NdotL0, 0.0);
+  float diff = foliage ? 0.55 + 0.45 * abs(NdotL) : max(NdotL, 0.0) * clamp(NdotL0 * 8.0, 0.0, 1.0);
+  diff = mix(diff, clamp((NdotL + 0.5) / 1.5, 0.0, 1.0) * clamp(NdotL0 * 8.0 + 1.0, 0.0, 1.0), sss * 0.5 * float(!foliage));
+  float sh = 0.0;
+  float gate = smoothstep(0.35, 0.8, sky);
+  if (diffG > 0.0 && ${X.lightDir}.y > -0.05) {
+    float slope = foliage ? 0.5 : clamp(1.0 - NdotL0, 0.0, 1.0);
+    vec3 wp = v_rel + ${() => F.camToShadow} + N0 * (foliage ? 0.02 : 0.03 + 0.06 * slope);
+    if (${X.shadowOn} > 0.5 && d < ${() => F.shadowDist}) { sh = shadowAt(wp); sh = mix(sh, gate, smoothstep(${() => F.shadowDist} * 0.8, ${() => F.shadowDist}, d)); }
+    else sh = gate;
+    if (${X.shadowOn} > 0.5 && (v_flags & 8192) == 0 && d < ${() => F.sharpDist})   // remix: R3b；8192 = 草（不接收锐阴影），花自遮挡
+      sh = min(sh, mix(sharpAt(wp + ${X.lightDir} * ((v_flags & 16384) != 0 ? 0.012 : 0.04)), 1.0, smoothstep(${() => F.sharpDist} * 0.85, ${() => F.sharpDist}, d)));
+    sh *= smoothstep(0.1, 0.5, sky);
+    sh *= cloudShadow(v_world);
+  }
+  float fh = 1.0;   // remix: 花的体积感（折纸感）：花头在贴图的约 40%–85% 高度（不是整张图的顶 30%），这一段总带一层阴影，直射光和环境光一起压暗
+  if ((v_flags & 16384) != 0) fh = 1.0 - 0.8 * smoothstep(0.35, 0.6, 1.0 - v_uv.y);
+  float shL = sh * pomSh * fh;
+  bool under = (v_flags & 1024) != 0;
+  float NoV = max(dot(N, V), 1e-3);
+  vec3 H = normalize(${X.lightDir} + V);
+  float NoH = max(dot(N, H), 0.0), VoH = max(dot(V, H), 0.0), NoL = max(NdotL, 0.0);
+  float a2 = rough * rough;
+  float dd = NoH * NoH * (a2 - 1.0) + 1.0; float D = a2 / (3.14159 * dd * dd);
+  float k = rough * 0.5; float G = (NoL / (NoL * (1.0 - k) + k)) * (NoV / (NoV * (1.0 - k) + k));
+  vec3 Fs = F0 + (1.0 - F0) * pow(1.0 - VoH, 5.0);
+  vec3 specD = min(vec3(D * G / (4.0 * NoV)) * Fs, vec3(60.0)) * clamp(NdotL0 * 8.0, 0.0, 1.0);
+  vec3 lightI = ${X.lightCol} * shL;
+  vec3 direct = lightI * diff * (1.0 - Fs * 0.5);
+  if (under) { float ca = caustic(v_world.xz + v_world.y * 0.3, ${() => F.time}); direct *= vec3(0.35, 0.6, 0.75) * (0.25 + ca * 1.6); specD *= 0.2; }
+  // ---------------- ambient: sky irradiance, ground bounce, torch
+  float up = N.y * 0.5 + 0.5;
+  float occl = (0.22 + 0.78 * ao) * cav * fh;   // remix: 花的体积感，fh = 1 时与原版一致
+  vec3 amb = ${() => F.ambCol} * (0.45 + 0.55 * up) * sky * sky * occl;
+  vec3 bounce = ${X.lightCol} * max(${X.lightDir}.y, 0.0) * vec3(0.5, 0.55, 0.42) * 0.045 * (1.0 - up) * sky * occl;
+  if (under) amb *= vec3(0.5, 0.75, 0.9);
+  float b = lb(blk);
+  vec3 torch = ${() => F.torchCol} * b * b * 2.4 * ${() => F.flicker} * (0.45 + 0.55 * ao) * mix(1.0, cav, 0.6);
+  vec3 minL = vec3(0.004, 0.005, 0.007) * (0.4 + 0.6 * ao);
+  vec3 col = diffAlb * (direct + amb + bounce + torch + minL);
+  // subsurface transmission (leaves, grass, snow, skin)
+  float sssAmt = foliage ? max(sss, 0.6) : sss;
+  if (sssAmt > 0.0 && diffG > 0.0) {
+    float fw = pow(max(dot(-V, ${X.lightDir}), 0.0), 6.0);
+    col += albedo * sqrt(max(albedo, 0.0)) * ${X.lightCol} * sh * fh * sssAmt * (0.1 + 0.65 * fw);
+  }
+  // specular: sun/moon + sky reflection (split-sum approximation)
+  vec3 R = reflect(-V, N);
+  vec3 env = skyEnv(R);
+  vec3 envRough = ${() => F.ambCol} * (0.9 + 0.6 * max(R.y, 0.0));
+  env = mix(env, envRough, smoothstep(0.15, 0.75, rough));
+  float horizon = smoothstep(-0.25, 0.15, R.y);
+  env = mix(${() => F.ambCol} * 0.25 * (0.3 + 0.7 * ao), env, horizon);
+  float specOcc = smoothstep(0.35, 0.95, sky) * clamp(pow(NoV + ao * cav, 1.5) - 1.0 + ao * cav, 0.0, 1.0);
+  vec3 eb = envBRDF(F0, sqrt(rough), NoV) * specOcc * mix(0.5, 1.0, pbr);
+  vec3 envS = env * eb / mix(0.5, 1.0, pbr);
+  float ssrW = dot(eb, vec3(0.3, 0.59, 0.11)) * (1.0 - smoothstep(0.08, 0.22, rough)) * float(!under);
+  o2 = vec4(octEnc(N), rough, ssrW);
+  envS += ${() => F.torchCol} * b * b * 0.08 * envBRDF(F0, sqrt(rough), NoV);
+  col += (lightI * specD + envS) * mix(0.5, 1.0, pbr);
+  if ((v_flags & 64) != 0) { col = albedo * ((v_flags & 256) != 0 ? 3.0 : 2.6) + albedo * (direct + amb); o2 = vec4(0.0); }
+  if (mat >= 2) o2 = vec4(0.0);
+  o = vec4(col, (mat >= 2) ? c.a : 1.0);
+}`;

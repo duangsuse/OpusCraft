@@ -343,6 +343,16 @@ if (!ONLY) { // §10.5-1：v2 主体只经 Env / ChunkSource 读宿主（适配�
   }
   }
 }
+if (!ONLY) { // render.md §4.1 验收：rgl（不含 vendor/）里不再有 uniform 上传调用；pass / vars 单元测试
+  const { readFileSync, readdirSync } = await import('node:fs'), { spawnSync } = await import('node:child_process');
+  const files = ['rgl', 'rgl/shaders'].flatMap(d => readdirSync(new URL('../' + d, import.meta.url), { withFileTypes: true }).filter(e => e.isFile() && e.name.endsWith('.js')).map(e => d + '/' + e.name));
+  const bad = files.flatMap(f => [...readFileSync(new URL('../' + f, import.meta.url), 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n').matchAll(/\.(u1f|u1i|u2f|u3f|u3v|u4v|m4)\(/g)].map(m => f + ':' + m[1]));
+  console.log('=== rgl 静态检查 ===');
+  const t = f => spawnSync('node', [new URL('../tools/' + f, import.meta.url).pathname], { encoding: 'utf8' });
+  for (const [name, ok, info] of [['rgl 里没有 u1f( 一类 uniform 上传调用', !bad.length, bad.join(',')], ['rgl/vars.js 单元测试', t('test-vars.mjs').status === 0, ''], ['rgl/pass.js 纯函数单元测试', t('test-pass.mjs').status === 0, '']]) {
+    console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? '  (' + info + ')' : ''}`); if (!ok) failed++;
+  }
+}
 for (const [r, expect] of [['v1', 'v1'], ['v2', 'v2'], ['v2/gl', 'v2/gl'], ['gl', 'gl'], ['bogus', 'v1']]) {
   if (ONLY && !ONLY.includes(r)) continue;
   logs.length = 0;

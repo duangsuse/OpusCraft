@@ -72,6 +72,9 @@ const init = await b.js(`(async () => {
     const dfp = () => VR.pending ? VR.pending() : VR.df ? VR.df.pending() : 0;   // 等异步工作回包（DDA：距离场 Worker，否则测到的是退化路径）
     for (let i = 0; i < 2000 && (i < 3 || g.pendingChunks > 0 || dfp() > 0); i++) { g.updateChunks(40); VR.update(0.016); if (i % 3 == 0) await raf(); }
     g.mobs.length = 0; g.items.length = 0;
+    g.mobs.push = () => 0;                          // 之后不再刷怪：R4 起 three 画的实体进了帧，随机刷怪会让 0 px 对比不可重复
+    for (const c of [...g.scene.children]) if (c.isGroup) g.scene.remove(c);
+    const add = g.scene.add.bind(g.scene); g.scene.add = (...o) => { o = o.filter(x => !x.isGroup); return o.length ? add(...o) : g.scene; };   // Mob 构造函数自己 scene.add(group)：push 拦住了登记，网格仍会进场景 → 一并拦
   };
   await settle();
   // 机位搜索（只用已加载区块；同种子结果确定）
