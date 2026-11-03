@@ -25,7 +25,10 @@ import { fancy } from './shaders/fancy.js';
 import { water } from './shaders/water.js';
 import { commonX } from './shaders/common.js';
 import { depthOut } from './shaders/depthout.js';
-import { setFrame } from './frameref.js';
+import { entComp } from './shaders/entcomp.js';
+import { setFrame, F as FH } from './frameref.js';
+import { createEntityLight } from './entlight.js';
+import { createBlobShadows } from './blobshadow.js';
 import { skyLut } from './shaders/skylut.js';
 import { createWorld } from './world.js';
 import { voxelCraftSource, voxelCraftEnv, voxelCraftBlocks } from '../v2/gl.js';   // 宿主 A 的三个适配器，直接 import 不复制（bench.md §1）
@@ -97,11 +100,38 @@ export function createRenderer(ctx) {
   //   goodGL 的 near / far 与宿主相机的不同 → 先还原线性视深再按宿主投影重新映射。实体不走 tonemap / TAA（方案 A 才走）。
   const sceneDepth = u('sceneDepth', () => tex(R.targets.sceneD));
   R.passes.depthOut = depthOut(kit.Pass, { sceneDepth, hostNear: u('hostNear', () => camera.near), hostFar: u('hostFar', () => camera.far) });
+  // 方案 A：宿主实体画进离屏目标（RGBA16F + 深度纹理），scene pass 里 drawEntities 之后合并（vendor 补丁 onEntities）；P.entScene = false 回到方案 B
+  let entRT = null;
+  const entTex = t => ({ texture: renderer.properties.get(t).__webglTexture, glslType: 'sampler2D' });
+  R.passes.entComp = entComp(kit.Pass, { entColor: u('entColor', () => entTex(entRT.texture)), entDepth: u('entDepth', () => entTex(entRT.depthTexture)), hostNear: u('hostNear', () => camera.near), hostFar: u('hostFar', () => camera.far) });
+  function ensureEntRT(w, h) {
+    if (entRT && entRT.width === w && entRT.height === h) return;
+    if (entRT) { entRT.depthTexture.dispose(); entRT.dispose(); }
+    entRT = new THREE.WebGLRenderTarget(w, h, { type: THREE.HalfFloatType, depthBuffer: true, depthTexture: new THREE.DepthTexture(w, h) });
+  }
+  const clearCol = new THREE.Color();
+  R.onEntities = F => {
+    if (!P.entScene) return;
+    hideSky(); ensureEntRT(F.w, F.h);
+    renderer.resetState();
+    const ca = renderer.getClearAlpha(); renderer.getClearColor(clearCol);
+    renderer.setRenderTarget(entRT); renderer.setClearColor(0x000000, 0); renderer.clear(true, true, false);
+    renderer.render(ctx.scene, camera);                                           // 未抖动的宿主相机：实体不走 TAA 历史，抖动只会让它们闪
+    renderer.setRenderTarget(null); renderer.setClearColor(clearCol, ca); renderer.resetState();
+    resetGLState(gl);                                                             // three 动过的状态全部还给 goodGL，再合并
+    gl.bindFramebuffer(gl.FRAMEBUFFER, R.targets.scene); gl.viewport(0, 0, F.w, F.h);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.depthMask(true); gl.disable(gl.CULL_FACE);
+    gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ZERO, gl.ONE);     // 预乘 alpha；dst alpha 不动
+    R.passes.entComp.use();
+    gl.bindVertexArray(R.emptyVAO); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null);
+    gl.disable(gl.BLEND); gl.depthFunc(gl.LEQUAL); gl.enable(gl.CULL_FACE);
+  };
   const hideSky = () => { for (const k of ['sky', 'sun', 'moon', 'stars', 'clouds']) if (ctx[k]) ctx[k].visible = false; };
   const world = createWorld(R, SRC, idLUT(ctx.B), { seed: 1 });
 
   // 参数：只列已经接上的。fog / mist 默认 0 = 去雾版（render.md §0，goodGL 的缺点之一）；scale / maxMP 等 R5 接上 pass.js / vars.js 后再加
-  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 6 /* 每帧最多提交的网格任务 */ };
+  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 6 /* 每帧最多提交的网格任务 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
   // P = vars 对象（读写值照旧，bench 契约不变）；meta.folder 给面板分文件夹：雾、云隙光各一组（render.md 备忘「天空 / 雾 / 云隙光」），面板本身 R7 才建
   const FOLDER = (f, o = {}) => ({ folder: f, ...o });
   const P = vars(P_DEFAULTS, {
@@ -109,7 +139,7 @@ export function createRenderer(ctx) {
     pbr: FOLDER('渲染'), pom: FOLDER('渲染'), taa: FOLDER('渲染'), flare: FOLDER('渲染'),
     mist: FOLDER('雾', { min: 0, max: 1, label: '晨昏薄雾' }), fog: FOLDER('雾', { min: 0, max: 0.02, label: '距离雾密度' }),
     volumetric: FOLDER('云隙光', { label: '体积光（云隙光 / 雾中光束）' }),
-    sharpDist: FOLDER('花草锐阴影', { min: 0, max: 128 }), sharpSoft: FOLDER('花草锐阴影', { min: 0, max: 3 }), sharpFly: FOLDER('花草锐阴影', { min: 0, max: 128 }),
+    sharpDist: FOLDER('花草锐阴影', { min: 0, max: 128 }), sharpSoft: FOLDER('花草锐阴影', { min: 0, max: 3 }), sharpFly: FOLDER('花草锐阴影', { min: 0, max: 128 }), blobShadow: FOLDER('实体', { min: 0, max: 0.8 }), entScene: FOLDER('实体'), entExposure: FOLDER('实体', { min: 0.3, max: 3, step: 0.05 }),
     uwWindow: FOLDER('水下', { min: 0, max: 16, label: '窗口起始深度（格）' }), uwCaustic: FOLDER('水下', { min: 0, max: 4, label: '焦散' }), uwShafts: FOLDER('水下', { min: 0, max: 4, label: '光束' }), uwDensity: FOLDER('水下', { min: 0.2, max: 4, label: '水体浓度' }),
     foamWidth: FOLDER('水', { min: 0, max: 1.5, label: '岸边波纹范围' }), shoreFade: FOLDER('水', { min: 0, max: 1.5, label: '岸边软化' }), shoreWaveAmp: FOLDER('水', { min: 0, max: 0.3, label: '岸边涌浪起伏' }), shoreWaveSpeed: FOLDER('水', { min: 0, max: 3, label: '岸边涌浪速度' }),
     ssrSteps: FOLDER('水', { min: 0, max: 48, step: 1, label: '反射步数（SSR）' }),
@@ -155,8 +185,13 @@ export function createRenderer(ctx) {
 
   let W = 0, H = 0, cpuMs = 0, lastT = 0, nFrames = 0;
   const v2 = new THREE.Vector2();
+  const blobs = !('shadowCasters' in ctx) ? null : createBlobShadows(THREE, ctx.scene, {
+    casters: () => ctx.shadowCasters, getF: () => (nFrames ? FH : null), strength: () => P.blobShadow,
+    groundY: (x, y, z) => { const ix = Math.floor(x), iz = Math.floor(z); for (let k = Math.floor(y + 0.5), lo = Math.max(0, k - 8); k >= lo; k--) if (ctx.SOLID[ctx.getBlock(ix, k, iz)]) return k + 1; return null; },
+  });
   function drawThree(F) {
     hideSky();
+    if (P.entScene) { renderer.resetState(); return; }                            // 方案 A：实体已经在 scene 里（R.onEntities）
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, F.w, F.h);
     gl.disable(gl.BLEND); gl.disable(gl.CULL_FACE); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.ALWAYS); gl.depthMask(true); gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.colorMask(false, false, false, false);
@@ -196,6 +231,7 @@ export function createRenderer(ctx) {
         if (target === gl.FRAMEBUFFER) { const n = passOf(f); if (n && (!qCur.length || qCur[qCur.length - 1].name !== n)) qBegin(n); }
       };
     }
+    if (blobs) blobs.update();                                                  // 要在 renderFancy 之前：方案 A 的实体在 renderFancy 里（onEntities）画
     try { R.renderFancy(F); drawThree(F); }
     finally {
       if (timed) { delete gl.bindFramebuffer; if (qActive) { gl.endQuery(qExt.TIME_ELAPSED_EXT); qActive = false; } qSet = qCur; }
@@ -224,6 +260,7 @@ export function createRenderer(ctx) {
     readOut: () => { const px = new Uint8Array(W * H * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px); return { w: W, h: H, px }; },
     get programs() { const o = { ...R.src }; for (const [k, p] of Object.entries(R.passes)) { const x = p.source(); o[k] = { vs: x.vs, fs: x.fs, defines: {} }; } return o; },
     pending: () => world.pending(),
+    entityLight: createEntityLight(() => (nFrames ? FH : null), { scene: () => P.entScene, gain: () => P.entExposure }),                 // 宿主 lightColor() 的钩子：实体在 final 之后画，光照走 CPU（entlight.js）
     source: SRC, blockTable: BT, env: ENV, R, world,
   };
 }

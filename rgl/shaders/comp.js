@@ -5,6 +5,10 @@ const lib = x => glsl([x]);
 import { F } from '../frameref.js';
 export const comp = (Pass, X = {}) => Pass({ tag: 'comp' })`#version 300 es
 precision highp float; precision highp sampler2DShadow;
+#define SSR_ON ${() => F.pbr === false ? 0 : 1}
+#define CLOUDS_ON ${() => F.clouds ? 1 : 0}
+#define UNDER_ON ${() => F.underwater ? 1 : 0}
+#define VOL_ON ${() => F.volumetric ? 1 : 0}
 in vec2 v_uv; out vec4 o;
 
 
@@ -58,7 +62,7 @@ void main(){
   float iso = 1.0 / (4.0 * 3.14159);
   // screen-space reflections on smooth / wet opaque surfaces
   vec4 gb = texture(${X.cGbuf}, v_uv);
-  if (${u('ssrOn', () => F.pbr === false ? 0 : 1)} > 0.5 && !isSky && gb.a > 0.004 && ${u('camUnder', () => F.underwater ? 1 : 0)} < 0.5) {
+  if (SSR_ON > 0 && !isSky && gb.a > 0.004 && UNDER_ON == 0) {
     vec3 N = octDec(gb.xy); float rough = gb.z;
     vec3 jr = vec3(ign(gl_FragCoord.xy), ign(gl_FragCoord.yx + 17.0), ign(gl_FragCoord.xy * 1.7 + 5.0)) - 0.5;
     vec3 R = normalize(reflect(dir, N) + jr * rough * 0.9);
@@ -83,15 +87,15 @@ void main(){
     if (hit > 0.0) { vec3 envC = skyHorizon(R); col = max(col + (hc - envC) * gb.a * hit, vec3(0.0)); }
   }
   // clouds (behind terrain only when terrain is farther than the cloud base)
-  if (${u('cloudsOn', () => F.clouds ? 1 : 0)} > 0.5 && ${u('camUnder', () => F.underwater ? 1 : 0)} < 0.5) {
+  if (CLOUDS_ON > 0 && UNDER_ON == 0) {
     float tc = dir.y > 0.0 ? (CB - ${() => F.camPos}.y) / dir.y : -1.0;
     if (isSky || (tc > 0.0 && dist > tc)) { vec4 cl = texture(${X.cClouds}, v_uv); col = col * cl.a + cl.rgb; }
   }
-  if (${u('camUnder', () => F.underwater ? 1 : 0)} > 0.5) {
+  if (UNDER_ON > 0) {
     // 水下：焦散（v2/gl 图样，沿折射阳光方向投影，水深起点 = Env.eyeWaterTop）+ 介质（吸收 / 内散射 / 光束，LiqPG post.js:229；光束图样 = 焦散图样沿阳光方向拉出的体积）
     float wTop = ${() => F.waterTop}, dayF = smoothstep(-0.05, 0.12, ${() => F.sunDir}.y);
     vec3 Ls = waterLs(${() => F.sunDir}, 0.0);
-    float shV = ${u('shadowOn', () => 1)} > 0.5 ? shadowRaw(rel + ${() => F.camToShadow} + vec3(0.0, 0.05, 0.0)) : 1.0;
+    float shV = shadowRaw(rel + ${() => F.camToShadow} + vec3(0.0, 0.05, 0.0));
     if (!isSky) {
       vec3 pw = ${() => F.camPos} + rel; float dz = wTop - pw.y;
       if (dz > 0.12 && dz < 14.0) col *= 1.0 + causticAt(${X.wnoise}, pw, dz, Ls, ${() => F.time}) * ${() => F.uwCaustic} * dayF * shV;
@@ -104,7 +108,7 @@ void main(){
       float t = (float(i) + jit) * dt; vec3 p = dir * t; vec3 pw = ${() => F.camPos} + p;
       float dep = max(wTop - pw.y, 0.0);
       vec3 att = exp(-vec3(0.25, 0.06, 0.04) * ${() => F.uwDensity} * dep);
-      float vis = ${u('shadowOn', () => 1)} > 0.5 && ${u('volOn', () => F.volumetric ? 1 : 0)} > 0.5 ? shadowRaw(p + ${() => F.camToShadow}) : 1.0;
+      float vis = VOL_ON > 0 ? shadowRaw(p + ${() => F.camToShadow}) : 1.0;
       float mod_ = 0.45 + 1.1 * causticAt(${X.wnoise}, pw, dep, Ls, ${() => F.time});
       vec3 Lm = ${() => F.lightCol} * ph * vis * mix(1.0, mod_, min(${() => F.uwShafts}, 1.0)) * ${() => F.uwShafts} * att * (1.0 - ${() => F.caveFactor}) + ${() => F.ambCol} * 0.08 * att;
       vec3 Ts = exp(-sigE * dt);
@@ -131,7 +135,7 @@ void main(){
     float tr = exp(-integ);
     vec3 mistCol = ${() => F.ambCol} * 0.8 + ${() => F.lightCol} * (min(mie, 0.25) * 1.2 + iso * 0.9) * sunUp * 0.8;
     col = col * tr + mistCol * (1.0 - tr) * (1.0 - ${() => F.caveFactor} * 0.9);
-    if (${u('volOn', () => F.volumetric ? 1 : 0)} > 0.5 && ${u('shadowOn', () => 1)} > 0.5 && ${() => F.lightDir}.y > 0.0) {
+    if (VOL_ON > 0 && ${() => F.lightDir}.y > 0.0) {
       float maxL = min(dist, 110.0);
       const int NS = 14;
       float stepL = maxL / float(NS);
@@ -161,5 +165,5 @@ void main(){
     }
   }
   col += vec3(0.5, 0.55, 0.7) * ${u('flash', () => F.flash || 0)} * 0.08;
-  o = vec4(col, 1.0);
+  o = vec4(col, gb.b < -0.5 ? 0.0 : 1.0);                                      // remix: A 方案：gbuf.b = −1 标记宿主实体像素 → alpha 0，TAA 据此不用历史（实体没有运动向量）
 }`;

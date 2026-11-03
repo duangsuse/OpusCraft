@@ -121,6 +121,7 @@ const PATCH_FILES = {
     ['d.wx, d.wy, d.wz, this.OB, this.TB);', 'd.wx, d.wy, d.wz, this.OB, this.TB, this.PB, d.cls);   // remix'],
   ],
   'renderer.js': [
+    ["this.drawEntities(F, 'fancy');\n    // copy color+depth", "this.drawEntities(F, 'fancy');\n    if (this.onEntities) this.onEntities(F);   // remix: A 方案：宿主（three）的实体、粒子、选框合并进 scene（rgl/index.js）\n    // copy color+depth"],
     ["this.mk('fancy', GLSL.chunkVS, GLSL.fancyFS);", "/* remix: R5 fancy */"],
     ["this.mk('water', GLSL.chunkVS, GLSL.waterFS);", "/* remix: R5 water */"],
     ["this.use('fancy'); this.setFancyUniforms(F, false);\n    gl.drawBuffers(DB2);", "this.fm.hand = false; this.passes.fancy.use();   // remix: R5（rgl/shaders/fancy.js + common.js）\n    gl.drawBuffers(DB2);"],

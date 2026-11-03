@@ -1083,8 +1083,12 @@ function lightAt(x, y, z) {   // returns [sky, block] light levels (0..15)
 const brightJS = l => { l = clamp(l, 0, 15) / 15; return Math.pow(0.8, 15 * (1 - l)) * 0.6 + l * 0.4 + 0.05; };
 let skyDarken = 0;
 const skyTint = new V3(1, 1, 1);
+// 实体光照随时间缓动：lightAt 是整数格，实体走过格界时亮度会跳；每个实体自带一个 lc，按 ~0.2 s 的时间常数追目标
+function easeLight(o, target, dt) { const c = o.lc || (o.lc = target.clone()); c.lerp(target, 1 - Math.exp(-dt * 5)); return target.copy(c); }
+let entityLightHook = null;   // 渲染器自带的实体光照（?r=gl：实体在 final 之后画，要按 goodGL 的曝光 / tonemap 折算）；没有则用下面的宿主公式
 function lightColor(x, y, z, out) {
   const [s, b] = lightAt(Math.floor(x), Math.floor(y), Math.floor(z));
+  if (entityLightHook) return entityLightHook(s, b, out);
   const sk = brightJS(s - skyDarken), bl = brightJS(b);
   return out.setRGB(Math.max(sk * skyTint.x, bl), Math.max(sk * skyTint.y, bl * 0.86), Math.max(sk * skyTint.z, bl * 0.66));
 }
@@ -1331,12 +1335,20 @@ const RCTX = { THREE, scene, camera, renderer, U, GLSL, MeshBuilder, makeGeometr
   get eyeInWater() { return !!player.eyeInWater; },   // Env.eyeInWater / eyeSky（rgl：水下、洞穴系数）；同样惰性
   get eyeSky() { const p = camera.position; return lightAt(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))[0] / 15; },
   get eyeWaterTop() { if (!player.eyeInWater) return undefined; const p = camera.position, x = Math.floor(p.x), z = Math.floor(p.z); let y = Math.floor(p.y); while (y < CH && getBlock(x, y + 1, z) === B.WATER) y++; return y + 1 - 1 / 9; },   // Env.eyeWaterTop：眼上方水面的世界 y（不在水里 = undefined）
+  get shadowCasters() {
+    const o = [], sk = e => lightAt(Math.floor(e.x), Math.floor(e.y + 0.5), Math.floor(e.z))[0];
+    for (const m of mobs) if (!m.dead) o.push({ x: m.pos.x, y: m.pos.y, z: m.pos.z, r: m.hw, sky: sk(m.pos) });
+    for (const it of items) o.push({ x: it.pos.x, y: it.mesh.position.y - 0.2, z: it.pos.z, r: 0.2, sky: sk(it.pos) });   // 掉落物悬浮：离地越高影子越淡（blobshadow 按高度衰减）
+    for (const t of tnts) o.push({ x: t.pos.x, y: t.pos.y, z: t.pos.z, r: t.hw, sky: sk(t.pos) });
+    return o;
+  },   // 脚下软影（rgl/blobshadow.js）：只读，惰性
   get worldTime() { return worldTime; },   // Env.dayTime 的来源（0..1，0 = 06:00）；getter 惰性读，createRenderer 期间不要碰（TDZ）
   clouds, cloudMat,   // 云层（v2 隐藏平面云，改为在 DDA 中绘制体积云）
   stars, skyMat, sky, sun, moon };   // sky / sun / moon：?r=gl 自己画天空，R4 把它们隐藏后让 three 只画实体、粒子、选框    // 星星（v2 默认隐藏宿主星、在 DDA 天空分支程序化绘制）/ 天空球（天顶色给水面反射）
 let VR;
 try { VR = (await import(`${RENDERERS[RENDERER_ID]}?t=${Date.now()}`)).createRenderer(RCTX); }
 catch (e) { console.error(`renderer ${RENDERER_ID} failed, falling back to v1`, e); VR = (await import('./v1.js')).createRenderer(RCTX); }
+entityLightHook = VR.entityLight || null;
 console.log('[VoxelCraft] renderer', VR.name);
 // 光照在主文件计算（共享），网格/绘制交给渲染器
 function meshChunk(c) {
@@ -1685,7 +1697,7 @@ function updateItems(dt) {
     const cube = isCubeItem(it.id);
     it.mesh.position.set(it.pos.x, it.pos.y + (cube ? 0.2 : 0.25) + Math.sin(it.age * 2.6 + it.spin) * 0.06, it.pos.z);
     it.mesh.rotation.y = it.age * 1.6 + it.spin;
-    it.mesh.material.color.copy(lightColor(it.pos.x, it.pos.y + 0.3, it.pos.z, tmpColor));
+    it.mesh.material.color.copy(easeLight(it, lightColor(it.pos.x, it.pos.y + 0.3, it.pos.z, tmpColor), dt));
   }
 }
 
@@ -1704,7 +1716,7 @@ function updateTNT(dt) {
     if (t.onGround) { t.vel.x *= 0.9; t.vel.z *= 0.9; }
     t.mesh.position.set(t.pos.x, t.pos.y + 0.49, t.pos.z);
     const flash = Math.floor(t.fuse * 4) % 2 === 0;
-    lightColor(t.pos.x, t.pos.y + 0.5, t.pos.z, tmpColor);
+    easeLight(t, lightColor(t.pos.x, t.pos.y + 0.5, t.pos.z, tmpColor), dt);
     t.mesh.material.color.copy(flash ? tmpColor.setRGB(2.2, 2.2, 2.2) : tmpColor);
     t.mesh.scale.setScalar(t.fuse < 0.5 ? 1 + (0.5 - t.fuse) * 0.3 : 0.98);
     if (t.fuse <= 0) { scene.remove(t.mesh); t.mesh.material.dispose(); tnts.splice(i, 1); explode(t.pos.x, t.pos.y + 0.5, t.pos.z, 4); }
@@ -1719,17 +1731,16 @@ partGeo.setAttribute('color', new THREE.BufferAttribute(partCol, 3).setUsage(THR
 const partPoints = new THREE.Points(partGeo, new THREE.PointsMaterial({ size: 0.1, vertexColors: true, sizeAttenuation: true }));
 partPoints.frustumCulled = false; scene.add(partPoints);
 const parts = [];
-function addParticle(x, y, z, vx, vy, vz, r, g, b, life, grav = 18) {
-  if (parts.length < MAXP) parts.push({ x, y, z, vx, vy, vz, r, g, b, life, grav });
+function addParticle(x, y, z, vx, vy, vz, r, g, b, life, grav = 18, lit = false) {   // lit：颜色是未打光的反照率，updateParticles 按当前所在格的光照每帧上色（方块碎屑）；其余（烟、火星）是自发光 / 已定色
+  if (parts.length < MAXP) parts.push({ x, y, z, vx, vy, vz, r, g, b, life, grav, lit });
 }
 function blockParticles(bx, by, bz, id, n = 26) {
   const px = tiles[TILE_NAMES[T_SIDE[id]]];
-  lightColor(bx + 0.5, by + 0.5, bz + 0.5, tmpColor);
   for (let k = 0; k < n; k++) {
     let i = 0; for (let t = 0; t < 8; t++) { i = (Math.random() * 256 | 0) * 4; if (px[i + 3] > 0) break; }
     addParticle(bx + 0.15 + Math.random() * 0.7, by + 0.15 + Math.random() * 0.7, bz + 0.15 + Math.random() * 0.7,
       (Math.random() - 0.5) * 3, 1 + Math.random() * 3, (Math.random() - 0.5) * 3,
-      px[i] / 255 * tmpColor.r, px[i + 1] / 255 * tmpColor.g, px[i + 2] / 255 * tmpColor.b, 0.4 + Math.random() * 0.6);
+      px[i] / 255, px[i + 1] / 255, px[i + 2] / 255, 0.4 + Math.random() * 0.6, 18, true);
   }
 }
 function puff(x, y, z, n, col = [0.85, 0.85, 0.85], spread = 1, speed = 2) {
@@ -1750,10 +1761,15 @@ function updateParticles(dt) {
     else { p.x = nx; p.y = ny; p.z = nz; }
     if (p.grav < 0) { const f = Math.exp(-2.5 * dt); p.vx *= f; p.vz *= f; p.vy *= f; }
   }
+  const tintCache = new Map();   // 同一格的粒子共用一次光照查询
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
     partPos[i * 3] = p.x; partPos[i * 3 + 1] = p.y; partPos[i * 3 + 2] = p.z;
-    partCol[i * 3] = p.r; partCol[i * 3 + 1] = p.g; partCol[i * 3 + 2] = p.b;
+    if (p.lit) {
+      const fx = Math.floor(p.x), fy = Math.floor(p.y), fz = Math.floor(p.z), key = (fx * 73856093) ^ (fy * 19349663) ^ (fz * 83492791);
+      let c = tintCache.get(key); if (!c) { c = lightColor(fx + 0.5, fy + 0.5, fz + 0.5, new THREE.Color()); tintCache.set(key, c); }
+      partCol[i * 3] = p.r * c.r; partCol[i * 3 + 1] = p.g * c.g; partCol[i * 3 + 2] = p.b * c.b;
+    } else { partCol[i * 3] = p.r; partCol[i * 3 + 1] = p.g; partCol[i * 3 + 2] = p.b; }
   }
   partGeo.attributes.position.needsUpdate = true; partGeo.attributes.color.needsUpdate = true;
   partGeo.setDrawRange(0, parts.length);
@@ -1924,7 +1940,7 @@ function updateMobs(dt) {
   const day = 1 - skyDarken / NIGHT_DARKEN;
   for (let i = mobs.length - 1; i >= 0; i--) {
     const m = mobs[i], T = m.T;
-    lightColor(m.pos.x, m.pos.y + m.h * 0.6, m.pos.z, tmpColor);
+    easeLight(m, lightColor(m.pos.x, m.pos.y + m.h * 0.6, m.pos.z, tmpColor), dt);
     if (m.dead > 0) {
       m.dead += dt;
       m.inner.rotation.z = Math.min(1, m.dead / 0.35) * Math.PI / 2;
@@ -2780,7 +2796,7 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // handle for automated testing / tinkering from the console
-window.game = { THREE, player, inv, mobs, items, chunks, settings, B, I, ITEMS, BLOCKS, getBlock, setBlock, addItem, Mob, explode, primeTNT,
+window.game = { THREE, player, inv, mobs, items, spawnItem, chunks, settings, B, I, ITEMS, BLOCKS, getBlock, setBlock, addItem, Mob, explode, primeTNT,
   camera, scene, renderer, get target() { return target; }, get worldTime() { return worldTime; }, set worldTime(v) { worldTime = v; }, set freezeTime(v) { freezeTime = !!v; },
   get mouse() { return mouse; }, keys, startGame, openInventory, closeInventory, craft, RECIPES, selectSlot, useAction, updateChunks,
   setTestMode(v) { testMode = v; }, get pendingChunks() { return pendingChunks; }, breakBlock, respawn, get uiMode() { return uiMode; },

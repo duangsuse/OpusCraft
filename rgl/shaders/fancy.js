@@ -38,6 +38,11 @@ precision highp float;
 precision highp sampler2DArray;
 precision highp sampler2DShadow;
 precision highp usampler2D;
+#define SHADOW_ON ${X.shadowM}
+#define PBR_ON ${X.pbrM}
+#define POM_ON ${X.pomM}
+#define CLOUDSH_ON ${X.cloudShM}
+#define UNDER_ON ${X.underM}
 
 
 
@@ -95,7 +100,7 @@ float sharpAt(vec3 wp){   // remix: R3b：锐图只有花草；影子边缘是�
   return s / 8.0;
 }
 float cloudShadow(vec3 wp){
-  if (${X.cloudShadowOn} < 0.5 || ${X.lightDir}.y < 0.02) return 1.0;
+  if (CLOUDSH_ON == 0 || ${X.lightDir}.y < 0.02) return 1.0;
   vec2 q = wp.xz + ${X.lightDir}.xz * ((CB + 25.0 - wp.y) / max(${X.lightDir}.y, 0.08));
   return 1.0 - 0.78 * cloudCover(cloudMap(q));
 }
@@ -166,10 +171,10 @@ void main(){
   }
   vec3 V = normalize(-v_rel);
   float d = length(v_rel);
-  float pbr = ${X.pbrOn};
+  float pbr = float(PBR_ON);
   vec4 sp = textureGrad(${X.spec}, uv, gdx, gdy);
   // ---------------- parallax occlusion mapping
-  float pomD = sp.a * 0.25 * ${X.pomOn} * pbr * (1.0 - smoothstep(10.0, 18.0, d));
+  float pomD = sp.a * 0.25 * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d));
   vec3 Vt = vec3(dot(V, Tg), dot(V, Bg), dot(V, N0));
   float hgt = 1.0; float pomSh = 1.0;
   if (pomD > 0.002 && Vt.z > 0.04 && mat == 0) {
@@ -257,9 +262,9 @@ void main(){
   if (diffG > 0.0 && ${X.lightDir}.y > -0.05) {
     float slope = foliage ? 0.5 : clamp(1.0 - NdotL0, 0.0, 1.0);
     vec3 wp = v_rel + ${() => F.camToShadow} + N0 * (foliage ? 0.02 : 0.03 + 0.06 * slope);
-    if (${X.shadowOn} > 0.5 && d < ${() => F.shadowDist}) { sh = shadowAt(wp); sh = mix(sh, gate, smoothstep(${() => F.shadowDist} * 0.8, ${() => F.shadowDist}, d)); }
+    if (SHADOW_ON > 0 && d < ${() => F.shadowDist}) { sh = shadowAt(wp); sh = mix(sh, gate, smoothstep(${() => F.shadowDist} * 0.8, ${() => F.shadowDist}, d)); }
     else sh = gate;
-    if (${X.shadowOn} > 0.5 && (v_flags & 8192) == 0 && d < ${() => F.sharpDist})   // remix: R3b；8192 = 草（不接收锐阴影），花自遮挡
+    if (SHADOW_ON > 0 && (v_flags & 8192) == 0 && d < ${() => F.sharpDist})   // remix: R3b；8192 = 草（不接收锐阴影），花自遮挡
       sh = min(sh, mix(sharpAt(wp + ${X.lightDir} * ((v_flags & 16384) != 0 ? 0.012 : 0.04)), 1.0, smoothstep(${() => F.sharpDist} * 0.85, ${() => F.sharpDist}, d)));
     sh *= smoothstep(0.1, 0.5, sky);
     sh *= cloudShadow(v_world);

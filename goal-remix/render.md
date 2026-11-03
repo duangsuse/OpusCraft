@@ -385,3 +385,21 @@ goodGL 原版的效果上界（每项单独关，ms / 占比）：
 - 之前只做了 `panelSpec` getter（从各 Ref 的 meta 生成行），R7 才计划做面板，所以 `?r=gl` 按 F4 什么也没有。现在补上：`rgl/panel.js` 的 `createPanel(P)` 直接由 `P.panelSpec` 建 Tweakpane（同 v2/gl 的 CDN 版本 4.0.5），一行 = 一个 Ref，文件夹 = `meta.folder`（渲染 / 云隙光 / 花草锐阴影 / 雾 / 水 / 水下 / 调试），写值走 `ref.set`（hooks 统一路由）。`VR.paneReady / togglePanel / panelVisible` 与宿主 F4 现成接口对上，面板里的键盘输入不传给游戏。「重置默认」按钮按 `P_DEFAULTS` 逐项 `set`。
 - `vars.js` 给 `P` 加了不可枚举的 `refs`（path → Ref）。
 - 验证：无头浏览器里 `?r=gl` 等 `paneReady`，7 个文件夹、26 行，`togglePanel(true)` 后 `expanded` / `panelVisible` 为真，`P.it.uwWindow.set(7)` 生效。**没做的**：参数持久化（v2/gl 有 localStorage 的 `vc.v2.params` / 命名预设）；宏类开关（R7）要等 `P.hooks` 接上。
+
+### 实体 CPU 光照（11-03，R4 方案 B 的过渡，A 方案也沿用）
+- 实体由 three 在 final 之后画，不经过 goodGL 的光照和 tonemap，原先用宿主的 `lightColor()`（`brightJS` + `skyTint`），与 goodGL 画面的曝光 / 昼夜对不上。
+- `rgl/entlight.js` 的 `createEntityLight(getF)`：按 fancy.js 的项（直射 × 半球平均 N·L 0.4 × 天空光满格、天空环境 × 0.725·sky²、火把 `lb²·2.4`、最小光）求辐亮度 E，再套 final.js 的曝光 / 分级 / ACES / 饱和度 / gamma，用参考反照率 0.35 折成显示空间乘子（上限 1.8）写进材质 `color`。每实体每帧一次，GPU 零成本；**没有阴影、没有逐面朝向**。
+- 钩子：`VR.entityLight`（rgl 提供）→ 宿主 `entityLightHook`，`lightColor()` 命中就走它；v1 / v2 / v2/gl 没有这个成员，行为不变。
+- 验证：同一机位晨 / 午 / 昏 / 夜四个时间，猪的乘子 (1.04,0.99,0.93) / (1.21,1.20,1.19) / (0.96,0.84,0.72) / (0.26,0.31,0.42)，截图里夜里猪明显变暗；`verify --only gl` 见提交前输出。**没量化与地形亮度的匹配度，夜里猪偏紫（红 / 蓝通道乘子差大），要人看**。
+- 没做：脚下圆形软影；A 方案（实体进 `sceneC`）。
+- **脚下软影**（同日）：`rgl/blobshadow.js`，每个实体一个贴地的径向渐变四边形（池 48 个），宿主 `RCTX.shadowCasters`（只读，惰性）给 `{x,y,z,r,sky}`；位置 = 脚下第一个 SOLID 格顶 +0.03，浓度 = `P.blobShadow`（面板「实体」，默认 0.5，0 = 关）× 离地高度衰减 × 天空光² × (0.25 + 0.75·直射强度)；深度测试走 `depthOut` 写入的 goodGL 深度。验证：同帧开 / 关深度测试对比，位置正确、被地形边缘正确遮挡；`verify --only gl` 通过。**看图时影子很淡（正午侧视下几乎看不出），浓度和半径要人调**；掉落物、玩家没有影子。
+
+### R4 方案 A：实体进 goodGL 场景（11-03，`P.entScene`，默认开；关 = 方案 B）
+- **做法**：vendor 补丁在 scene pass 的 `drawEntities` 之后调 `R.onEntities(F)`（`tools/vendor.mjs`，`--check` 仍成立）。`rgl/index.js` 的钩子：three 把 `ctx.scene`（实体、掉落物、粒子、选框、裂纹、脚下软影）画进离屏 RGBA16F + 深度纹理（**未抖动**的宿主相机）→ `rgl/shaders/entcomp.js` 全屏合并进 `T.scene`：预乘 alpha 混合（`ONE, ONE_MINUS_SRC_ALPHA`，dst alpha 不动）、`gl_FragDepth` = 宿主 near/far 换算到 goodGL 的深度、硬件 `LESS` 测试负责被地形遮挡。之后复制、水、云、comp（雾、云、体积光、水下介质）、TAA、bloom、final 都照常处理实体；`depthOut` 与 final 之后的叠画在 A 下不再执行。
+- **颜色**：宿主 ColorManagement 关、输出线性，纹理 × 材质色是显示空间原始值。`entlight.js` 的 scene 模式把材质色写成 `E^(1/2.2)`（E = 直射 + 环境 + 火把 + 最小光，无曝光），合并 pass 做 `pow(rgb/a, 2.2)·a`，正好 = 反照率 × E，曝光 / ACES / 饱和度由 final 统一做。
+- **TAA**：实体没有运动向量。合并 pass 往 gbuf.b 写 −1（ssrW = 0 所以 comp 的 SSR 不碰），comp 据此把 alpha 写 0，`taa.js` 看到 alpha 0 就不混历史（实体边缘无抗锯齿，但不拖影；半透明像素不标记，粒子会有一点拖影）。
+- **验证**：`verify --only gl` 通过；晨 / 午 / 昏 / 夜截图里实体被花和地形正确遮挡，夜里和地形同样暗，白天和天空雾 / 曝光一致；没有 GL 错误。
+- **未验证 / 没做**：带实体的 TAA 拖影没有逐帧差分，只看了静止帧；半透明粒子的拖影、掉落物经 tonemap 后的观感没看；手仍由宿主 hudScene 在 final 之后画；脚下软影在 A 下是和实体一起走深度合并，没单独看有无闪烁。
+- **方块碎屑与掉落物（用户反馈：碎屑和环境光融入差、悬浮方块 / 素材没有影子）**：① 碎屑原先在生成时按「被打碎那一格」的光照烘进颜色（该格刚变成空气，光照还是实心格的旧值，偏暗且之后不再变）。现在粒子带 `lit` 标记，存未打光的反照率，`updateParticles` 每帧按**当前所在格**的 `lightColor` 上色（同格粒子共用一次查询，每帧一张 Map）；烟 / 火星仍是自发光，不打光。对所有渲染器生效。② `RCTX.shadowCasters` 除生物外加入掉落物（半径 0.2，悬浮高度按 `mesh.y − 0.2` 算，越高越淡）和点燃的 TNT（半径 0.49）。验证：昼 / 夜各打碎一块石头，碎屑昼间浅灰、夜里偏蓝灰且比地面略亮；TNT 进了 casters；`verify --only gl` 通过。**没验证**：掉落物实际出现的画面（测试里石头在测试模式下没掉出物品，只验证了 casters 的结构）；夜里碎屑偏蓝紫、比周围地面亮，是石头反照率 × 蓝色夜间环境光，没有遮蔽，要人看。
+- **A 下悬浮物没有影子（用户反馈）**：原因是合并 pass 靠 entRT 的深度判定「这个像素有没有实体」（深度 = 1 视为空），脚下软影是透明材质、`depthWrite: false`，深度没写 → 整个被丢掉。改：影子 `depthWrite: true`；合并 pass 里把深度往相机方向偏 `max(4 cm, 0.2%·距离)`（影子贴地 3 cm，不偏会和地面 z-fight）；`blobs.update()` 挪到 `renderFancy` 之前（A 下实体在 renderFancy 里画，原先晚一帧）。验证：同帧开 / 关 `blobShadow` 差异像素 A 与 B 同量级（≈1.9 万 px，原先 A 为 0），平地上掉落物下面能看到暗斑。
+- **实体亮度缓动 + 滑块**：`lightAt` 是整数格，实体走过格界亮度会跳。宿主 `easeLight(o, target, dt)`：每个生物 / 掉落物 / TNT 自带 `lc`，按时间常数 ~0.2 s 追目标（对所有渲染器生效）。`P.entExposure`（面板「实体」，0.3–3，默认 1）乘进 `entlight.js` 的 E（A 和 B 两个模式都生效；改 2 → 材质色 ×1.37，与 E^(1/2.2) 一致）。**缓动只验证了数值逻辑，没拍走过格界的连续帧**。

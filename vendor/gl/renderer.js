@@ -296,6 +296,7 @@ export class Renderer {
     this.drawSections(F, 'opaque', 'fancy', F.camPos);
     this.drawSections(F, 'plant', 'fancy', F.camPos);   // remix: R3b 植物单独一个网格
     this.drawEntities(F, 'fancy');
+    if (this.onEntities) this.onEntities(F);   // remix: A 方案：宿主（three）的实体、粒子、选框合并进 scene（rgl/index.js）
     // copy color+depth for refraction/SSR
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, T.scene); gl.readBuffer(gl.COLOR_ATTACHMENT0); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, T.copy);
     gl.blitFramebuffer(0, 0, F.w, F.h, 0, 0, F.w, F.h, gl.COLOR_BUFFER_BIT, gl.NEAREST);

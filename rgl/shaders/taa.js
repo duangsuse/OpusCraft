@@ -10,7 +10,9 @@ vec3 fromY(vec3 y){ return vec3(y.x + y.y - y.z, y.x + y.z, y.x - y.y - y.z); }
 vec3 tm(vec3 c){ return c / (1.0 + max(c.r, max(c.g, c.b))); }
 vec3 itm(vec3 c){ return c / max(1e-4, 1.0 - max(c.r, max(c.g, c.b))); }
 void main(){
-  vec3 cur = tm(max(texture(${X.taaCur}, v_uv).rgb, 0.0));
+  vec4 cur4 = texture(${X.taaCur}, v_uv);
+  vec3 cur = tm(max(cur4.rgb, 0.0));
+  if (cur4.a < 0.5) { o = vec4(itm(cur), 1.0); return; }                       // remix: A 方案：宿主实体像素（comp 写的 alpha 0）不混历史，避免拖影
   if (${u('reset', () => (F.taaReset || !X.histValid()) ? 1 : 0)} > 0.5) { o = vec4(itm(cur), 1.0); return; }
   // closest depth in 3x3 (keeps edges of foreground objects stable)
   float dmin = 1.0; vec2 duv = v_uv;

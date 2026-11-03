@@ -38,6 +38,11 @@ precision highp float;
 precision highp sampler2DArray;
 precision highp sampler2DShadow;
 precision highp usampler2D;
+#define SHADOW_ON ${X.shadowM}
+#define PBR_ON ${X.pbrM}
+#define POM_ON ${X.pomM}
+#define CLOUDSH_ON ${X.cloudShM}
+#define UNDER_ON ${X.underM}
 
 
 
@@ -85,7 +90,7 @@ float shadowAt(vec3 wp){
   return s / 8.0;
 }
 float cloudShadow(vec3 wp){
-  if (${X.cloudShadowOn} < 0.5 || ${X.lightDir}.y < 0.02) return 1.0;
+  if (CLOUDSH_ON == 0 || ${X.lightDir}.y < 0.02) return 1.0;
   vec2 q = wp.xz + ${X.lightDir}.xz * ((CB + 25.0 - wp.y) / max(${X.lightDir}.y, 0.08));
   return 1.0 - 0.78 * cloudCover(cloudMap(q));
 }
@@ -154,7 +159,7 @@ void main(){
   bool top = (v_flags & 512) != 0;
   bool falling = (v_flags & 2048) != 0;
   bool underFace = v_normal.y < -0.5;
-  bool fromBelow = underFace || ${X.camUnder} > 0.5;
+  bool fromBelow = underFace || UNDER_ON > 0;
   float t = ${() => F.time};
   vec3 N = v_normal;
   float dist = length(v_rel);
@@ -193,7 +198,7 @@ void main(){
   vec3 behind0 = behind;
   vec3 wcol = pow(v_tint.rgb, vec3(2.2)) * vec3(0.55, 0.85, 1.0);
   float sh = 1.0;
-  if (${X.shadowOn} > 0.5 && dist < ${() => F.shadowDist}) sh = shadowAt(v_rel + ${() => F.camToShadow} + vec3(0.0, 0.05, 0.0)); else sh = smoothstep(0.8, 1.0, sky);
+  if (SHADOW_ON > 0 && dist < ${() => F.shadowDist}) sh = shadowAt(v_rel + ${() => F.camToShadow} + vec3(0.0, 0.05, 0.0)); else sh = smoothstep(0.8, 1.0, sky);
   sh *= cloudShadow(v_world);
   vec3 scatterLight = (${X.lightCol} * max(${X.lightDir}.y, 0.0) * 0.6 * sh + ${() => F.ambCol} * 0.9) * sky * sky + ${() => F.torchCol} * pow(lb(v_light.y), 2.0) * 0.3;
   vec3 inscatter = wcol * scatterLight * 0.18;

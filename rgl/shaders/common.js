@@ -7,15 +7,11 @@ export function commonX(R, tex, T) {
   return {
     viewProj: u('viewProj', () => fm.hand ? F.handProj : F.viewProj),
     wind: u('wind', () => fm.hand ? 0 : F.waving ? 1 : 0),
-    shadowOn: u('shadowOn', () => fm.hand ? 0 : 1),
     shadowRes: u('shadowRes', () => R.shadowRes),
     shadowRange: u('shadowRange', () => F.shadowDist),
     lightDir: u('lightDir', () => fm.hand ? F.handLightDir : F.lightDir),
     lightCol: u('lightCol', () => { if (!fm.hand) return F.lightCol; for (let i = 0; i < 3; i++) handCol[i] = F.lightCol[i] * F.handShadow; return handCol; }),
-    pbrOn: u('pbrOn', () => F.pbr === false ? 0 : 1),
-    pomOn: u('pomOn', () => F.pom === false || fm.hand ? 0 : 1),
     wet: u('wet', () => F.wet || 0),
-    cloudShadowOn: u('cloudShadowOn', () => F.clouds ? 1 : 0),
     colorMul: u('colorMul', () => ONE4),
     sharpRes: u('sharpRes', () => R.sharpRes),
     shadow: u('shadow', () => tex(R.shadowTex, 'sampler2DShadow')),
@@ -25,6 +21,8 @@ export function commonX(R, tex, T) {
     spec: u('spec', () => tex(R.specTex, 'sampler2DArray')),
     rain: u('rain', () => F.rain || 0), flash: u('flash', () => F.flash || 0),
     sceneColor: u('sceneColor', () => tex(T().copyC)), sceneDepth: u('sceneDepth', () => tex(T().copyD)),
-    res: u('res', () => [F.w, F.h]), camUnder: u('camUnder', () => F.underwater ? 1 : 0),
+    // 宏（pass.js：`#` 行里的 ${} 取值进编译缓存键；切换命中缓存，GLSL 里是常量，编译器折叠分支）
+    shadowM: () => fm.hand ? 0 : 1, pbrM: () => F.pbr === false ? 0 : 1, pomM: () => F.pom === false || fm.hand ? 0 : 1, cloudShM: () => F.clouds ? 1 : 0, underM: () => F.underwater ? 1 : 0,
+    res: u('res', () => [F.w, F.h]),
   };
 }
