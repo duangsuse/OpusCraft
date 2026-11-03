@@ -549,7 +549,7 @@ const Mesher = {
   buildChunk(c) {
     this.fillPadded(c);
     this.ob.reset(); this.wb.reset(); this.gb.reset();
-    this.greedy(c);
+    if (!this.only) this.greedy(c);   // only：?r=gl 时只出特殊模型（门 / 梯子 / 雪层 / 火），整格方块和流体由 goodGL 画（rgl/host-b.js）
     const pb = this.pb, pm = this.pm, byId = Blocks.byId, pg = gg.XRay?.active ? this.pg : null;
     for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) {
       const bio = BIOMES[c.biomes[(x << 4) | z] || 0];
@@ -559,6 +559,7 @@ const Mesher = {
         if (id === AIR) continue;
         const def = byId[id];
         if (def.model === 'cube' || def.model === 'none') continue;
+        if (this.only && !this.only.has(id)) continue;
         if (def.model === 'liquid') { const m = pm[pidx(x, y, z)];   // solid-fluid mode: inflow cells (non-source: dry up once their feed is dug) render as translucent ghosts
           this.emitLiquid((gg.Game.modeDef.solidWater && m !== 0) || (pg && pg[pidx(x, y, z)]) ? this.gb : id === B.water ? this.wb : this.ob, x, y, z, def, m, bio); }
         else this.emitModel(pg && pg[pidx(x, y, z)] ? this.gb : this.ob, x, y, z, def, pm[pidx(x, y, z)], bio);

@@ -40,12 +40,12 @@ export function padded(source, lut, H, cx, cz, s) {
       const cxi = x < 0 ? 0 : x > 15 ? 2 : 1, lx = x & 15, ch = cs[czi * 3 + cxi];
       let p = (z + 1) * 18 + (x + 1);
       if (!ch) { for (let y = -1; y <= 16; y++, p += 324) { pb[p] = 1; pl[p] = 0; } continue; }
-      const col = (lx * 16 + lz) * H, B = ch.blocks, S = ch.sky, K = ch.blk;
+      const col = (lx * 16 + lz) * H, B = ch.blocks, M = ch.meta, S = ch.sky, K = ch.blk;   // meta：宿主 B 有（流体液位 / 作物阶段 / 火把朝向 / 朝向方块，语义与 goodGL 相同，原样传），宿主 A 没有
       for (let y = -1; y <= 16; y++, p += 324) {
         const wy = y0 + y;
         if (wy < 0) { pb[p] = bedrock; pl[p] = 0; continue; }
         if (wy >= H) { pb[p] = 0; pl[p] = 0xF0; continue; }
-        pb[p] = lut[B[col + wy]]; pl[p] = (S[col + wy] << 4) | K[col + wy];
+        pb[p] = lut[B[col + wy]]; pl[p] = (S[col + wy] << 4) | K[col + wy]; if (M) pm[p] = M[col + wy];
       }
     }
   }
@@ -225,6 +225,9 @@ export function commonX(R, tex, T) {
     lightDir: () => fm.hand ? Fpv.handLightDir : Fpv.lightDir,
     lightCol: () => { if (!fm.hand) return Fpv.lightCol; for (let i = 0; i < 3; i++) handCol[i] = Fpv.lightCol[i] * Fpv.handShadow; return handCol; },
     wet: () => Fpv.wet || 0,
+    pomShadow: () => Fpv.pomShadow != null ? Fpv.pomShadow : 0.6,
+    pomSmooth: () => Fpv.pomSmooth ? 1 : 0,
+    rainPom: () => Fpv.rainPom != null ? Fpv.rainPom : 1,
     colorMul: () => ONE4,
     sharpRes: () => R.sharpRes,
     shadow: () => tex(R.shadowTex, 'sampler2DShadow'),

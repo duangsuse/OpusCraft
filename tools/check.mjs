@@ -1,6 +1,6 @@
 // 改完代码先跑这个：node tools/check.mjs（正确性闸门，目标 <30s，需要 :8765 静态服务器）
 // 只验「还对不对」：单元测试 → vendor 一致 → pass GL 自检 → ?r=gl 契约 + 画面 + 0 px 确定性。
-// 不含性能（bench-v2）、不含像素对比（bench-v2 --ref --cmp）、不含 v1/v2/v2/gl 组（node tools/verify-renderer.mjs 全量，约 2 分钟）。
+// 加 --b 再验宿主 B（rgl/host-b.js，约 +15 s）。不含性能（bench-v2）、不含像素对比（bench-v2 --ref --cmp）、不含 v1/v2/v2/gl 组（node tools/verify-renderer.mjs 全量，约 2 分钟）。
 import { spawnSync } from 'node:child_process';
 const steps = [
   ['pass/vars 单元', 'test-pass.mjs'], ['pass/vars 单元', 'test-vars.mjs'],
@@ -8,6 +8,7 @@ const steps = [
   ['pass GL 自检', 'test-pass-gl.mjs'],
   ['?r=gl 契约 + 画面（静态检查 + --fast）', 'verify-renderer.mjs', '--only', 'static,gl', '--fast'],
 ];
+if (process.argv.includes('--b')) steps.push(['宿主 B ?r=gl（--fast）', 'verify-host-b.mjs', '--fast']);   // 另加约 15 s，超出 30 s 预算，动 rgl/host-b.js / index.html 的 ?r=gl 钩子时带上
 const t0 = Date.now(); let bad = 0;
 for (const [name, f, ...a] of steps) {
   const t = Date.now(), r = spawnSync('node', [new URL(f, import.meta.url).pathname, ...a], { encoding: 'utf8' });

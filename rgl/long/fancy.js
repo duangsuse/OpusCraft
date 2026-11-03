@@ -57,6 +57,15 @@ float vnoise3(vec3 p){ vec3 i = floor(p), f = fract(p); vec3 u = f*f*(3.0-2.0*f)
   float b = mix(mix(hash13(i+vec3(0,0,1)), hash13(i+vec3(1,0,1)), u.x), mix(hash13(i+vec3(0,1,1)), hash13(i+vec3(1,1,1)), u.x), u.y);
   return mix(a, b, u.z); }
 float ign(vec2 p){ return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+// 法线 / 高度图的手写双线性（图集对它们是 NEAREST：一个 texel 内高度 / 法线 / AO 恒定 → 近看一格一个平面）。
+// 只在近处用（lod 0；贴图边界按 REPEAT 环绕，分辨率取自纹理本身，换高清包也对）。
+vec4 nrmLin(vec3 uv){
+  ivec2 sz = textureSize(${X.nrm}, 0).xy; vec2 t = uv.xy * vec2(sz) - 0.5; ivec2 i0 = ivec2(floor(t)); vec2 f = fract(t); int l = int(uv.z + 0.5);
+  ivec2 m = sz - 1;
+  vec4 a = texelFetch(${X.nrm}, ivec3(i0 & m, l), 0), b = texelFetch(${X.nrm}, ivec3((i0 + ivec2(1, 0)) & m, l), 0);
+  vec4 c = texelFetch(${X.nrm}, ivec3((i0 + ivec2(0, 1)) & m, l), 0), d = texelFetch(${X.nrm}, ivec3((i0 + ivec2(1, 1)) & m, l), 0);
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
 
 
 const float CB = 185.0, CT = 262.0;
@@ -173,38 +182,61 @@ void main(){
   float pbr = float(PBR_ON);
   vec4 sp = textureGrad(${X.spec}, uv, gdx, gdy);
   // ---------------- parallax occlusion mapping
-  float pomD = sp.a * 0.25 * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d));
+  float rainW = clamp(${X.wet} * ${X.rainPom}, 0.0, 1.0);   // 雨天的立体浮雕：wet × rainPom
+  // 平滑 POM（双线性高度 + 自适应步数 + 二分）：pomSmooth 或下雨时启用，深度不变（雨天 ×1.5）；否则走下面原来的 14 步（逐 texel 平顶，关 TAA 时近看有横向纸片条纹）
+  bool pomS = ${X.pomSmooth} > 0.5 || rainW > 0.01;
+  float pomD = sp.a * 0.25 * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d)) * mix(1.0, 1.5, rainW);
   vec3 Vt = vec3(dot(V, Tg), dot(V, Bg), dot(V, N0));
   float hgt = 1.0; float pomSh = 1.0;
   if (pomD > 0.002 && Vt.z > 0.04 && mat == 0) {
-    const int NS = 14;
-    float stepL = 1.0 / float(NS);
-    vec2 delta = -Vt.xy / max(Vt.z, 0.25) * pomD * stepL;
-    vec2 cur = uv.xy; float layer = 0.0;
-    float hd = 1.0 - textureGrad(${X.nrm}, vec3(cur, uv.z), gdx, gdy).a;
-    float prevHd = hd; vec2 prev = cur;
-    for (int i = 0; i < NS; i++) {
-      if (layer >= hd) break;
-      prev = cur; prevHd = hd;
-      cur += delta; layer += stepL;
-      hd = 1.0 - textureGrad(${X.nrm}, vec3(cur, uv.z), gdx, gdy).a;
+    if (pomS) {
+      int NS = int(mix(10.0, 28.0, 1.0 - clamp(Vt.z, 0.0, 1.0)));
+      float stepL = 1.0 / float(NS);
+      vec2 delta = -Vt.xy / max(Vt.z, 0.25) * pomD * stepL;
+      vec2 cur = uv.xy; float layer = 0.0;
+      float hd = 1.0 - nrmLin(vec3(cur, uv.z)).a;
+      vec2 prev = cur;
+      for (int i = 0; i < 28; i++) {
+        if (i >= NS || layer >= hd) break;
+        prev = cur; cur += delta; layer += stepL;
+        hd = 1.0 - nrmLin(vec3(cur, uv.z)).a;
+      }
+      vec2 pa = prev, pb = cur; float la = max(layer - stepL, 0.0), lb = layer;
+      for (int j = 0; j < 5; j++) {
+        vec2 pm = (pa + pb) * 0.5; float lm = (la + lb) * 0.5;
+        if (lm >= 1.0 - nrmLin(vec3(pm, uv.z)).a) { pb = pm; lb = lm; } else { pa = pm; la = lm; }
+      }
+      uv.xy = (pa + pb) * 0.5; hgt = 1.0 - (la + lb) * 0.5;
+    } else {
+      const int NS = 14;
+      float stepL = 1.0 / float(NS);
+      vec2 delta = -Vt.xy / max(Vt.z, 0.25) * pomD * stepL;
+      vec2 cur = uv.xy; float layer = 0.0;
+      float hd = 1.0 - textureGrad(${X.nrm}, vec3(cur, uv.z), gdx, gdy).a;
+      float prevHd = hd; vec2 prev = cur;
+      for (int i = 0; i < NS; i++) {
+        if (layer >= hd) break;
+        prev = cur; prevHd = hd;
+        cur += delta; layer += stepL;
+        hd = 1.0 - textureGrad(${X.nrm}, vec3(cur, uv.z), gdx, gdy).a;
+      }
+      // interpolate between the last two samples
+      float after = hd - layer, before = prevHd - (layer - stepL);
+      float w = clamp(after / (after - before + 1e-5), 0.0, 1.0);
+      uv.xy = mix(cur, prev, w);
+      hgt = 1.0 - mix(layer, layer - stepL, w);
     }
-    // interpolate between the last two samples
-    float after = hd - layer, before = prevHd - (layer - stepL);
-    float w = clamp(after / (after - before + 1e-5), 0.0, 1.0);
-    uv.xy = mix(cur, prev, w);
-    hgt = 1.0 - mix(layer, layer - stepL, w);
     // self shadowing toward the light
     vec3 Lt = vec3(dot(${X.lightDir}, Tg), dot(${X.lightDir}, Bg), dot(${X.lightDir}, N0));
     if (Lt.z > 0.02) {
       float lh = 1.0 - hgt; vec2 ld = Lt.xy / max(Lt.z, 0.2) * pomD * lh / 6.0; float occ = 0.0;
       vec2 q = uv.xy;
       for (int i = 1; i <= 6; i++) {
-        q += ld; float hh = 1.0 - textureGrad(${X.nrm}, vec3(q, uv.z), gdx, gdy).a;
-        float lay = lh - float(i) * (1.0 / 6.0) * lh - 0.02;
+        q += ld; float hh = 1.0 - (pomS ? nrmLin(vec3(q, uv.z)).a : textureGrad(${X.nrm}, vec3(q, uv.z), gdx, gdy).a);   // 与表面同一套高度：平滑搜索 + NEAREST 比较会把表面自己遮成黑斑
+        float lay = lh - float(i) * (1.0 / 6.0) * lh - (pomS ? 0.06 : 0.02);
         occ = max(occ, clamp((lay - hh) * 10.0, 0.0, 1.0));
       }
-      pomSh = 1.0 - occ * 0.6;
+      pomSh = 1.0 - occ * ${X.pomShadow} * (pomS ? 0.4 : 1.0);   // 平滑搜索下高度连续，遮挡更连贯：同样强度会把山谷整片压黑（雨天环境光低时纯黑），取 0.4 倍
     }
     sp = textureGrad(${X.spec}, uv, gdx, gdy);
   }
@@ -239,7 +271,7 @@ void main(){
   // ---------------- rain wetness (porous materials darken, puddles gather in low spots)
   float wet = ${X.wet} * smoothstep(0.8, 1.0, sky) * (N0.y > 0.5 ? 1.0 : 0.35) * (foliage ? 0.4 : 1.0);
   float puddle = 0.0;
-  if (wet > 0.0 && N0.y > 0.5 && !foliage) puddle = smoothstep(0.52, 0.72, vnoise(v_world.xz * 0.22) + (0.55 - hgt) * 0.35 - (tm != 0 ? 0.08 : 0.0)) * wet;
+  if (wet > 0.0 && N0.y > 0.5 && !foliage) puddle = smoothstep(0.52, 0.72, vnoise(v_world.xz * 0.22) + (0.55 - hgt) * (pomS ? 0.12 : 0.35) - (tm != 0 ? 0.08 : 0.0)) * wet;
   albedo *= mix(1.0, 1.0 - 0.5 * (0.35 + por * 0.65), max(wet, puddle));
   smooth_ = mix(smooth_, 0.88, wet * (1.0 - por * 0.75) * (1.0 - sss * 0.9) * (foliage ? 0.3 : 1.0));
   if (puddle > 0.0) { float t = ${Fps.time} * 2.0; vec2 rp = v_world.xz * 3.0;

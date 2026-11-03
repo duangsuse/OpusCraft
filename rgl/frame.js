@@ -72,6 +72,8 @@ export function createFrameBuilder() {
     const sunCol = Ts.map(v => v * 3.7), moonCol = Tm.map((v, i) => v * [0.5, 0.66, 1.0][i] * 0.2);
     F.sunCol = sunCol; F.moonCol = moonCol;
     const useSun = sunH > -0.02;
+    F.pomSmooth = !!S.pomSmooth; F.pomShadow = S.pomShadow != null ? S.pomShadow : 0.6;
+    F.rainPom = S.rainPom != null ? S.rainPom : 1;
     F.foamWidth = S.foamWidth != null ? S.foamWidth : 1.2; F.shoreFade = S.shoreFade != null ? S.shoreFade : 0.3; F.shoreAmp = S.shoreWaveAmp != null ? S.shoreWaveAmp : 0.12; F.shoreSpd = S.shoreWaveSpeed != null ? S.shoreWaveSpeed : 1;   // remix: v2/gl 的岸边波纹参数（面板「水」）
     F.ssrSteps = S.ssrSteps != null ? S.ssrSteps : 24;                                          // remix: 水面 SSR 步数（LiqPG 档位 0 / 16 / 24 / 40）
     F.useSun = useSun;                                                                            // remix: 日 / 月切换的唯一判据（光向、云光、…都读它，别各写各的 sunDir.y 阈值）

@@ -448,3 +448,29 @@ GLSL 一字未改，合并只去掉重复 import。验证：`verify-renderer` �
 - 约定：**改代码 → `check.mjs`；动 shader 或管线 → 再加 `--ref --cmp`；动性能 → bench（空闲 GPU）；提交前 / 动宿主接口 → 全量 verify。** `verify-renderer.mjs` 新增 `--fast`（跳过慢项）和组名 `static`（单独跑静态检查），`check.mjs` 就是它们加其它快测试的编排。
 - 故意弄坏 `long/sky.js` 的 import 验证过：`check.mjs` 在 5 s 内报红（renderer 回退 v1 + 动态 import 失败）。
 - 没覆盖：`check.mjs` 不跑 v1 / v2 / v2/gl 组（宿主改动时请跑全量）；不看画面内容是否「正确」，只看非黑、非单色、可重复——画面回归靠 `--ref --cmp`。
+
+### 宿主 B 接入（R6-b 第一步）：`index.html?r=gl` 出图（11-03）
+- **做了什么**：`rgl/host-b.js`（新）= 宿主 B 的全部耦合。`glsSource`（包 `Mesher.buildChunk` → `'blocks'`；包 `world.chunks.delete / clear` → `'gone'`；宿主一行不改；中途创建时接管已网格化区块）、`glsBlocks`（`kind / opaque / solid / occupied / cullSelf / waterId`，由 `Blocks.byId` 的 `model` 推；box / layer / ladder / door 先按整格）、`glsEnv`（`dayTime = Sky.time / 24000`——B 的 `Sky.update` 里 `time = 0` 正好是日出，和 goodGL 的 tick 0 对得上；`weather = {Weather.amount, storm}`；`flying / eyeInWater / eyeSky / eyeWaterTop`；`underwater()` 隐藏 `#water-tint`）、`glid()`（B 方块名 → goodGL 方块名的 256 项表，同名直通 + `SUBST` 代用品）、`createGlRenderer(gg, terrain)`（建 ctx、动态 import `./index.js`）。
+- **rgl 本体的改动只有四处**：`SRC / ENV / BT` 先取 `ctx.source / env / blockTable`（缺省仍是宿主 A 的适配器）；`ctx.glid` 优先于 `idLUT(ctx.B)`；`padded()` 把 `ch.meta`（若有）原样写进 `pm`（流体液位 / 作物阶段 / 火把朝向 / 朝向方块的语义和 goodGL 相同，逐项核过 `FACING_FACE`、`HDIRS`）；`hideSky` 多隐藏 `ctx.terrain`（宿主 B 的区块网格组）。
+- **index.html 两处**：`Game.init` 里 `?r=gl` 时把 `ChunkManager.scene` 指到一个 Group 并动态加载 `host-b.js`（失败就保留宿主自己的渲染）；`Game.loop` 末尾 `gg.VR ? (VR.update; renderer.clear(); VR.render()) : renderer.render(...)`。
+- **踩到的坑**：贴图全黑。three 先用过这个上下文，`UNPACK_*` 状态是它的，`texSubImage3D` 报 `INVALID_OPERATION`，纹理数组整层是 0（宿主 A 碰巧没事）。`createRenderer` 在上传贴图前调 `resetGLState(gl)`。定位靠读回纹理层（`framebufferTextureLayer` + `readPixels`）。
+- **验证**：`node tools/verify-host-b.mjs`（全量 ~60 s：适配器契约、画面非黑 / 非单色、0 px 可重复、放置 3×3×3 石头 → rev 递增 → 画面变 → 移除后 0 px 恢复且光照 / 方块数据逐格一致、卸载 → `'gone'`、无 GL 错误 / 异常 / 未映射方块）；`--fast`（~15 s）只做前半。`node tools/check.mjs --b` 把 `--fast` 加进闸门（总 ~30 s，已到预算边）。人眼：草坡 + 树 + 花 + 水 + 天空 + 云；羊 / 掉落物 / 粒子由 three 画进实体合成，被地形正确遮挡。
+- **验证里学到的**：编辑往返要等 `ChunkManager.progress() === 1` 且 `VR.pending() === 0` 才取基准，否则远处区块还在陆续网格化，同一静止画面隔 1.5 s 会差 1.4 万 px（不是 bug，是基准没稳）；读回前要把相机同步钉回去（主循环每帧按 `player` 重算，弹跳 / fov 缓动有残差）。
+- **和 goalP4P5 第 2 步的关系**：那一步的 `glsSource / glsBlocks / glsEnv` 是给 B 上的 **v2（DDA）** 用的，要带 `state() / boxes() / uInfo`。这里只做了 rgl 要的子集（无 `state()`、无 `aux`）；v2 on B 真要做时可在此基础上扩，不冲突。第 1 步（F6 热切换 / `c_Bench.poses` / `&gizmo=` / `tpause` / 轨迹录制）**没做**，所以还没有 B 上的 `bench-v2 --url index.html` 机位。
+- **还没做 / 已知差距**：
+  1. **特殊模型**（梯子、门、雪层、火）当前当空气（`SPECIAL`）——R6-a 本体：让宿主网格器只出这些方块、three 画进实体合成（`entScene` 同一路径）。B 的 `Mesher.buildChunk` 目前整套照跑（CPU 双份，只是隐藏）；R6-a 要改成按方块 id 过滤，同时能省掉大头。
+  2. **群系染色**：`createWorld` 仍是平原常量；B 有逐列 `biomes`（`x*16+z`，goodGL 是 `z*16+x`），要按 `BIOMES` 行生成 `tintG / tintF`。
+  3. **代用品方块**：矿 / 矿块 / 羊毛 15 色 / tnt / 南瓜等用最接近的 goodGL 方块顶替（表在 `SUBST`），要真的得给 `SH` 追加方块 + 贴图（供体补丁）。草方块 meta 1（积雪）没映射到 `snowy_grass`。
+  4. **实体光照**：B 的实体 / 生物用 `Mesher.material`（自带烘焙光照 + 宿主雾），没走 `P.entExposure` / CPU 光照；夜里亮度、与 goodGL 曝光是否一致没看。手、选框、裂纹、雨雪粒子没逐项看。
+  5. 没接 F6 热切换、`rd` 钳 ≤ 10、标题预览 / 屏保（`previewRd 16`）；`scale / maxMP` 没接；世界存档 / 读档往返没测。
+
+### R6-a 特殊模型混合路径（宿主 B，11-03）
+- **做法**：`gls.js` 的 `Mesher` 加一个 `only`（id 集合）：非空时跳过 `greedy`（整格方块）、跳过流体和其它模型，只出集合里的方块。`?r=gl` 时 `index.html` 设 `Mesher.only = {ladder, oak_door, snow, fire}`（与 `host-b.js` 的 `SPECIAL` 同表，两处要一起改），区块网格照旧进 `ChunkManager.scene`（现在就是主场景，不再有 terrain 组），由 `R.onEntities` 的 three 渲染一起画进实体合成：被地形深度遮挡、走 comp / tonemap，和羊、掉落物同一路径。VR 加载失败 → `only = null` 并把所有区块标脏，回到宿主自己的渲染。
+- **顺带的收益**：B 的整格方块 greedy 网格和流体网格不再跑（之前整套照跑只是隐藏）；没有特殊方块的区块 `c.mesh` 为空，three 侧几乎没有 draw call。没单独量 CPU 省了多少。
+- **`rgl/` 的改动**：撤掉 `hideSky` 里的 `terrain`（`ctx.terrain` 不再传）。
+- **验证**：`verify-host-b.mjs` 加三项：没有特殊方块的区块不出 three 网格；放门（上下半）/ 雪层 / 梯子 / 火 → 该区块出网格、画面变；移除后 0 px 恢复且网格释放。人眼：门、雪层、梯子在 goodGL 的地面上，被石块遮挡关系正确。
+- **没做 / 看到的问题**：
+  1. 门的下半截颜色偏淡绿（B 的 `Mesher.material` 自带烘焙光 + 宿主雾，贴图本身没查）；这几个模型的亮度和 goodGL 曝光 / 昼夜没对齐，夜里没看。要对齐：给 `Mesher.material` 加 `P.entExposure` 同款乘子，或把它们的光照改走 `createEntityLight`。
+  2. 火的发光（`emissive`）、门开关动画 / 铰链朝向、梯子靠墙朝向都用 B 原网格，没逐项对照；火 / 雪层 / 梯子的方块阴影（不投影）、AO 没有。
+  3. 特殊方块不投阴影、不进水面反射和 SSR（只在实体合成里，gbuf 里 ssrW = 0）。
+  4. `pose=models` 验证世界（goalP4P5 §12.5）还没有，要人搭；现在的验证是脚本放几个方块。

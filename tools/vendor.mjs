@@ -116,6 +116,10 @@ const PATCH_FILES = {
     ['      const fl = FLAGS[id];\n      const B = MAT[id] >= 2 ? TB : OB;', '      const fl = FLAGS[id] | (CLS ? CLS[id] : 0);   // remix\n      const B = MAT[id] >= 2 ? TB : (PB && (rt === RT_CROSS || rt === RT_CROP) ? PB : OB);   // remix'],
     ['  return { opaque: OB.n ? OB.take() : null, on: OB.n, trans: TB.n ? TB.take() : null, tn: TB.n };', '  return { opaque: OB.n ? OB.take() : null, on: OB.n, trans: TB.n ? TB.take() : null, tn: TB.n, plant: PB && PB.n ? PB.take() : null, pn: PB ? PB.n : 0 };   // remix'],
   ],
+  'pbr.js': [
+    // remix: 雪的材质向白羊毛靠（粗糙、毛糙的法线、次表面散射），原值是半光滑的雪壳
+    ['    snow: P({ sm: 0.3, sv: 0.15, ns: 0.6, pom: 0.02, por: 0.2, sss: 0.55 }),', '    snow: P({ sm: 0.04, sv: 0.04, ns: 0.9, pom: 0.04, por: 0.9, sss: 0.5 }),   // remix: 同 wool 的路子（sm 低、ns ~0.9、sss 高）；原 sm 0.3 / ns 0.6 / pom 0.02'],
+  ],
   'pool.js': [
     ['this.TB = new SH.MeshBuilder(4096);', 'this.TB = new SH.MeshBuilder(4096); this.PB = new SH.MeshBuilder(4096);   // remix'],
     ['d.wx, d.wy, d.wz, this.OB, this.TB);', 'd.wx, d.wy, d.wz, this.OB, this.TB, this.PB, d.cls);   // remix'],

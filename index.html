@@ -1561,7 +1561,7 @@ const Input = {
         if (e.target && e.target.tagName === 'INPUT') return;
         if (!I.keys[e.code]) Events.emit('keypress', e.code, e);
         I.keys[e.code] = true;
-        if (['Space', 'Tab', 'F3', 'F1', 'F2', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
+        if (['Space', 'Tab', 'F3', 'F4', 'F1', 'F2', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Arrow')) e.preventDefault();
       },
       keyup(e) { I.keys[e.code] = false; },
       blur() { I.keys = {}; I.buttons = [false, false, false]; },
@@ -1738,7 +1738,7 @@ const Player = {
     const kk = 1 - Math.exp(-rate * dt);
     p.vx += (wx * speed - p.vx) * kk; p.vz += (wz * speed - p.vz) * kk;
     // Vertical
-    const jump = controls && !!k.Space;
+    const jump = controls && !!k.Space; let vyAvg = null;   // vyAvg：普通重力分支的梯形积分速度（对恒定重力是精确的，跳跃顶点不随帧率下降）
     if (p.flying) {
       const vy = (jump ? 1 : 0) - (p.sneaking ? 1 : 0), look = lookFly ? f[1] * mz * speed : 0;
       p.vy += (vy * (p.sprinting ? 16 : 8) + look - p.vy) * (1 - Math.exp(-10 * dt));
@@ -1752,13 +1752,13 @@ const Player = {
       if (jump || (controls && k.KeyW)) p.vy = 2.35; else if (p.sneaking) p.vy = 0; else p.vy = Math.max(p.vy - this.gravity(dt), -2.35);
     } else {
       if (jump && p.onGround) { p.vy = Physics.JUMP_VEL; p.onGround = false; p.exhaustion += p.sprinting ? 0.2 : 0.05; }
-      p.vy = Math.max(p.vy - Physics.GRAVITY * (p.aj || 1) * dt, -Physics.TERMINAL);
+      const v0 = p.vy; p.vy = Math.max(v0 - Physics.GRAVITY * (p.aj || 1) * dt, -Physics.TERMINAL); vyAvg = (v0 + p.vy) / 2;
     }
     p.stepHeight = 0.6; // MC step (slabs); full blocks are cleared by auto-jump below
     const prevOnGround = p.onGround, prevY = p.y, prevFall = p.fallStart;
     if (p.noclip !== p._nc) { p._nc = p.noclip; if (Physics.unstuck(p)) HUD.message('Unstuck → y ' + floor(p.y)); }
     if (p.noclip && p.flying) { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.onGround = p.hitX = p.hitZ = false; }
-    else Physics.move(p, p.vx * dt, p.vy * dt, p.vz * dt);
+    else Physics.move(p, p.vx * dt, (vyAvg ?? p.vy) * dt, p.vz * dt);
     p.ajLand = false;
     if (p.aj && (p.onGround || p.flying || p.inWater || p.inLava || p.onLadder)) { p.ajLand = p.onGround; p.aj = 0; }
     this.autoJump(p, wx, wz, prevOnGround);
@@ -1874,6 +1874,7 @@ const Player = {
     else if (code === 'KeyT') { Sky.time = 1000; HUD.message('Time set to morning'); }
     else if (code === 'KeyR') Weather.toggle();
     else if (code === 'F3') HUD.toggleDebug();
+    else if (code === 'F4' && gg.VR) gg.VR.togglePanel();         // ?r=gl：goodGL 参数面板（rgl/panel.js；宿主 A 同键）
     else if (code === 'F1' && XRay.active) XRay.jump(1);          // x-ray pane open: next change
     else if (code === 'F2' && XRay.active) XRay.revertScreen();   // revert the on-screen selection
   }
@@ -3629,6 +3630,13 @@ const Game = {
     Events.on('atlasRebuilt', () => Blocks.resolveTiles(Atlas));
     Mesher.init(); ChunkManager.init(this.scene); Entities.init(this.scene); Mobs.init(this.scene); Particles.init(this.scene);
     Sky.init(this.scene); Weather.init(this.scene); Interaction.init(this.scene); Screens.init(); HUD.init(); Input.init(this.canvas); Menus.init();
+    // ?r=gl：goodGL 管线（rgl/host-b.js 适配）。区块网格先放进一个组，VR 就绪后由它每帧隐藏；加载失败就留着宿主自己的渲染
+    if (new URLSearchParams(location.search).get('r') === 'gl') {
+      // R6-a：B 的网格器只出 goodGL 没有的模型（门 / 梯子 / 雪层 / 火），three 把它们画进实体合成；失败就还原并全部重建
+      const terrain = this.scene; gg.Mesher.only = new Set(['ladder', 'oak_door', 'snow', 'fire'].map(n => B[n]));
+      import('./rgl/host-b.js').then(m => m.createGlRenderer(gg, terrain)).then(vr => { gg.VR = vr; console.log('[Voxelcraft] renderer', vr.name); })
+        .catch(e => { console.error('renderer gl failed, keeping the built-in one', e); gg.Mesher.only = null; for (const c of world.chunks.values()) c.dirty = true; });
+    }
     this.last = performance.now(); Title.boot();
     requestAnimationFrame((t) => this.loop(t));
     console.log('Voxelcraft ready. Blocks: ' + Blocks.byId.length + ', items: ' + Items.list.length + ', atlas ' + Atlas.size + 'px');
@@ -3701,6 +3709,8 @@ const Game = {
     Weather.tick();
     Events.emit('tick');
   },
+  // 玩家物理按 ≤1/60 s 子步：低帧率时一帧的位移 / 重力积分过粗，会让自动跳跃的触发和顶点都不稳（tools/verify-autojump.mjs 按 20–144 fps 验）
+  stepPlayer(dt) { for (let i = 0, n = Math.ceil(dt * 60 - 1e-6) || 1; i < n; i++) Player.update(dt / n); },
   loop(now) {
     requestAnimationFrame((t) => this.loop(t));
     this.frameMs = now - this.last;
@@ -3718,7 +3728,7 @@ const Game = {
         }
       } else if (this.paused) { Title.look(dt); Screensaver.update(dt); const a = Screensaver.anchor; ChunkManager.update(a.x, a.z, 4); }
       else {
-        Player.update(dt);
+        this.stepPlayer(dt);
         ChunkManager.update(player.x, player.z, 6);
         this.tickAccum += dt;
         let n = 0; while (this.tickAccum >= TICK_DT && n++ < 4) { this.tickAccum -= TICK_DT; this.tick(); }
@@ -3742,7 +3752,10 @@ const Game = {
       // Title screen: slowly rotating empty sky
       Sky.update(dt, this.camera, this.scene);
     }
-    if (!this.hold) this.renderer.render(this.scene, this.camera);
+    if (!this.hold) {
+      if (gg.VR) { gg.VR.update(dt); this.renderer.clear(); gg.VR.render(); }   // goodGL 画完整帧（含 three 的实体 / 粒子 / 选框），HUD 是 DOM
+      else this.renderer.render(this.scene, this.camera);
+    }
   }
 };
 const unloadSave = () => { Title.save1scr(); Save.saveSync(); };

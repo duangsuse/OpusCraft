@@ -52,7 +52,7 @@ export function createRenderer(ctx) {
   const T = () => R.targets;
   const dr = { offset: new Float32Array(3), origin: new Float32Array(3) };
   R.setDraw = (P, ox, oy, oz, ax, ay, az) => { dr.offset[0] = ox; dr.offset[1] = oy; dr.offset[2] = oz; dr.origin[0] = ax; dr.origin[1] = ay; dr.origin[2] = az; P.touch('offset', 'origin'); };
-  const SRC = voxelCraftSource(ctx), ENV = voxelCraftEnv(ctx), BT = voxelCraftBlocks(ctx);
+  const SRC = ctx.source || voxelCraftSource(ctx), ENV = ctx.env || voxelCraftEnv(ctx), BT = ctx.blockTable || voxelCraftBlocks(ctx);   // 宿主 B 自带三个适配器（rgl/host-b.js）
   // 岸线 / 水面高度场（water/surfacefield.js）：环形 RG8UI，按世界格取模；N = 512 够 rd ≤ 14。区块事件驱动（'blocks' 重写该区块 16×16、'gone' 清掉）
   const field = new SurfaceField({ N: 512, H: SRC.height, waterId: BT.waterId, solid: Uint8Array.from(BT.kind, k => k === 1 ? 1 : 0) });
   const fieldTex = (() => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8UI, field.N, field.N, 0, gl.RG_INTEGER, gl.UNSIGNED_BYTE, field.data);
@@ -84,7 +84,14 @@ export function createRenderer(ctx) {
   R.passes = { skyLut: skyLut(kit.Pass), clouds: clouds(kit.Pass, X), skyF: skyF(kit.Pass, X), taa: taa(kit.Pass, X), bdown: bdown(kit.Pass, X), bup: bup(kit.Pass, X), final: final(kit.Pass, X), comp: comp(kit.Pass, X), shadow: shadow(kit.Pass, X), shadowS: shadow(kit.Pass, X, true), fancy: fancy(kit.Pass, X), water: water(kit.Pass, X) };
   // 适配器（宿主 A）：ChunkSource / Env / BlockTable。R2 只用 Env 的 dayTime
   // 贴图 / PBR：用 goodGL 自己的程序化贴图（材质参数和贴图是一起调出来的，render.md §3 贴图行）
-  const tx = Textures.build(); R.uploadTextures(tx); R.uploadPBR(PBR.build(tx), tx.count);
+  resetGLState(gl);                                                              // three 先用过这个上下文（宿主 B 的图集是 FLIP_Y 之类）：上传前把 UNPACK 状态还原，否则 texSubImage3D 报 INVALID_OPERATION、贴图全黑
+  // 宿主可以给 ctx.texturePack(tx)：按名字把资源包的贴图覆盖进 tx.data / tx.imgs（rgl/host-b.js glsPack）；之后换包走 reloadTextures()
+  const loadTextures = () => {
+    const tx = Textures.build(); if (ctx.texturePack) ctx.texturePack(tx);
+    for (const k of ['tex', 'nrmTex', 'specTex']) if (R[k]) { gl.deleteTexture(R[k]); R[k] = null; }
+    R.uploadTextures(tx); R.uploadPBR(PBR.build(tx), tx.count);
+  };
+  loadTextures();
   // R4 方案 B：goodGL 画完（final 之后）把它的深度换算成 three 相机的深度写进默认帧缓冲，three 再直接画 scene（实体、粒子、选框）
   //   goodGL 的 near / far 与宿主相机的不同 → 先还原线性视深再按宿主投影重新映射。实体不走 tonemap / TAA（方案 A 才走）。
     R.passes.depthOut = depthOut(kit.Pass, named({ sceneDepth: () => tex(R.targets.sceneD), hostNear: () => camera.near, hostFar: () => camera.far }));
@@ -116,17 +123,17 @@ export function createRenderer(ctx) {
     gl.disable(gl.BLEND); gl.depthFunc(gl.LEQUAL); gl.enable(gl.CULL_FACE);
   };
   const hideSky = () => { for (const k of ['sky', 'sun', 'moon', 'stars', 'clouds']) if (ctx[k]) ctx[k].visible = false; };
-  const world = createWorld(R, SRC, idLUT(ctx.B), { seed: 1 });
+  const world = createWorld(R, SRC, ctx.glid || idLUT(ctx.B), { seed: 1 });
 
   // 参数：只列已经接上的。fog / mist 默认 0 = 去雾版（render.md §0，goodGL 的缺点之一）；scale / maxMP 等 R5 接上 pass.js / vars.js 后再加
-  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 6 /* 每帧最多提交的网格任务 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
+  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, pomShadow: 0.6 /* POM 自阴影强度（朝太阳的遮挡；0 = 无；平滑搜索下只取 0.4 倍） */, pomSmooth: false /* 平滑 POM 搜索（双线性高度 + 二分；关 = 原 14 步；雨天由 rainPom 单独开启） */, rainPom: 1 /* 雨天立体浮雕强度（wet × 本值；0 = 关，雨天也走原 POM） */, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 6 /* 每帧最多提交的网格任务 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
   // P = vars 对象（读写值照旧，bench 契约不变）；meta.folder 给面板分文件夹：雾、云隙光各一组（render.md 备忘「天空 / 雾 / 云隙光」），面板本身 R7 才建
   // root：面板顶层分两个并排的 Pane（rgl/panel.js）：v2 = 沿用 v2/goodGL 的项，v3 = remix 新增（花草 / 水 / 水下 / 实体）；整理文件夹时按 root 各管各的
   const V3_FOLDERS = new Set(['花草锐阴影', '水', '水下', '实体']);
   const FOLDER = (f, o = {}) => ({ folder: f, root: V3_FOLDERS.has(f) ? 'v3' : 'v2', ...o });
   const P = vars(P_DEFAULTS, {
     rd: FOLDER('渲染', { min: 0, max: 16, step: 1, label: '视距（0 = 取宿主）' }), waving: FOLDER('渲染'), clouds: FOLDER('渲染'), gamma: FOLDER('渲染', { min: 0, max: 1 }), shadowQ: FOLDER('渲染', { min: 1, max: 2, step: 1 }),
-    pbr: FOLDER('渲染'), pom: FOLDER('渲染'), taa: FOLDER('渲染'), flare: FOLDER('渲染'),
+    pbr: FOLDER('渲染'), pom: FOLDER('渲染'), pomSmooth: FOLDER('渲染', { label: '平滑 POM 搜索' }), pomShadow: FOLDER('渲染', { min: 0, max: 1, step: 0.05, label: 'POM 自阴影' }), rainPom: FOLDER('渲染', { min: 0, max: 2, step: 0.05, label: '雨天浮雕强度' }), taa: FOLDER('渲染'), flare: FOLDER('渲染'),
     mist: FOLDER('雾', { min: 0, max: 1, label: '晨昏薄雾' }), fog: FOLDER('雾', { min: 0, max: 0.02, label: '距离雾密度' }),
     volumetric: FOLDER('云隙光', { label: '体积光（云隙光 / 雾中光束）' }),
     sharpDist: FOLDER('花草锐阴影', { min: 0, max: 128 }), sharpSoft: FOLDER('花草锐阴影', { min: 0, max: 3 }), sharpFly: FOLDER('花草锐阴影', { min: 0, max: 128 }), blobShadow: FOLDER('实体', { min: 0, max: 0.8 }), entScene: FOLDER('实体'), entExposure: FOLDER('实体', { min: 0.3, max: 3, step: 0.05 }),
@@ -236,6 +243,7 @@ export function createRenderer(ctx) {
     // ChunkSource 事件源：宿主的 build / dispose 就是它（R3 起据此标脏段）
     buildChunk: c => { c.mesh = c.waterMesh = null; if (SRC.built) SRC.built(c); },
     disposeChunk: c => { if (SRC.disposed) SRC.disposed(c); c.mesh = c.waterMesh = null; },
+    reloadTextures() { resetGLState(gl); loadTextures(); if (T().histValid !== undefined) T().histValid = false; },   // 资源包换了：重传贴图 + 重算 PBR（three 刚用过上下文，先还原 UNPACK 状态）
     update: dt => {},     // 网格任务在 render() 里按相机位置提交
     render,
     stats: () => { const w = world.stat(); return `gl ${W}x${H} 区块 ${w.chunks} 段 ${R.stats.drawn}/${R.stats.sections} 网格 ${w.meshN}×${w.meshMsAvg.toFixed(1)}ms ${w.quads}q cpu ${cpuMs.toFixed(1)}ms` +

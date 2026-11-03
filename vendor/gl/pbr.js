@@ -36,7 +36,7 @@ export const PBR = (function () {
     sandstone: P({ sm: 0.16, sv: 0.08, ns: 0.9, pom: 0.04, por: 0.55 }),
     clay: P({ sm: 0.3, sv: 0.1, ns: 0.5, pom: 0.02, por: 0.5 }),
     terracotta: P({ sm: 0.36, sv: 0.08, ns: 0.6, pom: 0.02, por: 0.3 }),
-    snow: P({ sm: 0.3, sv: 0.15, ns: 0.6, pom: 0.02, por: 0.2, sss: 0.55 }),
+    snow: P({ sm: 0.04, sv: 0.04, ns: 0.9, pom: 0.04, por: 0.9, sss: 0.5 }),   // remix: 同 wool 的路子（sm 低、ns ~0.9、sss 高）；原 sm 0.3 / ns 0.6 / pom 0.02
     ice: P({ sm: 0.95, sv: 0.0, ns: 0.25, f0: 5, por: 0, sss: 0.3 }),
     packed_ice: P({ sm: 0.84, sv: 0.04, ns: 0.4, f0: 5, por: 0, sss: 0.25 }),
     glass: P({ sm: 0.97, sv: 0, ns: 0.0, f0: 10, por: 0 }),
