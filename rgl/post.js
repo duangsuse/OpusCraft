@@ -82,6 +82,42 @@ precision highp float;
 in vec2 v_uv; out vec4 o;
 
 
+// 镜头光斑：musk's lens flare（shadertoy 4sX3Rs，icecool 改）。noise 贴图换成程序化值噪声；
+// f0 = 带噪声起伏的星芒，f2–f6 = 色散（RGB 偏移不同）的光学反射环
+float fh1(float n){ return fract(sin(n * 127.1) * 43758.5453); }
+float fh2(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+float fn1(float t){ float i = floor(t), f = fract(t); f = f * f * (3.0 - 2.0 * f); return mix(fh1(i), fh1(i + 1.0), f); }
+float fn2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(fh2(i), fh2(i + vec2(1, 0)), f.x), mix(fh2(i + vec2(0, 1)), fh2(i + vec2(1, 1)), f.x), f.y); }
+vec3 flareMusk(vec2 uv, vec2 pos, float T){
+  vec2 mn = uv - pos;
+  vec2 uvd = uv * length(uv);
+  float ang = atan(mn.y, mn.x);
+  float dist = pow(length(mn), 0.1);
+  float n = fn2(vec2((ang - T / 9.0) * 16.0, dist * 32.0));
+  float f0 = 1.0 / (length(uv - pos) * 16.0 + 1.0);
+  f0 = f0 + f0 * (sin((ang + T / 18.0 + fn1(abs(ang) + n / 2.0) * 2.0) * 12.0) * 0.1 + dist * 0.1 + 0.8);
+  float f2  = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.80 * pos), 2.0)), 0.0) * 0.25;
+  float f22 = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.85 * pos), 2.0)), 0.0) * 0.23;
+  float f23 = max(1.0 / (1.0 + 32.0 * pow(length(uvd + 0.90 * pos), 2.0)), 0.0) * 0.21;
+  vec2 uvx = mix(uv, uvd, -0.5);
+  float f4  = max(0.01 - pow(length(uvx + 0.40 * pos), 2.4), 0.0) * 6.0;
+  float f42 = max(0.01 - pow(length(uvx + 0.45 * pos), 2.4), 0.0) * 5.0;
+  float f43 = max(0.01 - pow(length(uvx + 0.50 * pos), 2.4), 0.0) * 3.0;
+  uvx = mix(uv, uvd, -0.4);
+  float f5  = max(0.01 - pow(length(uvx + 0.2 * pos), 5.5), 0.0) * 2.0;
+  float f52 = max(0.01 - pow(length(uvx + 0.4 * pos), 5.5), 0.0) * 2.0;
+  float f53 = max(0.01 - pow(length(uvx + 0.6 * pos), 5.5), 0.0) * 2.0;
+  uvx = mix(uv, uvd, -0.5);
+  float f6  = max(0.01 - pow(length(uvx - 0.300 * pos), 1.6), 0.0) * 6.0;
+  float f62 = max(0.01 - pow(length(uvx - 0.325 * pos), 1.6), 0.0) * 3.0;
+  float f63 = max(0.01 - pow(length(uvx - 0.350 * pos), 1.6), 0.0) * 5.0;
+  vec3 c = vec3(0.0);
+  const float RG = 8.0;   // 细环（f4–f6）峰值只有 ~0.06：原作叠在黑底上可见，叠在 HDR 亮天空上要放大；f2 系是宽光晕，不放大
+  c.r += f2 + RG * (f4 + f5 + f6); c.g += f22 + RG * (f42 + f52 + f62); c.b += f23 + RG * (f43 + f53 + f63);
+  return c + vec3(f0);
+}
+vec3 flareCC(vec3 color, float factor, float factor2){ float w = color.x + color.y + color.z; return mix(color, vec3(w) * factor, w * factor2); }
 vec3 aces(vec3 x){ const float a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14; return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0); }
 void main(){
   vec3 col = texture(${X.finalSrc}, v_uv).rgb;
@@ -90,17 +126,10 @@ void main(){
   // lens ghosts: circular aperture reflections mirrored through the optical centre, gated by sun visibility
   if (${Fps.flare} > 0.0) {
     vec3 sb = texture(${X.finalBloom}, ${Fps.sunUV}).rgb; float vis = clamp(dot(sb, vec3(0.3, 0.59, 0.11)) * 0.25, 0.0, 1.0);
-    vec2 sv = ${Fps.sunUV} - 0.5; float asp = 16.0 / 9.0;
-    vec3 fl = vec3(0.0);
-    for (int i = 0; i < 5; i++) {
-      float s = i == 0 ? -0.35 : i == 1 ? -0.7 : i == 2 ? -1.05 : i == 3 ? 0.45 : -1.6;
-      float r = i == 0 ? 0.035 : i == 1 ? 0.06 : i == 2 ? 0.1 : i == 3 ? 0.025 : 0.16;
-      vec3 tint = i == 0 ? vec3(1.0, 0.75, 0.45) : i == 1 ? vec3(0.45, 0.85, 1.0) : i == 2 ? vec3(0.6, 1.0, 0.65) : i == 3 ? vec3(1.0, 0.6, 0.85) : vec3(0.5, 0.6, 1.0);
-      vec2 c = 0.5 + sv * s; vec2 dv = (v_uv - c) * vec2(asp, 1.0); float dl = length(dv);
-      float disc = smoothstep(r, r * 0.8, dl) * (0.55 + 0.45 * smoothstep(0.0, r, dl));
-      fl += tint * disc * (i == 4 ? 0.35 : 1.0);
-    }
-    col += fl * ${Fps.flare} * vis * 1.6;
+    float asp = ${Fps.w} / ${Fps.h};
+    vec2 fuv = (v_uv - 0.5) * vec2(asp, 1.0), fpos = (${Fps.sunUV} - 0.5) * vec2(asp, 1.0);
+    vec3 fl = flareMusk(fuv, fpos, ${Fps.time});
+    col += flareCC(vec3(1.4, 1.2, 1.0) * fl, 0.5, 0.1) * ${Fps.flare} * vis;
   }
   col *= ${Fps.exposure} * ${Fps.grade};
   // Purkinje shift: in dim light rods take over (blue-shifted, desaturated)

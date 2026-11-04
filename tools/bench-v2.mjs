@@ -4,7 +4,7 @@
 //     --r ID            渲染器（?r=，默认 v2/gl；v2/old = 单文件原版，回归基准）
 //     --seed N          世界种子（默认 20240607）      --rd N        视距（默认 6）
 //     --scale S         DDA 分辨率（默认 = v2 默认）   --size WxH    视口（默认 1280x657）
-//     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,water,shore,uw,uwup,flora）
+//     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,cavet,sun,water,shore,uw,uwup,flora）
 //     --set k=v,...     覆盖 VR.P 参数（如 shadowSteps=0）
 //     --preset NAME     云 + 水面预设（VR.presets.cloud/water 同名项：vol|noise|mc|bliss）；--set 在其后覆盖
 //     --ref             VR.setRef(1) 参考模式：主射线 / 阴影 / 反射折射步数预算全放到 576 + 精确入格（DF 开/关 0 px 对比用）
@@ -118,7 +118,15 @@ const init = await b.js(`(async () => {
         if (l > bl) { bl = l; by = yaw; } }
       let y = best.y; while (y > 1 && gb(best.x, y - 1, best.z) === 0) y--;
       views.cave = { x: best.x + 0.5, y, z: best.z + 0.5, yaw: by, pitch: -0.05 };
+      // cavet：同机位，沿视线在地面放 3 支火把（洞穴方块光 / 体积雾的对照；place 时写入世界）
+      const torches = [];
+      for (const l of [4, 8, 13]) { if (l >= bl) break;
+        const tx = Math.floor(best.x + 0.5 - Math.sin(by) * l), tz = Math.floor(best.z + 0.5 - Math.cos(by) * l);
+        for (let ty = y + 3; ty > y - 4; ty--) if (gb(tx, ty, tz) === 0 && gb(tx, ty - 1, tz) !== 0) { torches.push([tx, ty, tz]); break; } }
+      if (torches.length) views.cavet = { ...views.cave, torches };
     } }
+  // sun：plain 位置朝向太阳（place 时按 U.uSunDir 定朝向；镜头光斑 / 云隙光 / 雾的对照）
+  if (views.plain) views.sun = { ...views.plain, sunAim: true };
   // 4) water：离岸最远（7×7 全水）的海面，眼高水面 +3，略俯视
   { let best = null;
     for (let x = X0 - RAD; x <= X0 + RAD; x += 2) for (let z = Z0 - RAD; z <= Z0 + RAD; z += 2) {
@@ -165,10 +173,12 @@ const init = await b.js(`(async () => {
   const gpuName = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
 
   const place = async (v) => {
+    if (v.torches) for (const [x, y, z] of v.torches) g.setBlock(x, y, z, B.TORCH);
     g.player.pos.set(v.x, v.y, v.z); g.player.yaw = v.yaw; g.player.pitch = v.pitch; g.player.vel.set(0, 0, 0);
     if (VR.resetLag) VR.resetLag();
     await settle(); g.worldTime = 0.12;
     for (let i = 0; i < 4; i++) await raf();
+    if (v.sunAim) { const s = g.RCTX.U.uSunDir.value; g.player.yaw = Math.atan2(-s.x, -s.z) + 0.3; g.player.pitch = Math.min(1.2, Math.asin(s.y / Math.hypot(s.x, s.y, s.z)) - 0.12); for (let i = 0; i < 3; i++) await raf(); }
     // 宿主水下 FOV 是指数逼近（差 ≤0.05 即停），停在哪取决于帧时序 → 钉死到目标值，uw 机位才可复现
     const cam = g.camera, wantFov = g.settings.fov * (g.player.eyeInWater ? 0.92 : 1);
     if (cam.fov !== wantFov) { cam.fov = wantFov; cam.updateProjectionMatrix(); }

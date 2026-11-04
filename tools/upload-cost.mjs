@@ -1,6 +1,7 @@
 // 主线程区块上传成本：node tools/upload-cost.mjs [url] —— 初次加载 rd 6 全部区块，报告 VR.ring.upMs（整块上传的 CPU 部分，不含 GL 上传）/ uploads 与 updateChunks 总耗时
-import { launch } from './cdp.mjs';
+import { launch, killStray } from './cdp.mjs';
 const URL_ = process.argv[2] || 'http://localhost:8765/VoxelCraft.html?r=v2/gl';
+killStray();   // 清残留无头 Chromium（会抢 GPU / CPU，污染计时与 spawn 结果）
 const b = await launch({ tag: 'upcost' });
 await b.send('Page.navigate', { url: URL_ });
 const r = await b.js(`(async () => {

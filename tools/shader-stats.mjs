@@ -3,9 +3,11 @@
 import { spawn } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { killStray } from './cdp.mjs';
 const URL_ = process.argv[2] || 'http://localhost:8765/VoxelCraft.html?r=v2/gl';
 const port = 9500 + (process.pid % 200), prof = `/tmp/shstat-${port}`;
 rmSync(prof, { recursive: true, force: true });
+killStray();   // 清残留无头 Chromium（会抢 GPU / CPU，污染计时与 spawn 结果）
 const proc = spawn('chromium', ['--headless=new', '--no-sandbox', `--remote-debugging-port=${port}`, '--window-size=1280,657', `--user-data-dir=${prof}`,
   '--use-gl=angle', '--use-angle=gl', '--enable-gpu', '--ignore-gpu-blocklist', URL_], { env: { ...process.env, INTEL_DEBUG: 'fs' }, stdio: ['ignore', 'ignore', 'pipe'] });
 let err = '';

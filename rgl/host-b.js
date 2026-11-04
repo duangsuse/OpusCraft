@@ -71,6 +71,7 @@ export function glsEnv(gg) {
     get flying() { return !!(player.flying || player.noclip); },
     get eyeInWater() { return !!player.headInWater; },
     get eyeSky() { const [x, y, z] = eye(); return world.getSky(x, y, z) / 15; },
+    get eyeBlk() { const [x, y, z] = eye(); return world.getBlockLight(x, y, z) / 15; },
     get eyeWaterTop() {
       if (!player.headInWater) return undefined;
       const [x, y0, z] = eye(); let y = y0; while (y < gg.CHUNK_H && world.getBlock(x, y + 1, z) === B.water) y++;

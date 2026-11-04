@@ -160,6 +160,7 @@ export interface Env {
   flying?: boolean;                                            // 玩家在飞 / 穿墙：rgl 据此降级花草锐阴影（walk 要质量，fly 随意）  [goal-remix R3b]
   dayTime?: num;                                             // 0..1，0 = 06:00（宿主 A = worldTime，宿主 B = Sky.time / 24000）；goodGL 管线（rgl）用它定日月位置，没有就当 0.02  [goal-remix R2]
   eyeInWater?: boolean;                                       // 相机在水中（读；与下面的 underwater() 通知是两回事）  [goal-remix R5]
+  eyeBlk?: num;                                                // 眼处方块光 0..1（rgl：洞穴火把暖雾）；没有就当 0
   eyeSky?: num;                                                // 眼处天空光 0..1（洞穴系数 → 曝光 / 雾）；没有就当 1  [goal-remix R5]
   eyeWaterTop?: num;                                          // 相机在水里时，眼上方水面的世界 y（水下焦散 / 光束的水深起点）；不在水里 = undefined  [goal-remix 步骤 9c]
   weather?: { rain: num; thunder: num; wet: num };             // 宿主 A 没有（恒晴）；宿主 B = Weather 状态机  [goal-remix R5]

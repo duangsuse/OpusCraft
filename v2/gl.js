@@ -1202,6 +1202,7 @@ export function voxelCraftEnv(ctx) {
     get flying() { return !!ctx.flying; },     // goal-remix R3b：rgl 的花草锐阴影 LOD；v2 / v2/gl 不读
     get eyeInWater() { return !!ctx.eyeInWater; },   // goal-remix R5：rgl 的水下判定 / 洞穴系数；v2 / v2/gl 不读
     get eyeSky() { return ctx.eyeSky; },
+    get eyeBlk() { return ctx.eyeBlk; },       // rgl：洞穴火把暖雾（v2 / v2/gl 不读）
     get eyeWaterTop() { return ctx.eyeWaterTop; },
     // weather：宿主 A 没有天气（恒晴），不提供
     get dayTime() { return ctx.worldTime; },   // 0..1，0 = 06:00（goal-remix：rgl 用它定日月；v2 / v2/gl 不读）

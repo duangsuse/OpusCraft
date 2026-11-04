@@ -1,7 +1,9 @@
 // 水体检查：合成水池 → 水面噪声高频能量 + 水下雾可见度
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { killStray } from './cdp.mjs';
 const PORT = 9600 + (process.pid % 100), BIG = process.argv.includes('--big');
+killStray();   // 清残留无头 Chromium（会抢 GPU / CPU，污染计时与 spawn 结果）
 const chrome = spawn('chromium', ['--headless=new', '--no-sandbox', `--remote-debugging-port=${PORT}`, '--window-size=1000,600',
   BIG ? '--window-size=2560,1400' : '--window-size=1000,600', '--user-data-dir=/tmp/wa-' + PORT, '--use-gl=angle', '--use-angle=gl', '--enable-gpu', '--ignore-gpu-blocklist', 'about:blank'], { stdio: 'ignore' });
 async function conn() { for (let i = 0; i < 60; i++) { try { const l = await (await fetch(`http://127.0.0.1:${PORT}/json`)).json(); const p = l.find(t => t.type === 'page'); if (p) return p.webSocketDebuggerUrl; } catch {} await sleep(200); } throw new Error('no'); }

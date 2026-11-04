@@ -38,6 +38,14 @@ vec3 skyBase(vec3 d){
 vec3 skyHorizon(vec3 d){ return skyBase(normalize(vec3(d.x, max(d.y, 0.0), d.z))); }
 
 const float CB = 185.0;
+// 云影（2 倍频低频版：光柱尺度只看大块云；地面着色用 fancy.js 的 4 倍频，边缘细节不同但位置一致）
+float cloudShadowV(vec3 wp){
+  if (${Fps.volCloud} <= 0.0 || ${Fps.lightDir}.y < 0.02) return 1.0;
+  vec2 q = wp.xz + ${Fps.lightDir}.xz * ((CB + 25.0 - wp.y) / max(${Fps.lightDir}.y, 0.08));
+  vec2 p = q * (1.0 / 520.0) + vec2(${Fps.cloudTime} * 0.0045, ${Fps.cloudTime} * 0.0016);
+  float n = (0.5 * vnoise(p) + 0.25 * vnoise(p * 2.07 + vec2(3.1, 1.7))) / 0.75;
+  return 1.0 - 0.78 * ${Fps.volCloud} * clamp((n - (1.0 - ${Fps.cov})) * 2.6, 0.0, 1.0);
+}
 float linZ(float d){ float z = d * 2.0 - 1.0; return 2.0 * ${Fps.near} * ${Fps.far} / (${Fps.far} + ${Fps.near} - z * (${Fps.far} - ${Fps.near})); }
 vec3 octDec(vec2 e){ e = e * 2.0 - 1.0; vec3 v = vec3(e, 1.0 - abs(e.x) - abs(e.y)); if (v.z < 0.0) v.xy = (1.0 - abs(v.yx)) * vec2(v.x >= 0.0 ? 1.0 : -1.0, v.y >= 0.0 ? 1.0 : -1.0); return normalize(v); }
 float shadowRaw(vec3 wp){
@@ -135,18 +143,28 @@ void main(){
     float tr = exp(-integ);
     vec3 mistCol = ${Fps.ambCol} * 0.8 + ${Fps.lightCol} * (min(mie, 0.25) * 1.2 + iso * 0.9) * sunUp * 0.8;
     col = col * tr + mistCol * (1.0 - tr) * (1.0 - ${Fps.caveFactor} * 0.9);
+    {  // 洞穴火把暖雾：平行光柱在地下被压掉（caveFactor），但火把周围空气应该有体积感。没有光源网格，用眼处方块光近似局部光场：越亮、看得越远，暖雾越浓
+      float eb = ${Fps.eyeBlk}, hb = eb / (4.0 - 3.0 * eb);
+      float Lc = min(dist, 32.0);
+      float hz = (1.0 - exp(-Lc * 0.03)) * hb * hb * (0.35 + 0.65 * ${Fps.caveFactor}) * ${Fps.caveHaze};   // hb² 让亮处才有雾，暗处保持黑
+      col += ${Fps.torchCol} * hz * 0.1;
+    }
     if (VOL_ON > 0 && ${Fps.lightDir}.y > 0.0) {
       float maxL = min(dist, 110.0);
       const int NS = 14;
       float stepL = maxL / float(NS);
       float jit = ign(gl_FragCoord.xy + fract(${Fps.time} * 7.0) * 13.0);
       float acc = 0.0;
+      vec4 cs = vec4(1.0);   // 云影沿射线变化很慢：4 点采样 + 步号线性插值（每步都算要 +9 ms @1280x657），地下 / 关闭时整段跳过
+      if (CLOUDS_ON > 0 && ${Fps.volCloud} > 0.0 && ${Fps.caveFactor} < 0.99) {
+        for (int k = 0; k < 4; k++) cs[k] = cloudShadowV(${Fps.camPos} + dir * ((float(k) * (float(NS - 1) / 3.0) + jit) * stepL));
+      }
       for (int i = 0; i < NS; i++) {
         float t = (float(i) + jit) * stepL;
         vec3 p = dir * t;
         float y = ${Fps.camPos}.y + p.y;
         float dens = 0.1 + 1.5 * exp(-max(y - h0, 0.0) / 12.0) * (0.3 + ${Fps.mist});
-        acc += shadowRaw(p + ${Fps.camToShadow}) * dens * stepL;
+        acc += shadowRaw(p + ${Fps.camToShadow}) * mix(cs[min(int(float(i) * (3.0 / float(NS - 1))), 3)], cs[min(int(float(i) * (3.0 / float(NS - 1))) + 1, 3)], fract(float(i) * (3.0 / float(NS - 1)))) * dens * stepL;
       }
       col += ${Fps.lightCol} * acc * (mie * 0.9 + iso * 0.2) * 0.011 * (1.0 - ${Fps.caveFactor}) * (1.0 + ${Fps.rain});
     }

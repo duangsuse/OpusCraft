@@ -1,7 +1,8 @@
 // DF 开/关逐像素对比（随机世界）：node tools/df-seeds.mjs 起始种子 结束种子 [gpu|ss] [yaw,yaw,...]
 // 每个种子：960×600，出生点 y=60 俯 0.1，冻结时间，参考模式 setRef(1)，渲染 df=0 / df=1 比 ddaRT；ss = SwiftShader
-import { launch } from './cdp.mjs';
+import { launch, killStray } from './cdp.mjs';
 const [s0, s1, ss] = [+process.argv[2] || 1, +process.argv[3] || 6, process.argv[4] === 'ss']; const YAWS = (process.argv[5] || '').split(',').filter(Boolean).map(Number);
+killStray();   // 清残留无头 Chromium（会抢 GPU / CPU，污染计时与 spawn 结果）
 const b = await launch({ tag: 'dfseeds', width: 960, height: 600, gpu: !ss });
 for (let seed = s0; seed <= s1; seed++) {
   await b.send('Page.navigate', { url: `http://localhost:8765/VoxelCraft.html?r=v2/old&seed=${seed}` });

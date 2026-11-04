@@ -123,6 +123,15 @@ float caustic(vec2 p, float t){
   }
   return c;
 }
+// 火光闪烁（火把 / 岩浆 / 火焰共用）：参考火焰着色器的 fbm 起伏（亮度 = fbm(时间)，非规则）；按世界位置错相，各处光源不同步。均值 ≈ 1
+float fireFlicker(vec3 wp){
+  float t = ${Fps.time} * ${Fps.flickSpeed};
+  float ph = vnoise(wp.xz * 0.23 + wp.y * 0.31) * 53.0;
+  float x = t * 2.4 + ph;
+  float n = (vnoise(vec2(x, 0.5)) - 0.5) * 0.5 + (vnoise(vec2(x * 2.0, 1.5)) - 0.5) * 0.25 + (vnoise(vec2(x * 3.0, 2.5)) - 0.5) * 0.125;   // fbm 三倍频，±0.44 内
+  float gust = pow(max(0.0, vnoise(vec2(x * 0.5, 7.0)) * 2.0 - 1.0), 3.0);   // 偶发的「呛一口」
+  return 1.0 + ${Fps.flickAmp} * (0.9 * n - 0.25 * gust);
+}
 float lb(float l){ float f = 1.0 - l; return (1.0 - f) / (f * 3.0 + 1.0); }
 ${lib(NOISE + SHORE)}
 in vec3 v_uv; in vec4 v_tint; in vec3 v_light; in vec3 v_rel; in vec3 v_normal; in vec3 v_world;
@@ -282,6 +291,11 @@ void main(){
   float sb = sp.b * 255.0; float por = sb < 64.5 ? sb / 64.0 : 0.0; float sss = sb > 64.5 ? (sb - 65.0) / 190.0 : 0.0;
   float cav = mix(1.0, nm.b, pbr);
   float sky = v_light.x, blk = v_light.y, ao = v_light.z;
+  { // 光照量化抖动：4 bit 光照插值后仍有 1/15 级台阶（暗区马赫带明显）；±半级 IGN，满格（户外天空光）处淡出，避免晴天地表出噪点
+    float dn = (ign(gl_FragCoord.xy + 31.0) - 0.5) * (1.0 / 15.0) * ${Fps.lightDither};
+    sky = clamp(sky + dn * (1.0 - smoothstep(0.85, 1.0, sky)), 0.0, 1.0);
+    blk = clamp(blk + dn * (1.0 - smoothstep(0.85, 1.0, blk)), 0.0, 1.0);
+  }
   // ---------------- rain wetness (porous materials darken, puddles gather in low spots)
   float wet = ${X.wet} * smoothstep(0.8, 1.0, sky) * (N0.y > 0.5 ? 1.0 : 0.35) * (foliage ? 0.4 : 1.0);
   float puddle = 0.0;
@@ -336,7 +350,7 @@ void main(){
   vec3 bounce = ${X.lightCol} * max(${X.lightDir}.y, 0.0) * vec3(0.5, 0.55, 0.42) * 0.045 * (1.0 - up) * sky * occl;
   if (under) amb *= vec3(0.5, 0.75, 0.9);
   float b = lb(blk);
-  vec3 torch = ${Fps.torchCol} * b * b * 2.4 * ${Fps.flicker} * (0.45 + 0.55 * ao) * mix(1.0, cav, 0.6);
+  vec3 torch = ${Fps.torchCol} * b * b * 2.4 * fireFlicker(v_world) * (0.45 + 0.55 * ao) * mix(1.0, cav, 0.6);
   vec3 minL = vec3(0.004, 0.005, 0.007) * (0.4 + 0.6 * ao);
   vec3 col = diffAlb * (direct + amb + bounce + torch + minL);
   // subsurface transmission (leaves, grass, snow, skin)

@@ -41,6 +41,15 @@ const res = await b.js(`(async () => {
   ck('无 GL 错误', gl.getError() === 0);
   const sp = new Set(['ladder', 'oak_door', 'snow', 'fire'].map(n => gg.B[n])), withMesh = meshed.filter(c => c.mesh || c.waterMesh), hasSp = c => { for (let i = 0; i < c.blocks.length; i++) if (sp.has(c.blocks[i])) return true; return false; };
   ck('R6-a：Mesher.only 生效，没有特殊模型的区块不出 three 网格', gg.Mesher.only && withMesh.every(hasSp), withMesh.length + ' 个区块有网格');
+  // scale / maxMP：宿主 rndr.scale / rndr.maxMP → three pixelRatio → 绘制缓冲大小；rgl 的内部目标跟绘制缓冲走（ensureTargets），渲染器不需要另接
+  { const cam = gg.Game.camera, cv = gg.Game.canvas, R = gg.rndr; pose = { p: cam.position.clone(), q: cam.quaternion.clone(), fov: cam.fov };
+    const s0 = shot(8), lumOf = o => { let t = 0; for (let i = 0; i < o.px.length; i += 4) t += o.px[i] + o.px[i + 1] + o.px[i + 2]; return t / (o.w * o.h * 3); };
+    R.scale = 0.5; await raf(); await raf(); const h = shot(8);
+    ck('scale 0.5：绘制缓冲、读回尺寸减半，画面不黑，无 GL 错误', h.w === cv.width && h.h === cv.height && Math.abs(h.w * 2 - s0.w) <= 1 && lumOf(h) > 45 && gl.getError() === 0, s0.w + 'x' + s0.h + ' → ' + h.w + 'x' + h.h + ' 亮度 ' + lumOf(h).toFixed(1));
+    R.scale = 1; R.maxMP = 0.1; await raf(); await raf(); const m = shot(8);
+    ck('maxMP 0.1：像素数封顶（scale 1 也被压下去），无 GL 错误', m.w === cv.width && m.w * m.h <= 0.1e6 * 1.01 && m.w * m.h > 0.1e6 * 0.9 && lumOf(m) > 45 && gl.getError() === 0, m.w + 'x' + m.h + ' = ' + (m.w * m.h / 1e6).toFixed(3) + ' MP');
+    R.maxMP = 0; await raf(); await raf(); const s1 = shot(8); let nd = 0; if (s1.w !== s0.w || s1.h !== s0.h) nd = -1; else for (let i = 0; i < s0.px.length; i += 4) if (s0.px[i] !== s1.px[i] || s0.px[i + 1] !== s1.px[i + 1] || s0.px[i + 2] !== s1.px[i + 2]) nd++;
+    ck('scale 1、maxMP 0 恢复后与最初 0 px', nd === 0, nd < 0 ? '尺寸 ' + s1.w + 'x' + s1.h : nd + ' px'); }
   if (FAST) return out;
   // 编辑 → 事件 → 可见：相机前 4 格放 3×3×3 石头
   const settle = async (c) => { for (let i = 0; i < 400 && (VR.pending() > 0 || (c && c.dirty) || i < 4); i++) { gg.ChunkManager.update(gg.player.x, gg.player.z, 20); await raf(); } };
@@ -92,6 +101,28 @@ const res = await b.js(`(async () => {
   let gone = 0; SRC.onChunkChanged((x, z, what) => { if (what === 'gone') gone++; });
   const victim = [...W.chunks.values()].find(c => c.meshed && Math.abs(c.cx - gg.player.x / 16) > 3); W.chunks.delete(victim.key);
   ck('world.chunks.delete → \\'gone\\'，getChunk = null', gone === 1 && SRC.getChunk(victim.cx, victim.cz) === null, gone);
+  // 存档往返：放石头 → Save.save → 换一个世界（rgl 不能留着旧世界的区块）→ 读档（Game.start 带 data）→ 石头在、画面与存档前 0 px
+  // Game.start 返回后立刻暂停：否则随机刻（草变土、树叶枯萎）在读档后的 1.5 s 里改世界，画面对不上（不是存档的错）；Sky.time 暂停也会走（主循环按墙钟推进），读回前钉死
+  { const pinPose = () => Object.assign(gg.player, { x: 30, y: 76, z: 10, yaw: 0.5, pitch: -0.3, noclip: true, flying: true });
+    const staleN = () => { let n = 0; for (const r of VR.world.recs.values()) if (SRC.getChunk(r.cx, r.cz) === null) n++; return n; };
+    const afterStart = async () => { gg.Game.paused = true; await sleep(1500); await settle(); VR.D.time = 10; VR.D.cloudX = 0; VR.setRef(1); pinPose(); await raf(); await raf(); await sleep(500); await settle(); const c = gg.Game.camera; pose = { p: c.position.clone(), q: c.quaternion.clone(), fov: c.fov }; };
+    const edit = [[cx, cy, cz], [cx + 1, cy, cz], [cx, cy + 1, cz]]; for (const [x, y, z] of edit) W.setBlock(x, y, z, B.stone); await settle(ch);
+    const dsnap = new Map(); for (const c of W.chunks.values()) dsnap.set(c.key, [c.blocks.slice(), c.meta.slice(), c.sky.slice(), c.blk.slice()]);
+    gg.Sky.time = 3000; const pre = shot(8), skyPre = [gg.Sky.time, gg.Sky.day, gg.Weather.amount], sv = await gg.Save.save(true);
+    ck('存档往返：Save.save 写出 blob', sv && sv.blob.size > 100, sv && sv.blob.size);
+    gg.Game.start('77', null, false); await afterStart();
+    ck('存档往返：换世界后 rgl 没有旧世界的区块', staleN() === 0 && VR.world.recs.size > 30, 'stale ' + staleN() + ' / recs ' + VR.world.recs.size + '（新世界石头 ' + (W.getBlock(edit[0][0], edit[0][1], edit[0][2]) === B.stone ? '在?!' : '不在') + '）');
+    const data = await gg.Save.loadData('42'); ck('存档往返：读档拿到数据', data && String(data.seed) === '42');
+    gg.Game.start('42', data, false); await afterStart();
+    ck('存档往返：读档后编辑过的方块还在', edit.every(([x, y, z]) => W.getBlock(x, y, z) === B.stone), edit.map(([x, y, z]) => W.getBlock(x, y, z)).join(','));
+    ck('存档往返：读档后 rgl 没有残留区块', staleN() === 0, 'stale ' + staleN());
+    gg.Sky.time = 3000; const post = shot(8); let dp = 0; for (let i = 0; i < pre.px.length; i += 4) if (pre.px[i] !== post.px[i] || pre.px[i + 1] !== post.px[i + 1] || pre.px[i + 2] !== post.px[i + 2]) dp++;
+    const dd = { n: 0, miss: 0 }; for (const [k, [bl, mt, sk, bk]] of dsnap) { const c = W.chunks.get(k); if (!c) { dd.miss++; continue; } for (let i = 0; i < bl.length; i++) if (c.blocks[i] !== bl[i] || c.meta[i] !== mt[i] || c.sky[i] !== sk[i] || c.blk[i] !== bk[i]) dd.n++; }
+    // 宿主侧：没改过的区块读档时按种子重新生成，跨区块的树 / 草下土的落点依赖生成顺序，偶有几格不同（与渲染器无关）→ 数据有差时画面不可比，只在数据逐格一致时要求 0 px
+    ck('存档往返：读档后画面与存档前 0 px（数据逐格一致时）', dd.n === 0 ? dp === 0 : true, dd.n === 0 ? dp + ' px' : '宿主世界数据差 ' + dd.n + ' 格（' + dp + ' px，不比）');
+    for (const r of VR.world.recs.values()) for (let k = 0; k < 16; k++) if (r.secCount[k]) r.sections[k].dirty = true;   // 强制 rgl 全部重新网格化
+    await settle(); await raf(); gg.Sky.time = 3000; const post2 = shot(8); let dr = 0; for (let i = 0; i < post.px.length; i += 4) if (post.px[i] !== post2.px[i] || post.px[i + 1] !== post2.px[i + 1] || post.px[i + 2] !== post2.px[i + 2]) dr++;
+    ck('存档往返：读档后的 rgl 画面 = 全部重新网格化后的画面（0 px，没有旧几何）', dr === 0, dr + ' px'); }
   ck('最终无 GL 错误', gl.getError() === 0);
   return out;
 })()`).catch(e => [{ name: '页面检查执行', ok: false, info: e.message }]);

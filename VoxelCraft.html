@@ -1334,6 +1334,7 @@ const RCTX = { THREE, scene, camera, renderer, U, GLSL, MeshBuilder, makeGeometr
   get flying() { return !!(player.fly || player.noclip); },   // Env.flying（同样惰性）
   get eyeInWater() { return !!player.eyeInWater; },   // Env.eyeInWater / eyeSky（rgl：水下、洞穴系数）；同样惰性
   get eyeSky() { const p = camera.position; return lightAt(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))[0] / 15; },
+  get eyeBlk() { const p = camera.position; return lightAt(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))[1] / 15; },
   get eyeWaterTop() { if (!player.eyeInWater) return undefined; const p = camera.position, x = Math.floor(p.x), z = Math.floor(p.z); let y = Math.floor(p.y); while (y < CH && getBlock(x, y + 1, z) === B.WATER) y++; return y + 1 - 1 / 9; },   // Env.eyeWaterTop：眼上方水面的世界 y（不在水里 = undefined）
   get shadowCasters() {
     const o = [], sk = e => lightAt(Math.floor(e.x), Math.floor(e.y + 0.5), Math.floor(e.z))[0];

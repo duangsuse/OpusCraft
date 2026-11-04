@@ -61,7 +61,11 @@ export function createFrameBuilder() {
     F.visible = []; F.all = [];                                                                   // remix: R3 前没有区块；R.cull 由 R3 接上
     F.underwater = !!inp.underwater;                                                              // remix: 原版读世界方块；这里由宿主 Env 给
     // 眼处天空光 / 洞穴系数：原版 L6200–6203 按眼处光照渐变。remix: R2 没有世界，取 1 / 0；R5 接 Env
-    st.eyeSky = inp.eyeSky != null ? inp.eyeSky : 1; st.caveFactor = 1 - smooth01(0.1, 0.6, st.eyeSky);
+    // 眼处天空 / 方块光做 1.5/s 低通（goodPG cameraRig.eyeSky）：走进 / 走出洞口时雾、曝光、光柱渐变，不按格跳；reset / ref 直接取目标值
+    const eSkyT = inp.eyeSky != null ? inp.eyeSky : 1, eBlkT = inp.eyeBlk != null ? inp.eyeBlk : 0;
+    if (st.snap || inp.ref || st.eyeSkyS == null) { st.eyeSkyS = eSkyT; st.eyeBlkS = eBlkT; }
+    else { const k = 1 - Math.exp(-1.5 * (dt || 0) / 1000); st.eyeSkyS += (eSkyT - st.eyeSkyS) * k; st.eyeBlkS += (eBlkT - st.eyeBlkS) * k; }
+    st.eyeSky = st.eyeSkyS; st.caveFactor = 1 - smooth01(0.1, 0.6, st.eyeSky);
     const sunH = env.sunDir[1];
     F.rain = rain; F.flash = flash; F.wet = inp.wet || 0; F.cov = (inp.cov != null ? inp.cov : 0.4 + 0.08 * Math.sin(tick / 9000)) + 0.5 * rain;
     // ---- fancy：大气、光照、阴影矩阵、雾、曝光（L6206–6270）
@@ -113,7 +117,9 @@ export function createFrameBuilder() {
     const sp = M4.xform(viewProj, [env.sunDir[0] * 1000, env.sunDir[1] * 1000, env.sunDir[2] * 1000, 1]);
     if (sp[3] > 0) { F.sunUV = [sp[0] / sp[3] * 0.5 + 0.5, sp[1] / sp[3] * 0.5 + 0.5]; const edge = Math.max(Math.abs(F.sunUV[0] - 0.5), Math.abs(F.sunUV[1] - 0.5)); F.sunVis = smooth01(0.9, 0.5, edge) * smooth01(-0.05, 0.05, sunH) * (0.4 + 0.6 * (1 - smooth01(0.1, 0.6, sunH))); }
     else { F.sunUV = [0.5, 0.5]; F.sunVis = 0; }
-    F.caveFactor = st.caveFactor;
+    F.caveFactor = st.caveFactor; F.eyeBlk = st.eyeBlkS;
+    F.flickAmp = S.flickAmp != null ? S.flickAmp : 1; F.flickSpeed = S.flickSpeed != null ? S.flickSpeed : 1; F.flicker = 1 + (F.flicker - 1) * F.flickAmp;
+    F.caveHaze = S.caveHaze != null ? S.caveHaze : 1; F.volCloud = S.volCloud != null ? S.volCloud : 1; F.lightDither = S.lightDither != null ? S.lightDither : 1;
     const la = F.ambCol[0] * 0.3 + F.ambCol[1] * 0.55 + F.ambCol[2] * 0.15, ls = F.lightCol[0] * 0.3 + F.lightCol[1] * 0.55 + F.lightCol[2] * 0.15;
     const outdoor = Math.max(0.62, Math.min(1.75, 0.8 / Math.pow(la * 1.3 + ls * 0.22 + 0.004, 0.42)));
     const target = outdoor * (1 - st.caveFactor) + 2.6 * st.caveFactor;
@@ -122,7 +128,7 @@ export function createFrameBuilder() {
     F.exposure = st.exposure * (0.85 + S.gamma * 0.3); F.bloomAmt = 0.07; F.saturation = 1.08; F.grade = mixv([1.0, 1.0, 1.0], [1.04, 0.99, 0.94], ssk);
     F.hurt = 0;
     F.scotopic = (1 - dayAmt) * (1 - 0.6 * st.caveFactor);
-    F.flare = S.flare === false ? 0 : 0.035 * F.sunVis;
+    F.flare = S.flare === false ? 0 : 0.35 * F.sunVis;   // 影院式拉丝 + 椭圆鬼影需要比旧圆盘鬼影（0.035）更高的强度
     F.handLightDir = M4.xform(view, [F.lightDir[0], F.lightDir[1], F.lightDir[2], 0]).slice(0, 3);
     F.handShadow = 1;
     F.handProj = M4.perspective(70 * DEG, W / H, 0.05, 10);

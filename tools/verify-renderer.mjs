@@ -2,11 +2,13 @@
 // 用无头 Chromium + CDP（Node 内置 WebSocket）加载 ?r=v1 / ?r=v2/old / ?r=v2/gl / ?r=bogus，逐项检查 handover/renderer-refactor.md 中约定的接口。
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { killStray } from './cdp.mjs';
 
 const BASE = (process.argv[2] || '').startsWith('http') ? process.argv[2] : 'http://localhost:8765/VoxelCraft.html';
 const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].split(',') : null;
 const FAST = process.argv.includes('--fast');
 const PORT = 9333 + (process.pid % 500);
+killStray();   // 清残留无头 Chromium（会抢 GPU / CPU，污染计时与 spawn 结果）
 const chrome = spawn('chromium', ['--headless=new', '--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader',
   `--remote-debugging-port=${PORT}`, '--window-size=960,600', '--user-data-dir=/tmp/vr-prof-' + PORT, 'about:blank'], { stdio: 'ignore' });
 
