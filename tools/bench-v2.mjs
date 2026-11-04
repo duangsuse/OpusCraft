@@ -161,6 +161,7 @@ const init = await b.js(`(async () => {
     }
     if (best) views.uw = { x: best.x + 0.5, y: SEA - 1.2 - EYE, z: best.z + 0.5, yaw: 0.6, pitch: 0.35 }; }
     if (views.shore) { views.floor = { ...views.shore, x: views.shore.x - Math.sin(views.shore.yaw) * 2.5, z: views.shore.z - Math.cos(views.shore.yaw) * 2.5, pitch: -1.3 };   // floor：水面上俯视池底（焦散）
+      views.wall = { ...views.shore, x: views.shore.x - Math.sin(views.shore.yaw) * 2.2, z: views.shore.z - Math.cos(views.shore.yaw) * 2.2, y: SEA + 1 + 0.9 - EYE, pitch: -0.2 };   // wall：贴岸看岸壁水线（泡沫）
       views.uwfloor = { ...views.floor, y: SEA - 0.8 - EYE, pitch: -1.2 }; }   // uwfloor：水下俯视池底
     if (views.uw) views.uwup = { ...views.uw, pitch: 1.05 };     // 水下仰视 60°（Snell 窗口 / 全反射边缘，water.md §4）
 

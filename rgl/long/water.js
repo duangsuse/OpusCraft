@@ -294,10 +294,13 @@ void main(){
       float vd = thick * max(V.y, 0.15);
       if (${Fps.shoreFade} > 0.0) col = mix(behind0, col, smoothstep(0.0, ${Fps.shoreFade}, vd + sh0 * ${Fps.shoreAmp} * 2.0));
     }
-    if (falling && !top) {
-      float s = vnoise(vec2(v_world.x * 3.0 + v_world.z * 3.0, v_world.y * 1.2 + t * 6.0)), foam = smoothstep(0.35, 0.8, s);
+    if (falling && !top) {                                                    // 瀑布：半透明水幕 + 向下滚动的竖条纹（流向）；透过去看 behind0。水滴粒子在 rgl/waterfall.js（宿主 Particles）
+      float hx = v_world.x * abs(N.z) + v_world.z * abs(N.x);
+      float s1 = vnoise(vec2(hx * 4.0, v_world.y * 0.45 + t * 4.5)), s2 = vnoise(vec2(hx * 9.0 + 3.0, v_world.y * 0.8 + t * 7.5));
+      float streak = smoothstep(0.45, 0.85, s1 * 0.6 + s2 * 0.5);
       vec3 fc = (${Fps.ambCol} * sky * 1.3 + ${X.lightCol} * 0.35 * max(${X.lightDir}.y, 0.0)) * vec3(0.9, 0.95, 1.0);
-      col = mix(mix(refr, refl, 0.3), fc, 0.35 + foam * 0.5);
+      float a = clamp((0.08 + streak * 0.5) * ${Fps.fallOpacity} / 0.55, 0.0, 1.0);
+      col = mix(behind0 * mix(vec3(1.0), wcol * 1.6, 0.25), fc, min(a, 0.95));
     }
   }
   o = vec4(col, 1.0);

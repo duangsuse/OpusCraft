@@ -1716,21 +1716,23 @@ const Player = {
     p.onLadder = feet.climbable || body.climbable; p.headInLava = eye.id === B.lava;
     LiquidFx.transition(was, p);
     // Movement input
-    let mx = 0, mz = 0;
+    let mx = 0, mz = 0, shiftHeld = false;
     if (controls) {
       if (k.KeyW) mz += 1; if (k.KeyS) mz -= 1; if (k.KeyA) mx -= 1; if (k.KeyD) mx += 1;
-      const shift = k.ShiftLeft || k.ShiftRight, alt = k.AltLeft || k.AltRight, ctrl = k.ControlLeft || k.ControlRight;
+      const shift = shiftHeld = !!(k.ShiftLeft || k.ShiftRight), alt = k.AltLeft || k.AltRight, ctrl = k.ControlLeft || k.ControlRight;
       if (!k.KeyW) p.sprintLatch = false;   // double-tap W latches sprint until W is released
       p.sneaking = !!alt;
       p.sprinting = !!(shift || (p.flying && ctrl) || (p.sprintLatch && mz > 0)) && !p.sneaking && p.hunger > 6;
     } else { p.sneaking = false; p.sprinting = false; }
     p.eyeHeight = p.sneaking && !p.flying ? 1.27 : 1.62;
     const len = Math.hypot(mx, mz); if (len > 0) { mx /= len; mz /= len; }
-    const lookFly = p.flying && sim.lookFly, f = lookFly ? this.lookDir() : this.forward(), r = [Math.cos(p.yaw), 0, -Math.sin(p.yaw)];
+    const flyBoost = p.flying && shiftHeld, lookFly = p.flying && (sim.lookFly || shiftHeld), f =   // 飞行中按住 Shift：加速并暂时视线飞行（W 跟着镜头俯仰），松开恢复；
+       lookFly ? this.lookDir() : this.forward(), r = [Math.cos(p.yaw), 0, -Math.sin(p.yaw)];
     const wx = f[0] * mz + r[0] * mx, wz = f[2] * mz + r[2] * mx;
-    let speed = 4.317;
-    if (p.sprinting) speed = 5.612; if (p.sneaking) speed = 1.31;
-    if (p.flying) speed = Player.flySpeed * (p.sprinting ? 2 : 1);
+    let speed = 4.517;
+    if (p.sprinting) speed = 5.812; if (p.sneaking) speed = 1.31;
+    if (p.sprintLatch && shiftHeld && p.sprinting) speed *= 1.7;   // 双击 W 的疾跑 + Shift：再快 50%
+    if (p.flying) speed = Player.flySpeed * (p.sprinting || flyBoost ? 2 : 1);
     else if (p.inWater || p.inLava) speed = p.inLava ? 1.2 : 2.2;
     else if (p.onLadder) speed = 2;
     // Auto-jump keeps ground traction so the hop doesn't stall against the ledge and creep at the end
@@ -1741,7 +1743,7 @@ const Player = {
     const jump = controls && !!k.Space; let vyAvg = null;   // vyAvg：普通重力分支的梯形积分速度（对恒定重力是精确的，跳跃顶点不随帧率下降）
     if (p.flying) {
       const vy = (jump ? 1 : 0) - (p.sneaking ? 1 : 0), look = lookFly ? f[1] * mz * speed : 0;
-      p.vy += (vy * (p.sprinting ? 16 : 8) + look - p.vy) * (1 - Math.exp(-10 * dt));
+      p.vy += (vy * (p.sprinting || flyBoost ? 16 : 8) + look - p.vy) * (1 - Math.exp(-10 * dt));
       if (p.onGround && vy < 0 && !lookFly) p.flying = false;
     } else if (p.inWater || p.inLava) {
       if (jump) p.vy = Math.min(p.vy + 30 * dt, 4);
@@ -2539,6 +2541,19 @@ const gm = window.gm = gg.my(new class gm {
     label: (v) => { const g = BBat.get(v.id); return g ? BBat.title(g) : v.id ? 'BBat (deleted)' : 'BBat: capture the aimed group (creative W)'; },
     short: (v) => { const g = BBat.get(v.id); return g ? g.name.slice(emojiHead(g.name).length).slice(0, 6) : ''; },
   };
+  // goodGL (?r=gl) light FX — undefined on host A / until the renderer has loaded
+  //   gm.fire.add({ type: 'torch'|'fire'|'lava', anchor: { mob } | { ent } | { at: [x,y,z] }, offset, scale, tongues, sparks, life, fadeIn, fadeOut, onLost, onEnd, heat }) → handle { set, remove, alive }  (rgl/fire.js)
+  //   gm.firefly.add({ shader, anchor, offset, axis, size, color, pixel, fps, hard, life, fadeIn, fadeOut, onLost, onEnd }) → handle { set, remove, alive }  (rgl/firefly.js)
+  // 事件订阅：gm.on({ biome: (key, id) => … }) → 取消函数；key = 玩家脚下群系名（小写，空格 → 下划线，如 'deep_ocean'），变化时触发一次（订阅当下也补发一次当前值）
+  _hs = { biome: new Set() }; _bio = null;
+  on(h) {
+    const off = []; for (const k in h) { const S = this._hs[k]; if (!S) continue; S.add(h[k]); off.push(() => S.delete(h[k])); }
+    if (h.biome && this._bio) h.biome(...this._bio);
+    return () => off.forEach(f => f());
+  }
+  pollBiome(b) { const key = b.name.toLowerCase().replace(/ /g, '_'); if (this._bio?.[0] === key) return; this._bio = [key, b.id]; for (const f of this._hs.biome) f(key, b.id); }
+  get fire() { return gg.VR?.fire; }
+  get firefly() { return gg.VR?.firefly; }
   kindOf(name) { return c_gm.kinds.find(k => this[k].item === name) || null; }
   make(k) { const v = this[k].get(); return v == null ? null : { name: this[k].item, count: 1, v }; }
   label(s) { const k = this.kindOf(s?.name); return k && s.v != null ? this[k].label(s.v) : ''; }
@@ -2952,7 +2967,7 @@ const HUD = {
       `Ents ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}`,
       m ? `Mob ${m.type}.${m.state} ♥  ${Math.ceil(m.health)}/${m.maxHealth} ${v3(m.x, m.y, m.z, 1)}` : 'Mob —',
       t ? `XYZB ${Blocks.byId[world.getBlock(t.x, t.y, t.z)].displayName} ${v3(t.x, t.y, t.z)}` : 'XYZB —', '',
-      `OpusCraft ${this.fps} fps · sim ${(Game.frameMs || 0).toFixed(1)} ms`, `p1 ${v3(bx, by, bz)}  ${face} ${v3(p.x, p.y, p.z, 2)}`].join('\n');
+      `OpusCraft ${this.fps} fps · sim ${(Game.frameMs || 0).toFixed(1)} ms`, `p1 ${v3(bx, by, bz)}  ${face}`, v3(p.x, p.y, p.z, 2)].join('\n');
   },
   // F3: debug pane (top-left) + noclip
   toggleDebug() {
@@ -3015,7 +3030,7 @@ const HUD = {
     this.drawBars();
     const p = player;
     const bx = floor(p.x), by = floor(p.y), bz = floor(p.z);
-    const bio = BIOMES[world.getBiome(bx, bz)];
+    const bio = BIOMES[world.getBiome(bx, bz)]; gm.pollBiome(bio);
     $('mode').textContent = `${Game.modeDef.label}${p.flying ? ' · Flying' : ''}${p.sprinting ? ' · Sprinting' : ''}\n${bio.name} · ${Sky.clockString()}${Weather.amount > 0.5 ? (Weather.snowMode ? ' · Snow' : ' · Rain') : ''}`;
     if (this.debug) this.dbg.text = this.debugText(p, bx, by, bz, bio);
   }
@@ -3078,7 +3093,8 @@ const Save = gg.my(new class Save {
   capture() {
     if (!Game.running || !Game.ready || Game.hold || Game.atTitle || Screensaver.saved) return;
     const src = Game.renderer.domElement, c = Object.assign(document.createElement('canvas'), { width: src.width, height: src.height }), g = c.getContext('2d');
-    Game.renderer.render(Game.scene, Game.camera); g.drawImage(src, 0, 0);
+    if (Game.glOn) { Game.renderer.clear(); gg.VR.render(); } else { Game.renderer.clear(); Game.renderer.render(Game.scene, Game.camera); }   // goodGL 的画面不在 three 场景里
+    g.drawImage(src, 0, 0);
     const k = c.width / innerWidth; g.scale(k, k); g.globalAlpha = c_Save.shotHotbarAlpha; g.imageSmoothingEnabled = false;
     const hb = $('hotbar').getBoundingClientRect(); g.fillStyle = '#000'; g.fillRect(hb.x, hb.y, hb.width, hb.height);
     for (const el of $('hotbar').children) {
@@ -3633,10 +3649,10 @@ const Game = {
     Mesher.init(); ChunkManager.init(this.scene); Entities.init(this.scene); Mobs.init(this.scene); Particles.init(this.scene);
     Sky.init(this.scene); Weather.init(this.scene); Interaction.init(this.scene); Screens.init(); HUD.init(); Input.init(this.canvas); Menus.init();
     // ?r=gl：goodGL 管线（rgl/host-b.js 适配）。区块网格先放进一个组，VR 就绪后由它每帧隐藏；加载失败就留着宿主自己的渲染
-    if (new URLSearchParams(location.search).get('r') === 'gl') {
+    if ((new URLSearchParams(location.search).get('r') ?? 'gl') === 'gl') {   // 默认 gl；?r=three 之类 = 只用宿主渲染器
       // R6-a：B 的网格器只出 goodGL 没有的模型（门 / 梯子 / 雪层 / 火），three 把它们画进实体合成；失败就还原并全部重建
-      const terrain = this.scene; gg.Mesher.only = new Set(['ladder', 'oak_door', 'snow', 'fire'].map(n => B[n]));
-      import('./rgl/host-b.js').then(m => m.createGlRenderer(gg, terrain)).then(vr => { gg.VR = vr; console.log('[Voxelcraft] renderer', vr.name); })
+      const terrain = this.scene; gg.Mesher.only = new Set();   // gl 与宿主渲染互相独立：宿主网格器在 gl 下不出任何几何（门 / 梯子 / 雪层暂不画；火由 rgl/fire.js 摆火苗）
+      import('./rgl/host-b.js').then(m => m.createGlRenderer(gg, terrain)).then(vr => { gg.VR = vr; this.glOn = true; console.log('[Voxelcraft] renderer', vr.name); import('./rgl/biome-caustic.js').then(m => m.install(gm, vr)); import('./rgl/waterfall.js').then(m => m.install(gg, vr)); })
         .catch(e => { console.error('renderer gl failed, keeping the built-in one', e); gg.Mesher.only = null; for (const c of world.chunks.values()) c.dirty = true; });
     }
     this.last = performance.now(); Title.boot();
@@ -3701,6 +3717,13 @@ const Game = {
     Build.clear(); this.applyFluidLook(); remeshAll();
     HUD.message('Game mode: ' + this.modeDef.label); HUD.refreshHotbar(); Title.pane?.refresh(); if (Title.visible) Title.render();
   },
+  // goodGL <-> 宿主渲染器：宿主网格器在 goodGL 下不出几何（Mesher.only = 空集），切换要全部重网格化；天空组由 goodGL 每帧隐藏，切回宿主时要显示
+  glOn: false,
+  setGL(on) {
+    this.glOn = on; gg.Mesher.only = on ? new Set() : null;
+    if (!on) Sky.group.visible = true;
+    remeshAll();
+  },
   applyFluidLook() { if (Mesher.ghostMaterial) Mesher.ghostMaterial.uniforms.uAlphaMul.value = c_Fluid.ghostAlpha; },
   toggleMode() { const k = Object.keys(MODES); this.setMode(k[(k.indexOf(this.mode) + 1) % k.length]); },
   applyScale(v) { this.scale = v; this.resize(); },
@@ -3740,6 +3763,7 @@ const Game = {
         Entities.update(dt);
         Mobs.update(dt);
         Particles.update(dt);
+        gg.waterfall?.(dt);
         Weather.update(dt);
         this.autosave += dt;
         if (this.autosave > c_Save.autosave) { this.autosave = 0; Save.save(true); }
@@ -3757,8 +3781,9 @@ const Game = {
       Sky.update(dt, this.camera, this.scene);
     }
     if (!this.hold) {
-      if (gg.VR) { gg.VR.update(dt); this.renderer.clear(); gg.VR.render(); }   // goodGL 画完整帧（含 three 的实体 / 粒子 / 选框），HUD 是 DOM
-      else this.renderer.render(this.scene, this.camera);
+      if (gg.VR && !this.modeDef.solidWater !== this.glOn) this.setGL(!this.glOn);   // 创造W（实心水）：暂时用宿主渲染器，出来再切回 goodGL
+      if (this.glOn) { gg.VR.update(dt); this.renderer.clear(); gg.VR.render(); }   // goodGL 画完整帧（含 three 的实体 / 粒子 / 选框），HUD 是 DOM
+      else { this.renderer.clear(); this.renderer.render(this.scene, this.camera); }
     }
   }
 };

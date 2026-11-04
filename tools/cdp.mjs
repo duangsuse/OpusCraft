@@ -8,7 +8,9 @@ import { setTimeout as sleep } from 'node:timers/promises';
 // 注意：会连带杀掉别处正在跑的无头测量，所以只在 bench / frametime 这类要测时间的脚本开头调，不要并行跑两个。
 export function killStray() { spawnSync('pkill', ['-f', 'chromium.*--headless'], { stdio: 'ignore' }); spawnSync('sleep', ['1']); }
 
-export async function launch({ width = 1280, height = 657, gpu = true, headed = false, tag = 'cdp' } = {}) {
+// 环境变量：H=1 有头窗口，脚本结束后不关浏览器（给人看）；RTX=1 用独显启动：prime-run chromium --ozone-platform=x11。
+export async function launch({ width = 1280, height = 657, gpu = true, headed = process.env.H === '1', tag = 'cdp' } = {}) {
+  const keep = process.env.H === '1', rtx = process.env.RTX === '1';
   const port = 9700 + (process.pid % 200);
   const prof = `/tmp/${tag}-${port}`;
   rmSync(prof, { recursive: true, force: true });            // 干净的 profile：localStorage 里没有旧参数/存档
@@ -18,7 +20,9 @@ export async function launch({ width = 1280, height = 657, gpu = true, headed = 
     ...(gpu ? ['--use-gl=angle', '--use-angle=gl', '--enable-gpu', '--ignore-gpu-blocklist']
             : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']),
     'about:blank'].filter(Boolean);
-  const proc = spawn('chromium', args, { stdio: 'ignore', detached: true });   // 自成进程组：close() 杀整组，不留 gpu / renderer 子进程
+  const cmd = rtx ? ['prime-run', 'chromium', '--ozone-platform=x11', ...args] : ['chromium', ...args];
+  const proc = spawn(cmd[0], cmd.slice(1), { stdio: 'ignore', detached: true });
+  if (keep) proc.unref();   // 自成进程组：close() 杀整组，不留 gpu / renderer 子进程
   let url = null;
   for (let i = 0; i < 75 && !url; i++) {
     try { const l = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); url = l.find(t => t.type === 'page')?.webSocketDebuggerUrl; } catch {}
@@ -44,6 +48,6 @@ export async function launch({ width = 1280, height = 657, gpu = true, headed = 
   await send('Runtime.enable'); await send('Page.enable');
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
   const screenshot = async () => Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).result.data, 'base64');
-  const close = () => { try { ws.close(); } catch {} try { process.kill(-proc.pid, 'SIGKILL'); } catch { proc.kill(); } };
+  const close = () => { try { ws.close(); } catch {} if (keep) return; /* H=1：浏览器留着给人看 */ try { process.kill(-proc.pid, 'SIGKILL'); } catch { proc.kill(); } };
   return { send, js, screenshot, close, logs };
 }

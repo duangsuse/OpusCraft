@@ -6,16 +6,16 @@ import { SH } from '../vendor/gl/shared.js';
 
 // 宿主 B 方块名 → goodGL 方块名。同名的不用写；goodGL 没有的两类：
 //   ① 代用品（立方体类，画面上能区分即可；要真的话是给 SH 追加方块定义 + 贴图，供体补丁，见 render.md §3 ADD 行）
-//   ② SPECIAL：goodGL 没有对应 RT 的模型（门 / 梯子 / 雪层 / 火），先当空气，R6-a 混合路径由宿主网格器画进实体合成
+//   ② SPECIAL：goodGL 没有对应 RT 的模型（门 / 梯子 / 雪层 / 火），当空气（rgl 与宿主网格器互相独立，宿主在 gl 下不出几何）；火由 rgl/fire.js 按火方块摆火苗，其余待 rgl 自己实现
 export const SUBST = {
   oxeye_daisy: 'daisy', lapis_ore: 'diamond_ore', emerald_ore: 'coal_ore',
   coal_block: 'smooth_basalt', iron_block: 'andesite', gold_block: 'yellow_terracotta', diamond_block: 'packed_ice', lapis_block: 'amethyst_block', emerald_block: 'mossy_stone_bricks',
-  tnt: 'bricks', pumpkin: 'orange_terracotta', jack_o_lantern: 'lantern_block', spawner: 'mossy_cobblestone', netherrack: 'red_terracotta', end_stone: 'calcite',
+  snow: 'snow_layer', tnt: 'bricks', pumpkin: 'orange_terracotta', jack_o_lantern: 'lantern_block', spawner: 'mossy_cobblestone', netherrack: 'red_terracotta', end_stone: 'calcite',
   orange_wool: 'orange_terracotta', red_wool: 'red_terracotta', yellow_wool: 'yellow_terracotta', brown_wool: 'brown_terracotta', black_wool: 'obsidian',
   gray_wool: 'smooth_basalt', light_gray_wool: 'andesite', magenta_wool: 'amethyst_block', purple_wool: 'amethyst_block', pink_wool: 'red_sand',
   blue_wool: 'packed_ice', light_blue_wool: 'packed_ice', cyan_wool: 'packed_ice', green_wool: 'mossy_stone_bricks', lime_wool: 'mossy_stone_bricks',
 };
-export const SPECIAL = ['ladder', 'oak_door', 'snow', 'fire'];
+export const SPECIAL = ['fire'];
 
 /** 256 项：宿主 B id → goodGL id。没有同名也没有代用品的（物品类 id 不会出现在世界里）当石头 */
 export function glid(Blocks) {

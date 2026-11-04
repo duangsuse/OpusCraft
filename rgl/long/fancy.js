@@ -411,6 +411,20 @@ void main(){
       }
     }
   }
+  // 岸壁泡沫：岸与水交界处的竖直一条（厚 foamThick），中心随涌浪水线 hh 起伏、沿墙方向用噪声撕成波浪边；泡在水里的墙（under）也画。颜色 foamColor
+  if (${Fps.foamThick} > 0.0 && abs(N0.y) < 0.5 && ${Fps.foamWidth} > 0.0 && ${Fps.shoreAmp} > 0.0 && length(v_rel) < 96.0) {
+    int wy = int(floor(v_world.y - 0.001));
+    uvec2 fv = texelFetch(${X.shoreFld}, ivec2(floor(v_world.xz + N0.xz * 0.01)) & (${X.shoreN} - 1), 0).rg;
+    if (fv.r == 1u && int(fv.g) == wy) {
+      float dy = v_world.y - (float(wy) + 8.0 / 9.0), th = ${Fps.foamThick};
+      float hh = shoreH(${X.wnoise}, v_world.xz, 0.0, ${Fps.foamWidth}, ${Fps.shoreSpd}, ${Fps.time}) * ${Fps.shoreAmp};
+      float hx = v_world.x * abs(N0.z) + v_world.z * abs(N0.x);
+      float e = hh + (vnoise(vec2(hx * 3.0, ${Fps.time} * 0.8)) - 0.5) * th * 0.6;
+      float fm = (1.0 - smoothstep(0.0, th, abs(dy - e) * 1.6)) * smoothstep(0.15, 0.55, vnoise(vec2(hx * 7.0 + ${Fps.time} * 0.3, dy * 9.0)) + 0.3);
+      vec3 fl = ${Fps.ambCol} * sky * sky * 1.5 + ${X.lightCol} * max(${X.lightDir}.y, 0.0) * sh * 0.1 + 0.15;
+      col = mix(col, ${Fps.foamColor} * fl, clamp(fm, 0.0, 1.0) * 0.9);
+    }
+  }
   if ((v_flags & 64) != 0) { col = albedo * ((v_flags & 256) != 0 ? 3.0 : 2.6) + albedo * (direct + amb); o2 = vec4(0.0); }
   if (mat >= 2) o2 = vec4(0.0);
   o = vec4(col, (mat >= 2) ? c.a : 1.0);

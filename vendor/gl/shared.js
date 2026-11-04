@@ -68,7 +68,7 @@ const TEX = {};
 function tex(name) { if (TEX[name] === undefined) { TEX[name] = TEX_NAMES.length; TEX_NAMES.push(name); } return TEX[name]; }
 
 // ---------------------------------------------------------------- Blocks
-const RT_NONE = 0, RT_CUBE = 1, RT_CROSS = 2, RT_LIQUID = 3, RT_TORCH = 4, RT_CROP = 5, RT_CACTUS = 6, RT_LOW = 7, RT_CHEST = 8;
+const RT_NONE = 0, RT_CUBE = 1, RT_CROSS = 2, RT_LIQUID = 3, RT_TORCH = 4, RT_CROP = 5, RT_CACTUS = 6, RT_LOW = 7, RT_CHEST = 8, RT_DECAL = 9;   // remix: 贴面薄片（梯子 / 矿轨）
 const TINT_NONE = 0, TINT_GRASS = 1, TINT_FOLIAGE = 2, TINT_BIRCH = 3, TINT_SPRUCE = 4, TINT_WATER = 5;
 const N = 256;
 const RT = new Uint8Array(N), OCC = new Uint8Array(N), OPACITY = new Uint8Array(N), EMIT = new Uint8Array(N),
@@ -180,6 +180,12 @@ def(78, 'cherry_log', '樱花原木', Object.assign({ tex: { top: 'cherry_log_to
 def(79, 'cherry_leaves', '樱花树叶', { mat: 1, opaque: false, op: 1, wave: 1, hard: 0.2, snd: 'grass', foliage: true, drop: null, tool: 'hoe' });
 def(80, 'cherry_planks', '樱花木板', Object.assign({}, W));
 def(81, 'pink_petals', '粉红花簇', { rt: RT_CROSS, solid: false, mat: 1, wave: 2, hard: 0, snd: 'grass', replaceable: true, foliage: true });
+def(82, 'snow_layer', '雪层', { rt: RT_LOW, tex: 'snow', solid: false, opaque: false, op: 0, hard: 0.1, tool: 'shovel', snd: 'snow', replaceable: true });   // remix
+// remix: 贴面薄片：贴着的邻格方向 f（0 +x / 1 −x / 2 +y / 3 −y / 4 +z / 5 −z）。梯子 meta&3 = 宿主 B 的朝向（0 贴 +x 墙 / 1 贴 −x / 2 贴 +z / 3 贴 −z）；矿轨等贴地的返回 3
+const DECAL_T = { 83: 1.5, 84: 3 };   // 贴面薄片厚度（1/16 格）：梯子 / 门，矿轨等以后在此加
+const decalAttach = (id, meta) => id === 83 ? [0, 1, 4, 5][meta & 3] : id === 84 ? [0, 1, 4, 5][(meta & 2) ? [2, 3, 1, 0][(meta >> 2) & 3] : (meta >> 2) & 3] : 3;   // 84 门：宿主 B 的 blockBoxes（meta bit0 上半 / bit1 开 / bit2-3 朝向，开门换到 OPEN_SIDE 那一侧）
+def(83, 'ladder', '梯子', { rt: RT_DECAL, tex: 'ladder', solid: false, mat: 1, opaque: false, op: 0, hard: 0.4, tool: 'axe', snd: 'wood' });   // remix
+def(84, 'oak_door', '橡木门', { rt: RT_DECAL, tex: { top: 'oak_door_top', bottom: 'oak_door_bottom', side: 'oak_door_bottom' }, solid: false, mat: 1, opaque: false, op: 0, hard: 3, tool: 'axe', snd: 'wood' });   // remix
 const LEAVES = new Uint8Array(256); LEAVES[11] = LEAVES[18] = LEAVES[20] = LEAVES[79] = 1;
 const LOGS = new Uint8Array(256); LOGS[10] = LOGS[17] = LOGS[19] = LOGS[78] = 1;
 
@@ -958,7 +964,7 @@ function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB, PB, CLS) {   
             let u = uvs[k][0], v = uvs[k][1];
             if (rt === RT_CHEST) { px = 1 / 16 + px * 14 / 16; pz = 1 / 16 + pz * 14 / 16; py = py * 14 / 16; if (f !== 2 && f !== 3) { v = 2 / 16 + v * 14 / 16; } }
             else if (rt === RT_CACTUS) { if (f === 0) px = 15 / 16; else if (f === 1) px = 1 / 16; else if (f === 4) pz = 15 / 16; else if (f === 5) pz = 1 / 16; }
-            else if (rt === RT_LOW) { py = py * 15 / 16; if (f !== 2 && f !== 3) v = 1 / 16 + v * 15 / 16; }
+            else if (rt === RT_LOW) { const lh = id === 82 ? 2 : 15; py = py * lh / 16; if (f !== 2 && f !== 3) v = (16 - lh) / 16 + v * lh / 16; }   // remix: 雪层 2/16
             B.v(x + px, y + py, z + pz, (u * 256) | 0, (v * 256) | 0, layer, tf, ls[k], lb[k], aos[k] * 85, f, rr, gg, bb, wave);
           }
         }
@@ -987,6 +993,14 @@ function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB, PB, CLS) {   
           B.v(x1, y2, z1, 0, 0, layer, fl, sky, blk, 255, 6, tr, tg, tb, wv);
           B.v(x2, y2, z2, 256, 0, layer, fl, sky, blk, 255, 6, tr, tg, tb, wv);
         }
+      } else if (rt === RT_DECAL) {   // remix: 贴面薄片：面向 fo = f ^ 1；有厚度 T（DECAL_T，单位 1/16；贴墙处 d=0，外面 d=T），四边侧面的 UV 取贴图边缘、顺延边缘颜色
+        const l = pl[p]; const sky = (l >> 4) * 17, blk = (l & 15) * 17;
+        const f = decalAttach(id, pm[p]), ax = f >> 1, door = id === 84, T = (DECAL_T[id] || 1) / 16, w0 = (f & 1) ? 0 : 1, sg = (f & 1) ? 1 : -1;
+        const layer = door && !(pm[p] & 1) ? TEXF[id * 6 + 3] : TEXF[id * 6 + 2];
+        const at = (fo, k, d) => { const cs = FACE_CORNERS[fo][k], c = [cs[0], cs[1], cs[2]]; c[ax] = w0 + sg * d; const uv = UVS[fo][k]; B.v(x + c[0], y + c[1], z + c[2], (uv[0] * 256) | 0, (uv[1] * 256) | 0, layer, fl, sky, blk, 255, fo, 255, 255, 255, 0); };
+        for (const fo of door ? [f ^ 1, f] : [f ^ 1]) for (let k = 0; k < 4; k++) at(fo, k, fo === f ? 0 : T);
+        const fo = f ^ 1;
+        for (let k = 0; k < 4; k++) { const k2 = (k + 1) & 3; for (const r of [0, 1]) { const ks = r ? [k2, k] : [k, k2]; at(fo, ks[0], T); at(fo, ks[1], T); at(fo, ks[1], 0); at(fo, ks[0], 0); } }   // 侧边：外缘 → 墙面，UV 不变 = 边缘色拉伸
       } else if (rt === RT_TORCH) {
         const l = pl[p]; const sky = (l >> 4) * 17, blk = (l & 15) * 17;
         const layer = TEXF[id * 6 + 2]; const m = pm[p] & 7;
@@ -1055,7 +1069,7 @@ function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB, PB, CLS) {   
 }
 
 return { H, SEA, LEAVES, LOGS, mulberry32, hash3, rand3, smoothstep, lerp, clamp, Simplex, TEX_NAMES, TEX, tex,
-  RT_NONE, RT_CUBE, RT_CROSS, RT_LIQUID, RT_TORCH, RT_CROP, RT_CACTUS, RT_LOW, RT_CHEST,
+  RT_NONE, RT_CUBE, RT_CROSS, RT_LIQUID, RT_TORCH, RT_CROP, RT_CACTUS, RT_LOW, RT_CHEST, RT_DECAL, decalAttach, DECAL_T,   // remix
   RT, OCC, OPACITY, EMIT, SOLID, MAT, TINTSRC, TINTMODE, WAVE, CULLSAME, EMISSIVE, FOLIAGE, HASFRONT, REPLACEABLE, TEXF, TEXFRONT, FLAGS,
   BLOCKS, BID, ITEMS, IID, MATS, TOOLS, BIOME, BIOME_NAMES, Generator, decorateChunk, decorateVillages, placeTree,
   MeshBuilder, meshSection, STRIDE, FACE_CORNERS, NORMALS, UVS, WHEAT_TEX, DESTROY_TEX, FIXED_TINT };

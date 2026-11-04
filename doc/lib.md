@@ -71,7 +71,7 @@ row   = [key, Pr|Dr|S, { label, ...R(), fx?, options?, bool? }]
 | `&pose=名` / `&gizmo=x,y,z,yaw,pitch,fov` / `&tpause=` | 两宿主 | **计划**（goalP4P5 第 1 步）：机位 + 暂停 → agent 截图交接 |
 | `{页面名}.json` | 两宿主 | **计划**（panify §3.2）：启动自动加载的默认预设；优先级 字面量 < json < 上次 < `&json=` |
 
-## 5. `tools/*.mjs`（Node + 无头 Chromium，`tools/cdp.mjs` 零依赖；需 `http://localhost:8765/`；详见 `handover/tools.md`）
+## 5. `tools/*.mjs`（Node + 无头 Chromium，`tools/cdp.mjs` 零依赖；需 `http://localhost:8765/`；详见 `handover/tools.md`；环境变量 `H=1` 有头窗口且脚本结束不关浏览器，`RTX=1` 以 `prime-run chromium --ozone-platform=x11` 启动）
 
 | 命令 | 用途 |
 |---|---|
@@ -84,6 +84,7 @@ row   = [key, Pr|Dr|S, { label, ...R(), fx?, options?, bool? }]
 | `tools/shots-sky.mjs`、`tools/diag-water.mjs` | 截图诊断（历史） |
 | `tools/asm.mjs split.mjs extract.mjs tl.mjs` | **一次性**拆分脚本（acorn / eslint-scope，依赖在 `/tmp`），不维护 |
 | `node tools/snap.mjs [goalDir] [--check]` | 任务包 `doc/` 快照 ← 真值（清单 `goalX/doc/SNAP`）；`--check` 只报漂移 |
+| `node tools/firefly-skel.mjs` / `tools/fire-skel.mjs` | `gm.firefly` / `gm.fire`（宿主 B）冒烟：骷髅 + 箭上挂光效，截图到 `tools/out/{firefly,fire}/`，核对生命周期 / 粒子数 / 容量 |
 | `tools/perf-collect.mjs` | **计划**（panify §4）：接收面板 `timeit` 投送的 JSONL；`PUT /default?page=` 写 `{页面名}.json` |
 
 ## 6. 现状分叉（panify 要统一的）

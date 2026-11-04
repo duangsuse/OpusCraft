@@ -23,7 +23,7 @@ export function createPanel(P, { title = 'rgl', roots = { v2: 'v2 · goodGL', v3
           let f = folders.get(name); if (!f) { f = pane.addFolder({ title: name, expanded: false }); folders.set(name, f); }
           const pt = { get v() { return ref.owner[ref.key]; }, set v(x) { ref.set(x); } };
           const o = { label: row.label || row.key };
-          if (typeof row.value === 'number') Object.assign(o, { min: row.min, max: row.max, step: row.step });
+          if (row.color) o.view = 'color'; else if (typeof row.value === 'number') Object.assign(o, { min: row.min, max: row.max, step: row.step });
           if (row.options) o.options = row.options;
           if (row.pair) {                                                                   // 向量行：两个键并成一个 point2d（x = 本键，y = pair 键），各轴自带范围
             const ref2 = P.refs.get(row.path.replace(/[^.]*$/, row.pair)), p2 = { get v() { return { x: ref.owner[ref.key], y: ref2.owner[ref2.key] }; }, set v(q) { ref.set(q.x); ref2.set(q.y); } };

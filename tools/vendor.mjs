@@ -112,9 +112,30 @@ GLSL.shadowFS = patch(GLSL.shadowFS, [
 ], 'shadowFS');
 const PATCH_FILES = {
   'shared.js': [
+    // remix: RT_DECAL（贴面薄片：梯子贴墙，以后矿轨贴地）——一个 1/16 厚度处的单面片，贴哪一面由 decalAttach(id, meta) 定（贴着的邻格方向 = 供体面号）
+    ['RT_LOW = 7, RT_CHEST = 8;', 'RT_LOW = 7, RT_CHEST = 8, RT_DECAL = 9;   // remix: 贴面薄片（梯子 / 矿轨）'],
+    ['  RT_NONE, RT_CUBE, RT_CROSS, RT_LIQUID, RT_TORCH, RT_CROP, RT_CACTUS, RT_LOW, RT_CHEST,', '  RT_NONE, RT_CUBE, RT_CROSS, RT_LIQUID, RT_TORCH, RT_CROP, RT_CACTUS, RT_LOW, RT_CHEST, RT_DECAL, decalAttach, DECAL_T,   // remix'],
+    ['      } else if (rt === RT_TORCH) {\n        const l = pl[p];', `      } else if (rt === RT_DECAL) {   // remix: 贴面薄片：面向 fo = f ^ 1；有厚度 T（DECAL_T，单位 1/16；贴墙处 d=0，外面 d=T），四边侧面的 UV 取贴图边缘、顺延边缘颜色
+        const l = pl[p]; const sky = (l >> 4) * 17, blk = (l & 15) * 17;
+        const f = decalAttach(id, pm[p]), ax = f >> 1, door = id === 84, T = (DECAL_T[id] || 1) / 16, w0 = (f & 1) ? 0 : 1, sg = (f & 1) ? 1 : -1;
+        const layer = door && !(pm[p] & 1) ? TEXF[id * 6 + 3] : TEXF[id * 6 + 2];
+        const at = (fo, k, d) => { const cs = FACE_CORNERS[fo][k], c = [cs[0], cs[1], cs[2]]; c[ax] = w0 + sg * d; const uv = UVS[fo][k]; B.v(x + c[0], y + c[1], z + c[2], (uv[0] * 256) | 0, (uv[1] * 256) | 0, layer, fl, sky, blk, 255, fo, 255, 255, 255, 0); };
+        for (const fo of door ? [f ^ 1, f] : [f ^ 1]) for (let k = 0; k < 4; k++) at(fo, k, fo === f ? 0 : T);
+        const fo = f ^ 1;
+        for (let k = 0; k < 4; k++) { const k2 = (k + 1) & 3; for (const r of [0, 1]) { const ks = r ? [k2, k] : [k, k2]; at(fo, ks[0], T); at(fo, ks[1], T); at(fo, ks[1], 0); at(fo, ks[0], 0); } }   // 侧边：外缘 → 墙面，UV 不变 = 边缘色拉伸
+      } else if (rt === RT_TORCH) {
+        const l = pl[p];`],
+    // remix: 雪层（宿主 B 的 snow，2/16 高）：RT_LOW 矮方块，高度按 id 取（82 = 2/16，其余 15/16）
+    ["def(81, 'pink_petals', '粉红花簇', { rt: RT_CROSS, solid: false, mat: 1, wave: 2, hard: 0, snd: 'grass', replaceable: true, foliage: true });", "def(81, 'pink_petals', '粉红花簇', { rt: RT_CROSS, solid: false, mat: 1, wave: 2, hard: 0, snd: 'grass', replaceable: true, foliage: true });\ndef(82, 'snow_layer', '雪层', { rt: RT_LOW, tex: 'snow', solid: false, opaque: false, op: 0, hard: 0.1, tool: 'shovel', snd: 'snow', replaceable: true });   // remix"],
+    ['else if (rt === RT_LOW) { py = py * 15 / 16; if (f !== 2 && f !== 3) v = 1 / 16 + v * 15 / 16; }', 'else if (rt === RT_LOW) { const lh = id === 82 ? 2 : 15; py = py * lh / 16; if (f !== 2 && f !== 3) v = (16 - lh) / 16 + v * lh / 16; }   // remix: 雪层 2/16'],
+    ["replaceable: true });   // remix\n", "replaceable: true });   // remix\n// remix: 贴面薄片：贴着的邻格方向 f（0 +x / 1 −x / 2 +y / 3 −y / 4 +z / 5 −z）。梯子 meta&3 = 宿主 B 的朝向（0 贴 +x 墙 / 1 贴 −x / 2 贴 +z / 3 贴 −z）；矿轨等贴地的返回 3\nconst DECAL_T = { 83: 1.5, 84: 3 };   // 贴面薄片厚度（1/16 格）：梯子 / 门，矿轨等以后在此加\nconst decalAttach = (id, meta) => id === 83 ? [0, 1, 4, 5][meta & 3] : id === 84 ? [0, 1, 4, 5][(meta & 2) ? [2, 3, 1, 0][(meta >> 2) & 3] : (meta >> 2) & 3] : 3;   // 84 门：宿主 B 的 blockBoxes（meta bit0 上半 / bit1 开 / bit2-3 朝向，开门换到 OPEN_SIDE 那一侧）\ndef(83, 'ladder', '梯子', { rt: RT_DECAL, tex: 'ladder', solid: false, mat: 1, opaque: false, op: 0, hard: 0.4, tool: 'axe', snd: 'wood' });   // remix\ndef(84, 'oak_door', '橡木门', { rt: RT_DECAL, tex: { top: 'oak_door_top', bottom: 'oak_door_bottom', side: 'oak_door_bottom' }, solid: false, mat: 1, opaque: false, op: 0, hard: 3, tool: 'axe', snd: 'wood' });   // remix\n"],
     ['function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB) {\n  OB.reset(); TB.reset();', 'function meshSection(pb, pm, pl, tintG, tintF, wx, wy, wz, OB, TB, PB, CLS) {   // remix: PB 植物网格、CLS[id] 额外 flags（草 = 8192）\n  OB.reset(); TB.reset(); if (PB) PB.reset();'],
     ['      const fl = FLAGS[id];\n      const B = MAT[id] >= 2 ? TB : OB;', '      const fl = FLAGS[id] | (CLS ? CLS[id] : 0);   // remix\n      const B = MAT[id] >= 2 ? TB : (PB && (rt === RT_CROSS || rt === RT_CROP) ? PB : OB);   // remix'],
     ['  return { opaque: OB.n ? OB.take() : null, on: OB.n, trans: TB.n ? TB.take() : null, tn: TB.n };', '  return { opaque: OB.n ? OB.take() : null, on: OB.n, trans: TB.n ? TB.take() : null, tn: TB.n, plant: PB && PB.n ? PB.take() : null, pn: PB ? PB.n : 0 };   // remix'],
+  ],
+  'textures.js': [
+    ["      case 'torch': return crossPlant(", "      case 'oak_door_bottom': case 'oak_door_top': { const img = Img(), top = name === 'oak_door_top'; for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) { const edge = x < 1 || x > 14 || y < 1 || y > 14, pan = (x > 2 && x < 13 && ((y > 2 && y < 7) || (y > 8 && y < 14))); put(img, x, y, edge ? [88, 62, 30] : pan ? [150, 112, 62] : [124, 92, 50]); } if (top) for (let y = 3; y < 7; y++) for (let x = 3; x < 13; x++) put(img, x, y, [0, 0, 0], x === 7 || x === 8 ? 255 : 0); put(img, 12, 8, [210, 200, 190]); return img; }   // remix: 门\n      case 'ladder': { const img = Img(); for (let y = 0; y < 16; y++) { put(img, 2, y, [140, 104, 58]); put(img, 3, y, [104, 76, 40]); put(img, 12, y, [140, 104, 58]); put(img, 13, y, [104, 76, 40]); } for (const y of [1, 5, 9, 13]) for (let x = 4; x < 12; x++) put(img, x, y, [124, 92, 50]); return img; }   // remix: 梯子\n      case 'torch': return crossPlant("],
+    ["'pink_petals', 'rain', 'snowflake']);", "'pink_petals', 'ladder', 'oak_door_top', 'oak_door_bottom', 'rain', 'snowflake']);   // remix"],
   ],
   'pbr.js': [
     // remix: 雪的材质向白羊毛靠（粗糙、毛糙的法线、次表面散射），原值是半光滑的雪壳

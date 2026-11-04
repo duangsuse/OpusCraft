@@ -79,6 +79,8 @@ export function createFrameBuilder() {
     F.pomSmooth = !!S.pomSmooth; F.pomShadow = S.pomShadow != null ? S.pomShadow : 0.6;
     F.rainPom = S.rainPom != null ? S.rainPom : 1;
     F.foamWidth = S.foamWidth != null ? S.foamWidth : 1.2; F.shoreFade = S.shoreFade != null ? S.shoreFade : 0.3; F.shoreAmp = S.shoreWaveAmp != null ? S.shoreWaveAmp : 0.12; F.shoreSpd = S.shoreWaveSpeed != null ? S.shoreWaveSpeed : 1;   // remix: v2/gl 的岸边波纹参数（面板「水」）
+    F.fallOpacity = S.fallOpacity != null ? S.fallOpacity : 0.55; F.fallDrops = S.fallDrops != null ? S.fallDrops : 1;   // 瀑布 / 岸边泡沫（面板「水下」）
+    F.foamThick = S.foamThick != null ? S.foamThick : 0.22; { const c = S.foamColor != null ? S.foamColor : 0xffffff; F.foamColor = [(c >> 16 & 255) / 255, (c >> 8 & 255) / 255, (c & 255) / 255].map(x => x ** 2.2); }   // 岸边泡沫（面板「水下」）：厚度 / 颜色（sRGB → 线性）
     F.ssrSteps = S.ssrSteps != null ? S.ssrSteps : 24;                                          // remix: 水面 SSR 步数（LiqPG 档位 0 / 16 / 24 / 40）
     F.useSun = useSun;                                                                            // remix: 日 / 月切换的唯一判据（光向、云光、…都读它，别各写各的 sunDir.y 阈值）
     F.lightDir = useSun ? env.sunDir : env.moonDir;
