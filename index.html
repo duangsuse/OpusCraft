@@ -2554,6 +2554,7 @@ const gm = window.gm = gg.my(new class gm {
   pollBiome(b) { const key = b.name.toLowerCase().replace(/ /g, '_'); if (this._bio?.[0] === key) return; this._bio = [key, b.id]; for (const f of this._hs.biome) f(key, b.id); }
   get fire() { return gg.VR?.fire; }
   get firefly() { return gg.VR?.firefly; }
+  get flutter() { return gg.VR?.flutter; }   // 体积粒子：flutter.add({ preset: 'leaf'|'bubble'|'mote'|'flake', region: [x0,y0,z0,x1,y1,z1], emit, rate, size, fall, sway, … }) → { set, burst, remove }  (rgl/flutter.js)
   kindOf(name) { return c_gm.kinds.find(k => this[k].item === name) || null; }
   make(k) { const v = this[k].get(); return v == null ? null : { name: this[k].item, count: 1, v }; }
   label(s) { const k = this.kindOf(s?.name); return k && s.v != null ? this[k].label(s.v) : ''; }
@@ -2957,6 +2958,8 @@ const HUD = {
   debugText(p, bx, by, bz, bio) {
     const v3 = (x, y, z, d = 0) => `#(${x.toFixed(d)},${y.toFixed(d)},${z.toFixed(d)})`;
     const face = c_Dbg.facing[((Math.round(p.yaw / (Math.PI / 4)) % 8) + 8) % 8];
+    // 粒子 = (宿主 + fire 发射点) + (firefly 实例 + flutter 粒子)；?r=gl 之外只有宿主那一项
+    const VR = gg.VR, fs = VR?.fire?.stats(), fireN = fs ? fs.torch + fs.fire + fs.lava + fs.custom : 0, fx = VR ? `(${Particles.n}+${fireN})+${VR.firefly.stats().live+VR.flutter.stats().particles}` : `${Particles.n}`;
     const ri = Game.renderer.info.render, st = ChunkManager.stats, t = Interaction.target, m = Interaction.targetMob, S = Scheduler;
     const lq = world.getDef(bx, by, bz), lqs = lq.liquid ? `${lq.name} L${world.getMeta(bx, by, bz)}` : '—';
     // groups separated by blank lines: perf · position · environment · world · fluids/target
@@ -2964,7 +2967,7 @@ const HUD = {
       `Liq +${S.pending.size} rm ${S.parked.length} ${lqs}`, `Sun ${world.getSky(bx, by, bz)} · torch ${world.getBlockLight(bx, by, bz)}`, '',`Chunk (${bx >> 4},${bz >> 4})`,
       `Biome ${bio.name}`, `${Sky.clockString()} is ${Weather.state}`, '',
       `Chunks ${st.loaded} · XZP ${st.generated} · X2V ${st.meshed}`,
-      `Ents ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${Particles.n}`,
+      `Ents ${Entities.list.length} · Mobs ${Mobs.list.length} · Particles ${fx}`,
       m ? `Mob ${m.type}.${m.state} ♥  ${Math.ceil(m.health)}/${m.maxHealth} ${v3(m.x, m.y, m.z, 1)}` : 'Mob —',
       t ? `XYZB ${Blocks.byId[world.getBlock(t.x, t.y, t.z)].displayName} ${v3(t.x, t.y, t.z)}` : 'XYZB —', '',
       `OpusCraft ${this.fps} fps · sim ${(Game.frameMs || 0).toFixed(1)} ms`, `p1 ${v3(bx, by, bz)}  ${face}`, v3(p.x, p.y, p.z, 2)].join('\n');
@@ -3652,7 +3655,7 @@ const Game = {
     if ((new URLSearchParams(location.search).get('r') ?? 'gl') === 'gl') {   // 默认 gl；?r=three 之类 = 只用宿主渲染器
       // R6-a：B 的网格器只出 goodGL 没有的模型（门 / 梯子 / 雪层 / 火），three 把它们画进实体合成；失败就还原并全部重建
       const terrain = this.scene; gg.Mesher.only = new Set();   // gl 与宿主渲染互相独立：宿主网格器在 gl 下不出任何几何（门 / 梯子 / 雪层暂不画；火由 rgl/fire.js 摆火苗）
-      import('./rgl/host-b.js').then(m => m.createGlRenderer(gg, terrain)).then(vr => { gg.VR = vr; this.glOn = true; console.log('[Voxelcraft] renderer', vr.name); import('./rgl/biome-caustic.js').then(m => m.install(gm, vr)); import('./rgl/waterfall.js').then(m => m.install(gg, vr)); })
+      import('./rgl/host-b.js').then(m => m.createGlRenderer(gg, terrain)).then(vr => { gg.VR = vr; this.glOn = true; console.log('[Voxelcraft] renderer', vr.name); import('./rgl/biome-caustic.js').then(m => m.install(gm, vr)); import('./rgl/waterfall.js').then(m => m.install(gg, vr)); import('./rgl/ambient.js').then(m => m.install(gg, vr)); })
         .catch(e => { console.error('renderer gl failed, keeping the built-in one', e); gg.Mesher.only = null; for (const c of world.chunks.values()) c.dirty = true; });
     }
     this.last = performance.now(); Title.boot();
@@ -3763,7 +3766,7 @@ const Game = {
         Entities.update(dt);
         Mobs.update(dt);
         Particles.update(dt);
-        gg.waterfall?.(dt);
+        gg.waterfall?.(dt); gg.ambient?.(dt);
         Weather.update(dt);
         this.autosave += dt;
         if (this.autosave > c_Save.autosave) { this.autosave = 0; Save.save(true); }

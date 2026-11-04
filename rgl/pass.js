@@ -68,17 +68,21 @@ export function headerSplit(src) {
   return [lines.slice(0, i).join('\n'), lines.slice(i).join('\n')];
 }
 
+// 宏片段 → 代入 GLSL 的文本（buildSource 和 macroKeyOf 共用，保证两边的 key 一致）
+const macroText = p => {
+  const v = getter(p.f)();
+  return p.dir === 'ifdef' ? (v ? '1' : '0') : p.dir === 'ifndef' ? (v ? '0' : '1') : typeof v === 'boolean' ? (v ? '1' : '0') : String(v);
+};
+// 只求宏值：不拼源码。命中编译缓存时 use() 靠它免去每帧 buildSource（~92 KB 字符串 / 帧）；顺序与 buildSource 一致
+export function macroKeyOf(pieces) { let k = ''; for (const p of pieces) if (p.t !== 'text' && p.t !== 'uniform') k += (k ? ',' : '') + macroText(p); return k; }
+
 // ---- 生成源码（纯函数）：pieces → { src, macroVals }；uniformTypes：name → GLSL 类型（第一次求值时填）
 export function buildSource(pieces, uniforms /* Map name → {f, type} */) {
   let body = '', macroVals = [];
   for (const p of pieces) {
     if (p.t === 'text') body += p.s;
     else if (p.t === 'uniform') body += nameOf(p.f);
-    else {
-      const v = getter(p.f)();
-      const txt = p.dir === 'ifdef' ? (v ? '1' : '0') : p.dir === 'ifndef' ? (v ? '0' : '1') : typeof v === 'boolean' ? (v ? '1' : '0') : String(v);
-      macroVals.push(txt); body += txt;
-    }
+    else { const txt = macroText(p); macroVals.push(txt); body += txt; }
   }
   // `#ifdef ${f}` / `#ifndef ${f}` 已被替换成 `#ifdef 1`：整行改写为 `#if 1` / `#if 0`
   body = body.replace(/^([ \t]*)#\s*ifdef[ \t]+([01])/gm, '$1#if $2').replace(/^([ \t]*)#\s*ifndef[ \t]+([01])/gm, '$1#if $2');
@@ -112,11 +116,12 @@ export function createPassKit(gl, { dev = false } = {}) {
         else if (dev && x.type !== t) throw new Error(`pass ${tag}: uniform '${n}' 类型变了：${x.type} → ${t}`);
         return t;
       };
+      let typed = false;
       const compile = () => {
-        for (const [n, x] of table) typeOf(n, x);                                // 第一次编译时定类型
-        const fs = buildSource(fsPieces, table), vsr = vsPieces ? buildSource(vsPieces, table) : null;
-        const key = fs.macroKey + '|' + (vsr ? vsr.macroKey : '');
+        if (!typed) { for (const [n, x] of table) typeOf(n, x); typed = true; }   // 第一次编译时定类型
+        const key = macroKeyOf(fsPieces) + '|' + (vsPieces ? macroKeyOf(vsPieces) : '');   // 先比宏值：命中缓存就不拼源码
         let e = cache.get(key); if (e) return e;
+        const fs = buildSource(fsPieces, table), vsr = vsPieces ? buildSource(vsPieces, table) : null;
         const mk = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
           if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(`pass ${tag}: ${gl.getShaderInfoLog(s)}\n` + src.split('\n').map((l, i) => (i + 1) + ': ' + l).join('\n')); return s; };
         const p = gl.createProgram();
@@ -142,6 +147,10 @@ export function createPassKit(gl, { dev = false } = {}) {
           case 'bool': gl.uniform1i(l, v ? 1 : 0); break;
           case 'vec2': gl.uniform2fv(l, v); break; case 'vec3': gl.uniform3fv(l, v); break; case 'vec4': gl.uniform4fv(l, v); break;
           case 'mat4': gl.uniformMatrix4fv(l, false, v); break;
+          case 'mat3': gl.uniformMatrix3fv(l, false, v); break; case 'mat2': gl.uniformMatrix2fv(l, false, v); break;
+          case 'uint': gl.uniform1ui(l, v); break;
+          case 'ivec2': gl.uniform2iv(l, v); break; case 'ivec3': gl.uniform3iv(l, v); break; case 'ivec4': gl.uniform4iv(l, v); break;
+          case 'uvec2': gl.uniform2uiv(l, v); break; case 'uvec3': gl.uniform3uiv(l, v); break; case 'uvec4': gl.uniform4uiv(l, v); break;
           default: {                                                            // 采样器：按声明顺序占纹理单元
             if (x.unit < 0) x.unit = nUnits++;
             gl.activeTexture(gl.TEXTURE0 + x.unit); gl.bindTexture(SAMPLER_TARGET[t], v && v.texture !== undefined ? v.texture : v); gl.bindSampler(x.unit, v && v.sampler || null); gl.uniform1i(l, x.unit);   // 值可以是 { texture, sampler, glslType }（要用 Sampler 对象时，如 goodGL 的 rawSampler）；否则解绑，以贴图自带参数为准（别的 pass 可能在这个单元上留了 Sampler）

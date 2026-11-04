@@ -5,6 +5,7 @@
 //   goodGL 画完后调 `renderer.resetState()` 让 three 重新同步状态缓存，宿主随后用 three 画 HUD（VoxelCraft.html 的主循环不用改）。
 import { Renderer } from '../vendor/gl/renderer.js';
 import { Textures } from '../vendor/gl/textures.js';
+import { pgOverride, pgUnder, pgApplyMaps } from './pgtex.js';
 import { PBR } from '../vendor/gl/pbr.js';
 import { createFrameBuilder } from './frame.js';
 import { createPanel } from './panel.js';
@@ -17,6 +18,7 @@ import { createEntityLight, createBlobShadows, entComp } from './entity.js';
 import { fancy } from './long/fancy.js';
 import { createFireFx } from './fire.js';
 import { createFirefly } from './firefly.js';
+import { createFlutter } from './flutter.js';
 import { createRipples } from './ripple.js';
 import { water } from './long/water.js';
 import { comp } from './long/comp.js';
@@ -107,10 +109,14 @@ export function createRenderer(ctx) {
   // 贴图 / PBR：用 goodGL 自己的程序化贴图（材质参数和贴图是一起调出来的，render.md §3 贴图行）
   resetGLState(gl);                                                              // three 先用过这个上下文（宿主 B 的图集是 FLIP_Y 之类）：上传前把 UNPACK 状态还原，否则 texSubImage3D 报 INVALID_OPERATION、贴图全黑
   // 宿主可以给 ctx.texturePack(tx)：按名字把资源包的贴图覆盖进 tx.data / tx.imgs（rgl/host-b.js glsPack）；之后换包走 reloadTextures()
+  const PGS = { keep: true };                                                           // pgKeep（面板「资源包保留 goodPG 材质」）的当前生效值；P 在后面才建，render() 里发现不一致就重载
   const loadTextures = () => {
-    const tx = Textures.build(); if (ctx.texturePack) ctx.texturePack(tx);
+    const tx = Textures.build(), own = ctx.pgTex === false ? null : pgOverride(tx);                // pgtex：goodPG 的草顶 / 雪 / 冰（带自己的高度 / 光滑度 / 散射通道）
+    if (ctx.texturePack) ctx.texturePack(tx);                                           // 资源包后覆盖：包里有的名字照常赢
+    if (own) pgUnder(tx, own);
     for (const k of ['tex', 'nrmTex', 'specTex']) if (R[k]) { gl.deleteTexture(R[k]); R[k] = null; }
-    R.uploadTextures(tx); R.uploadPBR(PBR.build(tx), tx.count);
+    const pbr = PBR.build(tx); if (own) pgApplyMaps(pbr, tx, own, PGS.keep);
+    R.uploadTextures(tx); R.uploadPBR(pbr, tx.count);
   };
   loadTextures();
   // R4 方案 B：goodGL 画完（final 之后）把它的深度换算成 three 相机的深度写进默认帧缓冲，three 再直接画 scene（实体、粒子、选框）
@@ -151,10 +157,10 @@ export function createRenderer(ctx) {
   const world = createWorld(R, SRC, ctx.glid || idLUT(ctx.B), { seed: 1 });
 
   // 参数：只列已经接上的。fog / mist 默认 0 = 去雾版（render.md §0，goodGL 的缺点之一）；scale / maxMP 等 R5 接上 pass.js / vars.js 后再加
-  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, pomShadow: 0.6 /* POM 自阴影强度（朝太阳的遮挡；0 = 无；平滑搜索下只取 0.4 倍） */, pomSmooth: false /* 平滑 POM 搜索（双线性高度 + 二分；关 = 原 14 步；雨天由 rainPom 单独开启） */, rainPom: 1 /* 雨天立体浮雕强度（wet × 本值；0 = 关，雨天也走原 POM） */, taa: true, flare: 100 /* 镜头光斑强度 %（0 = 关；旧存档里的 true / false 按 100 / 0） */, flareIdle: 2 /* 镜头停转多少秒后光斑渐隐（0 = 不抑制） */, lavaSpeed: 2 /* 岩浆贴图滚动速度倍率 */, heatHaze: 1 /* 热浪扭曲强度（火把 / 火焰 / 岩浆上方；0 = 关） */, waterStyle: 0 /* 水体渲染器：0 LiqPG（现状）/ 1 Bliss / 2 Reimagined（water.md §10） */, fallOpacity: 0.55 /* 瀑布不透明度上限（0 = 几乎全透） */, fallDrops: 1 /* 瀑布粒子密度（宿主 Particles；0 = 无，rgl/waterfall.js） */, foamThick: 0.22 /* 岸边泡沫厚度（格；0 = 无泡沫，≤ 岸边波纹范围） */, foamColor: 0xffffff /* 岸边泡沫颜色 */, waterCaustic: 1 /* 水底焦散：0 Pool（Hoskins 网状脊线，原 LiqPG 档）/ 1 Bliss（现状）/ 2 Reimagined（无花纹）/ 3 Ocean（3D fbm 细亮丝；到海边自动切，rgl/biome-caustic.js） */, waterClarity: 0.92 /* 透亮（Bliss / Reimagined 的吸收系数） */, waveStrength: 0.05, waveNoise: 0.03, waveScale: 1, waterTexWave: 0.06, waterTexSpeed: 1.2, waterTexNormal: 0.15, waterDeepSat: 1, waterD2: 11, rippleSurge: 0.3 /* 水位变化 → 涌浪脉冲的力度系数（水涌入空格 Δ≈0.89 → ×本值；0 = 关）*/, rippleDelay: 0.5 /* 接触水面多久后才出波纹（s）；入水那一下不出波纹 */, ripple: 1 /* 水波纹强度（玩家入水 / 水面行走的 Eulerian 波纹；0 = 关，同时停掉 sim） */, fireFx: 1 /* 火把 / 火焰 / 岩浆粒子浓度（0 = 关） */, firefly: true /* 用户光效（rgl/firefly.js）总开关 */, flickAmp: 1 /* 火光闪烁强度（火把 / 岩浆 / 火焰；0 = 稳定） */, flickSpeed: 1 /* 闪烁速度倍率 */, lightDither: 1 /* 光照量化抖动（4 bit 马赫带；0 = 关） */, volCloud: 1 /* 体积光乘云影（0 = 关） */, caveHaze: 1 /* 洞穴火把暖雾强度（0 = 关） */, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 12 /* 网格任务在途上限（Worker 队列保持这么多；旧版是「每帧最多提交 6 个」，低帧率下加载被帧率卡住） */, meshBudget: 3 /* 每帧提交网格任务（padded 提取）的主线程预算 ms */, appearRise: 12 /* 新网格段从下面升起的高度（格；0 = 不升） */, fadeSec: 0.6 /* 新网格段抖动淡入时长 s（0 = 不淡入；与上升各自独立） */, appearSec: 1.2 /* 出现动画整体时长 s（上升用满；0 = 全关） */, appearNear: 24 /* 离相机这么近（格）的段直接出现，不做动画 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
+  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, pomShadow: 0.6 /* POM 自阴影强度（朝太阳的遮挡；0 = 无；平滑搜索下只取 0.4 倍） */, pomSmooth: false /* 平滑 POM 搜索（双线性高度 + 二分；关 = 原 14 步；雨天由 rainPom 单独开启） */, rainPom: 1 /* 雨天立体浮雕强度（wet × 本值；0 = 关，雨天也走原 POM） */, taa: true, flare: 100 /* 镜头光斑强度 %（0 = 关；旧存档里的 true / false 按 100 / 0） */, flareIdle: 2 /* 镜头停转多少秒后光斑渐隐（0 = 不抑制） */, lavaSpeed: 2 /* 岩浆贴图滚动速度倍率 */, heatHaze: 1 /* 热浪扭曲强度（火把 / 火焰 / 岩浆上方；0 = 关） */, waterStyle: 0 /* 水体渲染器：0 LiqPG（现状）/ 1 Bliss / 2 Reimagined（water.md §10） */, fallOpacity: 0.55 /* 瀑布不透明度上限（0 = 几乎全透） */, fallDrops: 1 /* 瀑布粒子密度（宿主 Particles；0 = 无，rgl/waterfall.js） */, foamThick: 0.22 /* 岸边泡沫厚度（格；0 = 无泡沫，≤ 岸边波纹范围） */, foamColor: 0xffffff /* 岸边泡沫颜色 */, waterCaustic: 1 /* 水底焦散：0 Pool（Hoskins 网状脊线，原 LiqPG 档）/ 1 Bliss（现状）/ 2 Reimagined（无花纹）/ 3 Ocean（3D fbm 细亮丝；到海边自动切，rgl/biome-caustic.js） */, waterClarity: 0.92 /* 透亮（Bliss / Reimagined 的吸收系数） */, waveStrength: 0.05, waveNoise: 0.03, waveScale: 1, waterTexWave: 0.06, waterTexSpeed: 1.2, waterTexNormal: 0.15, waterDeepSat: 1, waterD2: 11, rippleSurge: 0.3 /* 水位变化 → 涌浪脉冲的力度系数（水涌入空格 Δ≈0.89 → ×本值；0 = 关）*/, rippleDelay: 0.5 /* 接触水面多久后才出波纹（s）；入水那一下不出波纹 */, ripple: 1 /* 水波纹强度（玩家入水 / 水面行走的 Eulerian 波纹；0 = 关，同时停掉 sim） */, ambientFx: 1 /* 氛围粒子总开关 / 倍率（落叶 + 水下；0 = 关，rgl/ambient.js） */, leafRate: 1 /* 落叶概率倍率 */, bubbleRate: 1 /* 水下呼吸气泡倍率 */, moteRate: 1 /* 水下悬浮微粒倍率 */, leafSize: 1 /* 叶片大小倍率 */, leafFall: 1 /* 下落速度倍率 */, leafSway: 1 /* 左右摆动幅度倍率 */, leafColor: 0x5a8f2a /* 叶色（leafMix > 0 时） */, leafMix: 0 /* 0 = 取树叶方块的群系色；1 = 全用 leafColor */, leafAutumn: 0.22 /* 转色叶子占比（黄 / 橙） */, leafAutumnColor: 0xd9962a /* 转色叶的目标色 */, bubbleHi: 0.3 /* 气泡高光强度 */, bubbleAlpha: 0.45 /* 气泡整体不透明度 */, bubbleRim: 0.5 /* 气泡边缘亮环强度 */, fireFx: 1 /* 火把 / 火焰 / 岩浆粒子浓度（0 = 关） */, firefly: true /* 用户光效（rgl/firefly.js）总开关 */, flickAmp: 1 /* 火光闪烁强度（火把 / 岩浆 / 火焰；0 = 稳定） */, flickSpeed: 1 /* 闪烁速度倍率 */, pgKeep: true /* 装了资源包也保留 goodPG 的高度 / 反光通道（只有草顶；包的纹理 × goodPG 的材质）；关 = 包里有的层回到 goodGL 推算 */, leafNormal: 1 /* 树冠法线强度（0 = 平，1 = 贴图原样） */, leafRough: 0.55 /* 树冠粗糙度下限（越大高光越宽越柔） */, leafSpec: 1 /* 树冠太阳高光倍率 */, leafEnv: 1 /* 树冠环境 / 天空反射倍率 */, leafTrans: 1 /* 树冠逆光透射倍率 */, leafRim: 1 /* 树冠 Fresnel 轮廓光倍率 */, leafPom: 1 /* 树冠 POM 厚度倍率（× 0.05 格） */, leafPbr: 1 /* 树冠 PBR 强度（逐纹素法线 + 粗糙镜面 + 逆光透射 + POM 厚度 + Fresnel 轮廓光；0 = 回到旧的平面漫反射） */, leafGlow: 1 /* 树冠俯视受光 / 透光强度（0 = 关；goodPG 的叶子好看靠这个，不靠贴图） */, lightDither: 1 /* 光照量化抖动（4 bit 马赫带；0 = 关） */, volCloud: 1 /* 体积光乘云影（0 = 关） */, caveHaze: 1 /* 洞穴火把暖雾强度（0 = 关） */, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 12 /* 网格任务在途上限（Worker 队列保持这么多；旧版是「每帧最多提交 6 个」，低帧率下加载被帧率卡住） */, meshBudget: 3 /* 每帧提交网格任务（padded 提取）的主线程预算 ms */, appearRise: 12 /* 新网格段从下面升起的高度（格；0 = 不升） */, fadeSec: 0.6 /* 新网格段抖动淡入时长 s（0 = 不淡入；与上升各自独立） */, appearSec: 1.2 /* 出现动画整体时长 s（上升用满；0 = 全关） */, appearNear: 24 /* 离相机这么近（格）的段直接出现，不做动画 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
   // P = vars 对象（读写值照旧，bench 契约不变）；meta.folder 给面板分文件夹：雾、云隙光各一组（render.md 备忘「天空 / 雾 / 云隙光」），面板本身 R7 才建
   // root：面板顶层分两个并排的 Pane（rgl/panel.js）：v2 = 沿用 v2/goodGL 的项，v3 = remix 新增（花草 / 水 / 水下 / 实体）；整理文件夹时按 root 各管各的
-  const V3_FOLDERS = new Set(['花草锐阴影', '水', '水下', '实体', '新区块']);
+  const V3_FOLDERS = new Set(['花草锐阴影', '树冠', '水', '水下', '实体', '新区块']);
   const FOLDER = (f, o = {}) => ({ folder: f, root: V3_FOLDERS.has(f) ? 'v3' : 'v2', ...o });
   const P = vars(P_DEFAULTS, {
     rd: FOLDER('渲染', { min: 0, max: 16, step: 1, label: '视距（0 = 取宿主）' }), waving: FOLDER('渲染'), clouds: FOLDER('渲染'), gamma: FOLDER('渲染', { min: 0, max: 1 }), shadowQ: FOLDER('渲染', { min: 1, max: 2, step: 1 }),
@@ -162,12 +168,12 @@ export function createRenderer(ctx) {
     volCloud: FOLDER('云隙光', { min: 0, max: 1, step: 0.05, label: '云影遮挡光柱' }), caveHaze: FOLDER('云隙光', { min: 0, max: 3, step: 0.05, label: '洞穴火把暖雾' }),
     lavaSpeed: FOLDER('雾', { min: 0, max: 6, step: 0.1, label: '岩浆滚动速度' }),
     heatHaze: FOLDER('雾', { min: 0, max: 3, step: 0.05, label: '热浪扭曲' }),
-    fireFx: FOLDER('雾', { min: 0, max: 2, step: 0.05, label: '火把 / 岩浆粒子' }),
+    ambientFx: FOLDER('花草锐阴影', { min: 0, max: 2, step: 0.05, label: '氛围粒子总量' }), leafRate: FOLDER('花草锐阴影', { min: 0, max: 3, step: 0.05, label: '落叶概率' }), bubbleRate: FOLDER('花草锐阴影', { min: 0, max: 3, step: 0.05, label: '气泡概率' }), moteRate: FOLDER('花草锐阴影', { min: 0, max: 3, step: 0.05, label: '水下微粒概率' }), leafSize: FOLDER('花草锐阴影', { min: 0.3, max: 3, step: 0.05, label: '落叶大小' }), leafFall: FOLDER('花草锐阴影', { min: 0.2, max: 3, step: 0.05, label: '落叶下落速度' }), leafSway: FOLDER('花草锐阴影', { min: 0, max: 3, step: 0.05, label: '落叶摆动' }), leafColor: FOLDER('花草锐阴影', { color: true, label: '叶色（混合 > 0）' }), leafMix: FOLDER('花草锐阴影', { min: 0, max: 1, step: 0.05, label: '叶色：群系 ↔ 自定' }), leafAutumn: FOLDER('花草锐阴影', { min: 0, max: 1, step: 0.01, label: '转色叶占比' }), leafAutumnColor: FOLDER('花草锐阴影', { color: true, label: '转色叶颜色' }), bubbleHi: FOLDER('花草锐阴影', { min: 0, max: 1, step: 0.05, label: '气泡高光' }), bubbleAlpha: FOLDER('花草锐阴影', { min: 0, max: 1, step: 0.05, label: '气泡不透明度' }), bubbleRim: FOLDER('花草锐阴影', { min: 0, max: 1, step: 0.05, label: '气泡边缘亮环' }), fireFx: FOLDER('雾', { min: 0, max: 2, step: 0.05, label: '火把 / 岩浆粒子' }),
     firefly: FOLDER('雾', { label: '用户光效（firefly）' }),
     flickAmp: FOLDER('雾', { min: 0, max: 3, step: 0.05, label: '火光闪烁强度' }), flickSpeed: FOLDER('雾', { min: 0.2, max: 3, step: 0.05, label: '火光闪烁速度' }),
     mist: FOLDER('雾', { min: 0, max: 1, label: '晨昏薄雾' }), fog: FOLDER('雾', { min: 0, max: 0.02, label: '距离雾密度' }),
     volumetric: FOLDER('云隙光', { label: '体积光（云隙光 / 雾中光束）' }),
-    sharpDist: FOLDER('花草锐阴影', { min: 0, max: 128 }), sharpSoft: FOLDER('花草锐阴影', { min: 0, max: 3 }), sharpFly: FOLDER('花草锐阴影', { min: 0, max: 128 }), blobShadow: FOLDER('实体', { min: 0, max: 0.8 }), entScene: FOLDER('实体'), entExposure: FOLDER('实体', { min: 0.3, max: 3, step: 0.05 }),
+    sharpDist: FOLDER('花草锐阴影', { min: 0, max: 128 }), sharpSoft: FOLDER('花草锐阴影', { min: 0, max: 3 }), sharpFly: FOLDER('花草锐阴影', { min: 0, max: 128 }), pgKeep: FOLDER('渲染', { label: '资源包保留 goodPG 草顶材质' }), leafPbr: FOLDER('树冠', { min: 0, max: 1.5, step: 0.05, label: '总强度（0 = 旧平面漫反射）' }), leafNormal: FOLDER('树冠', { min: 0, max: 2, step: 0.05, label: '法线强度' }), leafRough: FOLDER('树冠', { min: 0.05, max: 1, step: 0.01, label: '粗糙度下限' }), leafSpec: FOLDER('树冠', { min: 0, max: 4, step: 0.05, label: '太阳高光' }), leafEnv: FOLDER('树冠', { min: 0, max: 4, step: 0.05, label: '环境反射' }), leafTrans: FOLDER('树冠', { min: 0, max: 3, step: 0.05, label: '逆光透射' }), leafRim: FOLDER('树冠', { min: 0, max: 3, step: 0.05, label: 'Fresnel 轮廓光' }), leafPom: FOLDER('树冠', { min: 0, max: 3, step: 0.05, label: 'POM 厚度' }), leafGlow: FOLDER('树冠', { min: 0, max: 2, step: 0.05, label: '俯视受光' }), blobShadow: FOLDER('实体', { min: 0, max: 0.8 }), entScene: FOLDER('实体'), entExposure: FOLDER('实体', { min: 0.3, max: 3, step: 0.05 }),
     uwWindow: FOLDER('水下', { min: 0, max: 16, label: '窗口起始深度（格）' }), uwCaustic: FOLDER('水下', { min: 0, max: 4, label: '焦散' }), uwShafts: FOLDER('水下', { min: 0, max: 4, label: '光束' }), uwDensity: FOLDER('水下', { min: 0.2, max: 4, label: '水体浓度' }),
     fallOpacity: FOLDER('水下', { min: 0, max: 1, step: 0.05, label: '瀑布不透明度' }), fallDrops: FOLDER('水下', { min: 0, max: 2, step: 0.05, label: '瀑布粒子密度' }),
     foamThick: FOLDER('水下', { min: 0, max: 1.5, step: 0.05, label: '岸边泡沫厚度（格）' }), foamColor: FOLDER('水下', { color: true, label: '岸边泡沫颜色' }),
@@ -234,6 +240,17 @@ export function createRenderer(ctx) {
   });
   const fire = createFireFx(THREE, ctx.scene, { source: SRC, bt: BT, camera, getF: () => (nFrames ? Fpv : null), opacity: () => P.fireFx });   // 火把 / 火焰 / 岩浆粒子（rgl/fire.js）
   const firefly = createFirefly(THREE, ctx.scene, { camera, enabled: () => P.firefly });   // 用户光效（rgl/firefly.js）
+  const entityLight = createEntityLight(() => (nFrames ? Fpv : null), { scene: () => P.entScene, gain: () => P.entExposure });
+  const WATER = ctx.blockTable && ctx.blockTable.waterId, HH = SRC.height;
+  const flutter = createFlutter(THREE, ctx.scene, { camera, renderer, env: {   // 体积粒子 API（rgl/flutter.js）：世界适配器，整格坐标
+    solid: (x, y, z) => !!ctx.SOLID[ctx.getBlock(x, y, z)],
+    water: (x, y, z) => WATER != null && ctx.getBlock(x, y, z) === WATER,
+    light: (x, y, z, out) => {   // 该格的天空光 / 方块光 → entityLight（entScene 两种模式各自正确）；区块没建 = 满天光
+      const ch = SRC.getChunk(x >> 4, z >> 4); let sky = 15, blk = 0;
+      if (ch && y >= 0 && y < HH) { const k = ((x & 15) * 16 + (z & 15)) * HH + y; sky = ch.sky[k]; blk = ch.blk[k]; } else if (y < 0) sky = 0;
+      return entityLight(sky, blk, out);
+    },
+  } });
   function drawThree(F) {
     hideSky();
     if (P.entScene) { renderer.resetState(); return; }                            // 方案 A：实体已经在 scene 里（R.onEntities）
@@ -247,6 +264,7 @@ export function createRenderer(ctx) {
     renderer.render(ctx.scene, camera);                                          // autoClear 已关：叠在 final 的画面上，按深度被地形遮挡
   }
   function render() {
+    if (P.pgKeep !== PGS.keep) { PGS.keep = P.pgKeep; resetGLState(gl); loadTextures(); if (T().histValid !== undefined) T().histValid = false; }   // 面板开关：重传贴图 + 重算 PBR
     const t0 = performance.now(); const dt = lastT ? Math.min(250, t0 - lastT) : 16.7; lastT = t0;
     renderer.getDrawingBufferSize(v2); W = v2.x | 0; H = v2.y | 0;
     camera.updateMatrixWorld();
@@ -288,6 +306,7 @@ export function createRenderer(ctx) {
     }
     fire.update(dt, F);
     firefly.update(dt);
+    flutter.update(dt);
     ripples.update(dt, camera.position, P.ripple, P.rippleDelay); if (!ripples.awake()) F.ripple = 0;                              // 在 renderFancy 之前：sim 是离屏小 pass，之后 restore 状态
     if (blobs) blobs.update();                                                  // 要在 renderFancy 之前：方案 A 的实体在 renderFancy 里（onEntities）画
     try { R.renderFancy(F); drawThree(F); }
@@ -306,6 +325,7 @@ export function createRenderer(ctx) {
     disposeChunk: c => { if (SRC.disposed) SRC.disposed(c); c.mesh = c.waterMesh = null; },
     reloadTextures() { resetGLState(gl); loadTextures(); if (T().histValid !== undefined) T().histValid = false; },   // 资源包换了：重传贴图 + 重算 PBR（three 刚用过上下文，先还原 UNPACK 状态）
     ripples,              // 水面波纹（rgl/ripple.js）：poke / step 给 bench 用
+    flutter,              // 体积粒子：往 xyz~xyz 区间放落叶 / 气泡 / 微粒 / 雪片（rgl/flutter.js；flutter.add({ preset, region, emit, rate, ... })）
     firefly,              // 用户光效：锚定 Mob / 实体 / 世界点的像素风精灵（rgl/firefly.js；firefly.add({ shader, anchor, offset, ... })）
     fire,                 // 火把 / 火焰 / 岩浆粒子（rgl/fire.js；stats() 给发射点计数）
     update: dt => {},     // 网格任务在 render() 里按相机位置提交
@@ -322,7 +342,7 @@ export function createRenderer(ctx) {
     readOut: () => { const px = new Uint8Array(W * H * 4); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px); return { w: W, h: H, px }; },
     get programs() { const o = { ...R.src }; for (const [k, p] of Object.entries(R.passes)) { const x = p.source(); o[k] = { vs: x.vs, fs: x.fs, defines: {} }; } return o; },
     pending: () => world.pending(),
-    entityLight: createEntityLight(() => (nFrames ? Fpv : null), { scene: () => P.entScene, gain: () => P.entExposure }),                 // 宿主 lightColor() 的钩子：实体在 final 之后画，光照走 CPU（entlight.js）
+    entityLight,                                                                                                                       // 宿主 lightColor() 的钩子：实体在 final 之后画，光照走 CPU（entlight.js）
     source: SRC, blockTable: BT, env: ENV, R, world,
   };
 }

@@ -28,8 +28,16 @@ precision highp float; out vec4 o; void main(){ o = vec4(\${C.it.k}); float x = 
   const Q = kit.Pass({ tag: 'bad2' })\`#version 300 es
 precision highp float; out vec4 o; uniform float stray; void main(){ o = vec4(stray); }\`;
   try { Q.use(); out.err3 = null; } catch (e) { out.err3 = String(e.message).slice(0, 50); }
+  // 整数 / 矩阵 uniform（meta.glsl 或 Int32Array / Uint32Array 推断）：值经 RGBA8 读回
+  const meta = (f, glsl) => Object.assign(f, { meta: { glsl } });   // uniform 名取自箭头函数源码，所以每个值各写一个箭头
+  const ivA = new Int32Array([10, 20]), uvA = new Uint32Array([0, 0, 30]);
+  const uiV = 50, iv2 = [1, 2], m3 = new Float32Array([1, 0, 0, 0, 40, 0, 0, 0, 1]), m2 = new Float32Array([5, 0, 0, 7]);
+  const I = kit.Pass({ tag: 'int' })\`#version 300 es
+precision highp float; out vec4 o;
+void main() { o = vec4(float(\${() => ivA}.x), float(\${() => ivA}.y), float(\${() => uvA}.z), \${meta(() => m3, 'mat3')}[1][1] + float(\${meta(() => uiV, 'uint')}) + \${meta(() => m2, 'mat2')}[1][1] + float(\${meta(() => iv2, 'ivec2')}.y)) / 255.0; }\`;
+  I.use(); gl.drawArrays(gl.TRIANGLES, 0, 3); out.int = px();
   return out;
 })()`).catch(e => ({ err: String(e) }));
 console.log(JSON.stringify(r)); b.close();
-const ok = r.a && r.a[0] === 128 && r.a[3] === 255 && r.b[0] === 255 && r.c[3] === 0 && r.v1 === 2 && r.d[3] === 255 && r.v2 === 2 && /类型变了/.test(r.err1 || '') && /裸值/.test(r.err2 || '');
+const ok = r.a && r.a[0] === 128 && r.a[3] === 255 && r.b[0] === 255 && r.c[3] === 0 && r.v1 === 2 && r.d[3] === 255 && r.v2 === 2 && /类型变了/.test(r.err1 || '') && /裸值/.test(r.err2 || '') && JSON.stringify(r.int) === '[10,20,30,99]';
 console.log(ok ? 'pass-gl OK' : 'pass-gl FAIL'); process.exit(ok ? 0 : 1);

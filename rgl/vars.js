@@ -12,10 +12,13 @@ Object.defineProperty(RefProto, 'glslType', { get() { return glslTypeOf(this.own
 
 export function glslTypeOf(v, meta = {}) {
   if (v && v.glslType) return v.glslType;                                  // 纹理：构造函数打在对象上
-  if (typeof v === 'number') return meta.glsl === 'int' ? 'int' : 'float';
+  if (meta.glsl) return meta.glsl;                                         // 显式声明优先：uint / ivecN / uvecN / mat2 / mat3 等推不出的类型（上传见 pass.js upload）
+  if (typeof v === 'number') return 'float';
   if (typeof v === 'boolean') return 'bool';
   if (Array.isArray(v) || ArrayBuffer.isView(v)) {
     if (v.length === 16 && v instanceof Float32Array) return 'mat4';
+    if (v.length >= 2 && v.length <= 4 && v instanceof Int32Array) return 'ivec' + v.length;
+    if (v.length >= 2 && v.length <= 4 && v instanceof Uint32Array) return 'uvec' + v.length;
     if (v.length >= 2 && v.length <= 4) return 'vec' + v.length;
   }
   throw new Error(`vars: 推不出 GLSL 类型：${String(v)}`);

@@ -200,7 +200,7 @@ void main(){
   float rainW = clamp(${X.wet} * ${X.rainPom}, 0.0, 1.0);   // 雨天的立体浮雕：wet × rainPom
   // 平滑 POM（双线性高度 + 自适应步数 + 二分）：pomSmooth 或下雨时启用，深度不变（雨天 ×1.5）；否则走下面原来的 14 步（逐 texel 平顶，关 TAA 时近看有横向纸片条纹）
   bool pomS = ${X.pomSmooth} > 0.5 || rainW > 0.01;
-  float pomD = sp.a * 0.25 * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d)) * mix(1.0, 1.5, rainW);
+  float pomD = max(sp.a * 0.25, foliage ? 0.05 * ${Fps.leafPom} * ${Fps.leafPbr} : 0.0) * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d)) * mix(1.0, 1.5, rainW);
   vec3 Vt = vec3(dot(V, Tg), dot(V, Bg), dot(V, N0));
   float hgt = 1.0; float pomSh = 1.0;
   // 掠射角限幅：原来 Vt.xy / max(Vt.z, 0.25) 最多放大到 4×pomD（cobblestone 0.12 → ~8 texel），14 步走不密 → 顶面横条 / 侧面竖条的阶梯拉丝。
@@ -286,15 +286,16 @@ void main(){
   vec4 nm = textureGrad(${X.nrm}, uv, gdx, gdy);
   if (pomD <= 0.002) hgt = nm.a;
   // ---------------- material decode
-  vec2 nxy = (nm.xy * 2.0 - 1.0) * pbr;
+  vec2 nxy = (nm.xy * 2.0 - 1.0) * pbr * (foliage ? ${Fps.leafNormal} : 1.0);
   vec3 nts = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));
   vec3 N = normalize(Tg * nts.x + Bg * nts.y + N0 * nts.z);
   N = normalize(mix(N, N0, smoothstep(32.0, 80.0, d)));
   if (dot(N, V) < 0.0 && !foliage) N = normalize(N - V * dot(N, V) * 1.01);
+  if (foliage && ${Fps.leafPbr} > 0.0 && dot(N, V) < 0.0) N = -N;   // pg: 叶片双面，逐纹素法线翻到朝向视线的一面，漫反射 / 高光 / 透射都按可见面算
   float smooth_ = mix(0.2, sp.r, pbr);
   float f0b = sp.g * 255.0; bool metal = f0b > 229.5 && pbr > 0.5;
   float sb = sp.b * 255.0; float por = sb < 64.5 ? sb / 64.0 : 0.0; float sss = sb > 64.5 ? (sb - 65.0) / 190.0 : 0.0;
-  float cav = mix(1.0, nm.b, pbr);
+  float cav = mix(1.0, nm.b, pbr * (foliage ? 0.35 : 1.0));   // pg: 树冠采用基于物理的方向光照：叶片具有逐纹素法线和高粗糙度镜面项，高光随太阳方向实时变化；同时对树叶开启次表面散射/透射，逆光时叶片边缘呈现暖色透光；配合 POM 视差让叶块产生厚度与层次感，并以 Fresnel 轮廓光强化树冠边缘。
   float sky = v_light.x, blk = v_light.y, ao = v_light.z;
   { // 光照量化抖动：4 bit 光照插值后仍有 1/15 级台阶（暗区马赫带明显）；±半级 IGN，满格（户外天空光）处淡出，避免晴天地表出噪点
     float dn = (ign(gl_FragCoord.xy + 31.0) - 0.5) * (1.0 / 15.0) * ${Fps.lightDither};
@@ -312,6 +313,7 @@ void main(){
     vec3 Np = normalize(vec3((vnoise(rp + t) - 0.5) * 0.08 + rr.x, 1.0, (vnoise(rp.yx - t) - 0.5) * 0.08 + rr.y));
     N = normalize(mix(N, Np, puddle)); smooth_ = mix(smooth_, 0.98, puddle); cav = mix(cav, 1.0, puddle); }
   float rough = max(pow(1.0 - smooth_, 2.0), 0.02);
+  if (foliage) rough = mix(rough, max(rough, ${Fps.leafRough}), ${Fps.leafPbr});   // pg: 叶面高粗糙度：宽而柔的太阳高光，不出镜面亮点
   vec3 F0 = metal ? albedo : vec3(f0b > 229.5 ? 0.04 : sp.g);
   if (pbr < 0.5) F0 = vec3(0.02);
   vec3 diffAlb = metal ? vec3(0.0) : albedo;
@@ -319,7 +321,7 @@ void main(){
   float NdotL0 = dot(N0, ${X.lightDir});
   float NdotL = dot(N, ${X.lightDir});
   float diffG = foliage ? 0.55 + 0.45 * abs(NdotL0) : max(NdotL0, 0.0);
-  float diff = foliage ? 0.55 + 0.45 * abs(NdotL) : max(NdotL, 0.0) * clamp(NdotL0 * 8.0, 0.0, 1.0);
+  float diff = foliage ? mix(0.55 + 0.45 * abs(NdotL), 0.3 + 0.7 * clamp((NdotL + 0.35) / 1.35, 0.0, 1.0), ${Fps.leafPbr}) : max(NdotL, 0.0) * clamp(NdotL0 * 8.0, 0.0, 1.0);
   diff = mix(diff, clamp((NdotL + 0.5) / 1.5, 0.0, 1.0) * clamp(NdotL0 * 8.0 + 1.0, 0.0, 1.0), sss * 0.5 * float(!foliage));
   float sh = 0.0;
   float gate = smoothstep(0.35, 0.8, sky);
@@ -344,7 +346,7 @@ void main(){
   float dd = NoH * NoH * (a2 - 1.0) + 1.0; float D = a2 / (3.14159 * dd * dd);
   float k = rough * 0.5; float G = (NoL / (NoL * (1.0 - k) + k)) * (NoV / (NoV * (1.0 - k) + k));
   vec3 Fs = F0 + (1.0 - F0) * pow(1.0 - VoH, 5.0);
-  vec3 specD = min(vec3(D * G / (4.0 * NoV)) * Fs, vec3(60.0)) * clamp(NdotL0 * 8.0, 0.0, 1.0);
+  vec3 specD = min(vec3(D * G / (4.0 * NoV)) * Fs, vec3(60.0)) * (foliage ? 1.0 : clamp(NdotL0 * 8.0, 0.0, 1.0));
   vec3 lightI = ${X.lightCol} * shL;
   vec3 direct = lightI * diff * (1.0 - Fs * 0.5);
   if (under) {
@@ -374,6 +376,19 @@ void main(){
     float fw = pow(max(dot(-V, ${X.lightDir}), 0.0), 6.0);
     col += albedo * sqrt(max(albedo, 0.0)) * ${X.lightCol} * sh * fh * sssAmt * (0.1 + 0.65 * fw);
   }
+  if (foliage && diffG > 0.0) {   // pg: 俯视受光——从上往下看树冠，叶层被太阳穿透、整面发亮发黄绿，叶团之间的暗处被天光填软（goodPG study-gl §3：叶子好看不在贴图）
+    float topF = smoothstep(0.3, 1.0, N0.y) * (0.5 + 0.5 * smoothstep(0.0, 0.8, V.y));
+    col += albedo * sqrt(max(albedo, 0.0)) * vec3(1.0, 1.0, 0.62) * ${X.lightCol} * sh * fh * max(${X.lightDir}.y, 0.0) * topF * 0.4 * ${Fps.leafGlow};
+    col += albedo * ${Fps.ambCol} * sky * sky * topF * 0.3 * ${Fps.leafGlow};
+  }
+  if (foliage && ${Fps.leafPbr} > 0.0) {   // pg: 树冠 PBR——逆光透射（暖色，叶缘 / 低处更薄更透）+ Fresnel 轮廓光
+    float lp = ${Fps.leafPbr};
+    float back = smoothstep(0.15, -0.6, NdotL) * (0.35 + 0.65 * pow(max(dot(-V, ${X.lightDir}), 0.0), 3.0));
+    float thin = 0.45 + 0.55 * (1.0 - hgt);
+    col += albedo * vec3(1.0, 0.8, 0.32) * ${X.lightCol} * sh * fh * pomSh * back * thin * 0.9 * lp * ${Fps.leafTrans};
+    float rim = pow(1.0 - NoV, 3.0) * cav;
+    col += (${Fps.ambCol} * sky * sky * 0.3 + ${X.lightCol} * sh * fh * 0.22 * clamp(NdotL * 0.5 + 0.5, 0.0, 1.0)) * mix(vec3(1.0), albedo * 2.2, 0.5) * rim * lp * ${Fps.leafRim};
+  }
   // specular: sun/moon + sky reflection (split-sum approximation)
   // 雨天顶面黑点：法线贴图斜率可到 ~50°（pbr.js ns × 1.8），湿面 smooth ≈ 0.88 时坑壁像素的反射方向钻到几何面以下 → 落进 horizon 的暗色兜底（ambCol × 0.25）且掠射 Fresnel 很大；
   // SSR 那边同一条射线立刻撞上本平面，用邻近暗像素减掉天空 → 黑点。环境反射把 R 折回几何面上方，SSR 权重按原 R 低于平面的程度淡掉。
@@ -393,7 +408,7 @@ void main(){
   float ssrW = dot(eb, vec3(0.3, 0.59, 0.11)) * (1.0 - smoothstep(0.08, 0.22, rough)) * float(!under) * mix(1.0, smoothstep(0.0, 0.12, rN0), rFix);
   o2 = vec4(octEnc(N), rough, ssrW);
   envS += ${Fps.torchCol} * b * b * 0.08 * envBRDF(F0, sqrt(rough), NoV);
-  col += (lightI * specD + envS) * mix(0.5, 1.0, pbr);
+  col += (lightI * specD * (foliage ? ${Fps.leafSpec} : 1.0) + envS * (foliage ? ${Fps.leafEnv} : 1.0)) * mix(0.5, 1.0, pbr);
   // 岸壁水线（v2/gl shade.js:227–248）：紧邻水面格的侧面上，水线随涌浪升降（shoreH 在 d = 0 处），线下盖半透明水色，上方留湿痕。邻格是否为「最上面一格水」读岸线场（water/surfacefield.js）
   if (!under && abs(N0.y) < 0.5 && ${Fps.foamWidth} > 0.0 && ${Fps.shoreAmp} > 0.0 && length(v_rel) < 96.0) {
     int wy = int(floor(v_world.y - 0.001));

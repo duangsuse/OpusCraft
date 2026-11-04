@@ -10,6 +10,9 @@ ao.strength.set(0.3); assert.equal(c.ao.strength, 0.3); assert.equal(ao.strength
 assert.equal(ao.strength.owner, c.ao); assert.equal(ao.strength.key, 'strength');
 assert.equal(c.it.exposure.glslType, 'float'); assert.equal(c.it.pbr.glslType, 'bool'); assert.equal(c.it.sun.glslType, 'vec3');
 assert.equal(glslTypeOf(new Float32Array(16)), 'mat4');
+assert.equal(glslTypeOf(new Int32Array(2)), 'ivec2'); assert.equal(glslTypeOf(new Uint32Array(3)), 'uvec3');   // 整数数组推 ivec / uvec
+assert.equal(glslTypeOf(3, { glsl: 'uint' }), 'uint'); assert.equal(glslTypeOf(3, { glsl: 'int' }), 'int'); assert.equal(glslTypeOf(3), 'float');
+assert.equal(glslTypeOf([1, 2], { glsl: 'ivec2' }), 'ivec2'); assert.equal(glslTypeOf(new Float32Array(9), { glsl: 'mat3' }), 'mat3'); assert.equal(glslTypeOf(new Float32Array(4), { glsl: 'mat2' }), 'mat2');
 assert.throws(() => c.ao.it.strenght, /没有参数/);                  // 拼错抛错
 assert.throws(() => c.it.ao, /没有参数/);                           // 表不是参数
 assert.ok(!Object.keys(c).includes('it'));

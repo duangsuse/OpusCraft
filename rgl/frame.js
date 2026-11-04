@@ -129,7 +129,8 @@ export function createFrameBuilder() {
     F.waterClarity = dv('waterClarity', 0.92); F.waveStrength = dv('waveStrength', 0.05); F.waveNoise = dv('waveNoise', 0.03); F.waveScale = dv('waveScale', 1);
     F.waterTexWave = dv('waterTexWave', 0.06); F.waterTexSpeed = dv('waterTexSpeed', 1.2); F.waterTexNormal = dv('waterTexNormal', 0.15);
     F.waterDeepSat = dv('waterDeepSat', 1); F.waterD2 = dv('waterD2', 11);
-    F.caveHaze = S.caveHaze != null ? S.caveHaze : 1; F.volCloud = S.volCloud != null ? S.volCloud : 1; F.lightDither = S.lightDither != null ? S.lightDither : 1;
+    F.caveHaze = S.caveHaze != null ? S.caveHaze : 1; F.volCloud = S.volCloud != null ? S.volCloud : 1; F.lightDither = S.lightDither != null ? S.lightDither : 1; F.leafGlow = S.leafGlow != null ? S.leafGlow : 1; F.leafPbr = S.leafPbr != null ? S.leafPbr : 1;
+    F.leafNormal = dv('leafNormal', 1); F.leafRough = dv('leafRough', 0.55); F.leafSpec = dv('leafSpec', 1); F.leafEnv = dv('leafEnv', 1); F.leafTrans = dv('leafTrans', 1); F.leafRim = dv('leafRim', 1); F.leafPom = dv('leafPom', 1);
     const la = F.ambCol[0] * 0.3 + F.ambCol[1] * 0.55 + F.ambCol[2] * 0.15, ls = F.lightCol[0] * 0.3 + F.lightCol[1] * 0.55 + F.lightCol[2] * 0.15;
     const outdoor = Math.max(0.62, Math.min(1.75, 0.8 / Math.pow(la * 1.3 + ls * 0.22 + 0.004, 0.42)));
     const target = outdoor * (1 - st.caveFactor) + 2.6 * st.caveFactor;

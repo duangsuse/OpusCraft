@@ -40,7 +40,7 @@ export class Renderer {
     gl.bindVertexArray(this.ovVAO); gl.bindBuffer(gl.ARRAY_BUFFER, this.ovBuf); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
     gl.bindVertexArray(null);
     this.shadowRes = 2048; this.sharpRes = 2048;   // remix this.targets = null; this.w = 0; this.h = 0;
-    this.stats = { sections: 0, drawn: 0, verts: 0 };
+    this.stats = { sections: 0, drawn: 0 };   // remix: 去掉从未更新的 verts
   }
   mk(name, vs, fs) {
     const gl = this.gl;
@@ -68,11 +68,12 @@ export class Renderer {
     const levels = 5; gl.texStorage3D(gl.TEXTURE_2D_ARRAY, levels, gl.RGBA8, 16, 16, n);
     gl.texSubImage3D(gl.TEXTURE_2D_ARRAY, 0, 0, 0, 0, 16, 16, n, gl.RGBA, gl.UNSIGNED_BYTE, tx.data);
     // manual mipmaps (coverage-preserving for cutout layers)
+    const cutFlags = []; for (let l = 0; l < n; l++) cutFlags.push(tx.isCutout(SH.TEX_NAMES[l]));   // remix: 缓存
     let prev = tx.data, size = 16;
     for (let lv = 1; lv < levels; lv++) {
       const ns = size >> 1; const out = new Uint8Array(ns * ns * 4 * n);
       for (let l = 0; l < n; l++) {
-        const cut = tx.isCutout(SH.TEX_NAMES[l]);
+        const cut = cutFlags[l];   // remix
         for (let y = 0; y < ns; y++) for (let x = 0; x < ns; x++) {
           let r = 0, g = 0, b = 0, a = 0, wsum = 0, cov = 0;
           for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
@@ -187,11 +188,11 @@ export class Renderer {
   // F: frame params assembled by game
   drawSections(F, which, prog, offsetFrom, maxDist) {
     const gl = this.gl; const cam = offsetFrom; let drawn = 0;
-    const list = which === 'trans' ? F.visible.slice().reverse() : F.visible;
-    for (const e of list) {
+    const list = F.visible, nl = list.length, rev = which === 'trans'; const P = this.passes[prog];   // remix: 倒序用索引、P 查一次
+    for (let k = 0; k < nl; k++) {
+      const e = list[rev ? nl - 1 - k : k];
       const m = e.sec[which]; if (!m || !m.n) continue;
       if (maxDist && e.dist > maxDist) continue;
-      const P = this.passes[prog];   // remix: R5（已转的 program 走 setDraw；vanilla 还没转）
       if (P) this.setDraw(P, e.ox - cam[0], e.oy - cam[1], e.oz - cam[2], e.ox, e.oy, e.oz);
       else { this.u3f('u_offset', e.ox - cam[0], e.oy - cam[1], e.oz - cam[2]); this.u3f('u_origin', e.ox, e.oy, e.oz); }
       gl.bindVertexArray(m.vao); gl.drawElements(gl.TRIANGLES, (m.n >> 2) * 6, gl.UNSIGNED_INT, 0); drawn++;
@@ -210,14 +211,14 @@ export class Renderer {
         const ox = c.cx * 16, oy = s * 16, oz = c.cz * 16;
         const minx = ox - cp[0], miny = oy - cp[1], minz = oz - cp[2];
         const cx = minx + 8, cy = miny + 8, cz = minz + 8;
-        const dist = Math.hypot(cx, cy, cz);
-        let inside = true, insideShadow = true;
+        const dist = Math.sqrt(cx * cx + cy * cy + cz * cz);   // remix: 比 Math.hypot 快
+        let inside = true;
         for (let p = 0; p < 6; p++) { const P = planes[p]; if (P[0] * cx + P[1] * cy + P[2] * cz + P[3] < -13.9) { inside = false; break; } }
-        vis.push({ sec, ox, oy, oz, dist, inside });
+        const ent = sec.ve || (sec.ve = { sec, ox, oy, oz, dist: 0, inside: false });   // remix: 复用
+        ent.dist = dist; ent.inside = inside; vis.push(ent);
       }
     }
-    vis.sort((a, b) => a.dist - b.dist);
-    F.all = vis; F.visible = vis.filter(v => v.inside);
+    F.all = vis; F.visible = vis.filter(v => v.inside).sort((a, b) => a.dist - b.dist);   // remix: 只排视锥内的（F.all 无序）
     this.stats.sections = vis.length; this.stats.drawn = F.visible.length;
   }
   renderVanilla(F) {
@@ -338,13 +339,13 @@ export class Renderer {
     let src = T.compC, sw = F.w, sh = F.h;
     for (let i = 0; i < T.bloom.length; i++) {   // remix: R5（bl = 当前层的 src / texel / first，pass 的 uniform 读它）
       const b = T.bloom[i]; gl.bindFramebuffer(gl.FRAMEBUFFER, b.f); gl.viewport(0, 0, b.w, b.h);
-      this.bl = { src, w: sw, h: sh, first: i === 0 ? 1 : 0 }; this.passes.bdown.use();
+      const bl = this.bl || (this.bl = { src: null, w: 0, h: 0, first: 0 }); bl.src = src; bl.w = sw; bl.h = sh; bl.first = i === 0 ? 1 : 0; this.passes.bdown.use();   // 复用同一对象
       gl.drawArrays(gl.TRIANGLES, 0, 3); src = b.t; sw = b.w; sh = b.h;
     }
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);   // remix: R5
     for (let i = T.bloom.length - 1; i > 0; i--) {
       const s = T.bloom[i], d = T.bloom[i - 1]; gl.bindFramebuffer(gl.FRAMEBUFFER, d.f); gl.viewport(0, 0, d.w, d.h);
-      this.bl = { src: s.t, w: s.w, h: s.h, first: 0 }; this.passes.bup.use();   // remix: R5
+      const bl = this.bl; bl.src = s.t; bl.w = s.w; bl.h = s.h; bl.first = 0; this.passes.bup.use();   // remix: R5（bl 已由 bdown 循环建好）
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
     gl.disable(gl.BLEND);
@@ -371,7 +372,7 @@ this.passes.final.use();   // remix: R5（rgl/post.js）
   drawOverlays(F) {
     const gl = this.gl;
     if (F.crack) {
-      const b = F.crack; const e = 0.004; const L = b.layer; const verts = [];
+      const b = F.crack; const e = 0.004; const L = b.layer; const verts = this.ovTmp || (this.ovTmp = []); verts.length = 0;   // remix: 复用
       const x0 = b.box[0] - e, y0 = b.box[1] - e, z0 = b.box[2] - e, x1 = b.box[3] + e, y1 = b.box[4] + e, z1 = b.box[5] + e;
       const q = (a, bb, c, d) => { const uv = [[0, 1], [1, 1], [1, 0], [0, 0]]; const P = [a, bb, c, d]; for (const k of [0, 1, 2, 0, 2, 3]) verts.push(P[k][0], P[k][1], P[k][2], uv[k][0], uv[k][1], L); };
       q([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]); q([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]);
@@ -379,7 +380,7 @@ this.passes.final.use();   // remix: R5（rgl/post.js）
       q([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]); q([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]);
       this.use('overlay'); this.m4('u_viewProj', F.viewProj);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.tex); this.u1i('u_tex', 0);
-      gl.bindVertexArray(this.ovVAO); gl.bindBuffer(gl.ARRAY_BUFFER, this.ovBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STREAM_DRAW);
+      gl.bindVertexArray(this.ovVAO); gl.bindBuffer(gl.ARRAY_BUFFER, this.ovBuf); const ovF = this.ovF || (this.ovF = new Float32Array(216)); ovF.set(verts); gl.bufferData(gl.ARRAY_BUFFER, ovF.subarray(0, verts.length), gl.STREAM_DRAW);   // remix: 6 面 × 6 顶点 × 6 float = 216
       gl.enable(gl.BLEND); gl.blendFunc(gl.DST_COLOR, gl.SRC_COLOR); gl.depthMask(false); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4); gl.disable(gl.CULL_FACE);
       gl.drawArrays(gl.TRIANGLES, 0, verts.length / 6);
       gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.BLEND); gl.depthMask(true); gl.enable(gl.CULL_FACE);
@@ -391,7 +392,7 @@ this.passes.final.use();   // remix: R5（rgl/post.js）
         x0, y1, z0, x1, y1, z0, x1, y1, z0, x1, y1, z1, x1, y1, z1, x0, y1, z1, x0, y1, z1, x0, y1, z0,
         x0, y0, z0, x0, y1, z0, x1, y0, z0, x1, y1, z0, x1, y0, z1, x1, y1, z1, x0, y0, z1, x0, y1, z1];
       this.use('lines'); this.m4('u_viewProj', F.viewProj); this.u4f('u_color', 0, 0, 0, F.fancy ? 0.55 : 0.45);
-      gl.bindVertexArray(this.linesVAO); gl.bindBuffer(gl.ARRAY_BUFFER, this.linesBuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(L), gl.STREAM_DRAW);
+      gl.bindVertexArray(this.linesVAO); gl.bindBuffer(gl.ARRAY_BUFFER, this.linesBuf); const lnF = this.lnF || (this.lnF = new Float32Array(72)); lnF.set(L); gl.bufferData(gl.ARRAY_BUFFER, lnF, gl.STREAM_DRAW);   // remix: 12 条线 × 2 点 × 3 = 72
       gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       gl.drawArrays(gl.LINES, 0, 24); gl.disable(gl.BLEND);
     }

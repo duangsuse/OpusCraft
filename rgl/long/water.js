@@ -303,5 +303,10 @@ void main(){
       col = mix(behind0 * mix(vec3(1.0), wcol * 1.6, 0.25), fc, min(a, 0.95));
     }
   }
+  if ((v_flags & 3) == 3) {   // pg: 冰（mat 3，原先按水画 = 纯透明略蓝）：水路径的折射 / 反射 / 高光照用，上面叠贴图的蓝白半透底（alpha ≥ 0.62）+ 缓慢流动的光泽（世界坐标上两组交叉慢移的亮带）
+    vec4 ia = textureGrad(${X.atlas}, v_uv, dFdx(v_uv.xy), dFdy(v_uv.xy));
+    float fl = sin(dot(v_world, vec3(0.7, 0.35, 0.6)) * 2.2 + t * 0.5) * sin(dot(v_world, vec3(-0.5, 0.4, 0.75)) * 3.1 - t * 0.35);
+    col = mix(col, pow(ia.rgb, vec3(2.2)) * (scatterLight * 2.0 + 0.02), max(ia.a, 0.62) * 0.55) + scatterLight * smoothstep(0.5, 1.0, fl) * (0.25 + 0.75 * pow(1.0 - NdotV, 2.0)) * 0.2;
+  }
   o = vec4(col, 1.0);
 }`;

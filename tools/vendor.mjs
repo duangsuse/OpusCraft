@@ -146,6 +146,22 @@ const PATCH_FILES = {
     ['d.wx, d.wy, d.wz, this.OB, this.TB);', 'd.wx, d.wy, d.wz, this.OB, this.TB, this.PB, d.cls);   // remix'],
   ],
   'renderer.js': [
+    // remix: 性能：cull 的条目对象挂在 section 上复用（ox/oy/oz 对同一 section 恒定），每帧不再 new 上万个对象
+    ['        vis.push({ sec, ox, oy, oz, dist, inside });', '        const ent = sec.ve || (sec.ve = { sec, ox, oy, oz, dist: 0, inside: false });   // remix: 复用\n        ent.dist = dist; ent.inside = inside; vis.push(ent);'],
+    // remix: 性能：uploadTextures 里 isCutout 每层只问一次（原来在 level × layer 里重复）
+    ['    let prev = tx.data, size = 16;', '    const cutFlags = []; for (let l = 0; l < n; l++) cutFlags.push(tx.isCutout(SH.TEX_NAMES[l]));   // remix: 缓存\n    let prev = tx.data, size = 16;'],
+    ['        const cut = tx.isCutout(SH.TEX_NAMES[l]);\n        for (let y = 0; y < ns; y++)', '        const cut = cutFlags[l];   // remix\n        for (let y = 0; y < ns; y++)'],
+    // remix: stats.verts 从未更新，删掉
+    ['this.stats = { sections: 0, drawn: 0, verts: 0 };', 'this.stats = { sections: 0, drawn: 0 };   // remix: 去掉从未更新的 verts'],
+    // remix: 性能：选框 / 裂纹每帧复用数组与 Float32Array
+    ['const L = b.layer; const verts = [];', 'const L = b.layer; const verts = this.ovTmp || (this.ovTmp = []); verts.length = 0;   // remix: 复用'],
+    ['gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.STREAM_DRAW);', 'const ovF = this.ovF || (this.ovF = new Float32Array(216)); ovF.set(verts); gl.bufferData(gl.ARRAY_BUFFER, ovF.subarray(0, verts.length), gl.STREAM_DRAW);   // remix: 6 面 × 6 顶点 × 6 float = 216'],
+    ['gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(L), gl.STREAM_DRAW);', 'const lnF = this.lnF || (this.lnF = new Float32Array(72)); lnF.set(L); gl.bufferData(gl.ARRAY_BUFFER, lnF, gl.STREAM_DRAW);   // remix: 12 条线 × 2 点 × 3 = 72'],
+    // remix: 性能：cull 只排序视锥内的 section（F.all 只给阴影 / 出现动画，顺序无关）；hypot → sqrt；删死变量 insideShadow
+    ['const dist = Math.hypot(cx, cy, cz);\n        let inside = true, insideShadow = true;', 'const dist = Math.sqrt(cx * cx + cy * cy + cz * cz);   // remix: 比 Math.hypot 快\n        let inside = true;'],
+    ['    vis.sort((a, b) => a.dist - b.dist);\n    F.all = vis; F.visible = vis.filter(v => v.inside);', '    F.all = vis; F.visible = vis.filter(v => v.inside).sort((a, b) => a.dist - b.dist);   // remix: 只排视锥内的（F.all 无序）'],
+    // remix: 性能：半透明倒序索引遍历，不再 slice().reverse()；P 提到循环外
+    ["    const list = which === 'trans' ? F.visible.slice().reverse() : F.visible;\n    for (const e of list) {", "    const list = F.visible, nl = list.length, rev = which === 'trans'; const P = this.passes[prog];   // remix: 倒序用索引、P 查一次\n    for (let k = 0; k < nl; k++) {\n      const e = list[rev ? nl - 1 - k : k];"],
     ["this.drawEntities(F, 'fancy');\n    // copy color+depth", "this.drawEntities(F, 'fancy');\n    if (this.onEntities) this.onEntities(F);   // remix: A 方案：宿主（three）的实体、粒子、选框合并进 scene（rgl/index.js）\n    // copy color+depth"],
     ["this.mk('fancy', GLSL.chunkVS, GLSL.fancyFS);", "/* remix: R5 fancy */"],
     ["this.mk('water', GLSL.chunkVS, GLSL.waterFS);", "/* remix: R5 water */"],
@@ -165,8 +181,7 @@ const PATCH_FILES = {
 `],
     [`      this.u3f('u_offset', e.ox - cam[0], e.oy - cam[1], e.oz - cam[2]);
       this.u3f('u_origin', e.ox, e.oy, e.oz);
-`, `      const P = this.passes[prog];   // remix: R5（已转的 program 走 setDraw；vanilla 还没转）
-      if (P) this.setDraw(P, e.ox - cam[0], e.oy - cam[1], e.oz - cam[2], e.ox, e.oy, e.oz);
+`, `      if (P) this.setDraw(P, e.ox - cam[0], e.oy - cam[1], e.oz - cam[2], e.ox, e.oy, e.oz);
       else { this.u3f('u_offset', e.ox - cam[0], e.oy - cam[1], e.oz - cam[2]); this.u3f('u_origin', e.ox, e.oy, e.oz); }
 `],
     [`      this.use('shadow'); this.m4('u_shadowMat', F.shadowMat); this.u1f('u_time', F.time); this.u1f('u_wind', F.waving ? 1 : 0);
@@ -213,11 +228,11 @@ const PATCH_FILES = {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, src); this.u1i('u_src', 0); this.u2f('u_texel', 1 / sw, 1 / sh); this.u1f('u_first', i === 0 ? 1 : 0);
 `, `for (let i = 0; i < T.bloom.length; i++) {   // remix: R5（bl = 当前层的 src / texel / first，pass 的 uniform 读它）
       const b = T.bloom[i]; gl.bindFramebuffer(gl.FRAMEBUFFER, b.f); gl.viewport(0, 0, b.w, b.h);
-      this.bl = { src, w: sw, h: sh, first: i === 0 ? 1 : 0 }; this.passes.bdown.use();
+      const bl = this.bl || (this.bl = { src: null, w: 0, h: 0, first: 0 }); bl.src = src; bl.w = sw; bl.h = sh; bl.first = i === 0 ? 1 : 0; this.passes.bdown.use();   // 复用同一对象
 `],
     [`this.use('bup'); gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);`, `gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);   // remix: R5`],
     [`      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, s.t); this.u1i('u_src', 0); this.u2f('u_texel', 1 / s.w, 1 / s.h);
-`, `      this.bl = { src: s.t, w: s.w, h: s.h, first: 0 }; this.passes.bup.use();   // remix: R5
+`, `      const bl = this.bl; bl.src = s.t; bl.w = s.w; bl.h = s.h; bl.first = 0; this.passes.bup.use();   // remix: R5（bl 已由 bdown 循环建好）
 `],
     [`    this.use('final');
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, T.compC); this.u1i('u_src', 0);
