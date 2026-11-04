@@ -4,7 +4,7 @@ import { launch } from './cdp.mjs';
 const [s0, s1, ss] = [+process.argv[2] || 1, +process.argv[3] || 6, process.argv[4] === 'ss']; const YAWS = (process.argv[5] || '').split(',').filter(Boolean).map(Number);
 const b = await launch({ tag: 'dfseeds', width: 960, height: 600, gpu: !ss });
 for (let seed = s0; seed <= s1; seed++) {
-  await b.send('Page.navigate', { url: `http://localhost:8765/VoxelCraft.html?r=v2&seed=${seed}` });
+  await b.send('Page.navigate', { url: `http://localhost:8765/VoxelCraft.html?r=v2/old&seed=${seed}` });
   const r = await b.js(`(async () => {
     const sleep = ms => new Promise(r => setTimeout(r, ms)), raf = () => new Promise(r => requestAnimationFrame(r));
     for (let i = 0; i < 300 && !(window.game && window.game.VR); i++) await sleep(50);

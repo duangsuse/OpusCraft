@@ -17,7 +17,7 @@ const js = async (e) => { const r = await send('Runtime.evaluate', { expression:
   if (r.result?.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text);
   return r.result.result.value; };
 await send('Runtime.enable');
-await send('Page.navigate', { url: 'http://localhost:8765/VoxelCraft.html?r=v2' });
+await send('Page.navigate', { url: 'http://localhost:8765/VoxelCraft.html?r=v2/gl' });
 await sleep(2500);
 const out = await js(`(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));

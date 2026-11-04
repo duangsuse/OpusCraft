@@ -1,4 +1,4 @@
-// v2.js — DDA 渲染器（移植自 old.htm 的后处理 DDA + Tweakpane 面板）
+// v2/old.js — DDA 渲染器（移植自 old.htm 的后处理 DDA + Tweakpane 面板）。已弃用：回归基准 / 对照组（?r=v2/old），在用的是 v2/gl
 // 接口与 v1.js 相同：createRenderer(ctx) → { name, buildChunk, disposeChunk, update, render, stats }
 // 进度：参数 P + 面板 DSL + Tweakpane；环形 3D 体素纹理 + 砖占用 + 列高；两级 DDA（不透明/镂空/花草/火把/水面）
 //       ddaRT（绘制缓冲 × scale）与 sceneRT 深度合成；v1 同款四角平滑光照 + AO；太阳阴影射线
@@ -2223,7 +2223,7 @@ export function createRenderer(ctx) {
   }
 
   return {
-    name: 'v2', P, P_DEFAULTS, panelSpec: PANEL, toN, fromN, paneReady, togglePanel, panelVisible,
+    name: 'v2/old', P, P_DEFAULTS, panelSpec: PANEL, toN, fromN, paneReady, togglePanel, panelVisible,
     get pane() { return pane; }, refreshPane: () => paneUI && paneUI.refresh(),
     resetLag: () => { lagW = null; },   // bench：机位切换后滞后相机直接对齐（否则树叶 LOD 渐变取决于帧时序）
     ring, reuploadAll, onChunkEvent, onBlockChanged, flushEdits, post, comp, D,

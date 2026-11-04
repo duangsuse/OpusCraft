@@ -3,7 +3,7 @@
 import { spawn } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
-const URL_ = process.argv[2] || 'http://localhost:8765/VoxelCraft.html?r=v2';
+const URL_ = process.argv[2] || 'http://localhost:8765/VoxelCraft.html?r=v2/gl';
 const port = 9500 + (process.pid % 200), prof = `/tmp/shstat-${port}`;
 rmSync(prof, { recursive: true, force: true });
 const proc = spawn('chromium', ['--headless=new', '--no-sandbox', `--remote-debugging-port=${port}`, '--window-size=1280,657', `--user-data-dir=${prof}`,

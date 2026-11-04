@@ -101,3 +101,15 @@ export function frame(env, host, out) {…}          // 渲染侧：宿主 Env/S
 - ADD 的贴图：优先用 LiqPG 的程序化绘制函数（`src/textures/bt_*.js`，没有资源版权问题）；资源包里有同名贴图时会自动覆盖。
 - ⚠ 新方块的 model 只能用宿主已有的（cube / cross / …）。kelp、vine、双格植物（上下两半）先用 cross 或 SUB，LiqPG 的形状等以后再说（README §4）。
 - 渲染侧的 id 表（宿主 id → goodGL id）另见 render.md §3。
+
+### 5.1 合批 ADD（2026-11-04 定）
+
+铜块（步骤 10）、PG 移植（步骤 4b / 5）要引入的**植被方块**、宿主 B 上 `SUBST` 代用品（矿 / 矿块 / 羊毛 15 色 / tnt / 南瓜等，render.md R6-b）三批方块，本来各走一遍「宿主追加 → 贴图 → goodGL `SH` 追加 → `glid` / `blockclass`」。现在合成**同一批 ADD 流程**，一次性做完，不分三次：
+1. 宿主 B：`BLOCKS` 追加行（id 保持 < 192，总数 ≈155）、程序化贴图（`bt_*.js`）。
+2. goodGL 供体补丁：`SH` 追加方块 + 贴图层（`// remix:`，登记到 `vendor/PATCHES.md`）。
+3. `rgl/host-b.js`：`glid()` 里去掉对应的 `SUBST` 行，改成直通。
+4. `rgl/blockclass.js`：**植被方块必须分类**（cross 类 = 花草 → 锐阴影图；树叶 → 软图；双格植物先按 cross 处理）。漏分类的后果是阴影走错图。
+5. 验证：`verify-host-b.mjs` 的「未映射方块」检查必须为 0；材质球 / 植被各出一张图交人看。
+
+触发时机：生成器线步骤 4（LiqPG 的 57 个名字）起；在此之前不为代用品单独补方块。
+

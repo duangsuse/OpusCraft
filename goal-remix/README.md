@@ -1,5 +1,7 @@
 # goal-remix —— 多供体合流：生成器 `?g=old|v1|v2`、goodGL 管线移植、调参工具链
 
+> **状态（2026-11-04）**：渲染线（步骤 8–9）宿主 A 上 R0–R5、R7 与水 9a–9c 完成，宿主 B 已接到 R6-b（`index.html?r=gl`）；**生成器线（步骤 0–7）、铜块（10）尚无代码**。渲染器命名：`v2/gl` 在用，`v2/old`（原 `v2.js`）弃用作回归基准，裸 `v2` 无别名；宿主 A 在面板与水 / 云移植完成后退役（先要在宿主 B 补 bench 机位与 `--ref` 基线）。待办：空闲 GPU 复测整帧墙钟（render.md §6）。宿主 B 已有最小机位基准 `tools/bench-b.mjs`，`scale / maxMP`（宿主侧）与存档往返已接 / 已测（11-04，render.md 末二节）。
+
 > 任务包。供体：`gen.js`（自有）、`goodGP/`、`goodLiqPG/`、`goodGL.html`。
 > 宿主：**生成器**落在宿主 B（`index.html` + `gls.js` + `gen.js`，three r170）；**渲染器 `?r=gl` 先接宿主 A**（`VoxelCraft.html`，所有东西先在 A 上试玩），再接宿主 B。
 > 分册：[layout.md](layout.md)（**数据布局不兼容总表** + 改高 256 + 转换层表结构）· [gen.md](gen.md)（生成器）· [tools.md](tools.md)（URL / 离线出图 / genscope / 探针）· [render.md](render.md)（goodGL 管线 + PBR，**主线**）· [bench.md](bench.md)（renderer-refactor 的测量工具与经验怎么带到 gl）· [water.md](water.md)（LiqPG 水面 / 水下）· [metal.md](metal.md)（铜块与金属材质）。
@@ -65,7 +67,7 @@
 | 7 | **探针面板**：准星处的方块 id/meta、光照、群系、气候字段、tint、生成态 id；强制天气；群系色叠加 | tools.md §4 | 2 | 探针字段与 `genview` 同坐标输出一致 → 人用它回答"这里为什么是这个群系" |
 | 8 | **`?r=gl`：goodGL 管线 + PBR（主线，先接宿主 A）**：R0 基线 → R0b bench 契约与工具泛化 → R1 vendor 抽取 → R2 空帧 → R3 区块 / PBR → R4 实体合成 → R5 Env→帧对象 → R6 接宿主 B + 特殊模型 → R7 设置、uniform 改宏、复测 | render.md、bench.md | 无（宿主 A 上随时可开工；R6 等 goalP4P5 步骤 2） | 宿主 A 5 机位与 `?r=v2/gl` 同机位对比；结构步骤 `--ref` 0 px；整帧墙钟写进 render.md §6 → 人看画面 |
 | 9 | **水面 / 水下换 LiqPG pass**，并修 LiqPG 的已知 bug（Snell 窗口、`refract` NaN、水雾色从未赋值） | water.md | 8 | water / uw 两个机位前后截图；水下仰视无黑圈 → 人看 |
-| 10 | **铜块 + 金属 / 宝石材质**：新增 8 个铜块 id、程序化贴图、PBR 材质行；修 weathered 铜的断层 | metal.md | 8；铜块 id 走步骤 4 的 ADD 流程 | 材质球截图（晴天 / 阴天 / 洞内）→ 人看 |
+| 10 | **铜块 + 金属 / 宝石材质**（与 PG 植被方块、B 的代用品**合批 ADD**，layout.md §5.1）：新增 8 个铜块 id、程序化贴图、PBR 材质行；修 weathered 铜的断层 | metal.md | 8；铜块 id 走步骤 4 的 ADD 流程 | 材质球截图（晴天 / 阴天 / 洞内）→ 人看 |
 
 先后关系：**8 是主线，宿主 A 上现在就能开工**，9、10 跟在 8 后面。生成器线：0 → 1 → 2 → 3 → {4, 5} → 6；7 在 2 之后随时可做。两条线只在 R6（宿主 B 出图）汇合。
 
@@ -91,5 +93,6 @@ node tools/frametime.mjs --url 'http://localhost:8765/goodGL.html#auto&seed=1&rd
 node tools/bench-v2.mjs --r v2/gl --set softShadow=1 --views plain,canopy,cave,water,uw --save v2gl-r0      # R0：对照组
 node tools/bench-v2.mjs --r gl --views plain,canopy,cave,water,uw --save gl0                                 # R3 起：宿主 A 上的 ?r=gl
 node tools/bench-v2.mjs --r gl --ref --cmp gl0-ref                                                           # 结构步骤：参考模式 0 px
+node tools/bench-b.mjs --save b0                                                                              # 宿主 B 的 5 机位（goalP4P5 步骤 1 的最小版）；之后 --cmp b0 做 0 px
 node tools/shader-stats.mjs 'http://localhost:8765/VoxelCraft.html?r=gl'                                     # 改着色器前后
 ```

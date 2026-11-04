@@ -1,4 +1,4 @@
-// v2/gl.js — v2 DDA 渲染器的模块化 / 拆 pass 版（goal-glmod；?r=v2/gl）。?r=v2 仍是单文件原版 v2.js
+// v2/gl.js — v2 DDA 渲染器的模块化 / 拆 pass 版（goal-glmod；?r=v2/gl）。单文件原版已移到 v2/old.js（?r=v2/old，弃用，回归基准）
 import { passKit, u, glsl } from './pass.js';
 import * as G from './glsl/common.js';
 import * as GC from './glsl/cloud.js';

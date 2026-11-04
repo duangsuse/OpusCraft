@@ -7,7 +7,7 @@ const argv = process.argv.slice(2), opt = (k, d) => { const i = argv.indexOf('--
 const SET = Object.fromEntries((opt('set', '') || '').split(',').filter(Boolean).map(kv => { const [k, v] = kv.split('='); return [k, +v]; }));
 const OUT = opt('out', 'tools/out/sky'); mkdirSync(OUT, { recursive: true });
 const b = await launch({ width: 1280, height: 657, tag: 'shots-sky' });
-await b.send('Page.navigate', { url: 'http://localhost:8765/VoxelCraft.html?r=v2&seed=20240607' });
+await b.send('Page.navigate', { url: 'http://localhost:8765/VoxelCraft.html?r=v2/old&seed=20240607' });
 await sleep(1500);
 await b.js(`(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms)), raf = () => new Promise(r => requestAnimationFrame(r));

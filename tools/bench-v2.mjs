@@ -1,7 +1,7 @@
 // v2 DDA 固定机位基准（handover/renderer-refactor.md §5.3）
 //   node tools/bench-v2.mjs [选项]
 //     --url URL         默认 http://localhost:8765/VoxelCraft.html
-//     --r ID            渲染器（?r=，默认 v2 单文件原版；v2/gl = goal-glmod 模块化 / 拆 pass 版）
+//     --r ID            渲染器（?r=，默认 v2/gl；v2/old = 单文件原版，回归基准）
 //     --seed N          世界种子（默认 20240607）      --rd N        视距（默认 6）
 //     --scale S         DDA 分辨率（默认 = v2 默认）   --size WxH    视口（默认 1280x657）
 //     --frames N        每机位计时帧数（默认 30）       --views a,b   只跑部分机位（plain,canopy,cave,water,shore,uw,uwup,flora）
@@ -26,7 +26,7 @@ import { encodePNG } from './png.mjs';
 const argv = process.argv.slice(2);
 const opt = (k, d) => { const i = argv.indexOf('--' + k); return i < 0 ? d : argv[i + 1]; };
 const flag = k => argv.includes('--' + k);
-const URL0 = opt('url', 'http://localhost:8765/VoxelCraft.html'), RID = opt('r', 'v2');
+const URL0 = opt('url', 'http://localhost:8765/VoxelCraft.html'), RID = opt('r', 'v2/gl');
 const SEED = +opt('seed', 20240607), RD = +opt('rd', 6), FRAMES = +opt('frames', 30);
 const SCALE = opt('scale', null), [W, H] = opt('size', '1280x657').split('x').map(Number);
 const VIEWS = opt('views', 'plain,canopy,cave,water').split(',');

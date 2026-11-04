@@ -3139,6 +3139,7 @@ const c_Title = { peekFit: { aspect: 0.15, scale: [0.4, 2.5] }, peekDelay: 90, p
 const rndr = gg.rndr = {
   get viewDist() { return ChunkManager.renderDistance; }, set viewDist(v) { ChunkManager.setRenderDistance(v); },
   get scale() { return Game.scale; }, set scale(v) { Game.applyScale(v); },
+  get maxMP() { return Game.maxMP; }, set maxMP(v) { Game.maxMP = v; Game.resize(); },
   steps: 72, shadowSteps: 48, shadowStrength: 0.79, shadowDist: 300, waterClarity: 0.315, reflStrength: 0.935, fogA1: 0.576,
   exposure: 1.08, lightDir: { x: 1.4, y: 0.35 }, aoStrength: 0.79, aoCurve: 1.016, waterA1: 0.696, waterA2: 0.92, waveStrength: 0.124, foamWidth: 0.217,
   palette: { cDeep: '#3ac5cd', cShallow: '#1c9ca4', cPlat: '#9effe3', cSnow: '#cdc484' },
@@ -3203,6 +3204,7 @@ const menu = gg.menu = {
     ['性能', [
       ['viewDist', () => rndr, { label: '视距', ...R(2, 16, 1) }],
       ['scale', () => rndr, { label: 'scale', ...R(0.25, 2, 0.05) }],
+      ['maxMP', () => rndr, { label: '像素上限(百万, 0=不限)', ...R(0, 16, 0.1) }],
       ['shadowSteps', () => rndr, { label: '阴影迭代', ...R(0, 128, 4) }],
       ['steps', () => rndr, { label: '渲染迭代', ...R(16, 512, 8) }],
       ['v', vec2(rndr, 'shadowStrength', 'shadowDist'), V2('拖影向量', R(0, 1), R(10, 1000))],
@@ -3613,7 +3615,7 @@ const Menus = {
    ========================================================================== */
 const Game = {
   running: false, paused: false, ready: false, atTitle: false, mode: 'survival', seed: '', scene: null, camera: null, renderer: null, canvas: null,
-  last: 0, tickAccum: 0, autosave: 0, fov: 70, fovBase: 70, scale: 1,
+  last: 0, tickAccum: 0, autosave: 0, fov: 70, fovBase: 70, scale: 1, maxMP: 0,
   init() {
     this.canvas = $('gl');
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, powerPreference: 'high-performance' });
@@ -3641,7 +3643,9 @@ const Game = {
     requestAnimationFrame((t) => this.loop(t));
     console.log('Voxelcraft ready. Blocks: ' + Blocks.byId.length + ', items: ' + Items.list.length + ', atlas ' + Atlas.size + 'px');
   },
-  resize() { const w = window.innerWidth, h = window.innerHeight; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); },
+  // Drawing-buffer ratio = min(DPR, 1.5) × scale, further capped so the buffer stays under maxMP megapixels (0 = no cap; the ?r=gl pipeline renders at exactly this size)
+  pixelRatio() { const w = window.innerWidth, h = window.innerHeight, r = Math.min(window.devicePixelRatio || 1, 1.5) * this.scale; return this.maxMP > 0 && w * h * r * r > this.maxMP * 1e6 ? Math.sqrt(this.maxMP * 1e6 / (w * h)) : r; },
+  resize() { const w = window.innerWidth, h = window.innerHeight; this.renderer.setPixelRatio(this.pixelRatio()); this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); },
 
   // Start a new (or loaded) world with the given seed
   // title=true: build the world behind the title screen (stays paused, no pointer lock)
@@ -3699,7 +3703,7 @@ const Game = {
   },
   applyFluidLook() { if (Mesher.ghostMaterial) Mesher.ghostMaterial.uniforms.uAlphaMul.value = c_Fluid.ghostAlpha; },
   toggleMode() { const k = Object.keys(MODES); this.setMode(k[(k.indexOf(this.mode) + 1) % k.length]); },
-  applyScale(v) { this.scale = v; this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5) * v); this.resize(); },
+  applyScale(v) { this.scale = v; this.resize(); },
 
   // Fixed 20 Hz simulation step
   tick() {

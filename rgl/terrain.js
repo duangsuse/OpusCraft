@@ -150,10 +150,12 @@ export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x5
 
   /** 每帧：从离相机最近的区块开始提交脏段，Worker 回包后上传。maxJobs = 在途上限（队列里保持这么多，不随帧率变；以前是每帧 6 个，25 fps 下加载被帧率卡在 150 段/s，Worker 只用了四分之一），
    *  budgetMs = 本帧给 padded() 提取的主线程预算（超了留到下一帧） */
+  let reach = null;   // 最近一次 pump 的视距范围，pending() 用同一个判据
   function pump(px, py, pz, rd, maxJobs, budgetMs = 3) {
+    const pcx = Math.floor(px) >> 4, pcz = Math.floor(pz) >> 4, lim = (rd + 0.5) ** 2, ps = Math.floor(py) >> 4;
+    reach = { pcx, pcz, lim };
     if (inflight >= maxJobs) return 0;
     const tStart = performance.now();
-    const pcx = Math.floor(px) >> 4, pcz = Math.floor(pz) >> 4, lim = (rd + 0.5) ** 2, ps = Math.floor(py) >> 4;
     const todo = [];
     for (const r of recs.values()) {
       const d2 = (r.cx - pcx) ** 2 + (r.cz - pcz) ** 2; if (d2 > lim) continue;
@@ -184,10 +186,11 @@ export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x5
     if (pool.local) pool.pumpLocal(6);
     return jobs;
   }
-  // 未完成的工作：在途 + 已经可以提交的脏段（bench 的 settle 等它归零；卡在环边缘、邻居永远不全的区块不算）
+  // 未完成的工作：在途 + 已经可以提交的脏段（bench 的 settle 等它归零；卡在环边缘、邻居永远不全的区块、视距外的区块不算）
   function pending() {
     let n = inflight;
-    for (const r of recs.values()) { if (!ready(r)) continue; for (let s = 0; s < NS; s++) { const sec = r.sections[s]; if (sec.dirty || sec.pending) n++; } }
+    // 视距外的脏段 pump 永远不提交，不算（否则传送后 pending 永不归零）
+    for (const r of recs.values()) { if (!ready(r) || (reach && (r.cx - reach.pcx) ** 2 + (r.cz - reach.pcz) ** 2 > reach.lim)) continue; for (let s = 0; s < NS; s++) { const sec = r.sections[s]; if (sec.dirty || sec.pending) n++; } }
     return n;
   }
   const stat = () => ({ chunks: recs.size, inflight, meshN, meshMsAvg: meshN ? meshMs / meshN : 0, quads, mode: pool.mode });

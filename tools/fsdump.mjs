@@ -1,6 +1,6 @@
 // 导出渲染器实际交给 three 的片元着色器源码（glmod 步骤 2「切模块后文本相同」用）
 //   node tools/fsdump.mjs [r=v2/gl] [outDir=tools/out/fs/<r>] [--vs]   → <program>.glsl（片元）/ defines.json（--vs 另写 <program>.vs.glsl）
-//   读渲染器契约里的 programs: { 名字: { vs, fs, defines } }（bench.md §2）；没有就退回 v2 的 post / comp 三件套（v2.js 单文件原版）
+//   读渲染器契约里的 programs: { 名字: { vs, fs, defines } }（bench.md §2）；没有就退回 v2 的 post / comp 三件套（v2/old.js 单文件原版）
 //   之后 diff 两次导出即可；不渲染、不需要 GPU
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';

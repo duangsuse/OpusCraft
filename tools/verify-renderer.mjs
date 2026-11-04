@@ -1,5 +1,5 @@
-// 渲染器接口验证：node tools/verify-renderer.mjs [baseURL] [--only 组名[,组名]]（组：static v1 v2 v2/gl gl bogus；--only 时跳过静态检查；--fast 跳过放/移方块、REF 重复、rd 重建等慢项，只验契约 + 画面 + 确定性，目标 <15s）
-// 用无头 Chromium + CDP（Node 内置 WebSocket）加载 ?r=v1 / ?r=v2 / ?r=bogus，逐项检查 handover/renderer-refactor.md 中约定的接口。
+// 渲染器接口验证：node tools/verify-renderer.mjs [baseURL] [--only 组名[,组名]]（组：static v1 v2/old v2/gl gl bogus；--only 时跳过静态检查；--fast 跳过放/移方块、REF 重复、rd 重建等慢项，只验契约 + 画面 + 确定性，目标 <15s）
+// 用无头 Chromium + CDP（Node 内置 WebSocket）加载 ?r=v1 / ?r=v2/old / ?r=v2/gl / ?r=bogus，逐项检查 handover/renderer-refactor.md 中约定的接口。
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -333,7 +333,7 @@ const PAGE_CHECKS = `(async () => {
 let failed = 0;
 if (!ONLY || ONLY.includes('static')) { // §10.5-1：v2 主体只经 Env / ChunkSource 读宿主（适配器在文件尾部，不算）；waterId 只在 isFluid() 注入一次
   const { readFileSync } = await import('node:fs');
-  for (const f of ['v2.js', 'v2/gl.js']) {
+  for (const f of ['v2/old.js', 'v2/gl.js']) {
   const src = readFileSync(new URL('../' + f, import.meta.url), 'utf8'), cut = src.indexOf('// ───────────────── VoxelCraft 适配器');
   const body = cut > 0 ? src.slice(0, cut) : src;
   const bad = [...body.matchAll(/ctx\.(skyMat|cloudMat|clouds|stars|getBlock)\b|getElementById\(['"]water['"]\)/g)].map(m => m[0]);
@@ -355,7 +355,7 @@ if (!ONLY || ONLY.includes('static')) { // render.md §4.1 验收：rgl（不含
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? '  (' + info + ')' : ''}`); if (!ok) failed++;
   }
 }
-for (const [r, expect] of [['v1', 'v1'], ['v2', 'v2'], ['v2/gl', 'v2/gl'], ['gl', 'gl'], ['bogus', 'v1']]) {
+for (const [r, expect] of [['v1', 'v1'], ['v2', 'v1'], ['v2/old', 'v2/old'], ['v2/gl', 'v2/gl'], ['gl', 'gl'], ['bogus', 'v1']]) {
   if (ONLY && !ONLY.includes(r)) continue;
   logs.length = 0;
   await send('Page.navigate', { url: `${BASE}?r=${r}` });

@@ -973,7 +973,7 @@ const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 1
 camera.rotation.order = 'YXZ';
 
 // =====================================================================
-//  Shared renderer interface (vertex / lighting / material) — used by v1.js & v2.js
+//  Shared renderer interface (vertex / lighting / material) — used by v1.js & v2/old.js & v2/gl.js
 // =====================================================================
 // 光照：sky/blk 为 0..15 的体素光等级；uSkyDarken 随昼夜把天空光整体下压
 // 材质：uAtlas 为 sampler2DArray，图层号来自 T_TOP/T_BOT/T_SIDE，uv 以方块为单位（0..1 = 一格 16 texel）
@@ -1324,8 +1324,8 @@ function makeGeometry(mb) {
   return g;
 }
 
-// ----- renderer selection: ?r=v1 | ?r=v2 | ?r=v2/gl（v2 模块化 / 拆 pass 版，goal-glmod；v2 保持单文件原版）| ?r=gl（goodGL 管线，goal-remix）-----
-const RENDERERS = { v1: './v1.js', v2: './v2.js', 'v2/gl': './v2/gl.js', gl: './rgl/index.js' };
+// ----- renderer selection: ?r=v1 | ?r=v2/gl（DDA，模块化 / 拆 pass 版，在用）| ?r=v2/old（DDA 单文件原版，已弃用，回归基准）| ?r=gl（goodGL 管线，goal-remix）；裸 ?r=v2 无别名 → 回落 v1 -----
+const RENDERERS = { v1: './v1.js', 'v2/old': './v2/old.js', 'v2/gl': './v2/gl.js', gl: './rgl/index.js' };
 const RENDERER_ID = Object.hasOwn(RENDERERS, new URLSearchParams(location.search).get('r')) ? new URLSearchParams(location.search).get('r') : 'v1';
 const RCTX = { THREE, scene, camera, renderer, U, GLSL, MeshBuilder, makeGeometry, atlas,
   CS, CH, SEA, RS, RSCH, PS, B, BLOCKS, FACES, UVS, AO_CURVE, RB, RSKY, RBLK,

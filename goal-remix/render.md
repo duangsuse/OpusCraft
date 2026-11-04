@@ -462,7 +462,7 @@ GLSL 一字未改，合并只去掉重复 import。验证：`verify-renderer` �
   2. **群系染色**：`createWorld` 仍是平原常量；B 有逐列 `biomes`（`x*16+z`，goodGL 是 `z*16+x`），要按 `BIOMES` 行生成 `tintG / tintF`。
   3. **代用品方块**：矿 / 矿块 / 羊毛 15 色 / tnt / 南瓜等用最接近的 goodGL 方块顶替（表在 `SUBST`），要真的得给 `SH` 追加方块 + 贴图（供体补丁）。草方块 meta 1（积雪）没映射到 `snowy_grass`。
   4. **实体光照**：B 的实体 / 生物用 `Mesher.material`（自带烘焙光照 + 宿主雾），没走 `P.entExposure` / CPU 光照；夜里亮度、与 goodGL 曝光是否一致没看。手、选框、裂纹、雨雪粒子没逐项看。
-  5. 没接 F6 热切换、`rd` 钳 ≤ 10、标题预览 / 屏保（`previewRd 16`）；`scale / maxMP` 没接；世界存档 / 读档往返没测。
+  5. 没接 F6 热切换、`rd` 钳 ≤ 10、标题预览 / 屏保（`previewRd 16`）。（`scale / maxMP` 与存档 / 读档往返 11-04 已接 / 已测，见末节。）
 
 ### R6-a 特殊模型混合路径（宿主 B，11-03）
 - **做法**：`gls.js` 的 `Mesher` 加一个 `only`（id 集合）：非空时跳过 `greedy`（整格方块）、跳过流体和其它模型，只出集合里的方块。`?r=gl` 时 `index.html` 设 `Mesher.only = {ladder, oak_door, snow, fire}`（与 `host-b.js` 的 `SPECIAL` 同表，两处要一起改），区块网格照旧进 `ChunkManager.scene`（现在就是主场景，不再有 terrain 组），由 `R.onEntities` 的 three 渲染一起画进实体合成：被地形深度遮挡、走 comp / tonemap，和羊、掉落物同一路径。VR 加载失败 → `only = null` 并把所有区块标脏，回到宿主自己的渲染。
@@ -474,3 +474,21 @@ GLSL 一字未改，合并只去掉重复 import。验证：`verify-renderer` �
   2. 火的发光（`emissive`）、门开关动画 / 铰链朝向、梯子靠墙朝向都用 B 原网格，没逐项对照；火 / 雪层 / 梯子的方块阴影（不投影）、AO 没有。
   3. 特殊方块不投阴影、不进水面反射和 SSR（只在实体合成里，gbuf 里 ssrW = 0）。
   4. `pose=models` 验证世界（goalP4P5 §12.5）还没有，要人搭；现在的验证是脚本放几个方块。
+
+### 宿主 B 最小机位基准 `tools/bench-b.mjs`（11-04）
+- **做了什么**：`node tools/bench-b.mjs [--seed S] [--views plain,canopy,cave,water,uw] [--save N | --cmp N] [--find] [--twice]`。在宿主 B（`index.html?r=gl`）里按 `tools/bench-b-poses.json`（按 seed 存）的 5 个机位出图；没有该 seed 的条目或加 `--find` 就在世界里搜一遍再写回（搜法同 bench-v2：plain 最平 / canopy 树干旁仰视 / cave 最大空腔 / water 离岸最远 / uw 水下 ≈4 格仰视 60°）。基线格式与 bench-v2 相同（`tools/out/ref/N/<view>.bin`），差异图写 `tools/out/bug/N-B-<view>.png`。这是 goalP4P5 步骤 1「bench 读机位表」的**最小版**：F6 热切换、`&gizmo=`、`tpause`、轨迹录制、`c_Bench.poses` 都没做；以后机位表挪进宿主 B 时只换数据来源。
+- **结果**：seed 20240607、rd 6、1280×657，基线 `b0`，两次独立运行（各自重开浏览器、重新搜索 / 读机位）5 机位 **0 px**；`--twice`（同会话连读两次）0 px。亮度 plain 141.8 / canopy 52.3 / cave 108.5 / water 137.7 / uw 137.3，画面肉眼核过 canopy、uw。
+- **踩到的坑（每一条都让 0 px 破了，工具里已固定）**：
+  1. `place` 里要短暂取消暂停才能让主循环重算相机，这几帧里 `Sky.time`、天气、`D.time` 会前进 → 读回前再钉一次。
+  2. 水面机位的玩家在空中，取消暂停的帧里会下落 / 入水，位置取决于帧间隔 → `noclip + flying`（不动物理）。
+  3. 水下 FOV 有缓动（`Player.fovTarget × waterFov`，取决于帧间隔）→ 钉 `Game.fovBase`，不读相机上的 fov。
+- **顺带修的 rgl bug**：`terrain.js` 的 `pending()` 会数视距外区块里的脏段，而 `pump` 只提交视距内的 → 传送后 `VR.pending()` 永远不归零（实测卡在 19–21），所有「等 pending 归零」的 settle 都要等满超时。现在 `pending()` 与 `pump` 用同一个范围判据（`reach`）。`check.mjs` / `verify-renderer --only gl` / `check.mjs --b` 通过。注意：`check.mjs --b` 在改完后第一次跑时有一次「天空均值 19.6」失败，之后连跑 5 次都过，没复现、原因未查（猜测是前一个 bench 进程残留的 Chromium 抢 GPU，未证实）。
+- **机位会随生成器失效**：生成器（`?g=`）一改，同 seed 的坐标就不对应原来的地貌 → 重跑 `--find` 并重新 `--save`，旧基线不可比。
+- **还没做**：宿主 A 与 B 同机位的画面对照（两边方块名 / 世界不同，机位坐标不通用）；整帧墙钟（本工具只出图，不计时，等空闲 GPU 时另加）。
+
+### 宿主 B：`scale / maxMP`、存档往返（11-04）
+- **`scale`**：宿主早就有（`rndr.scale` → `Game.applyScale` → three `setPixelRatio`）。rgl 的内部目标直接取绘制缓冲大小（`render()` 里 `getDrawingBufferSize` → `R.ensureTargets(W, H)`），所以缩放**渲染器侧不用再接**；不在 `P` 里另开 `scale`（否则和宿主 pixelRatio 叠乘）。
+- **`maxMP`（新，宿主侧）**：`rndr.maxMP`（百万像素，默认 0 = 不限；暂停菜单「性能」里 `scale` 下面）。`Game.pixelRatio()` = `min(DPR, 1.5) × scale`，再封顶到 `maxMP` 百万像素；`resize()` 每次都重算（窗口变大也会被封住）。作用在宿主的绘制缓冲上，所以 rgl 和宿主自己的渲染都受益。默认不限：render.md §6 说「默认值要按显卡档位给，不能照搬 v2 的 7.6」，所以不替用户选。
+- **存档往返**：Save.save → 换世界 → 读档（`Game.start(seed, data)`）这条路 rgl 没有问题：换世界时宿主 `world.chunks.clear()` 发 `'gone'`，rgl 的区块表同步清空，读档后无残留区块；强制全部重新网格化后画面与读档后 0 px（没有旧几何）。
+- **顺带看到的宿主问题（与渲染器无关）**：没改过的区块读档时按种子重新生成，同一位置偶有几格与存档前不同（11 格 / 289 区块，草 ↔ 土、树叶 → 空气，像是跨区块的树和随机刻依赖生成顺序）。因此「存档前后画面 0 px」只在数据逐格一致时才判；有差时只报数。Sky.time 在暂停时也走（主循环按墙钟推进），读回前必须钉死，否则画面差 15 万 px。
+- **验证**：`verify-host-b.mjs` 加：scale 0.5（缓冲减半、不黑、无 GL 错误）、maxMP 0.1（400×250 = 0.100 MP）、恢复后与最初 0 px（这三项进 `--fast`）；全量里加存档往返 6 项。`bench-b --cmp b0` 5 机位仍 0 px，`check.mjs --b` 通过（20 s）。
