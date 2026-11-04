@@ -189,11 +189,22 @@ void main(){
   float pomD = sp.a * 0.25 * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d)) * mix(1.0, 1.5, rainW);
   vec3 Vt = vec3(dot(V, Tg), dot(V, Bg), dot(V, N0));
   float hgt = 1.0; float pomSh = 1.0;
+  // 掠射角限幅：原来 Vt.xy / max(Vt.z, 0.25) 最多放大到 4×pomD（cobblestone 0.12 → ~8 texel），14 步走不密 → 顶面横条 / 侧面竖条的阶梯拉丝。
+  // 改成 offset limiting（分母 + 0.35，最多 ~1.8×），总位移再钳到 1.5×pomD 且不超过 3 texel；Vt.z 很小时整体淡出
+  // 雨天（rainW > 0.01，走平滑搜索）保持原来的位移 / 深度：雨天浮雕要的就是这个立体感，下面的限幅与淡出只用于晴天
+  bool pomRain = rainW > 0.01;
+  if (!pomRain) pomD *= smoothstep(0.06, 0.25, Vt.z);
+  // 屏幕足迹淡出：一个 texel 不到 ~2 像素时，几个 texel 的逐像素位移会混叠，TAA 抖动下逐帧变 → 远处闪烁。按 texel/像素（取较长轴，掠射角也跟着淡）淡出
+  float pomTx = float(textureSize(${X.nrm}, 0).x);
+  if (!pomRain) pomD *= 1.0 - smoothstep(0.3, 0.6, sqrt(max(dot(gdx, gdx), dot(gdy, gdy))) * pomTx);
+  vec2 pomShift = -Vt.xy / (pomRain ? max(Vt.z, 0.25) : Vt.z + 0.35) * pomD;
+  float pomMax = min(pomD * 1.5, 3.0 / pomTx), pomLen = length(pomShift);
+  if (!pomRain && pomLen > pomMax) pomShift *= pomMax / pomLen;
   if (pomD > 0.002 && Vt.z > 0.04 && mat == 0) {
     if (pomS) {
       int NS = int(mix(10.0, 28.0, 1.0 - clamp(Vt.z, 0.0, 1.0)));
       float stepL = 1.0 / float(NS);
-      vec2 delta = -Vt.xy / max(Vt.z, 0.25) * pomD * stepL;
+      vec2 delta = pomShift * stepL;
       vec2 cur = uv.xy; float layer = 0.0;
       float hd = 1.0 - nrmLin(vec3(cur, uv.z)).a;
       vec2 prev = cur;
@@ -211,26 +222,28 @@ void main(){
     } else {
       const int NS = 14;
       float stepL = 1.0 / float(NS);
-      vec2 delta = -Vt.xy / max(Vt.z, 0.25) * pomD * stepL;
+      vec2 delta = pomShift * stepL;
       vec2 cur = uv.xy; float layer = 0.0;
       float hd = 1.0 - textureGrad(${X.nrm}, vec3(cur, uv.z), gdx, gdy).a;
-      float prevHd = hd; vec2 prev = cur;
+      vec2 prev = cur;
       for (int i = 0; i < NS; i++) {
         if (layer >= hd) break;
-        prev = cur; prevHd = hd;
+        prev = cur;
         cur += delta; layer += stepL;
         hd = 1.0 - textureGrad(${X.nrm}, vec3(cur, uv.z), gdx, gdy).a;
       }
-      // interpolate between the last two samples
-      float after = hd - layer, before = prevHd - (layer - stepL);
-      float w = clamp(after / (after - before + 1e-5), 0.0, 1.0);
-      uv.xy = mix(cur, prev, w);
-      hgt = 1.0 - mix(layer, layer - stepL, w);
+      // NEAREST 高度是逐 texel 台阶（不连续），线性插值会落在台阶中间、取到与命中不符的 texel → 近处细毛刺。改二分逼近台阶边界，取在表面下的一侧 pb（保证落在命中的那个 texel 里）
+      vec2 pa = prev, pb = cur; float la = max(layer - stepL, 0.0), lb = layer;
+      for (int j = 0; j < 5; j++) {
+        vec2 pm = (pa + pb) * 0.5; float lm = (la + lb) * 0.5;
+        if (lm >= 1.0 - textureGrad(${X.nrm}, vec3(pm, uv.z), gdx, gdy).a) { pb = pm; lb = lm; } else { pa = pm; la = lm; }
+      }
+      uv.xy = pb; hgt = 1.0 - lb;
     }
     // self shadowing toward the light
     vec3 Lt = vec3(dot(${X.lightDir}, Tg), dot(${X.lightDir}, Bg), dot(${X.lightDir}, N0));
     if (Lt.z > 0.02) {
-      float lh = 1.0 - hgt; vec2 ld = Lt.xy / max(Lt.z, 0.2) * pomD * lh / 6.0; float occ = 0.0;
+      float lh = 1.0 - hgt; vec2 ld = Lt.xy / (pomRain ? max(Lt.z, 0.2) : Lt.z + 0.35) * pomD * lh / 6.0; float occ = 0.0;   // 与视线同样限幅：长阴影射线读到远处 texel 会拉出黑条
       vec2 q = uv.xy;
       for (int i = 1; i <= 6; i++) {
         q += ld; float hh = 1.0 - (pomS ? nrmLin(vec3(q, uv.z)).a : textureGrad(${X.nrm}, vec3(q, uv.z), gdx, gdy).a);   // 与表面同一套高度：平滑搜索 + NEAREST 比较会把表面自己遮成黑斑
@@ -333,7 +346,13 @@ void main(){
     col += albedo * sqrt(max(albedo, 0.0)) * ${X.lightCol} * sh * fh * sssAmt * (0.1 + 0.65 * fw);
   }
   // specular: sun/moon + sky reflection (split-sum approximation)
+  // 雨天顶面黑点：法线贴图斜率可到 ~50°（pbr.js ns × 1.8），湿面 smooth ≈ 0.88 时坑壁像素的反射方向钻到几何面以下 → 落进 horizon 的暗色兜底（ambCol × 0.25）且掠射 Fresnel 很大；
+  // SSR 那边同一条射线立刻撞上本平面，用邻近暗像素减掉天空 → 黑点。环境反射把 R 折回几何面上方，SSR 权重按原 R 低于平面的程度淡掉。
+  // 只对 POM 较深的像素（stone / cobblestone 等，pomD 已含 10–18 格距离淡出）按深度生效：grass_top 这类 pom = 0 的湿地面保持原来的暗反射，否则整个雨天地面发亮
   vec3 R = reflect(-V, N);
+  float rN0 = foliage ? 1.0 : dot(R, N0);   // 植物双面，N0 不代表可见面
+  float rFix = smoothstep(0.005, 0.05, pomD);
+  if (rN0 < 0.05) R = normalize(R + N0 * (0.05 - rN0) * rFix);
   vec3 env = skyEnv(R);
   vec3 envRough = ${Fps.ambCol} * (0.9 + 0.6 * max(R.y, 0.0));
   env = mix(env, envRough, smoothstep(0.15, 0.75, rough));
@@ -342,7 +361,7 @@ void main(){
   float specOcc = smoothstep(0.35, 0.95, sky) * clamp(pow(NoV + ao * cav, 1.5) - 1.0 + ao * cav, 0.0, 1.0);
   vec3 eb = envBRDF(F0, sqrt(rough), NoV) * specOcc * mix(0.5, 1.0, pbr);
   vec3 envS = env * eb / mix(0.5, 1.0, pbr);
-  float ssrW = dot(eb, vec3(0.3, 0.59, 0.11)) * (1.0 - smoothstep(0.08, 0.22, rough)) * float(!under);
+  float ssrW = dot(eb, vec3(0.3, 0.59, 0.11)) * (1.0 - smoothstep(0.08, 0.22, rough)) * float(!under) * mix(1.0, smoothstep(0.0, 0.12, rN0), rFix);
   o2 = vec4(octEnc(N), rough, ssrW);
   envS += ${Fps.torchCol} * b * b * 0.08 * envBRDF(F0, sqrt(rough), NoV);
   col += (lightI * specD + envS) * mix(0.5, 1.0, pbr);
