@@ -52,6 +52,13 @@ export function padded(source, lut, H, cx, cz, s) {
   return { pb, pm, pl };
 }
 
+/** 段 s 的内容哈希（方块 / meta / 天光 / 方块光；布局 [(lx*16+lz)*H + y]，段在每列里是连续 16 格）：宿主重建区块时只重网格化真变了的段 */
+export function sectionHash(ch, H, s) {
+  const y0 = s * 16, B = ch.blocks, M = ch.meta, S = ch.sky, K = ch.blk; let h = 0x811c9dc5 | 0;
+  for (let c = 0; c < 256; c++) { const o = c * H + y0; for (let y = 0; y < 16; y++) { h = Math.imul(h ^ B[o + y], 16777619); h = Math.imul(h ^ ((S[o + y] << 4) | K[o + y]), 16777619); if (M) h = Math.imul(h ^ M[o + y], 16777619); } }
+  return h;
+}
+
 /** 段 s 里有没有方块（空段不用网格化） */
 export function sectionHasBlocks(blocks, H, s) {
   const y0 = s * 16, y1 = Math.min(H, y0 + 16);
@@ -116,6 +123,7 @@ export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x5
     return r;
   };
   const markAll = (r) => { for (let s = 0; s < NS; s++) { const sec = r.sections[s]; if (r.secCount[s]) sec.dirty = true; else if (sec.meshed) { R.uploadSection(r, s, { opaque: null, on: 0, trans: null, tn: 0, plant: null, pn: 0 }); sec.meshed = false; sec.dirty = false; } } };
+  const markSecs = (r, set) => { for (let s = 0; s < NS; s++) if (set[s]) { const sec = r.sections[s]; if (r.secCount[s]) sec.dirty = true; else if (sec.meshed) { R.uploadSection(r, s, { opaque: null, on: 0, trans: null, tn: 0, plant: null, pn: 0 }); sec.meshed = false; sec.dirty = false; } } };
   const NB8 = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]], NB4 = [[0, -1], [-1, 0], [1, 0], [0, 1]];
   const markNeighbors = (cx, cz, list) => { for (const [dx, dz] of list) { const r = recs.get(key(cx + dx, cz + dz)); if (r) markAll(r); } };
 
@@ -128,15 +136,23 @@ export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x5
     const fresh = !recs.has(key(cx, cz)), r = rec(cx, cz), ch = source.getChunk(cx, cz);
     if (!ch) return;
     for (let s = 0; s < NS; s++) r.secCount[s] = sectionHasBlocks(ch.blocks, H, s) ? 1 : 0;
-    markAll(r); markNeighbors(cx, cz, fresh ? NB8 : NB4);
+    if (fresh || !r.hash) { r.hash = new Int32Array(NS); for (let s = 0; s < NS; s++) r.hash[s] = sectionHash(ch, H, s); markAll(r); markNeighbors(cx, cz, NB8); return; }
+    // 重建（编辑 / 光照传到这里 / 宿主无意义的重复重建）：只有内容（方块 / meta / 天光 / 方块光）真变了的段才重新网格化，连同上下相邻的段（padded 带 ±1 层，AO / 面剔除会看到）；邻区块同理（4 邻）
+    const dirty = new Uint8Array(NS); let any = false;
+    for (let s = 0; s < NS; s++) { const h = sectionHash(ch, H, s); if (h !== r.hash[s]) { r.hash[s] = h; any = true; for (let k = Math.max(0, s - 1); k <= Math.min(NS - 1, s + 1); k++) dirty[k] = 1; } }
+    if (!any) return;
+    markSecs(r, dirty); for (const [dx, dz] of NB4) { const n = recs.get(key(cx + dx, cz + dz)); if (n) markSecs(n, dirty); }
   });
   // 接管已经存在的区块（渲染器中途创建 / 热切换）
   source.forEachChunk((cx, cz) => { const ch = source.getChunk(cx, cz); if (!ch) return; const r = rec(cx, cz); for (let s = 0; s < NS; s++) r.secCount[s] = sectionHasBlocks(ch.blocks, H, s) ? 1 : 0; markAll(r); });
 
   const ready = (r) => { for (const [dx, dz] of NB8) if (!recs.has(key(r.cx + dx, r.cz + dz))) return false; return true; };
 
-  /** 每帧：从离相机最近的区块开始提交脏段（最多 maxJobs 个），Worker 回包后上传 */
-  function pump(px, py, pz, rd, maxJobs) {
+  /** 每帧：从离相机最近的区块开始提交脏段，Worker 回包后上传。maxJobs = 在途上限（队列里保持这么多，不随帧率变；以前是每帧 6 个，25 fps 下加载被帧率卡在 150 段/s，Worker 只用了四分之一），
+   *  budgetMs = 本帧给 padded() 提取的主线程预算（超了留到下一帧） */
+  function pump(px, py, pz, rd, maxJobs, budgetMs = 3) {
+    if (inflight >= maxJobs) return 0;
+    const tStart = performance.now();
     const pcx = Math.floor(px) >> 4, pcz = Math.floor(pz) >> 4, lim = (rd + 0.5) ** 2, ps = Math.floor(py) >> 4;
     const todo = [];
     for (const r of recs.values()) {
@@ -147,7 +163,7 @@ export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x5
     todo.sort((a, b) => a[0] - b[0]);
     let jobs = 0;
     for (const [, r] of todo) {
-      if (jobs >= maxJobs) break;
+      if (inflight >= maxJobs || performance.now() - tStart > budgetMs) break;
       if (!ready(r)) continue;
       const order = []; for (let s = 0; s < NS; s++) order.push(s); order.sort((a, b) => Math.abs(a - ps) - Math.abs(b - ps));
       for (const s of order) {
@@ -159,9 +175,10 @@ export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x5
         pool.submit({ type: 'mesh', pb, pm, pl, tg: tG, tf: tF, cls: CLS, wx: r.cx * 16, wy: s * 16, wz: r.cz * 16 }, [pb.buffer, pm.buffer, pl.buffer], (res) => {
           inflight--; sec.pending = false; meshMs += performance.now() - t0; meshN++;
           if (ver !== sec.ver || recs.get(key(r.cx, r.cz)) !== r) return;       // 过期结果（段又脏了 / 区块没了）
-          quads += ((res.on || 0) + (res.tn || 0) + (res.pn || 0)) >> 2; R.uploadSection(r, s, res);
+          const fresh = !sec.meshed;   // 第一次出网格（编辑引起的重建不算）：born = 0 = 等它第一次进视锥再开始计时（rgl/index.js 的出现动画）
+          quads += ((res.on || 0) + (res.tn || 0) + (res.pn || 0)) >> 2; R.uploadSection(r, s, res); if (fresh) sec.born = 0;
         });
-        if (++jobs >= maxJobs) break;
+        jobs++; if (inflight >= maxJobs || performance.now() - tStart > budgetMs) break;
       }
     }
     if (pool.local) pool.pumpLocal(6);

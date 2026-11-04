@@ -157,6 +157,7 @@ vec3 envBRDF(vec3 F0, float r, float NoV){
 }
 void main(){
   o2 = vec4(0.0);
+  if (${X.apFade} < 0.999 && ign(gl_FragCoord.xy) > ${X.apFade}) discard;   // 新网格段抖动淡入（屏幕空间 IGN，TAA 会把它抹匀）
   vec3 uv = v_uv;
   int mat = v_flags & 3; int tm = (v_flags >> 2) & 3;
   if ((v_flags & 256) != 0) uv.xy += vec2(sin(${Fps.time}*0.3 + v_world.z*0.1)*0.03, ${Fps.time}*0.02);

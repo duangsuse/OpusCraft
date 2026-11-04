@@ -50,8 +50,16 @@ export function createRenderer(ctx) {
   const DEV = /[?&]passdev\b/.test(location.search), kit = createPassKit(gl, { dev: DEV }); let warnedSun = false;
   const tex = (t, type = 'sampler2D') => Object.assign(t, { glslType: type });   // 纹理的 GLSL 类型打在对象上（vars.js glslTypeOf 读它）
   const T = () => R.targets;
-  const dr = { offset: new Float32Array(3), origin: new Float32Array(3) };
-  R.setDraw = (P, ox, oy, oz, ax, ay, az) => { dr.offset[0] = ox; dr.offset[1] = oy; dr.offset[2] = oz; dr.origin[0] = ax; dr.origin[1] = ay; dr.origin[2] = az; P.touch('offset', 'origin'); };
+  const dr = { offset: new Float32Array(3), origin: new Float32Array(3), fade: 1 };
+  // 新网格段的出现动画：每帧 R.cull 之后按段登记 { 下沉量, 淡入度 }（rises），setDraw 按段原点（16 的倍数）查表。
+  //   只改 offset（几何下沉），origin 不动 → v_world / 噪声 / 阴影采样位置不变，不闪；阴影图 pass 不下沉（接收端用的是真实位置）。
+  //   手 / 动态网格的 setDraw 原点不是 16 的倍数，或 offset 全 0，不会命中。
+  const rises = new Map(), rkey = (x, y, z) => (((x >> 4) + 4096) * 8192 + ((z >> 4) + 4096)) * 64 + (y >> 4);
+  R.setDraw = (P, ox, oy, oz, ax, ay, az) => {
+    let rise = 0, fade = 1;
+    if (rises.size && P.tag !== 'shadow' && P.tag !== 'shadowS' && (ox || oy || oz) && ax % 16 === 0 && ay % 16 === 0 && az % 16 === 0) { const r = rises.get(rkey(ax, ay, az)); if (r) { rise = r[0]; fade = r[1]; } }
+    dr.offset[0] = ox; dr.offset[1] = oy - rise; dr.offset[2] = oz; dr.origin[0] = ax; dr.origin[1] = ay; dr.origin[2] = az; dr.fade = fade; P.touch('offset', 'origin', 'apFade');
+  };
   const SRC = ctx.source || voxelCraftSource(ctx), ENV = ctx.env || voxelCraftEnv(ctx), BT = ctx.blockTable || voxelCraftBlocks(ctx);   // 宿主 B 自带三个适配器（rgl/host-b.js）
   // 岸线 / 水面高度场（water/surfacefield.js）：环形 RG8UI，按世界格取模；N = 512 够 rd ≤ 14。区块事件驱动（'blocks' 重写该区块 16×16、'gone' 清掉）
   const field = new SurfaceField({ N: 512, H: SRC.height, waterId: BT.waterId, solid: Uint8Array.from(BT.kind, k => k === 1 ? 1 : 0) });
@@ -76,7 +84,7 @@ export function createRenderer(ctx) {
     taaCur: () => tex(T().compC), taaHist: () => tex(T().histC[1 - T().histI]), taaDepth: () => tex(T().sceneD),
     blSrc: () => tex(R.bl.src), blTexel: () => [1 / R.bl.w, 1 / R.bl.h], blFirst: () => R.bl.first,   // 当前 bloom 层（vendor 的循环在调用 use() 前写 R.bl）
     cColor: () => tex(T().sceneC), cDepth: () => tex(T().sceneD), cShadow: () => tex(R.shadowTex, 'sampler2DShadow'), cClouds: () => tex(T().cloudC), cGbuf: () => tex(T().gbufC),
-    atlas: () => tex(R.tex, 'sampler2DArray'), offset: () => dr.offset, origin: () => dr.origin,   // 每次 draw 都变的量（见 R.setDraw）
+    atlas: () => tex(R.tex, 'sampler2DArray'), offset: () => dr.offset, origin: () => dr.origin, apFade: () => dr.fade,   // 每次 draw 都变的量（见 R.setDraw）
     finalSrc: () => tex(T().compC), finalBloom: () => tex(T().bloom[0].t),
   });
   X.histValid = () => T().histValid;                                             // JS 里调用（taa 的 reset），不是 uniform
@@ -126,10 +134,10 @@ export function createRenderer(ctx) {
   const world = createWorld(R, SRC, ctx.glid || idLUT(ctx.B), { seed: 1 });
 
   // 参数：只列已经接上的。fog / mist 默认 0 = 去雾版（render.md §0，goodGL 的缺点之一）；scale / maxMP 等 R5 接上 pass.js / vars.js 后再加
-  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, pomShadow: 0.6 /* POM 自阴影强度（朝太阳的遮挡；0 = 无；平滑搜索下只取 0.4 倍） */, pomSmooth: false /* 平滑 POM 搜索（双线性高度 + 二分；关 = 原 14 步；雨天由 rainPom 单独开启） */, rainPom: 1 /* 雨天立体浮雕强度（wet × 本值；0 = 关，雨天也走原 POM） */, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 6 /* 每帧最多提交的网格任务 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
+  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, pomShadow: 0.6 /* POM 自阴影强度（朝太阳的遮挡；0 = 无；平滑搜索下只取 0.4 倍） */, pomSmooth: false /* 平滑 POM 搜索（双线性高度 + 二分；关 = 原 14 步；雨天由 rainPom 单独开启） */, rainPom: 1 /* 雨天立体浮雕强度（wet × 本值；0 = 关，雨天也走原 POM） */, taa: true, flare: true, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 12 /* 网格任务在途上限（Worker 队列保持这么多；旧版是「每帧最多提交 6 个」，低帧率下加载被帧率卡住） */, meshBudget: 3 /* 每帧提交网格任务（padded 提取）的主线程预算 ms */, appearRise: 12 /* 新网格段从下面升起的高度（格；0 = 不升） */, fadeSec: 0.6 /* 新网格段抖动淡入时长 s（0 = 不淡入；与上升各自独立） */, appearSec: 1.2 /* 出现动画整体时长 s（上升用满；0 = 全关） */, appearNear: 24 /* 离相机这么近（格）的段直接出现，不做动画 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
   // P = vars 对象（读写值照旧，bench 契约不变）；meta.folder 给面板分文件夹：雾、云隙光各一组（render.md 备忘「天空 / 雾 / 云隙光」），面板本身 R7 才建
   // root：面板顶层分两个并排的 Pane（rgl/panel.js）：v2 = 沿用 v2/goodGL 的项，v3 = remix 新增（花草 / 水 / 水下 / 实体）；整理文件夹时按 root 各管各的
-  const V3_FOLDERS = new Set(['花草锐阴影', '水', '水下', '实体']);
+  const V3_FOLDERS = new Set(['花草锐阴影', '水', '水下', '实体', '新区块']);
   const FOLDER = (f, o = {}) => ({ folder: f, root: V3_FOLDERS.has(f) ? 'v3' : 'v2', ...o });
   const P = vars(P_DEFAULTS, {
     rd: FOLDER('渲染', { min: 0, max: 16, step: 1, label: '视距（0 = 取宿主）' }), waving: FOLDER('渲染'), clouds: FOLDER('渲染'), gamma: FOLDER('渲染', { min: 0, max: 1 }), shadowQ: FOLDER('渲染', { min: 1, max: 2, step: 1 }),
@@ -140,7 +148,8 @@ export function createRenderer(ctx) {
     uwWindow: FOLDER('水下', { min: 0, max: 16, label: '窗口起始深度（格）' }), uwCaustic: FOLDER('水下', { min: 0, max: 4, label: '焦散' }), uwShafts: FOLDER('水下', { min: 0, max: 4, label: '光束' }), uwDensity: FOLDER('水下', { min: 0.2, max: 4, label: '水体浓度' }),
     foamWidth: FOLDER('水', { min: 0, max: 1.5, label: '岸边波纹范围' }), shoreFade: FOLDER('水', { min: 0, max: 1.5, label: '岸边软化' }), shoreWaveAmp: FOLDER('水', { min: 0, max: 0.3, label: '岸边涌浪起伏' }), shoreWaveSpeed: FOLDER('水', { min: 0, max: 3, label: '岸边涌浪速度' }),
     ssrSteps: FOLDER('水', { min: 0, max: 48, step: 1, label: '反射步数（SSR）' }),
-    meshJobs: FOLDER('调试', { min: 1, max: 16, step: 1 }),
+    meshJobs: FOLDER('新区块', { min: 1, max: 15, step: 1, label: '网格任务' }), meshBudget: FOLDER('新区块', { min: 1, max: 7, step: 1, label: '提交预算（ms）' }),
+    appearRise: FOLDER('新区块', { min: 0, max: 32, step: 1, label: '高度差（格，0 = 不升）' }), fadeSec: FOLDER('新区块', { min: 0, max: 4, step: 0.1, label: '淡入时长（s，0 = 不淡入）' }), appearSec: FOLDER('新区块', { min: 0, max: 4, step: 0.1, label: '整体时长（s，0 = 全关）' }), appearNear: FOLDER('新区块', { min: 0, max: 64, step: 2, label: '近处直接出现（格）' }),
   });
   // D：bench / 调试钉点（bench.md §2、§4）。time 钉住 F.time（火把闪烁、水波相位），cloudX 钉住 cloudTime，ref = REF 模式，noTimer 关计时查询
   const D = { view: 0, raw: 0, time: null, cloudX: null, ref: 0, noTimer: 0 };
@@ -217,8 +226,18 @@ export function createRenderer(ctx) {
     if (DEV && ENV.sunDir) { const s = ENV.sunDir, d = Math.hypot(s.x - F.sunDir[0], s.y - F.sunDir[1], s.z - F.sunDir[2]); if (d > 2e-3 && !warnedSun) { warnedSun = true; console.warn('rgl: 宿主 Env.sunDir 与 goodGL celestial 不一致（日月轨迹必须同源）', d, [s.x, s.y, s.z], F.sunDir); } }
     resetGLState(gl);
     R.ensureTargets(W, H);
-    world.pump(e[12], e[13], e[14], rd, P.meshJobs);
+    world.pump(e[12], e[13], e[14], rd, P.meshJobs, P.meshBudget);
     R.cull(F, world, rd);                                                       // F.all / F.visible（remix: frame.js 里先置空）
+    rises.clear();                                                              // 出现动画：born = 0（刚出网格）→ 第一次进视锥时开始计时；近处 / 关闭时直接清掉
+    { const on = P.appearSec > 0 && (P.appearRise > 0 || P.fadeSec > 0) && !D.ref && D.time == null, now = performance.now() / 1000;
+      for (const v of F.all) {
+        const sec = v.sec; if (sec.born == null) continue;
+        if (!on || v.dist < P.appearNear) { sec.born = null; continue; }
+        if (sec.born === 0) { if (!v.inside) continue; sec.born = now; }
+        const el = now - sec.born, t = el / P.appearSec; if (t >= 1) { sec.born = null; continue; }
+        const k = t * t * (3 - 2 * t), f = P.fadeSec > 0 ? Math.min(1, el / P.fadeSec) : 1;   // 上升与淡入各算各的：上升按整体时长（smoothstep），淡入按淡入时长（线性）
+        rises.set(rkey(v.ox, v.oy, v.oz), [P.appearRise * (1 - k), f]);
+      } }
     if (qExt && !D.noTimer) gpuPoll();
     const timed = !!qExt && !D.noTimer && !qSet, bf = gl.bindFramebuffer;   // 上一组还没读到结果就不开始新的一组（GPU 结果晚一两帧才可用），和 v2/gl 一样隔帧采样
     if (timed) {
