@@ -15,6 +15,8 @@ import { skyLut, skyF, clouds } from './long/sky.js';
 import { taa, bdown, bup, final, depthOut } from './post.js';
 import { createEntityLight, createBlobShadows, entComp } from './entity.js';
 import { fancy } from './long/fancy.js';
+import { createFireFx } from './fire.js';
+import { createRipples } from './ripple.js';
 import { water } from './long/water.js';
 import { comp } from './long/comp.js';
 import { waterNoiseData } from '../water/noise.js';
@@ -89,6 +91,16 @@ export function createRenderer(ctx) {
   });
   X.histValid = () => T().histValid;                                             // JS 里调用（taa 的 reset），不是 uniform
   Object.assign(X, commonX(R, tex, T));
+  // 水面波纹高度场（rgl/ripple.js）：必须在 water pass 建好之前有 X.rip；sim 读岸线场 fieldTex 当边界遮罩
+  const ripples = createRipples(gl, R, kit, { tex, X, field, restore: () => resetGLState(gl) });
+  // 水体模拟更新水位 → 高度场扰动：宿主 B 的 blockChanged（含流体 tick 与「破坏海边方块 → 水涌入」）带新旧 id / meta；水格高度 = strength / 9
+  //   （源 / 下落 = 8，流动 = 8 − meta，同 mobsim Fluids.strength）。水位升 → 正脉冲，降 → 负脉冲；水涌入空出来的格（Δ ≈ 0.89）= 一次涌浪。宿主 A 不发这个回调
+  const wlv = (id, meta) => id !== BT.waterId ? 0 : (meta === 0 || meta >= 8 ? 8 : 8 - meta) / 9;
+  if (SRC.onBlockChanged && ripples.on) SRC.onBlockChanged((x, y, z, info) => {
+    if (!info) return; const d = wlv(info.id, info.meta) - wlv(info.oldId, info.oldMeta);
+    if (Math.abs(d) > 0.05) ripples.disturb(x + 0.5, z + 0.5, Math.max(-0.4, Math.min(0.4, d * P.rippleSurge)), 0.6 + Math.abs(d) * 0.6, y);
+  });
+  Object.assign(X, named({ rip: () => tex(ripples.tex() || wnoise) }));
   R.passes = { skyLut: skyLut(kit.Pass), clouds: clouds(kit.Pass, X), skyF: skyF(kit.Pass, X), taa: taa(kit.Pass, X), bdown: bdown(kit.Pass, X), bup: bup(kit.Pass, X), final: final(kit.Pass, X), comp: comp(kit.Pass, X), shadow: shadow(kit.Pass, X), shadowS: shadow(kit.Pass, X, true), fancy: fancy(kit.Pass, X), water: water(kit.Pass, X) };
   // 适配器（宿主 A）：ChunkSource / Env / BlockTable。R2 只用 Env 的 dayTime
   // 贴图 / PBR：用 goodGL 自己的程序化贴图（材质参数和贴图是一起调出来的，render.md §3 贴图行）
@@ -134,20 +146,26 @@ export function createRenderer(ctx) {
   const world = createWorld(R, SRC, ctx.glid || idLUT(ctx.B), { seed: 1 });
 
   // 参数：只列已经接上的。fog / mist 默认 0 = 去雾版（render.md §0，goodGL 的缺点之一）；scale / maxMP 等 R5 接上 pass.js / vars.js 后再加
-  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, pomShadow: 0.6 /* POM 自阴影强度（朝太阳的遮挡；0 = 无；平滑搜索下只取 0.4 倍） */, pomSmooth: false /* 平滑 POM 搜索（双线性高度 + 二分；关 = 原 14 步；雨天由 rainPom 单独开启） */, rainPom: 1 /* 雨天立体浮雕强度（wet × 本值；0 = 关，雨天也走原 POM） */, taa: true, flare: true, flickAmp: 1 /* 火光闪烁强度（火把 / 岩浆 / 火焰；0 = 稳定） */, flickSpeed: 1 /* 闪烁速度倍率 */, lightDither: 1 /* 光照量化抖动（4 bit 马赫带；0 = 关） */, volCloud: 1 /* 体积光乘云影（0 = 关） */, caveHaze: 1 /* 洞穴火把暖雾强度（0 = 关） */, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 12 /* 网格任务在途上限（Worker 队列保持这么多；旧版是「每帧最多提交 6 个」，低帧率下加载被帧率卡住） */, meshBudget: 3 /* 每帧提交网格任务（padded 提取）的主线程预算 ms */, appearRise: 12 /* 新网格段从下面升起的高度（格；0 = 不升） */, fadeSec: 0.6 /* 新网格段抖动淡入时长 s（0 = 不淡入；与上升各自独立） */, appearSec: 1.2 /* 出现动画整体时长 s（上升用满；0 = 全关） */, appearNear: 24 /* 离相机这么近（格）的段直接出现，不做动画 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
+  const P_DEFAULTS = { rd: 0 /* 0 = 取宿主设置 */, waving: true, clouds: true, gamma: 0.5, volumetric: true, shadowQ: 2, pbr: true, pom: true, pomShadow: 0.6 /* POM 自阴影强度（朝太阳的遮挡；0 = 无；平滑搜索下只取 0.4 倍） */, pomSmooth: false /* 平滑 POM 搜索（双线性高度 + 二分；关 = 原 14 步；雨天由 rainPom 单独开启） */, rainPom: 1 /* 雨天立体浮雕强度（wet × 本值；0 = 关，雨天也走原 POM） */, taa: true, flare: 100 /* 镜头光斑强度 %（0 = 关；旧存档里的 true / false 按 100 / 0） */, flareIdle: 2 /* 镜头停转多少秒后光斑渐隐（0 = 不抑制） */, lavaSpeed: 2 /* 岩浆贴图滚动速度倍率 */, heatHaze: 1 /* 热浪扭曲强度（火把 / 火焰 / 岩浆上方；0 = 关） */, rippleSurge: 0.3 /* 水位变化 → 涌浪脉冲的力度系数（水涌入空格 Δ≈0.89 → ×本值；0 = 关）*/, rippleDelay: 0.5 /* 接触水面多久后才出波纹（s）；入水那一下不出波纹 */, ripple: 1 /* 水波纹强度（玩家入水 / 水面行走的 Eulerian 波纹；0 = 关，同时停掉 sim） */, fireFx: 1 /* 火把 / 火焰 / 岩浆粒子浓度（0 = 关） */, flickAmp: 1 /* 火光闪烁强度（火把 / 岩浆 / 火焰；0 = 稳定） */, flickSpeed: 1 /* 闪烁速度倍率 */, lightDither: 1 /* 光照量化抖动（4 bit 马赫带；0 = 关） */, volCloud: 1 /* 体积光乘云影（0 = 关） */, caveHaze: 1 /* 洞穴火把暖雾强度（0 = 关） */, sharpDist: 98 /* 锐阴影（花草）walk 时的范围；0 = 关 */, sharpSoft: 0.8 /* 锐阴影边缘柔化半径（texel）：0 = 单 tap */, sharpFly: 0 /* fly / noclip 时的范围；0 = 整个锐图 pass 不画 */, fog: 0, mist: 0, ssrSteps: 24 /* 水面屏幕空间反射步数（0 = 只反射天空） */, uwCaustic: 1.4 /* 水下表面焦散强度（v2/gl 图样） */, uwShafts: 1 /* 水下光束强度 */, uwDensity: 1 /* 水体消光 / 散射倍率 */, uwWindow: 4 /* 水下仰视 Snell 窗口 / 全反射的起始深度（格）；更浅时按带扭曲的透视看水面上方 */, foamWidth: 1.2 /* 岸边波纹范围（格） */, shoreFade: 0.3 /* 岸边软化（竖直水深格） */, shoreWaveAmp: 0.12 /* 岸边涌浪起伏（格） */, shoreWaveSpeed: 1, meshJobs: 12 /* 网格任务在途上限（Worker 队列保持这么多；旧版是「每帧最多提交 6 个」，低帧率下加载被帧率卡住） */, meshBudget: 3 /* 每帧提交网格任务（padded 提取）的主线程预算 ms */, appearRise: 12 /* 新网格段从下面升起的高度（格；0 = 不升） */, fadeSec: 0.6 /* 新网格段抖动淡入时长 s（0 = 不淡入；与上升各自独立） */, appearSec: 1.2 /* 出现动画整体时长 s（上升用满；0 = 全关） */, appearNear: 24 /* 离相机这么近（格）的段直接出现，不做动画 */, blobShadow: 0.5 /* 实体脚下软影浓度（0 = 关） */, entExposure: 1 /* 实体（生物 / 掉落物 / TNT）亮度倍率；颜色已按场景光照折算，这里只做整体偏移 */, entScene: true /* 实体进 goodGL 场景（雾 / 云 / tonemap 一致）；关 = 方案 B：final 之后叠画 */ };
   // P = vars 对象（读写值照旧，bench 契约不变）；meta.folder 给面板分文件夹：雾、云隙光各一组（render.md 备忘「天空 / 雾 / 云隙光」），面板本身 R7 才建
   // root：面板顶层分两个并排的 Pane（rgl/panel.js）：v2 = 沿用 v2/goodGL 的项，v3 = remix 新增（花草 / 水 / 水下 / 实体）；整理文件夹时按 root 各管各的
   const V3_FOLDERS = new Set(['花草锐阴影', '水', '水下', '实体', '新区块']);
   const FOLDER = (f, o = {}) => ({ folder: f, root: V3_FOLDERS.has(f) ? 'v3' : 'v2', ...o });
   const P = vars(P_DEFAULTS, {
     rd: FOLDER('渲染', { min: 0, max: 16, step: 1, label: '视距（0 = 取宿主）' }), waving: FOLDER('渲染'), clouds: FOLDER('渲染'), gamma: FOLDER('渲染', { min: 0, max: 1 }), shadowQ: FOLDER('渲染', { min: 1, max: 2, step: 1 }),
-    pbr: FOLDER('渲染'), pom: FOLDER('渲染'), pomSmooth: FOLDER('渲染', { label: '平滑 POM 搜索' }), pomShadow: FOLDER('渲染', { min: 0, max: 1, step: 0.05, label: 'POM 自阴影' }), rainPom: FOLDER('渲染', { min: 0, max: 2, step: 0.05, label: '雨天浮雕强度' }), taa: FOLDER('渲染'), flare: FOLDER('渲染'), lightDither: FOLDER('渲染', { min: 0, max: 2, step: 0.05, label: '光照抖动（去马赫带）' }),
+    pbr: FOLDER('渲染'), pom: FOLDER('渲染'), pomSmooth: FOLDER('渲染', { label: '平滑 POM 搜索' }), pomShadow: FOLDER('渲染', { min: 0, max: 1, step: 0.05, label: 'POM 自阴影' }), rainPom: FOLDER('渲染', { min: 0, max: 2, step: 0.05, label: '雨天浮雕强度' }), taa: FOLDER('渲染'), flare: FOLDER('渲染', { min: 0, max: 200, step: 1, label: '镜头光斑（%）' }), flareIdle: FOLDER('渲染', { min: 0, max: 10, step: 0.5, label: '光斑停转渐隐（秒，0 = 关）' }), lightDither: FOLDER('渲染', { min: 0, max: 2, step: 0.05, label: '光照抖动（去马赫带）' }),
     volCloud: FOLDER('云隙光', { min: 0, max: 1, step: 0.05, label: '云影遮挡光柱' }), caveHaze: FOLDER('云隙光', { min: 0, max: 3, step: 0.05, label: '洞穴火把暖雾' }),
+    lavaSpeed: FOLDER('雾', { min: 0, max: 6, step: 0.1, label: '岩浆滚动速度' }),
+    heatHaze: FOLDER('雾', { min: 0, max: 3, step: 0.05, label: '热浪扭曲' }),
+    fireFx: FOLDER('雾', { min: 0, max: 2, step: 0.05, label: '火把 / 岩浆粒子' }),
     flickAmp: FOLDER('雾', { min: 0, max: 3, step: 0.05, label: '火光闪烁强度' }), flickSpeed: FOLDER('雾', { min: 0.2, max: 3, step: 0.05, label: '火光闪烁速度' }),
     mist: FOLDER('雾', { min: 0, max: 1, label: '晨昏薄雾' }), fog: FOLDER('雾', { min: 0, max: 0.02, label: '距离雾密度' }),
     volumetric: FOLDER('云隙光', { label: '体积光（云隙光 / 雾中光束）' }),
     sharpDist: FOLDER('花草锐阴影', { min: 0, max: 128 }), sharpSoft: FOLDER('花草锐阴影', { min: 0, max: 3 }), sharpFly: FOLDER('花草锐阴影', { min: 0, max: 128 }), blobShadow: FOLDER('实体', { min: 0, max: 0.8 }), entScene: FOLDER('实体'), entExposure: FOLDER('实体', { min: 0.3, max: 3, step: 0.05 }),
     uwWindow: FOLDER('水下', { min: 0, max: 16, label: '窗口起始深度（格）' }), uwCaustic: FOLDER('水下', { min: 0, max: 4, label: '焦散' }), uwShafts: FOLDER('水下', { min: 0, max: 4, label: '光束' }), uwDensity: FOLDER('水下', { min: 0.2, max: 4, label: '水体浓度' }),
+    rippleSurge: FOLDER('水', { min: 0, max: 1, step: 0.01, label: '涌入涌浪力度' }),
+    rippleDelay: FOLDER('水', { min: 0, max: 3, step: 0.1, label: '水波纹延迟（s）' }),
+    ripple: FOLDER('水', { min: 0, max: 3, step: 0.05, label: '玩家水波纹强度' }),
     foamWidth: FOLDER('水', { min: 0, max: 1.5, label: '岸边波纹范围' }), shoreFade: FOLDER('水', { min: 0, max: 1.5, label: '岸边软化' }), shoreWaveAmp: FOLDER('水', { min: 0, max: 0.3, label: '岸边涌浪起伏' }), shoreWaveSpeed: FOLDER('水', { min: 0, max: 3, label: '岸边涌浪速度' }),
     ssrSteps: FOLDER('水', { min: 0, max: 48, step: 1, label: '反射步数（SSR）' }),
     meshJobs: FOLDER('新区块', { min: 1, max: 15, step: 1, label: '网格任务' }), meshBudget: FOLDER('新区块', { min: 1, max: 7, step: 1, label: '提交预算（ms）' }),
@@ -197,6 +215,7 @@ export function createRenderer(ctx) {
     casters: () => ctx.shadowCasters, getF: () => (nFrames ? Fpv : null), strength: () => P.blobShadow,
     groundY: (x, y, z) => { const ix = Math.floor(x), iz = Math.floor(z); for (let k = Math.floor(y + 0.5), lo = Math.max(0, k - 8); k >= lo; k--) if (ctx.SOLID[ctx.getBlock(ix, k, iz)]) return k + 1; return null; },
   });
+  const fire = createFireFx(THREE, ctx.scene, { source: SRC, bt: BT, camera, getF: () => (nFrames ? Fpv : null), opacity: () => P.fireFx });   // 火把 / 火焰 / 岩浆粒子（rgl/fire.js）
   function drawThree(F) {
     hideSky();
     if (P.entScene) { renderer.resetState(); return; }                            // 方案 A：实体已经在 scene 里（R.onEntities）
@@ -249,6 +268,8 @@ export function createRenderer(ctx) {
         if (target === gl.FRAMEBUFFER) { const n = passOf(f); if (n && (!qCur.length || qCur[qCur.length - 1].name !== n)) qBegin(n); }
       };
     }
+    fire.update(dt, F);
+    ripples.update(dt, camera.position, P.ripple, P.rippleDelay); if (!ripples.awake()) F.ripple = 0;                              // 在 renderFancy 之前：sim 是离屏小 pass，之后 restore 状态
     if (blobs) blobs.update();                                                  // 要在 renderFancy 之前：方案 A 的实体在 renderFancy 里（onEntities）画
     try { R.renderFancy(F); drawThree(F); }
     finally {
@@ -265,6 +286,8 @@ export function createRenderer(ctx) {
     buildChunk: c => { c.mesh = c.waterMesh = null; if (SRC.built) SRC.built(c); },
     disposeChunk: c => { if (SRC.disposed) SRC.disposed(c); c.mesh = c.waterMesh = null; },
     reloadTextures() { resetGLState(gl); loadTextures(); if (T().histValid !== undefined) T().histValid = false; },   // 资源包换了：重传贴图 + 重算 PBR（three 刚用过上下文，先还原 UNPACK 状态）
+    ripples,              // 水面波纹（rgl/ripple.js）：poke / step 给 bench 用
+    fire,                 // 火把 / 火焰 / 岩浆粒子（rgl/fire.js；stats() 给发射点计数）
     update: dt => {},     // 网格任务在 render() 里按相机位置提交
     render,
     stats: () => { const w = world.stat(); return `gl ${W}x${H} 区块 ${w.chunks} 段 ${R.stats.drawn}/${R.stats.sections} 网格 ${w.meshN}×${w.meshMsAvg.toFixed(1)}ms ${w.quads}q cpu ${cpuMs.toFixed(1)}ms` +

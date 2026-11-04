@@ -55,10 +55,25 @@ float shadowRaw(vec3 wp){
   if (c.x <= 0.0 || c.x >= 1.0 || c.y <= 0.0 || c.y >= 1.0 || c.z >= 1.0) return 1.0;
   return texture(${X.cShadow}, c);
 }
+// 热浪：热源上方的一根「气柱」里，把画面按向上滚动的噪声错位（热空气折射）。只扰动比热源更远的像素，前景不被带歪。
+vec2 heatOne(vec2 uv, float zl, vec4 hs){
+  if (hs.w <= 0.0 || zl < hs.z - 0.4) return vec2(0.0);
+  float asp = ${Fps.w} / ${Fps.h};
+  float dx = (uv.x - hs.x) * asp, dy = uv.y - hs.y, s = hs.w;
+  float mask = exp(-pow(dx / (s * (0.5 + max(dy, 0.0) * 0.6 / s)), 2.0)) * smoothstep(-s * 0.2, s * 0.1, dy) * exp(-max(dy, 0.0) / (s * 3.5));
+  if (mask < 0.003) return vec2(0.0);
+  float T = ${Fps.time};
+  vec2 q = vec2(dx, dy) / s;
+  vec2 n = vec2(vnoise(q * vec2(5.0, 3.0) + vec2(0.0, -T * 2.6)), vnoise(q * vec2(5.0, 3.0) + vec2(7.3, -T * 2.1 + 3.7))) - 0.5;
+  return n * vec2(1.0 / asp, 1.0) * s * 0.05 * mask * ${Fps.heatAmt};
+}
+vec2 heatOff(vec2 uv, float zl){
+  return heatOne(uv, zl, ${Fps.heat0}) + heatOne(uv, zl, ${Fps.heat1}) + heatOne(uv, zl, ${Fps.heat2}) + heatOne(uv, zl, ${Fps.heat3}) + heatOne(uv, zl, ${Fps.heat4}) + heatOne(uv, zl, ${Fps.heat5});
+}
 ${lib(NOISE + CAUSTIC + MEDIUM)}
 void main(){
-  vec3 col = texture(${X.cColor}, v_uv).rgb;
   float d = texture(${X.cDepth}, v_uv).r;
+  vec3 col = texture(${X.cColor}, v_uv + (${Fps.heatAmt} > 0.0 ? heatOff(v_uv, linZ(d)) : vec2(0.0))).rgb;
   vec4 w = ${Fps.invViewProj} * vec4(v_uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
   vec3 rel = w.xyz / w.w;
   bool isSky = d >= 0.999999;

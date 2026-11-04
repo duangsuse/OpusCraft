@@ -33,13 +33,15 @@ const KIND = { none: 0, cube: 1, cross: 2, crop: 2, torch: 3, liquid: 4, fire: 2
 
 export function glsBlocks(gg) {
   const { Blocks } = gg, n = 256;
+  const emissive = new Uint8Array(n);   // 自发光 0..15（岩浆 / 火把 / 火…）：rgl/fire.js 按它认岩浆和火焰；宿主 B 的方块定义里叫 light
   const kind = new Uint8Array(n), opaque = new Uint8Array(n), solid = new Uint8Array(n), occupied = new Uint8Array(n), cullSelf = new Uint8Array(n), tile = new Uint8Array(n);
   for (const b of Blocks.byId) {
     if (!b) continue;
+    emissive[b.id] = Math.min(15, b.light | 0);
     kind[b.id] = KIND[b.model] ?? 1; opaque[b.id] = b.opaque ? 1 : 0; solid[b.id] = b.solid ? 1 : 0;
     occupied[b.id] = kind[b.id] && kind[b.id] !== 4 ? 1 : 0; cullSelf[b.id] = b.model === 'cube' && b.transparent && b.cullSame ? 1 : 0;
   }
-  return { kind, opaque, solid, occupied, cullSelf, tileTop: tile, tileBot: tile, tileSide: tile, waterId: gg.B.water, leavesId: gg.B.oak_leaves, tallGrassId: gg.B.short_grass };
+  return { kind, emissive, opaque, solid, occupied, cullSelf, tileTop: tile, tileBot: tile, tileSide: tile, waterId: gg.B.water, leavesId: gg.B.oak_leaves, tallGrassId: gg.B.short_grass };
 }
 
 export function glsSource(gg) {
@@ -59,6 +61,8 @@ export function glsSource(gg) {
     getChunk(cx, cz) { const k = key(cx, cz), c = live.get(k); return c ? { blocks: c.blocks, meta: c.meta, sky: c.sky, blk: c.blk, biomes: c.biomes, rev: revs.get(k) } : null; },
     forEachChunk(fn) { for (const c of [...live.values()]) fn(c.cx, c.cz); },
     onChunkChanged(cb) { cbs.push(cb); },
+    // 单格变化：宿主的 blockChanged 事件（含流体 tick 改水位）。第 4 个参数 = { oldId, id, oldMeta, meta }（rgl/index.js 的水波纹按水位差缩放）
+    onBlockChanged(cb) { gg.Events.on('blockChanged', (x, y, z, oldId, id, oldMeta, meta) => cb(x, y, z, { oldId, id, oldMeta, meta })); },
   };
 }
 

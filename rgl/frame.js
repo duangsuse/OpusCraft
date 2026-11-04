@@ -24,7 +24,7 @@ export function environment(tick) {
 export function createFrameBuilder() {
   const st = { taaI: 0, prevVP: null, prevEye: null, exposure: 1, ambT: null, ambKey: null, eyeSky: 1, caveFactor: 0 };
   // reset：bench 的 resetLag（机位切换后 TAA 历史作废、曝光和 caveFactor 直接取目标值）
-  const reset = () => { st.taaI = 0; st.prevVP = null; st.prevEye = null; st.ambT = null; st.ambKey = null; st.snap = true; };
+  const reset = () => { st.idleMs = 0; st.prevFwd = null; st.flareK = null; st.taaI = 0; st.prevVP = null; st.prevEye = null; st.ambT = null; st.ambKey = null; st.snap = true; };
 
   /** in = { W, H, eye, fwd, up, fovDeg, rd, tick, dayCount, time, cloudTime, dt,
    *         rain, flash, wet, underwater, S: {waving, clouds, gamma, volumetric, pbr, pom, taa, shadowQ, flare}, dbg } */
@@ -119,6 +119,9 @@ export function createFrameBuilder() {
     else { F.sunUV = [0.5, 0.5]; F.sunVis = 0; }
     F.caveFactor = st.caveFactor; F.eyeBlk = st.eyeBlkS;
     F.flickAmp = S.flickAmp != null ? S.flickAmp : 1; F.flickSpeed = S.flickSpeed != null ? S.flickSpeed : 1; F.flicker = 1 + (F.flicker - 1) * F.flickAmp;
+    F.heatAmt = S.heatHaze != null ? S.heatHaze : 1; for (let i = 0; i < 6; i++) F['heat' + i] = [0, 0, 1, 0];
+    F.lavaSpeed = S.lavaSpeed != null ? S.lavaSpeed : 2;
+    F.ripple = S.ripple != null ? S.ripple : 1;
     F.caveHaze = S.caveHaze != null ? S.caveHaze : 1; F.volCloud = S.volCloud != null ? S.volCloud : 1; F.lightDither = S.lightDither != null ? S.lightDither : 1;
     const la = F.ambCol[0] * 0.3 + F.ambCol[1] * 0.55 + F.ambCol[2] * 0.15, ls = F.lightCol[0] * 0.3 + F.lightCol[1] * 0.55 + F.lightCol[2] * 0.15;
     const outdoor = Math.max(0.62, Math.min(1.75, 0.8 / Math.pow(la * 1.3 + ls * 0.22 + 0.004, 0.42)));
@@ -128,7 +131,14 @@ export function createFrameBuilder() {
     F.exposure = st.exposure * (0.85 + S.gamma * 0.3); F.bloomAmt = 0.07; F.saturation = 1.08; F.grade = mixv([1.0, 1.0, 1.0], [1.04, 0.99, 0.94], ssk);
     F.hurt = 0;
     F.scotopic = (1 - dayAmt) * (1 - 0.6 * st.caveFactor);
-    F.flare = S.flare === false ? 0 : 0.35 * F.sunVis;   // 影院式拉丝 + 椭圆鬼影需要比旧圆盘鬼影（0.035）更高的强度
+    // 镜头光斑：S.flare 是百分比（兼容旧的 true / false）。镜头停转超过 flareIdle 秒后用 smoothstep 在 1.2 s 内渐隐，一转动就在 ~0.2 s 内恢复（人眼不盯着光源时光斑本来就不明显，也省掉静止画面的光斑噪点）
+    const fPct = S.flare === false ? 0 : S.flare === true || S.flare == null ? 100 : +S.flare;
+    const dotF = st.prevFwd ? fwd[0] * st.prevFwd[0] + fwd[1] * st.prevFwd[1] + fwd[2] * st.prevFwd[2] : 1;
+    st.prevFwd = [fwd[0], fwd[1], fwd[2]];
+    if (st.snap || inp.ref || Math.acos(Math.min(1, dotF)) > 2e-4) st.idleMs = 0; else st.idleMs = (st.idleMs || 0) + (dt || 0);
+    const idleS = S.flareIdle != null ? S.flareIdle : 2, flareT = idleS > 0 ? 1 - smooth01(idleS * 1000, idleS * 1000 + 1200, st.idleMs) : 1;
+    st.flareK = (st.snap || inp.ref || st.flareK == null) ? flareT : flareT < st.flareK ? flareT : st.flareK + (flareT - st.flareK) * Math.min(1, (dt || 0) / 200);
+    F.flare = fPct / 100 * 0.35 * F.sunVis * st.flareK;   // 影院式拉丝 + 椭圆鬼影需要比旧圆盘鬼影（0.035）更高的强度
     F.handLightDir = M4.xform(view, [F.lightDir[0], F.lightDir[1], F.lightDir[2], 0]).slice(0, 3);
     F.handShadow = 1;
     F.handProj = M4.perspective(70 * DEG, W / H, 0.05, 10);

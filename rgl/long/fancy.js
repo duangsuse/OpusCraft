@@ -123,14 +123,16 @@ float caustic(vec2 p, float t){
   }
   return c;
 }
-// 火光闪烁（火把 / 岩浆 / 火焰共用）：参考火焰着色器的 fbm 起伏（亮度 = fbm(时间)，非规则）；按世界位置错相，各处光源不同步。均值 ≈ 1
+// 火光闪烁（火把 / 岩浆 / 火焰共用）。旧版相位随世界位置连续变化 → 亮度沿地面一圈圈传播，像水波纹（焦散）。
+// 现在：相位只随位置做极缓慢的变化（梯度 < 0.1 rad/格，不成波纹），信号是不规则的火光 —— 快抖（~9 Hz）叠慢摇（~1.6 Hz）+ 偶发的「呛一口」，各路用不同种子的值噪声，没有固定周期。均值 ≈ 1
 float fireFlicker(vec3 wp){
   float t = ${Fps.time} * ${Fps.flickSpeed};
-  float ph = vnoise(wp.xz * 0.23 + wp.y * 0.31) * 53.0;
-  float x = t * 2.4 + ph;
-  float n = (vnoise(vec2(x, 0.5)) - 0.5) * 0.5 + (vnoise(vec2(x * 2.0, 1.5)) - 0.5) * 0.25 + (vnoise(vec2(x * 3.0, 2.5)) - 0.5) * 0.125;   // fbm 三倍频，±0.44 内
-  float gust = pow(max(0.0, vnoise(vec2(x * 0.5, 7.0)) * 2.0 - 1.0), 3.0);   // 偶发的「呛一口」
-  return 1.0 + ${Fps.flickAmp} * (0.9 * n - 0.25 * gust);
+  float ph = vnoise(wp.xz * 0.012 + wp.y * 0.02) * 6.0;
+  float fast = vnoise(vec2(t * 9.0 + ph, 11.3)) * 2.0 - 1.0;
+  float mid  = vnoise(vec2(t * 3.7 + ph * 1.3, 4.1)) * 2.0 - 1.0;
+  float slow = vnoise(vec2(t * 1.6 + ph * 0.7, 23.7)) * 2.0 - 1.0;
+  float gust = pow(max(0.0, vnoise(vec2(t * 0.8 + ph, 41.0)) * 2.0 - 1.0), 2.5);
+  return 1.0 + ${Fps.flickAmp} * (0.09 * fast + 0.07 * mid + 0.09 * slow - 0.28 * gust);
 }
 float lb(float l){ float f = 1.0 - l; return (1.0 - f) / (f * 3.0 + 1.0); }
 ${lib(NOISE + SHORE)}
@@ -169,7 +171,7 @@ void main(){
   if (${X.apFade} < 0.999 && ign(gl_FragCoord.xy) > ${X.apFade}) discard;   // 新网格段抖动淡入（屏幕空间 IGN，TAA 会把它抹匀）
   vec3 uv = v_uv;
   int mat = v_flags & 3; int tm = (v_flags >> 2) & 3;
-  if ((v_flags & 256) != 0) uv.xy += vec2(sin(${Fps.time}*0.3 + v_world.z*0.1)*0.03, ${Fps.time}*0.02);
+  if ((v_flags & 256) != 0) { float lt = ${Fps.time} * ${Fps.lavaSpeed}; uv.xy += vec2(sin(lt*0.3 + v_world.z*0.1)*0.03, lt*0.02); }   // 岩浆贴图滚动（lavaSpeed：默认 2 倍速）
   // derivatives & tangent frame (computed before any divergent branch)
   vec2 gdx = dFdx(uv.xy), gdy = dFdy(uv.xy);
   if ((v_flags & 24576) != 0) uv.xy = clamp(uv.xy, vec2(0.002), vec2(0.998));   // remix: 植物贴图 v = 1.0 恰在边上，REPEAT 会绕回顶行（花瓣出现在底边）

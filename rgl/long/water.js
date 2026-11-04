@@ -1,6 +1,7 @@
 // rgl/shaders/water.js —— goodGL waterFS + chunkVS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
 import { glsl, Fps } from '../pass.js';
 import { NOISE, CAUSTIC, SHORE } from '../../water/glsl.js';
+import { RIP } from '../ripple.js';
 const lib = x => glsl([x]);
 export const water = (Pass, X = {}) => Pass({ tag: 'water', vs: glsl`#version 300 es
 precision highp float;
@@ -42,6 +43,8 @@ precision highp usampler2D;
 #define POM_ON ${X.pomM}
 #define CLOUDSH_ON ${X.cloudShM}
 #define UNDER_ON ${X.underM}
+#define RIP_N ${() => RIP.N}
+#define RIP_T ${() => RIP.T}
 
 
 
@@ -174,6 +177,13 @@ void main(){
     float strength = mix(0.25, 0.55, ${X.rain}) * (fromBelow ? 0.6 : 1.0);
     vec3 wn = waveNormal(v_world.xz, t, strength);
     wn = normalize(mix(wn, vec3(0.0, 1.0, 0.0), smoothstep(30.0, 140.0, dist) * 0.7));
+    if (${Fps.ripple} > 0.0) {                                                // 玩家 / 入水波纹：Eulerian 高度场的梯度（rgl/ripple.js）；相机 ±22–31 格淡出（窗口 64 格）
+      vec2 ru = v_world.xz * (float(RIP_T) / float(RIP_N)); float re = 1.0 / float(RIP_N);
+      float rx = texture(${X.rip}, ru + vec2(re, 0.0)).r - texture(${X.rip}, ru - vec2(re, 0.0)).r;
+      float rz = texture(${X.rip}, ru + vec2(0.0, re)).r - texture(${X.rip}, ru - vec2(0.0, re)).r;
+      float rfade = 1.0 - smoothstep(22.0, 31.0, length(v_world.xz - ${Fps.camPos}.xz));
+      wn = normalize(wn + vec3(-rx, 0.0, -rz) * (float(RIP_T) * 0.5) * 1.5 * ${Fps.ripple} * rfade);
+    }
     if (${X.wet} > 0.0) {                                                    // 雨涟漪
       vec2 cell = floor(v_world.xz * 2.0), f = fract(v_world.xz * 2.0) - 0.5;
       float ph = fract(t * 0.9 + hash12(cell)), r = length(f - (hash22(cell) - 0.5) * 0.4);

@@ -127,3 +127,39 @@
 
 ### 6 的修订（用户 11-03）
 - **不做 v2/gl 的 Remix 下拉**：水体要由用户专门移植到 pane / v3，v2/gl 保持不动。所以 §6 第 4 条取消；`v2/gl uwCaustic` 的符号疑似写反也不改。`water/noise.js`（v2/gl 已改用，0 px）与 `water/glsl.js`（纯函数库）保留，作为 v3 移植的接口。
+
+## 10. 把 v2/gl 的 Bliss 风格水体和面板参数接进 rgl（方案，未实施）
+
+目标：同一套参数键名（`waterStyle / waterClarity / reflStrength / waveStrength / waveNoise / waveScale / waterTexWave / waterTexSpeed / waterTexNormal / waterSkyZen / waterDeepSat / waterD2`）进 rgl 的 `P`，这样 `v2/gl.js` 的 `WATER_PRESETS`（noise / mc / bliss）原样可用，bench 的 `--preset` 两边通用。
+
+### 10.1 参数 → rgl 里落点（读 v2/glsl/shade.js:262–368、water.js:28–92 与 rgl/long/water.js:196–262 得出）
+
+| v2 参数 | v2 里的作用 | rgl 落点 | 备注 |
+|---|---|---|---|
+| `waterStyle`（颜色风格，下拉）| 宏 `WATER_STYLE`：0 噪声 / 1 Reimagined / 2 Bliss，只换法线分支 + 反射函数 | 新宏 `WATER_STYLE`，**沿用 v2 编号，另加 3 = LiqPG（rgl 现状，默认）** | 宏 = 编译缓存切换，不重编译（§4.1-6）|
+| `waterClarity` 透亮 | Bliss：吸收 `ext = (0.45,0.085,0.055)·mix(3.0, 0.35, clarity)`；0/1：`trans = exp(−depth·mix(1.5, 0.06, clarity))` | `T = exp(−vec3(0.45,0.075,0.035)·1.2·thick)`（water.js:249）里的 **1.2** 换成 `mix(3.0, 0.35, clarity)`（LiqPG 风格保持 1.2）| 只管水面之上看水；水下仍是 `uwDensity` |
+| `reflStrength` 反射 | 菲涅尔权重 `fres·(0.4 + refl)` | `col = mix(refr, refl, Fr)`（water.js:253）里 `Fr` → `clamp(Fr·(0.4 + refl), 0, 1)` | |
+| `waveStrength` 正弦幅度 | Bliss：`A = waveStrength·1.6`（seaH 斜率系数，120 格外淡出）；0：正弦项系数 | Bliss 分支的 seaH 斜率系数；LiqPG 的 `strength`（water.js 的 0.25 / 0.55）| |
+| `waveNoise` 噪声幅度 / `waveScale` 噪声频率 | 两层可平铺噪声法线 `ns`（0.06·scale、0.15·scale）；Bliss 的 seaH 基频 `0.42·scale` | 同公式，读 rgl 已有的 `X.wnoise`（**就是 v2 同一张** water/noise.js）| 噪声纹理和 `nB()` 不用新建 |
+| `waterTexWave / waterTexSpeed / waterTexNormal` | Reimagined：贴图坐标双向正弦摆动，法线 = 摆动后贴图明度的梯度 | 风格 1 分支；**需要 goodGL 图集里水方块的层号**（vendor/gl/textures.js:187 `waterT` 有生成，要确认它在 `TEX_NAMES` 里的层）| 风险点，见 10.3 |
+| `waterSkyZen` 天光 | 非 Bliss 反射色 `mix(fog, skyTop, zen)` | 风格 0/1 的反射兜底色：`mix(skyHorizon, skyBase(up), zen)`；Bliss / LiqPG 反射走 SSR + 天空 LUT，不用它 | |
+| `waterDeepSat` 深水饱和 | `deep = mix((.05,.30,.60), (.04,.22,.55), sat)` | 水体内散射色 `wcol`（water.js:208）按厚度在浅 `(0.45,0.85,0.80)` 与深色之间混，深色用此式 | |
+| `waterD2` 深水参考深度 | 不透明度 `mix(A1, A2, smoothstep(D1, D2, depth))`；**Bliss 里 a ≡ 1，不用** | 浅 → 深色混合的上界：`t = smoothstep(D1, D2, thick)` | 语义从「不透明」改成「颜色过渡」|
+
+不接的：`waterSpec`（v2 是 Blinn 指数；rgl 是 GGX α = 0.012，换算后 Bliss 的 180 对应 α ≈ 0.1，比现在毛得多，会改变高光观感，要接就单独走人审）、`waterA1 / A2 / D1`（折射式水不需要「不透明度」）。
+
+### 10.2 实施步骤（每步可单独验收）
+
+1. **纯函数进共享库**：`seaOct / seaH` 搬进 `water/glsl.js`（只收参数，不引用 uniform，同 §6 第 1 点），v2/gl 之后也改读它。
+2. **面板的「向量」行**：rgl/panel.js 现在每行 = 一个 Ref、只有滑块 / 下拉，没有 v2 那种两个键并成一个点的行。加一种行 `pair: [keyA, keyB]`（Tweakpane point2d，各轴自带 min / max / step），在 vars 的 meta 里声明。需要的行：`透亮/反射`、`贴图 幅度/速度`、`波浪 正弦/噪声`、`深水饱和/天光`；滑块：`风格`（下拉）、`噪声频率`、`贴图法线`、`深水参考深度`。
+3. **宏 + 分支**：`WATER_STYLE` 宏；`waveNormal` 外包一层按风格选，Bliss 分支远处降八度（≥40 格 3 级）、≥120 格压平，抗闪烁与省算（v2 同做法）。波纹高度场的梯度（`rip`）加在风格法线之后，所以对所有风格都有效。
+4. **光学标量**：clarity / refl / deepSat / D2 按上表落点；`WATER_STYLE == 3` 时全部恢复现值（0 px 回归）。
+5. **预设**：把 `WATER_PRESETS` 提到共享位置（现在在 v2/gl.js），rgl 面板的「水面：噪声 / Reimagined / Bliss」三个按钮调同一份。
+6. **验收**：`water / shore / uw` 机位，LiqPG 风格 0 px；Bliss 风格与 `?r=v2/gl --preset bliss` 同机位并排交人审（风格通道，通过后另存基准）。
+
+### 10.3 风险与未决
+
+- **反射不会一样**：v2 的 Bliss 反射是在体素里真实追踪（`reflScene`：地形 / 树 / 体积云 / 天空），rgl 只有 SSR + 天空 LUT。法线和光学标量一致，但倒影的内容和屏幕外的缺失会不同。
+- **开销**：seaH 4 级 × 3 次差分 = 12 次 seaOct（每次一个 `nB` 纹理读）每水面片元。水面 pass 是前向，overdraw 会放大它；先用 `bench --views water,shore` 量，必要时差分改 2 次（前向差分共用 h0，已是 3 次，再省要换解析导数）。
+- **Reimagined**：依赖水贴图层号（见上），确认不了就先不做风格 1，只接 0 / 2 / 3。
+- 现在 `water.js` 里 `v_tint`（群系水色）参与 `wcol`；深水饱和那套是固定蓝色。两者怎么叠（群系色 × 深色？）要定：建议 `wcol = v_tint 的色相保持，只用 deepSat 调饱和`。
