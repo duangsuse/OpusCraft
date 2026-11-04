@@ -22,6 +22,48 @@ float causticAt(sampler2D nz, vec3 p, float dz, vec3 Ls, float t) {
 // 透过水面看到的池底花纹（v2/gl shade.js:293 的版本）：图样直接落在被看到的点上（不沿阳光投影），按视线在水里走过的距离衰减
 float causticSeen(sampler2D nz, vec3 p, float pathLen, float t) { return causAt(nz, p.xz, t) * exp(-pathLen * 0.12); }`;
 
+// 水底焦散（Pool 版）：3D fbm 噪声（uint 哈希，shadertoy 4lXyWN 系的 pool 着色器）的三个通道各取 |n − 0.5| 小处 → pow 50 的细亮丝；(x, z, t) 三维，慢速流动。返回 0..~3
+export const POOL = `
+vec3 plHash(ivec3 q) { uvec3 x = uvec3(q) * 1103515245u; x = ((x >> 2u) ^ (x.yzx >> 1u) ^ x.zxy) * 1103515245u; return vec3(x) * (1.0 / 4294967295.0); }
+vec3 plNoise(vec3 p) {
+  ivec3 fl = ivec3(floor(p)); vec3 fr = smoothstep(0.0, 1.0, fract(p));
+  vec3 a = mix(mix(plHash(fl), plHash(fl + ivec3(1, 0, 0)), fr.x), mix(plHash(fl + ivec3(0, 1, 0)), plHash(fl + ivec3(1, 1, 0)), fr.x), fr.y);
+  vec3 b = mix(mix(plHash(fl + ivec3(0, 0, 1)), plHash(fl + ivec3(1, 0, 1)), fr.x), mix(plHash(fl + ivec3(0, 1, 1)), plHash(fl + ivec3(1, 1, 1)), fr.x), fr.y);
+  return mix(a, b, fr.z);
+}
+vec3 plFbm2(vec3 p) { vec3 r = vec3(0.0); float m = 1.0; for (int i = 0; i < 2; i++) { m *= 0.5; r += m * plNoise(p); p *= 2.03; } return r; }
+float causPool(vec2 p, float t) {
+  vec2 c = p * 0.54 + 0.45;
+  vec3 f = plFbm2(vec3(c * 1.2, t * 0.5 + plFbm2(vec3(c + 5.0, 10.0)).x));
+  vec3 r = pow(clamp(1.0 - abs(f - 0.5), 0.0, 1.0), vec3(50.0));
+  return r.x + r.y + r.z;
+}`;
+
+// Bliss 水面（v2/gl glsl/water.js:32–50 的参数化版本）：Seascape 式尖峰波高度场（双向对撞 + 噪声域扭曲 + 旋转倍频）→ 差分法线；
+// waterNs = 两层不同尺度 / 流向的可平铺噪声法线（打破纯正弦的机械感）。nz = 噪声贴图，freq = waveScale，t = 秒
+export const SEA = `
+float seaOct(sampler2D nz, vec2 uv, float ch) {
+  uv += wnB(nz, uv * 0.11) * 2.0 - 1.0;
+  vec2 wv = 1.0 - abs(sin(uv)), swv = abs(cos(uv));
+  wv = mix(wv, swv, wv);
+  return pow(1.0 - pow(wv.x * wv.y, 0.65), ch);
+}
+float seaH(sampler2D nz, vec2 p, int oct, float freq, float t) {
+  float fq = 0.42 * freq, amp = 1.0, ch = 4.0, h = 0.0, tt = t * 0.9;
+  vec2 uv = p * vec2(0.75, 1.0);
+  const mat2 M = mat2(1.6, 1.2, -1.2, 1.6);
+  for (int i = 0; i < 4; i++) {
+    if (i >= oct) break;
+    h += (seaOct(nz, (uv + tt) * fq, ch) + seaOct(nz, (uv - tt) * fq, ch)) * amp;
+    uv = M * uv; amp *= 0.22; ch = mix(ch, 1.0, 0.2);
+  }
+  return h;
+}
+vec2 waterNs(sampler2D nz, vec2 wq, float scale, float t) {
+  vec2 nq = wq * (0.06 * scale), nq2 = wq * (0.15 * scale);
+  return (texture(nz, nq + t * vec2(0.013, 0.007)).rg * 2.0 - 1.0) + (texture(nz, nq2 - t * vec2(0.009, -0.012)).rg * 2.0 - 1.0) * 0.6;
+}`;
+
 // 水下介质：HG 相函数（LiqPG post.js:229）
 export const MEDIUM = `
 float hgPhase(float c, float g) { float g2 = g * g; return (1.0 - g2) / (4.0 * 3.14159 * pow(1.0 + g2 - 2.0 * g * c, 1.5)); }

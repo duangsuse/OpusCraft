@@ -18,13 +18,17 @@ export function createPanel(P, { title = 'rgl', roots = { v2: 'v2 · goodGL', v3
         const pane = new Pane({ title: roots[r] || r, expanded: false, container: box });
         const folders = new Map(), refs = [];
         for (const row of rows) {
-          const ref = P.refs.get(row.path); if (!ref) continue;
+          const ref = P.refs.get(row.path); if (!ref || row.hidden) continue;
           const name = row.folder || row.path.split('.').slice(0, -1).join('.') || '其他';
           let f = folders.get(name); if (!f) { f = pane.addFolder({ title: name, expanded: false }); folders.set(name, f); }
           const pt = { get v() { return ref.owner[ref.key]; }, set v(x) { ref.set(x); } };
           const o = { label: row.label || row.key };
           if (typeof row.value === 'number') Object.assign(o, { min: row.min, max: row.max, step: row.step });
           if (row.options) o.options = row.options;
+          if (row.pair) {                                                                   // 向量行：两个键并成一个 point2d（x = 本键，y = pair 键），各轴自带范围
+            const ref2 = P.refs.get(row.path.replace(/[^.]*$/, row.pair)), p2 = { get v() { return { x: ref.owner[ref.key], y: ref2.owner[ref2.key] }; }, set v(q) { ref.set(q.x); ref2.set(q.y); } };
+            f.addBinding(p2, 'v', { label: row.label || row.key, x: { min: row.min, max: row.max, step: row.step }, y: { min: row.min2, max: row.max2, step: row.step2 } }); refs.push(ref, ref2); continue;
+          }
           f.addBinding(pt, 'v', o); refs.push(ref);
         }
         pane.addButton({ title: '重置默认' }).on('click', () => { for (const x of refs) if (x.key in defaults) x.set(defaults[x.key]); pane.refresh(); });

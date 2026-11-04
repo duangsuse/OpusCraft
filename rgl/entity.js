@@ -81,19 +81,23 @@ export function createBlobShadows(THREE, scene, { casters, groundY, getF, max = 
 //   光照项已在 CPU 材质色里折成 E^(1/2.2)（entlight.js 的 scene 模式），所以 pow 之后正好是 反照率 × E。
 //   深度：宿主相机 near / far → goodGL 的 near / far（depthout.js 的逆运算）；硬件深度测试（LESS）负责被地形遮挡。
 //   gbuf = (0, 0, −1, 0)：ssrW = 0（实体不做 SSR），b = −1 是给 comp 的「实体像素」标记（→ alpha 0 → TAA 不混历史）。
-export const entComp = (Pass, { entColor, entDepth, hostNear, hostFar }) => Pass({ tag: 'entComp' })`#version 300 es
+//   两遍合并（soft = 0 / 1）：实心像素（e.a ≥ 0.5）用 depthMask(true) 画，深度进场景（水 / 云 / 雾按它当作实体表面）；
+//   软边像素（火焰光晕 / 火星边缘 / 脚下软影）用 depthMask(false) 画，只混色、深度保持场景原值——否则光晕那块方框在 comp 里
+//   变成「近处表面」，isSky / dist 全变，云、雾、水汽在这块方框里整块消失（火把对着天空 = 一圈黑洞）。
+export const entComp = (Pass, { entColor, entDepth, hostNear, hostFar, soft }) => Pass({ tag: 'entComp' })`#version 300 es
 precision highp float;
 in vec2 v_uv; layout(location=0) out vec4 o; layout(location=1) out vec4 o2;
 void main() {
   ivec2 p = ivec2(gl_FragCoord.xy);
   vec4 e = texelFetch(${entColor}, p, 0);
   if (e.a < 0.004) discard;
+  if ((${soft} > 0.5) != (e.a < 0.5)) discard;                                // 本遍只处理实心 / 软边中的一类
   float zd = texelFetch(${entDepth}, p, 0).r;
   if (zd >= 1.0) discard;
   float d0 = 2.0 * ${hostNear} * ${hostFar} / (${hostFar} + ${hostNear} - (zd * 2.0 - 1.0) * (${hostFar} - ${hostNear}));
   float d = max(d0 - max(0.04, d0 * 0.002), ${Fps.near});                    // 往相机方向偏一点：贴地的脚下软影与地面深度几乎相等，不偏就会 z-fight 被剔掉
   float z = (${Fps.far} + ${Fps.near}) / (${Fps.far} - ${Fps.near}) - 2.0 * ${Fps.far} * ${Fps.near} / ((${Fps.far} - ${Fps.near}) * d);
-  gl_FragDepth = z * 0.5 + 0.5;
+  gl_FragDepth = z * 0.5 + 0.5;                                               // 软边那一遍 depthMask 关着：只用于深度测试（地形遮挡），不写回
   vec3 lin = pow(max(e.rgb / e.a, 0.0), vec3(2.2)) * e.a;
   o = vec4(lin, e.a); o2 = vec4(0.0, 0.0, -1.0, 0.0);
 }`;

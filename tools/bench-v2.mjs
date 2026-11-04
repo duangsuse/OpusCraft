@@ -160,6 +160,8 @@ const init = await b.js(`(async () => {
       if (!best || sc > best.sc) best = { sc, x, z };
     }
     if (best) views.uw = { x: best.x + 0.5, y: SEA - 1.2 - EYE, z: best.z + 0.5, yaw: 0.6, pitch: 0.35 }; }
+    if (views.shore) { views.floor = { ...views.shore, x: views.shore.x - Math.sin(views.shore.yaw) * 2.5, z: views.shore.z - Math.cos(views.shore.yaw) * 2.5, pitch: -1.3 };   // floor：水面上俯视池底（焦散）
+      views.uwfloor = { ...views.floor, y: SEA - 0.8 - EYE, pitch: -1.2 }; }   // uwfloor：水下俯视池底
     if (views.uw) views.uwup = { ...views.uw, pitch: 1.05 };     // 水下仰视 60°（Snell 窗口 / 全反射边缘，water.md §4）
 
   // 6) flora：离出生点最近、前方无遮挡的花（POPPY/DANDELION），玩家在其东南 1.1 格、眼高 +0.8，俯视花头（R3b 锐阴影/花体积感；人眼验收用）

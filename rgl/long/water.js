@@ -1,6 +1,6 @@
 // rgl/shaders/water.js —— goodGL waterFS + chunkVS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
-import { glsl, Fps } from '../pass.js';
-import { NOISE, CAUSTIC, SHORE } from '../../water/glsl.js';
+import { glsl, Fps, Fpv } from '../pass.js';
+import { NOISE, CAUSTIC, POOL, SHORE, SEA } from '../../water/glsl.js';
 import { RIP } from '../ripple.js';
 const lib = x => glsl([x]);
 export const water = (Pass, X = {}) => Pass({ tag: 'water', vs: glsl`#version 300 es
@@ -43,6 +43,8 @@ precision highp usampler2D;
 #define POM_ON ${X.pomM}
 #define CLOUDSH_ON ${X.cloudShM}
 #define UNDER_ON ${X.underM}
+#define WSTYLE ${() => Fpv.waterStyle | 0}   // 水体渲染器：0 LiqPG（现状）/ 1 Bliss / 2 Reimagined
+#define WCAUS ${() => Fpv.waterCaustic | 0}   // 水底花纹：0 LiqPG（沿阳光投影）/ 1 Bliss（v2/gl 落在看到的点上）/ 2 Reimagined（正弦乘积）
 #define RIP_N ${() => RIP.N}
 #define RIP_T ${() => RIP.T}
 
@@ -96,16 +98,18 @@ float cloudShadow(vec3 wp){
   vec2 q = wp.xz + ${X.lightDir}.xz * ((CB + 25.0 - wp.y) / max(${X.lightDir}.y, 0.08));
   return 1.0 - 0.78 * cloudCover(cloudMap(q));
 }
+float chH(vec2 p){ return fract(sin(dot(p, vec2(32.52554, 45.5634))) * 12432.2355); }
+float chN(vec2 p){ vec2 i = floor(p), f = fract(p); f *= f * (3.0 - 2.0 * f);
+  return mix(mix(chH(i), chH(i + vec2(1, 0)), f.x), mix(chH(i + vec2(0, 1)), chH(i + vec2(1, 1)), f.x), f.y); }
+// 水底焦散（LiqPG 版）：David Hoskins 的 caustics（shadertoy MdKXDm，CC BY-NC-SA 3.0）——3 层旋转缩放的 (x, z, t) 晶格，取到格心距离的最小值 → 细亮网状脊线
 float caustic(vec2 p, float t){
-  vec2 q = p * 0.9;
-  float c = 0.0;
-  for (int i = 0; i < 2; i++) {
-    vec2 w = q + vec2(vnoise(q * 0.8 + t * 0.35), vnoise(q * 0.8 - t * 0.3 + 5.0)) * 1.8;
-    float n = vnoise(w * 1.6 + float(i) * 7.0);
-    c += pow(1.0 - abs(n * 2.0 - 1.0), 7.0);
-    q *= 1.7;
-  }
-  return c;
+  vec3 k = vec3(p * 0.8, t * 0.5);
+  mat3 m = mat3(-2.0, -1.0, 2.0, 3.0, -2.0, 1.0, 1.0, 2.0, 2.0);
+  float n = chN(p * 0.8);
+  k = k * m * 0.5; float l = length(0.5 - fract(k + n));
+  k = k * m * 0.4; l = min(l, length(0.5 - fract(k + n)));
+  k = k * m * 0.3; l = min(l, length(0.5 - fract(k + n)));
+  return pow(l, 7.0) * 25.0;
 }
 float lb(float l){ float f = 1.0 - l; return (1.0 - f) / (f * 3.0 + 1.0); }
 
@@ -134,7 +138,7 @@ vec3 waveNormal(vec2 p, float t, float strength){
   float e = 0.05, h0 = waveH(p, t), hx = waveH(p + vec2(e, 0.0), t), hz = waveH(p + vec2(0.0, e), t);
   return normalize(vec3(-(hx - h0) / e * strength, 1.0, -(hz - h0) / e * strength));
 }
-${lib(NOISE + CAUSTIC + SHORE)}
+${lib(NOISE + CAUSTIC + POOL + SHORE + SEA)}
 float D_GGX(float NdotH, float a){ float a2 = a*a; float d = NdotH*NdotH*(a2-1.0)+1.0; return a2 / (3.14159 * d*d + 1e-6); }
 float V_Smith(float NdotV, float NdotL, float a){ float k = a*0.5; return 0.25 / ((NdotV*(1.0-k)+k) * (NdotL*(1.0-k)+k) + 1e-5); }
 // 屏幕空间反射（视空间步进；LiqPG：首步 0.6、×1.22、IGN 抖动、二分 5 次、边缘淡出 0.08）；${X.sceneDepth} 里没有云和体积光
@@ -173,9 +177,31 @@ void main(){
     sh0 = shoreH(${X.wnoise}, v_world.xz, sd, ${Fps.foamWidth}, ${Fps.shoreSpd}, t);
     sg = (shoreH(${X.wnoise}, v_world.xz, sd + 0.05, ${Fps.foamWidth}, ${Fps.shoreSpd}, t) - shoreH(${X.wnoise}, v_world.xz, max(sd - 0.05, 0.0), ${Fps.foamWidth}, ${Fps.shoreSpd}, t)) / 0.1;
   }
+  vec2 wgx = dFdx(v_world.xz), wgy = dFdy(v_world.xz);                     // 世界 xz 的屏幕导数（Reimagined 采样贴图用，要在非发散流里取）
   if (top || underFace) {                                                   // 波法线：上下表面共用同一个波高场，水下看到的全反射边缘才会跟着起伏
     float strength = mix(0.25, 0.55, ${X.rain}) * (fromBelow ? 0.6 : 1.0);
-    vec3 wn = waveNormal(v_world.xz, t, strength);
+    vec3 wn;
+#if WSTYLE == 1
+    {                                                                        // Bliss：尖峰波 → 差分法线（≥40 格降八度、32–120 格淡出，抗闪烁）
+      int oct = dist < 40.0 ? 4 : 3; float eps = 0.03 + dist * 0.002;
+      float h0 = seaH(${X.wnoise}, v_world.xz, oct, ${Fps.waveScale}, t), hx = seaH(${X.wnoise}, v_world.xz + vec2(eps, 0.0), oct, ${Fps.waveScale}, t), hz = seaH(${X.wnoise}, v_world.xz + vec2(0.0, eps), oct, ${Fps.waveScale}, t);
+      float A = ${Fps.waveStrength} * 1.6 * (1.0 - smoothstep(32.0, 120.0, dist)) * mix(1.0, 2.0, ${X.rain}) * (fromBelow ? 0.6 : 1.0);
+      vec2 ns = waterNs(${X.wnoise}, v_world.xz, ${Fps.waveScale}, t);
+      wn = normalize(vec3(-(hx - h0) / eps * A - ns.x * ${Fps.waveNoise} * 2.0, 1.0, -(hz - h0) / eps * A - ns.y * ${Fps.waveNoise} * 2.0));
+    }
+#elif WSTYLE == 2
+    {                                                                        // Reimagined：贴图本身在动（坐标双向正弦摆动），法线 = 摆动后贴图明度的逐 texel 梯度
+      vec2 q = v_world.xz, tuv = q + t * vec2(0.02, 0.01) + ${Fps.waterTexWave} * vec2(sin(t * ${Fps.waterTexSpeed} + (q.x + q.y) * 0.9), cos(t * ${Fps.waterTexSpeed} * 0.83 + (q.x - q.y) * 1.1));
+      const float E = 1.0 / 16.0;
+      float l0 = dot(textureGrad(${X.atlas}, vec3(fract(tuv), v_uv.z), wgx, wgy).rgb, vec3(0.333));
+      float lx = dot(textureGrad(${X.atlas}, vec3(fract(tuv + vec2(E, 0.0)), v_uv.z), wgx, wgy).rgb, vec3(0.333));
+      float lz = dot(textureGrad(${X.atlas}, vec3(fract(tuv + vec2(0.0, E)), v_uv.z), wgx, wgy).rgb, vec3(0.333));
+      float k = ${Fps.waterTexNormal} * 8.0 * (1.0 - smoothstep(24.0, 96.0, dist)) * (fromBelow ? 0.6 : 1.0);
+      wn = normalize(vec3(-(lx - l0) * k, 1.0, -(lz - l0) * k));
+    }
+#else
+    wn = waveNormal(v_world.xz, t, strength);
+#endif
     wn = normalize(mix(wn, vec3(0.0, 1.0, 0.0), smoothstep(30.0, 140.0, dist) * 0.7));
     if (${Fps.ripple} > 0.0) {                                                // 玩家 / 入水波纹：Eulerian 高度场的梯度（rgl/ripple.js）；相机 ±22–31 格淡出（窗口 64 格）
       vec2 ru = v_world.xz * (float(RIP_T) / float(RIP_N)); float re = 1.0 / float(RIP_N);
@@ -206,6 +232,13 @@ void main(){
   vec3 behind = texture(${X.sceneColor}, ruv).rgb;
   vec3 behind0 = behind;
   vec3 wcol = pow(v_tint.rgb, vec3(2.2)) * vec3(0.55, 0.85, 1.0);
+#if WSTYLE != 0
+  {                                                                          // 浅 → 深：保持群系色相，只用「深水饱和」调饱和度、压暗；过渡深度 = 深水参考深度
+    float Lw = dot(wcol, vec3(0.3, 0.55, 0.15));
+    vec3 wDeep = max(mix(vec3(Lw), wcol, mix(1.0, 1.8, ${Fps.waterDeepSat})), 0.0) * mix(0.55, 0.38, ${Fps.waterDeepSat});
+    wcol = mix(wcol, wDeep, smoothstep(0.0, max(${Fps.waterD2}, 1.0), thick));
+  }
+#endif
   float sh = 1.0;
   if (SHADOW_ON > 0 && dist < ${Fps.shadowDist}) sh = shadowAt(v_rel + ${Fps.camToShadow} + vec3(0.0, 0.05, 0.0)); else sh = smoothstep(0.8, 1.0, sky);
   sh *= cloudShadow(v_world);
@@ -232,11 +265,19 @@ void main(){
     float deepK = smoothstep(${Fps.uwWindow}, ${Fps.uwWindow} + 3.0, ${Fps.camDepth});
     if (deepK < 1.0) col = mix(texture(${X.sceneColor}, suv + N.xz * 0.05).rgb * 1.97, col, deepK);
   } else {
-    if (rD < 0.99999 && top) {                                                // 池底花纹：v2/gl 的版本（shade.js:293）：图样直接落在透过水面看到的点上，× 太阳高度 × 水面天空光 × exp(−水中路径·0.12)
-      vec4 fw = ${Fps.invViewProj} * vec4(ruv * 2.0 - 1.0, rD * 2.0 - 1.0, 1.0);
-      behind *= 1.0 + causticSeen(${X.wnoise}, ${Fps.camPos} + fw.xyz / fw.w, thick, t) * ${Fps.uwCaustic} * smoothstep(-0.05, 0.12, ${Fps.sunDir}.y) * sky;
+    if (rD < 0.99999 && top && WCAUS != 2) {                                  // 池底花纹（Reimagined = 无花纹）：图样落在透过水面看到的点上，× 太阳高度 × 水面天空光 × exp(−水中路径)
+      vec4 fw = ${Fps.invViewProj} * vec4(ruv * 2.0 - 1.0, rD * 2.0 - 1.0, 1.0); vec3 fp3 = ${Fps.camPos} + fw.xyz / fw.w;
+      float dayK = smoothstep(-0.05, 0.12, ${Fps.sunDir}.y) * sky * ${Fps.uwCaustic};
+#if WCAUS == 0
+      behind *= 1.0 + caustic(fp3.xz, t) * 0.5 * exp(-thick * 0.1) * dayK;     // LiqPG：双层噪声域扭曲的软亮纹
+#elif WCAUS == 3
+      behind *= 1.0 + causPool(fp3.xz, t) * 0.5 * exp(-thick * 0.1) * dayK;    // Pool：3D fbm 细亮丝
+#else
+      behind *= 1.0 + causticSeen(${X.wnoise}, fp3, thick, t) * dayK;          // Bliss：v2/gl 的细亮脊线
+#endif
     }
-    vec3 T = exp(-vec3(0.45, 0.075, 0.035) * 1.2 * thick);
+    float wk = WSTYLE == 0 ? 1.2 : mix(3.0, 0.35, ${Fps.waterClarity});          // 吸收系数：LiqPG 固定 1.2；Bliss / Reimagined 按「透亮」（v2/gl：mix(3.0, 0.35, clarity)）
+    vec3 T = exp(-vec3(0.45, 0.075, 0.035) * wk * thick);
     vec3 refr = behind * T + inscatter * (1.0 - T);
     vec3 R = reflect(-V, N);
     if (R.y < 0.0 && top) R.y = -R.y * 0.3;

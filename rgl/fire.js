@@ -14,7 +14,7 @@ mat2 rotz(float a){ float c = cos(a), s = sin(a); return mat2(c, s, -s, c); }
 const FLAME_VS = `
 attribute vec3 aInfo;           // x = 类型（0 火把 / 1 火焰），y = 种子，z = 火苗序号 j
 uniform float uTime, uPx, uFar;
-varying float vH, vSeed, vType, vRot;
+varying float vH, vSeed, vType, vRot, vK;
 ${GLSL_COMMON}
 void main(){
   vec3 wp = position;
@@ -25,11 +25,13 @@ void main(){
   float fan = (j - (torch > 0.5 ? 1.5 : 1.0)) * (torch > 0.5 ? 0.17 : 0.3);
   float sw = sin(uTime * (2.3 + sd * 2.6) + sd * 40.0) * 0.32 + (fbm(vec2(uTime * 1.7 + sd * 9.0, 3.0)) - 0.5) * 0.5;
   vRot = fan + sw;
-  float sz = (torch > 0.5 ? 0.62 : 1.1) * (0.8 + 0.5 * (h - 0.5)) * (0.8 + 0.35 * fract(sd * 7.31));
-  vec3 off = vec3((fract(sd * 3.7) - 0.5) * 0.07, 0.0, (fract(sd * 5.3) - 0.5) * 0.07) * torch;   // 聚在火把头部：根部略有错位
-  const float M = 1.45;                                               // 点精灵比火苗框大一圈：转角大时火苗尖不会被方框截掉
-  vec4 mv = modelViewMatrix * vec4(wp + off + vec3(0.0, sz * 0.45, 0.0), 1.0);
-  gl_PointSize = clamp(sz * M * uPx / max(-mv.z, 0.05), 0.0, 200.0);
+  float sz = (torch > 0.5 ? 0.85 : 1.4) * (0.8 + 0.5 * (h - 0.5)) * (0.8 + 0.35 * fract(sd * 7.31));
+  vec3 off = vec3(fract(sd * 3.7) - 0.5, 0.0, fract(sd * 5.3) - 0.5) * (torch > 0.5 ? 0.16 : 0.4);   // 根部散开：火把在头部（顶面 2/16 宽）内错位，火焰在方块内错位
+  const float M = 1.7;                                                // 点精灵比火苗框大一圈：转角大时火苗尖不会被方框截掉（与片元里的 M 一致）
+  vec4 mv = modelViewMatrix * vec4(wp + off + vec3(0.0, sz * 0.3, 0.0), 1.0);   // 粒子中心 = 火苗框中心；根部在框底边，再下沉 0.2 个火苗长（0.5 − 0.2）插进火把头里
+  float want = sz * M * uPx / max(-mv.z, 0.05);
+  gl_PointSize = clamp(want, 0.0, 256.0);
+  vK = gl_PointSize / max(want, 1e-4);                                // 钳制比例：片元据此还原 sz 单位，否则近处根部会漂离火把
   vH = h; vSeed = sd; vType = aInfo.x;
   gl_Position = (-mv.z > uFar) ? vec4(2.0, 2.0, 2.0, 1.0) : projectionMatrix * mv;
 }`;
@@ -38,21 +40,20 @@ void main(){
 const FLAME_FS = `
 precision highp float;
 uniform float uTime, uOpacity;
-varying float vH, vSeed, vType, vRot;
+varying float vH, vSeed, vType, vRot, vK;
 ${GLSL_COMMON}
 void main(){
-const float M = 1.45;
-// 局部坐标：x 居中，y 正方向向上（与 gl_PointCoord.y 一致），根部位于 (0,0)
-vec2 q0 = vec2(gl_PointCoord.x - 0.5, gl_PointCoord.y - 0.5) * M;
-vec2 piv = vec2(0.0);   // 根部即粒子中心
-vec2 rotated = rotz(-vRot) * (q0 - piv) + piv;
+const float M = 1.7;
+// 点精灵局部坐标：1 单位 = sz，y 向下（gl_PointCoord 原点在左上）；火苗框 1×1，框中心 = 粒子中心；vK = 点大小被钳制的比例
+vec2 q0 = (gl_PointCoord - 0.5) * M * vK;
+vec2 piv = vec2(0.0, 0.5);              // 火苗根部 = 框底边中点 = 粒子中心下方半个框高
+vec2 p = rotz(-vRot) * (q0 - piv);      // 绕根部转（p 相对根部，y 向下为正）
+vec2 rotated = p + piv;                 // 相对粒子中心（光晕用）
 
-// 映射到原着色器期望的 _uv 范围：根部 y≈0，向上到约 1
-// 上边缘对应 +0.5*M，按此缩放；x 居中到 0.5
-float yScale = 1.0 / (-0.7 * M);
-vec2 _uv = vec2(rotated.x * yScale * 0.5 + 0.5, rotated.y * yScale);
+// 映射到原着色器期望的 _uv：根部 (0.5, 0)，向上到框顶 1；x 以 0.5 居中，与 y 同尺度
+vec2 _uv = vec2(p.x + 0.5, -p.y);
 vec2 uv = _uv - 0.5;
-vec2 centerUV = rotated;   // 光晕相对根部，略向下偏置仍有效
+vec2 centerUV = rotated;   // 光晕相对粒子中心（火苗框中心），略向下偏置仍有效
   float variationH = vH * 1.1;
   vec2 offset = vec2(0.0, -uTime * 0.6) + vSeed * 13.0;
   float f = fbm(uv * 2.5 + offset);                                      // 湍流转角（原作低频贴图噪声 → 这里放大频率才有起伏）
@@ -79,6 +80,23 @@ vec2 centerUV = rotated;   // 光晕相对根部，略向下偏置仍有效
   vec3 c = (col * flame + vec3(0.8, 0.3, 0.12) * halo) * 3.5;            // 显示空间过曝：entComp 的 pow 2.2 会还原成线性高亮
   float o = a * uOpacity;
   gl_FragColor = vec4(c / max(flame + halo, 0.2) * a * o, o);
+}`;
+
+// 火焰深度遍片元：只用光晕的覆盖范围做 discard（不跑 fbm，省掉每个火焰像素的第二遍湍流）；颜色遍不写深度，这条遍只写深度。
+//   光晕范围覆盖整个火苗（火苗框在 0.85 半径内），与颜色遍 a ≥ 0.01 的区域基本重合。
+const FLAME_DEPTH_FS = `
+precision highp float;
+varying float vH, vSeed, vType, vRot, vK;
+${GLSL_COMMON}
+void main(){
+  const float M = 1.7;
+  vec2 q0 = (gl_PointCoord - 0.5) * M * vK;
+  vec2 piv = vec2(0.0, 0.5);
+  vec2 centerUV = rotz(-vRot) * (q0 - piv) + piv;
+  float halo = clamp(1.0 - length(centerUV + vec2(0.0, 0.1)) / (0.5 * M), 0.0, 1.0);
+  halo *= halo * (0.55 + 0.45 * vH) * 0.5;
+  if (halo * 0.55 < 0.01) discard;
+  gl_FragColor = vec4(0.0);
 }`;
 
 const SPARK_VS = `
@@ -132,17 +150,25 @@ export function createFireFx(THREE, scene, { source, bt, camera, getF, opacity =
   source.onChunkChanged((cx, cz) => cache.delete(key(cx, cz)));
   if (source.onBlockChanged) source.onBlockChanged((x, y, z) => cache.delete(key(x >> 4, z >> 4)));
 
-  // 扫一个区块：[x, y, z, 类] 平铺。岩浆只收露天表面（上方是空气）并限量
+  // 扫一个区块：[锚点 x, y, z, 类] 平铺（锚点 = 火焰根部世界坐标）。岩浆只收露天表面（上方是空气）并限量
+  //   火把锚点：站立火把（meta 0）= 格心、顶面下沿（box 0..10/16）；墙上的火把（meta 1..4）是倾斜的——goodGL emitTorch：底部朝墙偏 6/16、顶部朝墙偏 2/16，
+  //   整体抬高 3/16 → 火头 = 朝墙偏 2/16、顶面 13/16 下沿。（gls.js 的 box 版是直立的，偏 6/16 不适用于 goodGL。）没有 meta 的宿主（A）全是站立火把。
+  const TDIR = [[1, 0], [-1, 0], [0, 1], [0, -1]];   // meta 1..4 = 朝墙方向（同 HDIRS / torchAttached）
   function scan(cx, cz) {
     const b = source.getBlocks ? source.getBlocks(cx, cz) : (source.getChunk(cx, cz) || {}).blocks;
     if (!b) return null;
+    const meta = source.getChunk ? (source.getChunk(cx, cz) || {}).meta : null;
     const out = [], lava = [];
     for (let lx = 0; lx < 16; lx++) for (let lz = 0; lz < 16; lz++) {
       const base = (lx * 16 + lz) * H;
       for (let y = 0; y < H; y++) {
         const c = cls[b[base + y]]; if (!c) continue;
         const x = cx * 16 + lx, z = cz * 16 + lz;
-        if (c === 2) { if (y + 1 >= H || b[base + y + 1] === 0) lava.push(x, y, z, 2); } else out.push(x, y, z, c);
+        if (c === 2) { if (y + 1 >= H || b[base + y + 1] === 0) lava.push(x + 0.5, y + 0.1, z + 0.5, 2); }
+        else if (c === 1) {
+          const m = meta ? meta[base + y] : 0, d = m >= 1 && m <= 4 ? TDIR[m - 1] : null;
+          out.push(x + 0.5 + (d ? d[0] * 0.125 : 0), y + (d ? 0.7875 : 0.6), z + 0.5 + (d ? d[1] * 0.125 : 0), 1);
+        } else out.push(x + 0.5, y + 0.1, z + 0.5, 3);
       }
     }
     if (lava.length > 4 * 160) { const st = Math.ceil(lava.length / 4 / 160); for (let i = 0; i < lava.length; i += 4 * st) out.push(lava[i], lava[i + 1], lava[i + 2], 2); }   // 大岩浆湖：每区块最多 ~160 个点
@@ -157,15 +183,21 @@ export function createFireFx(THREE, scene, { source, bt, camera, getF, opacity =
     g.setDrawRange(0, 0); return g;
   };
   const common = { uTime: { value: 0 }, uPx: { value: 1000 }, uFar: { value: radius + 8 }, uOpacity: { value: 1 } };
-  const mat = (vs, fs) => new THREE.ShaderMaterial({
-    vertexShader: vs, fragmentShader: fs, uniforms: common, transparent: true, depthTest: true, depthWrite: true,   // 要写深度：方案 A 的 entComp 按深度合并
+  // 两遍画：颜色遍不写深度（火苗之间 / 火把之间 / 火星之间只混合，不互相遮挡；同深度的火苗以前会被 LEQUAL 剔掉，一簇火把只剩最近的一只），
+  //   随后各一条 depth-only 遍写深度（方案 A 的 entComp 靠 entRT 的深度判定像素有没有实体，不写深度整片火焰会被丢掉）。
+  //   renderOrder 必须是「颜色遍 → 深度遍」且都排在其它透明物之后；深度遍用 LEQUAL，同像素取最近的那只。
+  const mat = (vs, fs, color) => new THREE.ShaderMaterial({
+    vertexShader: vs, fragmentShader: fs, uniforms: common, transparent: true, depthTest: true,
+    depthWrite: !color, colorWrite: color, depthFunc: THREE.LessEqualDepth,
     blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
     blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
   });
   const NF = CAP.torch * TONGUES.torch + CAP.fire * TONGUES.fire, NS = CAP.torch * SPARKS.torch + CAP.fire * SPARKS.fire + CAP.lava * SPARKS.lava;
   const flameGeo = mkGeo(NF, [['aInfo', 3]]), sparkGeo = mkGeo(NS, [['aSeed', 4], ['aType', 1]]);
-  const flames = new THREE.Points(flameGeo, mat(FLAME_VS, FLAME_FS)), sparks = new THREE.Points(sparkGeo, mat(SPARK_VS, SPARK_FS));
-  for (const o of [flames, sparks]) { o.frustumCulled = false; o.renderOrder = 5; scene.add(o); }
+  const flames = new THREE.Points(flameGeo, mat(FLAME_VS, FLAME_FS, true)), sparks = new THREE.Points(sparkGeo, mat(SPARK_VS, SPARK_FS, true));
+  const flameD = new THREE.Points(flameGeo, mat(FLAME_VS, FLAME_DEPTH_FS, false)), sparkD = new THREE.Points(sparkGeo, mat(SPARK_VS, SPARK_FS, false));
+  flames.renderOrder = 5; sparks.renderOrder = 5.1; flameD.renderOrder = 5.2; sparkD.renderOrder = 5.3;
+  for (const o of [flames, sparks, flameD, sparkD]) { o.frustumCulled = false; scene.add(o); }
 
   const rnd = (i, k) => { const s = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return s - Math.floor(s); };
   let acc = 1e9, stats = { torch: 0, fire: 0, lava: 0 }, heatSrc = [];
@@ -177,7 +209,7 @@ export function createFireFx(THREE, scene, { source, bt, camera, getF, opacity =
       if (e === undefined) { e = scan(cx, cz); if (e) cache.set(k, e); }
       if (!e) continue;
       for (let i = 0; i < e.length; i += 4) {
-        const dx = e[i] + 0.5 - cam.x, dy = e[i + 1] + 0.5 - cam.y, dz = e[i + 2] + 0.5 - cam.z, d = dx * dx + dz * dz + dy * dy * 0.5;
+        const dx = e[i] - cam.x, dy = e[i + 1] - cam.y, dz = e[i + 2] - cam.z, d = dx * dx + dz * dz + dy * dy * 0.5;
         if (d <= R2) found[e[i + 3]].push(d, e[i], e[i + 1], e[i + 2]);
       }
     }
@@ -187,23 +219,23 @@ export function createFireFx(THREE, scene, { source, bt, camera, getF, opacity =
     const fp = flameGeo.attributes.position.array, fi = flameGeo.attributes.aInfo.array;
     let nf = 0;
     for (const [list, type, nt] of [[T, 0, TONGUES.torch], [Fi, 1, TONGUES.fire]]) for (const [x, y, z] of list) for (let j = 0; j < nt; j++) {
-      fp[nf * 3] = x + 0.5; fp[nf * 3 + 1] = y + (type === 0 ? 0.6 : 0.1); fp[nf * 3 + 2] = z + 0.5;
+      fp[nf * 3] = x; fp[nf * 3 + 1] = y; fp[nf * 3 + 2] = z;
       fi[nf * 3] = type; fi[nf * 3 + 1] = rnd(x * 31 + z + j * 1.7, y + j); fi[nf * 3 + 2] = j; nf++;
     }
     const sp = sparkGeo.attributes.position.array, ss = sparkGeo.attributes.aSeed.array, st = sparkGeo.attributes.aType.array;
     let ns = 0;
     const emit = (list, type, m, dy) => { for (const [x, y, z] of list) for (let j = 0; j < m; j++) {
       const s = x * 131 + y * 17 + z * 7 + j * 3.7;
-      sp[ns * 3] = x + 0.5 + (type === 2 ? (rnd(s, 5) - 0.5) * 0.8 : 0); sp[ns * 3 + 1] = y + dy; sp[ns * 3 + 2] = z + 0.5 + (type === 2 ? (rnd(s, 6) - 0.5) * 0.8 : 0);
+      sp[ns * 3] = x + (type === 2 ? (rnd(s, 5) - 0.5) * 0.8 : 0); sp[ns * 3 + 1] = y + dy; sp[ns * 3 + 2] = z + (type === 2 ? (rnd(s, 6) - 0.5) * 0.8 : 0);
       ss[ns * 4] = rnd(s, 1); ss[ns * 4 + 1] = rnd(s, 2); ss[ns * 4 + 2] = rnd(s, 3); ss[ns * 4 + 3] = rnd(s, 4); st[ns] = type; ns++;
     } };
-    emit(T, 0, SPARKS.torch, 0.65); emit(Fi, 1, SPARKS.fire, 0.3); emit(L, 2, SPARKS.lava, 1.0);
+    emit(T, 0, SPARKS.torch, 0.05); emit(Fi, 1, SPARKS.fire, 0.2); emit(L, 2, SPARKS.lava, 0.9);
     for (const a of [flameGeo.attributes.position, flameGeo.attributes.aInfo, sparkGeo.attributes.position, sparkGeo.attributes.aSeed, sparkGeo.attributes.aType]) a.needsUpdate = true;
     flameGeo.setDrawRange(0, nf); sparkGeo.setDrawRange(0, ns);
     heatSrc = [];   // 热浪候选：[x, y, z, 世界尺寸]（头部 / 火焰 / 岩浆面）
-    for (const [x, y, z] of T.slice(0, 16)) heatSrc.push([x + 0.5, y + 0.8, z + 0.5, 0.9]);
-    for (const [x, y, z] of Fi.slice(0, 8)) heatSrc.push([x + 0.5, y + 0.7, z + 0.5, 1.5]);
-    for (const [x, y, z] of L.slice(0, 8)) heatSrc.push([x + 0.5, y + 1.0, z + 0.5, 1.8]);
+    for (const [x, y, z] of T.slice(0, 16)) heatSrc.push([x, y + 0.2, z, 0.9]);
+    for (const [x, y, z] of Fi.slice(0, 8)) heatSrc.push([x, y + 0.6, z, 1.5]);
+    for (const [x, y, z] of L.slice(0, 8)) heatSrc.push([x, y + 0.9, z, 1.8]);
     stats = { torch: T.length, fire: Fi.length, lava: L.length };
   }
 
@@ -224,7 +256,7 @@ export function createFireFx(THREE, scene, { source, bt, camera, getF, opacity =
         for (let i = 0; i < 6; i++) { const e = c[i]; Fw['heat' + i] = e ? [e[0], e[1], e[2], e[3]] : [0, 0, 1, 0]; }
       }
       const F = getF(), op = opacity();
-      flames.visible = sparks.visible = !!F && op > 0;
+      flames.visible = sparks.visible = flameD.visible = sparkD.visible = !!F && op > 0;
       if (!flames.visible) return;
       common.uTime.value = F.time % 3600; common.uOpacity.value = Math.min(op, 2) * 0.8;
       common.uPx.value = F.h / (2 * Math.tan(camera.fov * Math.PI / 360));

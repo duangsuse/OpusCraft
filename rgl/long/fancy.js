@@ -1,6 +1,6 @@
 // rgl/shaders/fancy.js —— goodGL fancyFS + chunkVS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
-import { glsl, Fps } from '../pass.js';
-import { NOISE, SHORE } from '../../water/glsl.js';
+import { glsl, Fps, Fpv } from '../pass.js';
+import { NOISE, SHORE, CAUSTIC, POOL } from '../../water/glsl.js';
 const lib = x => glsl([x]);
 export const fancy = (Pass, X = {}) => Pass({ tag: 'fancy', vs: glsl`#version 300 es
 precision highp float;
@@ -42,6 +42,7 @@ precision highp usampler2D;
 #define POM_ON ${X.pomM}
 #define CLOUDSH_ON ${X.cloudShM}
 #define UNDER_ON ${X.underM}
+#define WCAUS ${() => Fpv.waterCaustic | 0}   // 池底焦散：0 LiqPG（原有动态花纹）/ 1 Bliss（噪声脊线）/ 2 无 / 3 Pool
 
 
 
@@ -112,16 +113,18 @@ float cloudShadow(vec3 wp){
   vec2 q = wp.xz + ${X.lightDir}.xz * ((CB + 25.0 - wp.y) / max(${X.lightDir}.y, 0.08));
   return 1.0 - 0.78 * cloudCover(cloudMap(q));
 }
+float chH(vec2 p){ return fract(sin(dot(p, vec2(32.52554, 45.5634))) * 12432.2355); }
+float chN(vec2 p){ vec2 i = floor(p), f = fract(p); f *= f * (3.0 - 2.0 * f);
+  return mix(mix(chH(i), chH(i + vec2(1, 0)), f.x), mix(chH(i + vec2(0, 1)), chH(i + vec2(1, 1)), f.x), f.y); }
+// 水底焦散（LiqPG 版）：David Hoskins 的 caustics（shadertoy MdKXDm，CC BY-NC-SA 3.0）——3 层旋转缩放的 (x, z, t) 晶格，取到格心距离的最小值 → 细亮网状脊线
 float caustic(vec2 p, float t){
-  vec2 q = p * 0.9;
-  float c = 0.0;
-  for (int i = 0; i < 2; i++) {
-    vec2 w = q + vec2(vnoise(q * 0.8 + t * 0.35), vnoise(q * 0.8 - t * 0.3 + 5.0)) * 1.8;
-    float n = vnoise(w * 1.6 + float(i) * 7.0);
-    c += pow(1.0 - abs(n * 2.0 - 1.0), 7.0);
-    q *= 1.7;
-  }
-  return c;
+  vec3 k = vec3(p * 0.8, t * 0.5);
+  mat3 m = mat3(-2.0, -1.0, 2.0, 3.0, -2.0, 1.0, 1.0, 2.0, 2.0);
+  float n = chN(p * 0.8);
+  k = k * m * 0.5; float l = length(0.5 - fract(k + n));
+  k = k * m * 0.4; l = min(l, length(0.5 - fract(k + n)));
+  k = k * m * 0.3; l = min(l, length(0.5 - fract(k + n)));
+  return pow(l, 7.0) * 25.0;
 }
 // 火光闪烁（火把 / 岩浆 / 火焰共用）。旧版相位随世界位置连续变化 → 亮度沿地面一圈圈传播，像水波纹（焦散）。
 // 现在：相位只随位置做极缓慢的变化（梯度 < 0.1 rad/格，不成波纹），信号是不规则的火光 —— 快抖（~9 Hz）叠慢摇（~1.6 Hz）+ 偶发的「呛一口」，各路用不同种子的值噪声，没有固定周期。均值 ≈ 1
@@ -135,7 +138,7 @@ float fireFlicker(vec3 wp){
   return 1.0 + ${Fps.flickAmp} * (0.09 * fast + 0.07 * mid + 0.09 * slow - 0.28 * gust);
 }
 float lb(float l){ float f = 1.0 - l; return (1.0 - f) / (f * 3.0 + 1.0); }
-${lib(NOISE + SHORE)}
+${lib(NOISE + SHORE + CAUSTIC + POOL)}
 in vec3 v_uv; in vec4 v_tint; in vec3 v_light; in vec3 v_rel; in vec3 v_normal; in vec3 v_world;
 flat in int v_flags;
 
@@ -344,7 +347,17 @@ void main(){
   vec3 specD = min(vec3(D * G / (4.0 * NoV)) * Fs, vec3(60.0)) * clamp(NdotL0 * 8.0, 0.0, 1.0);
   vec3 lightI = ${X.lightCol} * shL;
   vec3 direct = lightI * diff * (1.0 - Fs * 0.5);
-  if (under) { float ca = caustic(v_world.xz + v_world.y * 0.3, ${Fps.time}); direct *= vec3(0.35, 0.6, 0.75) * (0.25 + ca * 1.6); specD *= 0.2; }
+  if (under) {
+#if WCAUS == 0
+    float ca = caustic(v_world.xz + v_world.y * 0.3, ${Fps.time}); direct *= vec3(0.35, 0.6, 0.75) * (0.25 + ca * 1.6);
+#elif WCAUS == 1
+    float ca = causAt(${X.wnoise}, v_world.xz + v_world.y * 0.3, ${Fps.time}); direct *= vec3(0.35, 0.6, 0.75) * (0.3 + ca * 1.8);
+#elif WCAUS == 3
+    float ca = causPool(v_world.xz + v_world.y * 0.3, ${Fps.time}); direct *= vec3(0.35, 0.6, 0.75) * (0.3 + ca * 1.5);
+#else
+    direct *= vec3(0.35, 0.6, 0.75) * 0.6;                                  // 无焦散：只有水色
+#endif
+    specD *= 0.2; }
   // ---------------- ambient: sky irradiance, ground bounce, torch
   float up = N.y * 0.5 + 0.5;
   float occl = (0.22 + 0.78 * ao) * cav * fh;   // remix: 花的体积感，fh = 1 时与原版一致

@@ -1,6 +1,6 @@
 // rgl/long/comp.js —— 合成：体积光 / 云隙光、屏幕空间反射、水下雾与光束、云叠加（goodGL compositeFS）。GLSL 一字未改。
 import { glsl, Fps, Fpv } from '../pass.js';
-import { NOISE, CAUSTIC, MEDIUM } from '../../water/glsl.js';
+import { NOISE, CAUSTIC, POOL, MEDIUM } from '../../water/glsl.js';
 const lib = x => glsl([x]);
 // rgl/shaders/comp.js —— goodGL compositeFS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
 export const comp = (Pass, X = {}) => Pass({ tag: 'comp' })`#version 300 es
@@ -9,6 +9,7 @@ precision highp float; precision highp sampler2DShadow;
 #define CLOUDS_ON ${() => Fpv.clouds ? 1 : 0}
 #define UNDER_ON ${() => Fpv.underwater ? 1 : 0}
 #define VOL_ON ${() => Fpv.volumetric ? 1 : 0}
+#define WCAUS ${() => Fpv.waterCaustic | 0}   // 水底 / 水下焦散：0 LiqPG（沿阳光投影）/ 1 Bliss（落在看到的点上）/ 2 无
 in vec2 v_uv; out vec4 o;
 
 
@@ -70,7 +71,7 @@ vec2 heatOne(vec2 uv, float zl, vec4 hs){
 vec2 heatOff(vec2 uv, float zl){
   return heatOne(uv, zl, ${Fps.heat0}) + heatOne(uv, zl, ${Fps.heat1}) + heatOne(uv, zl, ${Fps.heat2}) + heatOne(uv, zl, ${Fps.heat3}) + heatOne(uv, zl, ${Fps.heat4}) + heatOne(uv, zl, ${Fps.heat5});
 }
-${lib(NOISE + CAUSTIC + MEDIUM)}
+${lib(NOISE + CAUSTIC + POOL + MEDIUM)}
 void main(){
   float d = texture(${X.cDepth}, v_uv).r;
   vec3 col = texture(${X.cColor}, v_uv + (${Fps.heatAmt} > 0.0 ? heatOff(v_uv, linZ(d)) : vec2(0.0))).rgb;
@@ -121,7 +122,13 @@ void main(){
     float shV = shadowRaw(rel + ${Fps.camToShadow} + vec3(0.0, 0.05, 0.0));
     if (!isSky) {
       vec3 pw = ${Fps.camPos} + rel; float dz = wTop - pw.y;
+#if WCAUS == 0
       if (dz > 0.12 && dz < 14.0) col *= 1.0 + causticAt(${X.wnoise}, pw, dz, Ls, ${Fps.time}) * ${Fps.uwCaustic} * dayF * shV;
+#elif WCAUS == 1
+      if (dz > 0.12 && dz < 14.0) col *= 1.0 + causticSeen(${X.wnoise}, pw, dist, ${Fps.time}) * ${Fps.uwCaustic} * dayF * shV;
+#elif WCAUS == 3
+      if (dz > 0.12 && dz < 14.0) col *= 1.0 + causPool(pw.xz, ${Fps.time}) * 0.5 * exp(-dist * 0.12) * ${Fps.uwCaustic} * dayF * shV;
+#endif
     }
     vec3 sigS = (${Fps.waterCol} * 0.05 + 0.012) * ${Fps.uwDensity}, sigE = (vec3(0.25, 0.06, 0.04) * ${Fps.uwDensity} + sigS);
     float maxD = min(dist, 64.0), dt = maxD / 12.0, jit = ign(gl_FragCoord.xy + fract(${Fps.time} * 7.0) * 13.0);
@@ -132,7 +139,11 @@ void main(){
       float dep = max(wTop - pw.y, 0.0);
       vec3 att = exp(-vec3(0.25, 0.06, 0.04) * ${Fps.uwDensity} * dep);
       float vis = VOL_ON > 0 ? shadowRaw(p + ${Fps.camToShadow}) : 1.0;
+#if WCAUS == 2
+      float mod_ = 1.0;                                                       // 无焦散：光束不带花纹
+#else
       float mod_ = 0.45 + 1.1 * causticAt(${X.wnoise}, pw, dep, Ls, ${Fps.time});
+#endif
       vec3 Lm = ${Fps.lightCol} * ph * vis * mix(1.0, mod_, min(${Fps.uwShafts}, 1.0)) * ${Fps.uwShafts} * att * (1.0 - ${Fps.caveFactor}) + ${Fps.ambCol} * 0.08 * att;
       vec3 Ts = exp(-sigE * dt);
       Sm += Tm * Lm * sigS * (1.0 - Ts) / max(sigE, vec3(1e-6)); Tm *= Ts;
