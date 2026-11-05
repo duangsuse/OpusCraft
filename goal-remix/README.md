@@ -5,7 +5,7 @@
 > 任务包。供体：`gen.js`（自有）、`goodGP/`、`goodLiqPG/`、`goodGL.html`。
 > 宿主：**生成器**落在宿主 B（`index.html` + `gls.js` + `gen.js`，three r170）；**渲染器 `?r=gl` 先接宿主 A**（`VoxelCraft.html`，所有东西先在 A 上试玩），再接宿主 B。
 > 分册：[layout.md](layout.md)（**数据布局不兼容总表** + 改高 256 + 转换层表结构）· [gen.md](gen.md)（生成器）· [tools.md](tools.md)（URL / 离线出图 / genscope / 探针）· [render.md](render.md)（goodGL 管线 + PBR，**主线**）· [bench.md](bench.md)（renderer-refactor 的测量工具与经验怎么带到 gl）· [water.md](water.md)（LiqPG 水面 / 水下）· [metal.md](metal.md)（铜块与金属材质）。
-> 与 `goalP4P5` 的关系：宿主 B 的机位 / 冻结 / F6 仍归 goalP4P5 步骤 1；**改高 256（步骤 1）要在 P4a 接 v2 之前**，否则 v2 的 uVox 环、DF 按 128 接好后再返工。接口真值仍是 `../goal-renderapi.ts`，本包要加的字段（`Renderer.name:'gl'`、`Env.dayTime / weather`、`Env.hide('sky'|'weather')`）**先改 ts 再实现**。
+> 与 `goalP4P5` 的关系：宿主 B 的机位 / 冻结 / F6 仍归 goalP4P5 步骤 1；**改高 256（步骤 1）要在 P4a 接 v2 之前**，否则 v2 的 uVox 环、DF 按 128 接好后再返工。接口真值仍是 `../goal-renderapi.ts`（v2 DDA 内部已拆到 `../goal-renderapi-v2.ts`，rgl 不用），本包要加的字段（`Renderer.name:'gl'`、`Env.dayTime / weather`、`Env.hide('sky'|'weather')`）**先改 ts 再实现**。
 
 ## 0. 已拍板（用户评估，2026-10-26）
 

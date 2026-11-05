@@ -1,7 +1,7 @@
 # goalP4P5 —— 宿主 B 接入（P4a）→ P5 着色器拆 pass → P4b/c + §12 同步升级
 
 > 任务包。`doc/` 是 `handover/renderer-refactor/`、`handover/tools.md`、`doc/dda-optim.md` 的**快照**（只含本任务要读的；真值在原处；清单 `doc/SNAP`，改了真值后 `node tools/snap.mjs goalP4P5` 同步，`--check` 只报漂移）。
-> 接口单一真值：`../goal-renderapi.ts`（不复制；§9 TODO-1…7 已拍板；`[goalP3P4 实现]` 注释是已落地的修正，照它）。
+> 接口单一真值：`../goal-renderapi.ts`（宿主契约）+ `../goal-renderapi-v2.ts`（v2 内部 §4–§6，11-05 拆出，节号不变）（不复制；§9 TODO-1…7 已拍板；`[goalP3P4 实现]` 注释是已落地的修正，照它）。
 > 宿主 B 约定真值：`doc/xyzb/meta.md`（纹理/状态布局，已评审）、`doc/xyzb/all.md`（`BLOCK_DEFS`/`model`）、`doc/xyzb/chunks_dat.md`、`doc/mat/game-spec.md`（`c_*` / `gg.my` 约定、模式开关）、`doc/mat/world-gen.md`（tint 决策）——按步骤读，**以文档约定为准，代码只在实现时 `rg` 定位读对应处**。
 > 入口条件：`goalP3P4` 已完成（`handover/finished/goalP3P4/`）：v2 在宿主 A 上已是 RGBA8UI + `state()` + `Env` + 按区块 DF；回归基线 `p1fx`，5 机位 `plain,canopy,cave,water,uw`。
 

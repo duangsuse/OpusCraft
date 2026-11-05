@@ -1,8 +1,9 @@
 // rgl/pgtex.js —— 贴图补强：goodPG（EijunnN VoxelCraft）的草顶 / 雪 / 冰 / 浮冰生成器，连同它每个纹素自带的 高度 / 光滑度 / F0 / 散射 通道。
 // 来源：goodPG/src/client/textures/{texCore,genSoil,genBiomes}.ts（经验见 goodPG/study-gl.md §1–3、§6）。
 // 与 goodGL 的差别：goodGL 的 PBR.build 是从 albedo 反推（亮度 → 高度 / 光滑度），goodPG 是**先画高度和材质通道，再由高度求法线**，所以草叶、雪晶、冰裂纹都是画出来的，不是猜出来的。
-// 用法：rgl/index.js 的 loadTextures：pgOverride(tx) 覆盖 albedo → 资源包覆盖 → PBR.build → pgApplyMaps(pbr, tx, own) 覆盖法线 / 光谱通道（资源包换过的层不覆盖）。
-// 输出布局 = goodGL（vendor/gl/pbr.js 头注释）：nrm = RG 法线 · B 腔体 AO · A 高度（255 = 不做 POM）；spec = R 光滑度 · G F0 · B 孔隙 / 散射（≥65 为散射）· A POM 深度（0..255 → 0..0.25 格）。
+// 用法：rgl/index.js 的 loadTextures：pgOverride(tx) 覆盖 albedo → 资源包覆盖 → PBR.build → pgApplyMaps(pbr, tx, own) 覆盖法线 / 光谱通道（资源包换过的层不覆盖）
+//   → rgl/texpack.js finishSet：包自带 _n / _s 的层再被包覆盖（草顶 keep 也一样），spec.A 的 POM 深度挪进 pomTab。
+// 输出布局 = goodGL（vendor/gl/pbr.js 头注释）：nrm = RG 法线（G = 图向下，DirectX 约定）· B 腔体 AO · A 高度（255 = 不做 POM）；spec = R 光滑度 · G F0 · B 孔隙 / 散射（≥65 为散射）· A POM 深度（0..255 → 0..0.25 格；rgl/texpack.js 再挪进 pomTab）。
 import { SH } from '../vendor/gl/shared.js';
 
 const S = 16, N = 256;
@@ -121,6 +122,7 @@ const DEFS = {
   packed_ice: { gen: packedIce, under: true },
 };
 const PG_NAMES = Object.keys(DEFS);
+export const pgIsUnder = l => !!(DEFS[SH.TEX_NAMES[l]] && DEFS[SH.TEX_NAMES[l]].under);   // rgl/texpack.js underHD：HD 包也要叠在蓝色半透底上
 
 const q = v => v <= 0 ? 0 : v >= 255 ? 255 : Math.round(v);
 
@@ -156,11 +158,12 @@ function bake(name, def) {
     const i = y * S + x, o = i * 4, hole = def.cut && t.alpha[i] === 0;
     img[o] = q(t.col[i * 3]); img[o + 1] = q(t.col[i * 3 + 1]); img[o + 2] = q(t.col[i * 3 + 2]); img[o + 3] = def.alpha0 ? 0 : q(t.alpha[i]);
     if (hole) { n[o] = 128; n[o + 1] = 128; n[o + 2] = 255; n[o + 3] = 255; s[o] = q(t.smooth[i]); s[o + 1] = q(t.f0[i]); s[o + 2] = 0; s[o + 3] = 0; continue; }
-    // Sobel（goodPG texCore.bake）：+X = 图右，+Y = 图上（第 0 行），+Z = 朝外；周期取邻
+    // Sobel（goodPG texCore.bake）：+X = 图右，+Z = 朝外；周期取邻。⚠ Y：goodPG 是 +Y = 图上，goodGL 的切线 B = uv.y 增大 = 图向下（PBR.build 的 ny = −(下 − 上)），
+    //   所以这里写 −gy（原样搬 goodPG 的 +gy 时凹凸受光上下颠倒）
     const tl = H(x - 1, y - 1), tc = H(x, y - 1), tr = H(x + 1, y - 1), ml = H(x - 1, y), mr = H(x + 1, y), bl = H(x - 1, y + 1), bc = H(x, y + 1), br = H(x + 1, y + 1);
     const gx = (tr + 2 * mr + br - (tl + 2 * ml + bl)) / 8 * t.depth, gy = (bl + 2 * bc + br - (tl + 2 * tc + tr)) / 8 * t.depth, inv = 1 / Math.sqrt(gx * gx + gy * gy + 1);
     let avg = 0; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) avg += H(x + dx, y + dy); avg /= 25;   // 腔体 AO：低于邻域平均多少（与 goodGL pbr.js 同式，ns = 1）
-    n[o] = q((-gx * inv * 0.5 + 0.5) * 255); n[o + 1] = q((gy * inv * 0.5 + 0.5) * 255);
+    n[o] = q((-gx * inv * 0.5 + 0.5) * 255); n[o + 1] = q((-gy * inv * 0.5 + 0.5) * 255);
     n[o + 2] = q(Math.max(0.6, 1 - Math.max(0, avg - h[i]) * 1.3) * 255); n[o + 3] = pomB ? q(h[i] * 255) : 255;
     s[o] = q(t.smooth[i]); s[o + 1] = q(t.f0[i]);
     s[o + 2] = t.sss[i] > 20 ? q(65 + t.sss[i] / 255 * 190) : 0;   // goodGL：B ≥ 65 为次表面散射；< 65 是孔隙度（0..64）

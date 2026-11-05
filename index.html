@@ -267,6 +267,8 @@
 
 <script type="importmap">{"imports":{
  "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+ "three/addons/loaders/HDRLoader.js":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/HDRLoader.js",
+ "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/",
  "tweakpane":"https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js",
  "jszip":"https://esm.sh/jszip@3.10.1",
  "idb-keyval":"https://cdn.jsdelivr.net/npm/idb-keyval@6.2.1/+esm"}}</script>
@@ -3608,13 +3610,32 @@ const Menus = {
   init() {
     const loadPack = async (file) => {
       if (!file) return;
-      try { const r = await ResourcePack.load(file); HUD.message(`Resource pack "${file.name}": ${r.count}/${r.total} textures, ${Atlas.tileRes}x`); }
+      try { const r = await ResourcePack.load(file); HUD.message(`Resource pack "${file.name}": ${r.count}/${r.total} textures, ${Atlas.tileRes}x` + (r.maps ? `, ${r.maps} PBR` : '') + (r.sky ? `, ${r.sky} sky` : '')); }
       catch (e) { console.error(e); HUD.message('Failed to read pack: ' + e.message); }
     };
-    // Resource pack only via URL: ?tex=pack.zip
+    const loadHdr = (name, buf) => { const k = ResourcePack.addHdr(name.toLowerCase().replace(/^.*\//, '').replace(/\.hdr$/, ''), buf); HUD.message(`Sky panorama "${name}" → ${k}`); };
+    // Drag a resource pack (.zip) or a panorama (.hdr: pano / pano1..9 / pano_night / pano_night1..9; other names = pano) onto the window: hot reload, same path as ?tex=
+    gg.ev(window, {
+      dragover(e) { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } },
+      drop(e) {
+        const files = [...(e.dataTransfer && e.dataTransfer.files || [])]; if (!files.length) return;
+        e.preventDefault();
+        for (const f of files) {
+          const n = f.name.toLowerCase();
+          if (n.endsWith('.zip')) loadPack(f);
+          else if (n.endsWith('.hdr')) f.arrayBuffer().then(b => loadHdr(f.name, b));
+          else HUD.message(`Drop a resource pack (.zip) or a sky panorama (.hdr), not "${f.name}"`);
+        }
+      },
+    });
+    // Resource pack via URL: ?tex=pack.zip; panoramas: &pano=a.hdr[,b.hdr…] &pano_night=… (several = numbered 1..9, crossfaded over the day / night)
     if (location.protocol.startsWith('http')) {
       const q = new URLSearchParams(location.search), packUrl = q.get('tex');
       if(packUrl) fetch(packUrl).then(r => r.ok ? r.blob() : (location='?tex=res/survivalpack.zip')).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop())));
+      for (const key of ['pano', 'pano_night']) {
+        const urls = (q.get(key) || '').split(',').filter(Boolean);
+        urls.forEach((u, i) => fetch(u).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('HTTP ' + r.status))).then(b => loadHdr(urls.length > 1 ? key + (i + 1) : key, b)).catch(e => HUD.message(`Panorama ${u}: ${e.message}`)));
+      }
       // World via URL: &xyzb=world.webp (a bwebp file from Share) — Title.boot imports it over the slot of its seed
       const worldUrl = q.get('xyzb');
       if (worldUrl) Title.bootFile = fetch(worldUrl).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('HTTP ' + r.status)));

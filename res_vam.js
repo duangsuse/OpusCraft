@@ -344,42 +344,82 @@ for (const c of WOOL_NAMES) TEX_ALIASES['wool_colored_' + c.replace('light_', 's
 for (const k of ['pickaxe', 'axe', 'shovel', 'hoe', 'sword']) { TEX_ALIASES['wood_' + k] = 'wooden_' + k; TEX_ALIASES['gold_' + k] = 'golden_' + k; }
 for (let i = 0; i < 8; i++) TEX_ALIASES['wheat_stage_' + i] = 'wheat_stage' + i;
 
+// Besides block/item textures the loader also collects (all hot-reloadable, see rgl/host-b.js glsTextures):
+//   labPBR maps    textures/block/<name>_n.png / <name>_s.png  -> maps (same <name> filter as the atlas)
+//   sky assets     textures/environment/sun.png, moon_phases.png, pano{,1-9}.hdr, pano_night{,1-9}.hdr -> sky
+//   switches       any shaders.properties or environment/*.properties (key=value; Iris sun/moon/sky/stars) -> props
+// Extra HDR panoramas from ?pano= or a dropped .hdr go through addHdr() and survive pack changes.
 const ResourcePack = {
-  loaded: false, name: '', count: 0, total: 0,
+  loaded: false, name: '', count: 0, total: 0, version: 0,
+  maps: new Map(),            // name -> { n?: ImageBitmap, s?: ImageBitmap }
+  sky: { sun: null, moon: null, hdr: new Map() },   // hdr: 'pano' / 'pano3' / 'pano_night' ... -> ArrayBuffer
+  extraHdr: new Map(),        // same keys, from addHdr (wins over the pack)
+  props: {},
   async load(file) {
     const zip = await JSZip.loadAsync(file);
     const wanted = new Set(Atlas.names);
-    const found = new Map();
+    const found = new Map(), mapFound = new Map(), env = new Map(), propFiles = [];
     const re = /(^|\/)assets\/minecraft\/textures\/(block|blocks|item|items)\/([a-z0-9_\-]+)\.png$/;
+    const reEnv = /(^|\/)assets\/minecraft\/textures\/environment\/([a-z0-9_\-]+)\.(png|hdr|properties)$/;
     zip.forEach((path, entry) => {
       if (entry.dir) return;
-      const lower = path.toLowerCase();
+      const lower = path.toLowerCase(), root = lower.startsWith('assets/') ? 4 : 0;
+      const e = lower.match(reEnv);
+      if (e) { if (e[3] === 'properties') propFiles.push(entry); else { const prev = env.get(e[2]); if (!prev || prev.prio < root) env.set(e[2], { entry, prio: root, ext: e[3] }); } return; }
+      if (lower.endsWith('shaders.properties')) { propFiles.push(entry); return; }
       // Ignore OptiFine / MCPatcher extensions (CTM, CIT, emissive, random mobs) and metadata files.
       if (lower.includes('optifine/') || lower.includes('mcpatcher/') || lower.includes('/ctm/') || lower.endsWith('.mcmeta') || lower.endsWith('.properties')) return;
       const m = lower.match(re); if (!m) return;
       let name = m[3];
       if (TEX_ALIASES[name]) name = TEX_ALIASES[name];
-      if (!wanted.has(name)) return;
+      if (!wanted.has(name)) {   // labPBR companion maps: <name>_n / <name>_s of a wanted texture
+        const pm = name.match(/^(.+)_([ns])$/); if (!pm) return;
+        const base = TEX_ALIASES[pm[1]] || pm[1]; if (!wanted.has(base)) return;
+        const k = base + '_' + pm[2], prio = root + (m[2].startsWith('item') ? 1 : 2), prev = mapFound.get(k);
+        if (!prev || prev.prio < prio) mapFound.set(k, { entry, prio, base, kind: pm[2] });
+        return;
+      }
       const isItemFolder = m[2].startsWith('item');
       const it = Items.byName[name];
       const wantsItemFolder = !!(it && it.type !== 'block');
       // Root-level assets beat version overlay folders (components_1.21/assets/...), and the matching folder type beats the other.
-      const prio = (lower.startsWith('assets/') ? 4 : 0) + ((isItemFolder === wantsItemFolder) ? 2 : 1);
+      const prio = root + ((isItemFolder === wantsItemFolder) ? 2 : 1);
       const prev = found.get(name);
       if (!prev || prev.prio < prio) found.set(name, { entry, prio });
     });
-    const images = new Map();
-    await Promise.all([...found].map(async ([name, { entry }]) => {
-      try { const blob = await entry.async('blob'); images.set(name, await blobToImage(blob)); }
-      catch (e) { console.warn('Resource pack: could not decode ' + name, e); }
-    }));
+    const images = new Map(), maps = new Map(), sky = { sun: null, moon: null, hdr: new Map() }, props = {};
+    const decode = async (what, entry) => { try { return await blobToImage(await entry.async('blob')); } catch (e) { console.warn('Resource pack: could not decode ' + what, e); return null; } };
+    await Promise.all([
+      ...[...found].map(async ([name, { entry }]) => { const img = await decode(name, entry); if (img) images.set(name, img); }),
+      ...[...mapFound.values()].map(async ({ entry, base, kind }) => { const img = await decode(base + '_' + kind, entry); if (!img) return; const o = maps.get(base) || {}; o[kind] = img; maps.set(base, o); }),
+      ...[...env].map(async ([name, { entry, ext }]) => {
+        if (ext === 'hdr') { if (/^pano(_night)?[1-9]?$/.test(name)) sky.hdr.set(name, await entry.async('arraybuffer')); return; }
+        if (name === 'sun' || name === 'moon_phases') sky[name === 'sun' ? 'sun' : 'moon'] = await decode(name, entry);
+      }),
+      ...propFiles.map(async entry => Object.assign(props, parseProps(await entry.async('string')))),
+    ]);
+    // Everything the renderer reads must be in place before Atlas.build(): it fires 'atlasRebuilt', which reloads the rgl textures.
+    this.maps = maps; this.sky = sky; this.props = props;
+    this.loaded = true; this.name = file.name; this.count = images.size; this.total = wanted.size; this.version++;
     Atlas.packImages = images;
     Atlas.build();
-    this.loaded = true; this.name = file.name; this.count = images.size; this.total = wanted.size;
-    return { count: images.size, total: wanted.size };
+    return { count: images.size, total: wanted.size, maps: maps.size, sky: (sky.sun ? 1 : 0) + (sky.moon ? 1 : 0) + sky.hdr.size };
   },
-  unload() { Atlas.packImages = new Map(); Atlas.build(); this.loaded = false; this.name = ''; this.count = 0; }
+  unload() { Atlas.packImages = new Map(); this.maps = new Map(); this.sky = { sun: null, moon: null, hdr: new Map() }; this.props = {}; this.version++; Atlas.build(); this.loaded = false; this.name = ''; this.count = 0; },
+  // HDR panorama outside a pack (?pano=url, dropped .hdr). key = pano / pano1..9 / pano_night / pano_night1..9
+  addHdr(key, buf) {
+    if (!/^pano(_night)?[1-9]?$/.test(key)) key = 'pano';
+    this.extraHdr.set(key, buf); this.version++; Events.emit('resourcePackSky');
+    return key;
+  },
+  clearHdr() { this.extraHdr.clear(); this.version++; Events.emit('resourcePackSky'); },
 };
+// key=value lines, # / ! comments (Java .properties subset)
+function parseProps(text) {
+  const o = {};
+  for (const line of text.split(/\r?\n/)) { const t = line.trim(); if (!t || t[0] === '#' || t[0] === '!') continue; const i = t.search(/[=:]/); if (i > 0) o[t.slice(0, i).trim()] = t.slice(i + 1).trim(); }
+  return o;
+}
 function blobToImage(blob) {
   if (window.createImageBitmap) return createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }).catch(() => createImageBitmap(blob));
   return new Promise((res, rej) => { const url = URL.createObjectURL(blob); const img = new Image(); img.onload = () => { URL.revokeObjectURL(url); res(img); }; img.onerror = rej; img.src = url; });

@@ -1,0 +1,718 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#1b120b">
+<title>MC / SC / 2D Web 工具精选</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<style>
+  /* SurvivalCraft 风格：泥土/岩石底色 + 米黄木牌面板 + 琥珀高光 + 凸起按键 */
+  :root{
+    --bg0:#1b120b; --bg1:#2a1c11; --panel:#31251a; --panel2:#3a2b1d;
+    --line:#544026; --line-lit:#7c5c34;
+    --ink:#f3e6d2; --dim:#c9b394;
+    --amber:#e2a63f; --amber-lit:#f0c069; --amber-deep:#a86b22;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%}
+  body{
+    background-color:var(--bg0);
+    color:var(--ink);
+    font: 15px/1.5 'Press Start 2P', "Trebuchet MS","Segoe UI","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    touch-action: none;
+    user-select: none;
+  }
+  /* 底：土色斑块 + 四周压暗 */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+    background:
+      radial-gradient(circle at 14% 16%, rgba(226,166,63,.10), transparent 46%),
+      radial-gradient(circle at 82% 6%, rgba(226,166,63,.07), transparent 40%),
+      radial-gradient(circle at 50% 0%, #3a2717 0%, #241810 46%, #170f09 100%),
+      radial-gradient(circle at 50% 120%, rgba(0,0,0,.65), transparent 60%);
+  }
+  /* 背景层（固定）：底色 ::before → 方块 grid → 颗粒。
+     不再依赖负 z-index，内容层（main/header）明确压在 z-index 1/2。 */
+  #bglayers{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  /* 细颗粒（SVG 噪声），只做质感，不挡交互 */
+  #bglayers::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    opacity:.10;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  }
+  /* 方块闪烁：H5 grid，铺满背景层，只做明暗脉冲 */
+  #bggrid{
+    position:absolute;inset:0;pointer-events:none;overflow:hidden;
+    display:grid;grid-auto-rows:var(--cell,140px);
+    background-image:
+      linear-gradient(to right, rgba(255,230,190,.022) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,230,190,.022) 1px, transparent 1px);
+    background-size:var(--cell,140px) var(--cell,140px);
+  }
+  #bggrid i{
+    display:block;width:var(--cell,140px);height:var(--cell,140px);opacity:0;
+    border-radius:3px;will-change:opacity;
+    animation-name:blink;animation-iteration-count:infinite;animation-timing-function:ease-in-out;
+  }
+  #bggrid i.lit{
+    background:linear-gradient(180deg, rgba(255,230,190,.095), rgba(255,208,146,.045));
+    box-shadow:inset 0 0 0 1px rgba(255,235,200,.03), inset 0 0 34px rgba(255,214,150,.05);
+  }
+  #bggrid i.dim{
+    background:rgba(0,0,0,.18);
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.10);
+  }
+  @keyframes blink{
+    0%,100%{opacity:0}
+    32%{opacity:0}
+    46%{opacity:.50}
+    56%{opacity:1}
+    68%{opacity:.45}
+    82%{opacity:.12}
+  }
+  @media (prefers-reduced-motion:reduce){
+    #bggrid i{animation:none;opacity:.5}
+  }
+  a{color:inherit}
+  header{
+    position:sticky;top:0;z-index:2;display:flex;gap:16px;align-items:center;flex-wrap:wrap;
+    padding:16px 24px 14px;
+    background:linear-gradient(rgba(52,36,22,.97), rgba(40,27,16,.90));
+    border-bottom:1px solid #0d0805;
+    box-shadow:inset 0 1px 0 rgba(255,225,180,.07), 0 2px 10px rgba(0,0,0,.45);
+    backdrop-filter:blur(3px);
+    transition:opacity .28s ease;
+  }
+  h1{
+    margin:0;
+    font-size: 25px;
+    font-weight:700;
+    letter-spacing:.4px;
+    background: url(../res/sclogo.webp);
+    background-clip: text;
+    color: #0000;
+    filter: drop-shadow(2px 1px 1px lime);
+  }
+  .langs{display:flex;gap:8px;margin-left:auto}
+  /* 石质按钮：平涂底色 + SVG 噪声质感 + 上亮下暗的斜面；不使用任何 gradient 填充 */
+  .langs button{
+    position:relative;isolation:isolate;overflow:hidden;
+    cursor:pointer;padding:6px 15px;border-radius:4px;font:inherit;font-size:13px;font-weight:700;
+    letter-spacing:.6px;color:#2a2622;border:1px solid #26211c;
+    background-color:#918c85;
+    text-shadow:0 1px 0 rgba(255,255,255,.22);
+    box-shadow:
+      inset 0 2px 0 rgba(255,255,255,.42),
+      inset 0 -3px 0 rgba(0,0,0,.30),
+      inset 2px 0 0 rgba(255,255,255,.09),
+      inset -2px 0 0 rgba(0,0,0,.12),
+      0 2px 0 #1d1916,
+      0 3px 7px rgba(0,0,0,.35);
+    transition:filter .12s, transform .06s, box-shadow .06s;
+  }
+  /* 噪声：feTurbulence 贴图铺满按钮，overlay 混色，只做质感 */
+  .langs button::after{
+    content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+    opacity:.30;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='90' height='90'><filter id='bn'><feTurbulence type='fractalNoise' baseFrequency='.95' numOctaves='2' stitchTiles='stitch'/></filter><rect width='90' height='90' filter='url(%23bn)'/></svg>");
+  }
+  .langs button:hover{filter:brightness(1.06)}
+  .langs button:active{
+    transform:translateY(1px);
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.35), inset 0 -1px 0 rgba(255,255,255,.18), 0 0 0 #1d1916;
+  }
+  .langs button:focus-visible{outline:2px solid var(--amber-lit);outline-offset:2px}
+  .langs button[aria-pressed="true"]{
+    color:#1d1509;border-color:#4a3418;background-color:#c9963f;
+    box-shadow:
+      inset 0 2px 0 rgba(255,255,255,.45),
+      inset 0 -3px 0 rgba(0,0,0,.26),
+      inset 2px 0 0 rgba(255,255,255,.12),
+      inset -2px 0 0 rgba(0,0,0,.10),
+      0 2px 0 #1d1916,
+      0 0 14px rgba(226,166,63,.30);
+  }
+  main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:22px 24px 64px}
+  section{margin:28px 0 0}
+  /* 第 5 个分区起折进 details */
+  details.more{margin:26px 0 0}
+  details.more>summary{
+    display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;
+    padding:10px 14px;border-radius:8px;border:1px solid var(--line);
+    background:linear-gradient(var(--panel), #291d13);
+    box-shadow:inset 0 1px 0 rgba(255,230,190,.10), 0 2px 5px rgba(0,0,0,.38);
+    color:#f0dcbb;font-size:15px;font-weight:700;letter-spacing:.5px;
+    overflow-wrap:anywhere;transition:border-color .12s, opacity .28s ease;
+  }
+  details.more>summary::-webkit-details-marker{display:none}
+  details.more>summary:hover{border-color:var(--amber)}
+  details.more>summary:focus-visible{outline:2px solid var(--amber-lit);outline-offset:2px}
+  details.more>summary::after{
+    content:"▸";margin-left:auto;flex:none;color:var(--amber);font-size:12px;
+    transition:transform .15s;
+  }
+  details.more[open]>summary::after{content:"▾"}
+  details.more[open]>summary{margin-bottom:4px}
+  details.more section:first-of-type{margin-top:20px}
+  h2{
+    display:flex;align-items:center;gap:9px;margin:0 0 12px;
+    font-size:16px;font-weight:700;letter-spacing:.3px;color:#f0dcbb;
+    text-shadow:0 1px 0 #120b06;
+    transition:opacity .28s ease;
+  }
+  h2::before{
+    content:"";width:4px;height:15px;flex:none;border-radius:2px;
+    background:linear-gradient(var(--amber-lit), var(--amber-deep));
+    box-shadow:0 0 8px rgba(226,166,63,.45), inset 0 1px 0 rgba(255,255,255,.45);
+  }
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
+  /* 木牌卡片 */
+  .card{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    padding:13px 15px;
+    text-decoration:none;
+    border-radius: 2px;
+    border:1px solid var(--line);
+    background: #6c675c;
+    box-shadow: inset 2px 2px 0 rgb(227 195 167), 0 2px 5px rgba(0, 0, 0, .38);
+    transition:border-color .12s, background .12s, transform .12s, box-shadow .12s, opacity .26s ease;
+  }
+  .card:hover,.card:focus-visible{
+    border-color:var(--amber);background:linear-gradient(var(--panel2), #302215);
+    transform:translateY(-2px);outline:none;
+    box-shadow:inset 0 1px 0 rgba(255,235,200,.16), 0 8px 20px rgba(0,0,0,.45), 0 0 0 1px rgba(226,166,63,.25);
+  }
+  .card .name{font-weight:700;font-size:15px;color:#f7e9cb;letter-spacing:.2px}
+  /* 悬停：卡内浮现该站截图（宽屏 L、窄屏 M，路径由 JS 探到后写进 --shot），文字仍压在图上 */
+  .card{position:relative;isolation:isolate;overflow:hidden}
+  .card::before{
+    content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;
+    background-image:var(--shot,none);
+    background-position:center top;background-size:100% auto;background-repeat:no-repeat;
+    opacity:0;transition:opacity .22s ease;
+  }
+  .card::after{
+    content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
+    background:linear-gradient(rgba(27,18,11,.10) 30%, rgba(20,13,8,.78));
+    opacity:0;transition:opacity .22s ease;
+  }
+  .card:hover::before,.card:focus-visible::before{opacity:.6}
+  .card:hover::after,.card:focus-visible::after{opacity:1}
+  .card .desc{color: whitesmoke;font-size:13.5px}
+  .card .host{
+    margin-top:auto;
+    padding-top:6px;
+    color: #77ff00;
+    font-size:12px;
+    letter-spacing:.2px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    overflow-wrap:anywhere;
+  }
+  /* sclogo：挂在 SCWK 卡内的 SC 图标，独立跳官方截图页 */
+  .card .sc-logo{display:block;align-self:flex-start;line-height:0;border-radius:8px;cursor:pointer}
+  .card .sc-logo:focus-visible{outline:2px solid var(--amber-lit);outline-offset:2px}
+  .card .sc-logo img{width:64px;height:64px;border-radius:8px;
+    box-shadow:0 2px 6px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,235,200,.18)}
+  /* ── 悬停 1.5s：全屏大图预览。底层铺大图，卡片让位（当前那张半透明，其余全透明） ── */
+  #preview{position:fixed;inset:0;z-index:0;opacity:0;pointer-events:none;transition:opacity .3s ease}
+  #preview img{display:block;width:100%;height:100%;object-fit:cover;background:#120c07}
+  /* 暗罩：header、h2 与半透明卡上的字还压得住 */
+  #preview::after{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 50% 38%, rgba(12,8,5,.18), rgba(10,6,4,.74));
+  }
+  body.preview #preview{opacity:1;pointer-events:auto;cursor:pointer}
+  /* main 让出指针（点击落到大图上换图），只有当前卡还能点 */
+  body.preview main{pointer-events:none}
+  body.preview .card{opacity:0;pointer-events:none;transform:none}
+  body.preview .card.pv-active{
+    opacity:1;pointer-events:auto;transform:none;
+    border-color:rgba(240,192,105,.55);background:rgba(14,9,5,.38);
+    box-shadow:0 0 0 1px rgba(240,192,105,.35), 0 10px 30px rgba(0,0,0,.55);
+  }
+  /* 卡片自己半透明：底色走 alpha、文字压到 .45；下拉保持不透明，方便读 */
+  body.preview .card.pv-active>*:not(.pv-groups){opacity:.45}
+  body.preview .card.pv-active::before,
+  body.preview .card.pv-active::after{opacity:0}
+  /* 预览卡上的分组下拉（只在预览期间存在） */
+  .card .pv-groups{
+    margin-top:8px;max-width:100%;padding:4px 6px;border-radius:4px;cursor:pointer;
+    font:inherit;font-size:12px;letter-spacing:.2px;color:#1d1509;
+    background:#c9963f;border:1px solid #4a3418;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 2px 0 #1d1916;
+  }
+  .card .pv-groups:focus-visible{outline:2px solid var(--amber-lit);outline-offset:2px}
+  /* 沉浸式：除当前卡外整页消失（header/h2/更多资源/其余卡全透明），
+     方块动效层提到截图之上（main 在 #bglayers 之后，卡片仍压在动效上） */
+  body.preview #bglayers{z-index:1}
+  body.preview header{opacity:0;pointer-events:none}
+  body.preview h2{opacity:0}
+  body.preview details.more>summary{opacity:0;pointer-events:none}
+  .msg{
+    max-width:640px;margin:64px auto;padding:18px 20px;border-radius:8px;color:var(--dim);
+    border:1px solid var(--line);background:linear-gradient(var(--panel), #291d13);
+    box-shadow:inset 0 1px 0 rgba(255,230,190,.10), 0 2px 5px rgba(0,0,0,.38);
+  }
+  .msg b{color:var(--ink)}
+  .msg code{color:var(--amber);font-family:ui-monospace,Menlo,monospace}
+  @media (max-width:700px){
+    .grid{grid-template-columns:1fr}
+    main{padding:18px 16px 56px}
+  }
+  @media (max-width:520px){
+    header{padding:14px 16px 12px}
+    main{padding:16px 16px 48px}
+    h1{font-size:19px;letter-spacing:.2px}
+    .card{padding:11px 13px}
+    .card .name{font-size:14px}
+    .card .desc{font-size:13px}
+    section{margin:22px 0 0}
+  }
+</style>
+</head>
+<body>
+<div id="bglayers" aria-hidden="true">
+  <div id="bggrid"></div>
+</div>
+<div id="preview" aria-hidden="true"><img id="previewImg" alt="" decoding="async"></div>
+<header>
+  <h1 id="title">MC / SC / 2D Web 工具精选</h1>
+  <div class="langs" role="group" aria-label="language">
+    <button type="button" data-lang="zh">中文</button>
+    <button type="button" data-lang="en">EN</button>
+  </div>
+</header>
+<main id="app" aria-live="polite">
+  <p class="msg">加载 <code>data.tsv</code> …</p>
+</main>
+
+<script>
+(() => {
+  'use strict';
+  const app = document.getElementById('app');
+  const $title = document.getElementById('title');
+
+  // ── TSV：去 BOM、按行切、按 tab 分列（值里不出现 tab，允许空值）
+  function parseTSV(text) {
+    const rows = [];
+    for (const raw of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+      if (!raw.trim()) continue;
+      rows.push(raw.split('\t'));
+    }
+    const [head, ...body] = rows;
+    return body.filter(r => r.length >= head.length).map(r =>
+      Object.fromEntries(head.map((h, i) => [h.trim(), (r[i] ?? '').trim()])));
+  }
+  const kv = text => Object.fromEntries(parseTSV(text).map(r => [r.key, r.value]));
+
+  const state = { lang: 'zh', data: [], i18n: {}, order: [], moreOpen: false };
+  // 名称里的 emoji（含 VS16 / ZWJ / 肤色修饰），用来拼 details 的 summary
+  const EMOJI = /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
+
+  function pickLang() {
+    const q = new URLSearchParams(location.search).get('lang');
+    if (q === 'zh' || q === 'en') return q;
+    try { const s = localStorage.getItem('techstack.lang'); if (s === 'zh' || s === 'en') return s; } catch {}
+    return /^zh\b/i.test(navigator.language || '') ? 'zh' : 'en';
+  }
+
+  const t = key => state.i18n[state.lang]?.[key] ?? state.i18n.zh?.[key] ?? key;
+  const itemText = (id, kind) => {
+    const cur = state.i18n[state.lang]?.[id + '_' + kind];
+    return cur ?? state.i18n.zh?.[id + '_' + kind] ?? state.i18n.en?.[id + '_' + kind] ?? '';
+  };
+
+  function render() {
+    const L = state.i18n[state.lang] || {};
+    document.documentElement.lang = state.lang;
+    document.title = t('title');
+    $title.textContent = t('title');
+
+    for (const b of document.querySelectorAll('.langs button'))
+      b.setAttribute('aria-pressed', String(b.dataset.lang === state.lang));
+
+    const groups = new Map(state.order.map(c => [c, []]));
+    for (const row of state.data) {
+      if (!groups.has(row.category)) groups.set(row.category, []);
+      groups.get(row.category).push(row);
+    }
+
+    const sections = [];
+    for (const [cat, items] of groups) {
+      if (!items.length) continue;
+      const sec = document.createElement('section');
+      const h2 = document.createElement('h2');
+      h2.textContent = L['category_' + cat] ?? cat;
+      sec.append(h2);
+
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      for (const it of items) {
+        const a = document.createElement('a');
+        a.className = 'card';
+        a.href = it.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.title = it.url;
+
+        const nm = document.createElement('span');
+        nm.className = 'name';
+        nm.textContent = itemText(it.id, 'name') || it.id;
+
+        const ds = document.createElement('span');
+        ds.className = 'desc';
+        ds.textContent = itemText(it.id, 'desc');
+
+        const hostTxt = it.host || (() => { try { return new URL(it.url).host; } catch { return ''; } })();
+
+        const host = document.createElement('span');
+        host.className = 'host';
+        host.textContent = hostTxt;
+
+        a.dataset.host = hostTxt;
+
+        a.append(nm);
+        if (ds.textContent) a.append(ds);
+        a.append(host);
+        grid.append(a);
+      }
+      // SC 标志位：按文本选中 SCWK 卡片，把 sclogo 追加进卡片里（图存本地 res/，绕开外链 CORS/防盗链）
+      const scwk = [...grid.querySelectorAll('.card')]
+        .find(a => /SCWK/i.test(a.querySelector('.name')?.textContent || ''));
+      if (scwk && !scwk.querySelector('.sc-logo')) {
+        const shot = 'https://kaalus.wordpress.com/screenshots/';
+        const logo = document.createElement('span');
+        logo.className = 'sc-logo';
+        logo.setAttribute('role', 'link');
+        logo.setAttribute('aria-label', 'Survivalcraft screenshots');
+        logo.tabIndex = 0;
+        logo.title = shot;
+
+        const img = document.createElement('img');
+        img.src = '../res/scicon.webp';
+        img.alt = 'Survivalcraft';
+        img.width = 64;
+        img.height = 64;
+        img.decoding = 'async';
+        logo.append(img);
+
+        // 卡片本身是 <a>，所以图标走点击/键盘拦截，跳到官方截图页
+        const go = e => {
+          if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(shot, '_blank', 'noopener');
+        };
+        logo.addEventListener('click', go);
+        logo.addEventListener('keydown', go);
+
+        const nm = scwk.querySelector('.name');
+        scwk.insertBefore(logo, nm ? nm.nextSibling : scwk.firstChild);
+      }
+      sec.append(grid);
+      sections.push(sec);
+    }
+
+    // 前 4 个分区直接铺；第 5 个起折进 details，summary = 「更多资源」+ 被折叠条目的 emoji
+    if (sections.length > 4) {
+      const more = document.createElement('details');
+      more.className = 'more';
+      more.open = !!state.moreOpen;
+      more.addEventListener('toggle', () => { state.moreOpen = more.open; });
+
+      const sum = document.createElement('summary');
+      const folded = sections.slice(4);
+      const emojis = folded
+        .flatMap(sec => [...sec.querySelectorAll('.card .name')])
+        .map(el => (el.textContent.match(EMOJI) || []).join(''))
+        .join('');
+      sum.textContent = (state.lang === 'en' ? 'More resources (gift @last) :' : '更多资源 （倒数第一项有惊喜）：') + emojis;
+
+      more.append(sum, ...folded);
+      app.replaceChildren(...sections.slice(0, 4), more);
+    } else {
+      app.replaceChildren(...sections);
+    }
+  }
+
+  async function boot() {
+    try {
+      const [dataTxt, zhTxt, enTxt] = await Promise.all(
+        ['data.tsv', 'zh.tsv', 'en.tsv'].map(async f => {
+          const r = await fetch(f, { cache: 'no-cache' });
+          if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`);
+          return r.text();
+        }));
+      state.data = parseTSV(dataTxt).filter(r => r.id && r.url);
+      buildIdMap();
+      await loadShots();
+      state.i18n = { zh: kv(zhTxt), en: kv(enTxt) };
+      // 分类顺序 = i18n 里 category_* 的声明顺序；data 里多出来的分类追加在后面
+      state.order = Object.keys(state.i18n.zh).filter(k => k.startsWith('category_')).map(k => k.slice(9));
+      for (const r of state.data) if (!state.order.includes(r.category)) state.order.push(r.category);
+      state.lang = pickLang();
+      render();
+
+      for (const b of document.querySelectorAll('.langs button'))
+        b.addEventListener('click', () => {
+          state.lang = b.dataset.lang;
+          try { localStorage.setItem('techstack.lang', state.lang); } catch {}
+          render();
+        });
+    } catch (e) {
+      console.error(e);
+      app.innerHTML = '<div class="msg"><b>数据没加载出来。</b><br>' +
+        '这个页面要同目录的 <code>data.tsv</code>、<code>zh.tsv</code>、<code>en.tsv</code>，' +
+        '并且要经 HTTP 打开（例如 <code>http://localhost:8765/techstack/</code>）——' +
+        '<code>file://</code> 下浏览器会拦 fetch。<br><br>' +
+        '错误：<code>' + String(e && e.message || e).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c])) + '</code></div>';
+    }
+  }
+
+  // ── 背景方块闪烁（H5 grid）：按视口铺方块，各自随机时长与相位；只改 opacity
+  const gridEl = document.getElementById('bggrid');
+  let gridTimer = 0;
+  function buildGrid() {
+    const cell = Math.max(64, Math.min(170, Math.round(innerWidth / 9)));
+    const cols = Math.ceil(innerWidth / cell) + 1;
+    const rows = Math.ceil(innerHeight / cell) + 1;
+    gridEl.style.setProperty('--cell', cell + 'px');
+    gridEl.style.gridTemplateColumns = `repeat(${cols}, ${cell}px)`;
+    const frag = document.createDocumentFragment();
+    for (let i = 0, n = cols * rows; i < n; i++) {
+      const tile = document.createElement('i');
+      tile.className = Math.random() < 0.62 ? 'lit' : 'dim';
+      tile.style.animationDuration = (2.8 + Math.random() * 4.8).toFixed(2) + 's';
+      tile.style.animationDelay = (-Math.random() * 7).toFixed(2) + 's';
+      frag.append(tile);
+    }
+    gridEl.replaceChildren(frag);
+  }
+  buildGrid();
+  addEventListener('resize', () => { clearTimeout(gridTimer); gridTimer = setTimeout(buildGrid, 180); }, { passive: true });
+
+  // ── 悬停卡片 → 卡内背景浮现 res/<host>/<seq>-L.webp（窄屏 -M），同站多张自动轮播
+  // 图清单来自 res/index.tsv（shoot.js 生成）：一行为一张图，files 列 = <站点目录>/<seq>-<tag>.webp
+  // 同 <站点目录> + 同 group 的行 = 一个分组；host 列 = “<站点目录> <分组名>”，后段就是分组名
+  const shotTag = () => matchMedia('(max-width:700px)').matches ? 'M' : 'L';
+  const groupsByHost = new Map();   // host -> [{ group, name, files: ['host/seq-L.webp', …] }]
+  async function loadShots() {
+    groupsByHost.clear();
+    try {
+      const r = await fetch('res/index.tsv', { cache: 'no-cache' });
+      if (!r.ok) return;
+      for (const row of parseTSV(await r.text())) {
+        const files = (row.files || '').split(',').map(s => s.trim()).filter(Boolean);
+        if (!files.length) continue;
+        const host = files[0].split('/')[0];
+        const group = Number(row.group || 0);
+        let list = groupsByHost.get(host);
+        if (!list) groupsByHost.set(host, list = []);
+        let g = list.find(x => x.group === group);
+        if (!g) list.push(g = { group, name: '', files: [] });
+        let name = (row.host || '').trim();          // “shulkr.com 的某功能” → “的某功能”
+        if (name.startsWith(host)) name = name.slice(host.length).trim();
+        if (name && !g.name) g.name = name;
+        for (const f of files) if (!g.files.includes(f)) g.files.push(f);
+      }
+      for (const list of groupsByHost.values()) list.sort((a, b) => a.group - b.group);
+    } catch { /* 没有 index.tsv：卡片退回纯文字 */ }
+  }
+  const pickTag = (files, tag) => {
+    const hit = files.filter(f => f.endsWith(`-${tag}.webp`));
+    return (hit.length ? hit : files).map(f => `res/${f}`);
+  };
+  // 分组列表：index.tsv 里该站的所有 group（每组 = 一条功能串）
+  const groupsFor = (host, tag) => (groupsByHost.get(host) || []).map(g => (
+    { group: g.group, name: g.name, urls: pickTag(g.files, tag) }));
+
+  // 退回老命名：res/<host>/<id>-<tag>.webp（index.tsv 里还没有的站，如 cubical/modrinth）
+  const idsByHost = new Map();
+  const buildIdMap = () => {
+    idsByHost.clear();
+    for (const r of state.data) {
+      const list = idsByHost.get(r.host) || [];
+      if (!list.includes(r.id)) list.push(r.id);
+      idsByHost.set(r.host, list);
+    }
+  };
+  const shotCache = new Map();
+  function probe(url) {
+    if (!shotCache.has(url)) {
+      shotCache.set(url, new Promise(resolve => {
+        const im = new Image();
+        im.onload = () => resolve(url);
+        im.onerror = () => resolve(null);
+        im.src = url;
+      }));
+    }
+    return shotCache.get(url);
+  }
+  // 该站的分组表：有 index.tsv 就只信它，否则退回 <id>-<tag>.webp（单组、没有分组名）
+  async function shotsForHost(host, tag) {
+    const indexed = groupsFor(host, tag).filter(g => g.urls.length);
+    if (indexed.length) return indexed;
+    const ids = idsByHost.get(host) || [];
+    const urls = (await Promise.all(ids.map(id => probe(`res/${host}/${id}-${tag}.webp`)))).filter(Boolean);
+    return urls.length ? [{ group: -1, name: '', urls }] : [];
+  }
+
+  let hoverCard = null, hoverPaint = null, rotTimer = 0, primeToken = 0;
+
+  function stopRotate() {
+    primeToken++;
+    hoverCard = null;
+    hoverPaint = null;
+    clearInterval(rotTimer);
+    rotTimer = 0;
+  }
+
+  async function prime(card) {
+    const host = card && card.dataset.host;
+    if (!host) return stopRotate();
+    const token = ++primeToken;
+
+    if (!card.dataset.groups) {
+      const groups = await shotsForHost(host, shotTag());
+      if (token !== primeToken) return;         // 探测期间鼠标已经移开
+      if (!groups.length) return;
+      card.dataset.groups = JSON.stringify(groups);
+      card.dataset.shots = JSON.stringify(groups.flatMap(g => g.urls));
+    }
+    const urls = JSON.parse(card.dataset.shots);
+
+    let k = 0;
+    hoverCard = card;
+    hoverPaint = () => card.style.setProperty('--shot', `url("${urls[k++ % urls.length]}")`);
+    hoverPaint();
+    clearInterval(rotTimer);
+    rotTimer = 0;
+    if (urls.length > 1) {
+      rotTimer = setInterval(() => {
+        if (hoverCard !== card) return stopRotate();
+        hoverPaint();
+      }, 2600);
+    }
+  }
+
+  app.addEventListener('pointerover', e => {
+    const card = e.target.closest('.card');
+    if (!card || (e.relatedTarget && card.contains(e.relatedTarget))) return;
+    prime(card);
+    armPreview(card);
+  });
+  app.addEventListener('pointerout', e => {
+    const card = e.target.closest('.card');
+    if (!card || (e.relatedTarget && card.contains(e.relatedTarget))) return;
+    disarmPreview();
+    stopRotate();
+  });
+  app.addEventListener('focusin', e => prime(e.target.closest('.card')));
+  app.addEventListener('focusout', e => { if (e.target.closest('.card')) stopRotate(); });
+
+  // ── 悬停满 1.2s → 沉浸式预览：背景铺大图（方块动效叠在上面），整页只剩这张卡
+  //    （半透明）；点这张卡退出，点背景在同一分组内往后翻，本组翻完顺下一组，
+  //    全站最后一张再点才关；Esc 也关
+  const PV_DELAY = 1200;
+  const pvImg = document.getElementById('previewImg');
+  const pv = { on: false, card: null, groups: [], gi: 0, k: 0, select: null };
+  let pvTimer = 0;
+
+  function armPreview(card) {
+    disarmPreview();
+    if (pv.on) return;
+    pvTimer = setTimeout(() => {
+      pvTimer = 0;
+      if (pv.on || hoverCard !== card) return;   // 已进预览 / 已换卡 / 图没探到
+      enterPreview(card);
+    }, PV_DELAY);
+  }
+  function disarmPreview() { clearTimeout(pvTimer); pvTimer = 0; }
+
+  function enterPreview(card) {
+    let groups;
+    try { groups = JSON.parse(card.dataset.groups || '[]'); } catch { groups = []; }
+    groups = groups.filter(g => g.urls && g.urls.length);
+    if (!groups.length) return;
+    pv.on = true; pv.card = card; pv.groups = groups; pv.gi = 0; pv.k = 0;
+    document.body.classList.add('preview');
+    card.classList.add('pv-active');
+    clearInterval(rotTimer); rotTimer = 0;   // 大图由点击/下拉驱动，卡内不再自己轮播
+    addGroupSelect(card);
+    showShot();
+  }
+
+  function showShot() {
+    pvImg.src = pv.groups[pv.gi].urls[pv.k];
+    if (pv.select) pv.select.value = String(pv.gi);   // 下拉跟着走，显示当前分组
+  }
+
+  // 全屏时卡片上临时挂一个分组下拉：选中即跳到该组第一张
+  function addGroupSelect(card) {
+    if (pv.groups.length < 2) return;      // 只有一组（或退回老命名）就没得选
+    const en = state.lang === 'en';
+    const sel = document.createElement('select');
+    sel.className = 'pv-groups';
+    sel.title = en ? 'Jump to a group' : '跳到分组';
+    sel.setAttribute('aria-label', sel.title);
+    pv.groups.forEach((g, i) => {
+      const label = g.name || (g.group < 0 ? (en ? 'Site shots' : '整站截图')
+        : (en ? `Group ${g.group}` : `组 ${g.group}`));
+      sel.append(new Option(`${label} (${g.urls.length})`, String(i)));
+    });
+    sel.value = String(pv.gi);
+    sel.addEventListener('change', () => {
+      pv.gi = Number(sel.value) || 0;
+      pv.k = 0;
+      showShot();
+    });
+    card.append(sel);
+    pv.select = sel;
+  }
+
+  function nextShot() {
+    const g = pv.groups[pv.gi];
+    if (pv.k + 1 < g.urls.length) { pv.k++; return showShot(); }   // 同组下一张
+    if (pv.gi + 1 < pv.groups.length) { pv.gi++; pv.k = 0; return showShot(); }  // 下一组第一张
+    exitPreview();                                                 // 全站最后一张：关
+  }
+
+  function exitPreview() {
+    if (!pv.on) return;
+    pv.on = false;
+    document.body.classList.remove('preview');
+    pv.card?.classList.remove('pv-active');
+    pv.select?.remove();
+    pv.select = null; pv.card = null; pv.groups = []; pv.gi = 0; pv.k = 0;
+    pvImg.removeAttribute('src');
+    disarmPreview();
+  }
+
+  // 捕获阶段先接管：预览中页面上只剩当前卡可点，其余点击一律算“点背景”；
+  // 卡片上的分组下拉不参与换图/退出
+  document.addEventListener('click', e => {
+    if (!pv.on || e.target.closest('.pv-groups')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (pv.card && pv.card.contains(e.target)) exitPreview();
+    else nextShot();
+  }, true);
+
+  // 下拉在 <a> 里：拦掉这一层的默认跳转，下拉本身照常展开
+  app.addEventListener('click', e => {
+    if (e.target.closest('.pv-groups')) e.preventDefault();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && pv.on) { e.preventDefault(); exitPreview(); }
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>

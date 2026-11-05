@@ -40,6 +40,7 @@ precision highp usampler2D;
 #define SHADOW_ON ${X.shadowM}
 #define PBR_ON ${X.pbrM}
 #define POM_ON ${X.pomM}
+#define EMIT_ON ${X.emitM}
 #define CLOUDSH_ON ${X.cloudShM}
 #define UNDER_ON ${X.underM}
 #define WCAUS ${() => Fpv.waterCaustic | 0}   // 池底焦散：0 LiqPG（原有动态花纹）/ 1 Bliss（噪声脊线）/ 2 无 / 3 Pool
@@ -200,7 +201,7 @@ void main(){
   float rainW = clamp(${X.wet} * ${X.rainPom}, 0.0, 1.0);   // 雨天的立体浮雕：wet × rainPom
   // 平滑 POM（双线性高度 + 自适应步数 + 二分）：pomSmooth 或下雨时启用，深度不变（雨天 ×1.5）；否则走下面原来的 14 步（逐 texel 平顶，关 TAA 时近看有横向纸片条纹）
   bool pomS = ${X.pomSmooth} > 0.5 || rainW > 0.01;
-  float pomD = max(sp.a * 0.25, foliage ? 0.05 * ${Fps.leafPom} * ${Fps.leafPbr} : 0.0) * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d)) * mix(1.0, 1.5, rainW);
+  float pomD = max(texelFetch(${X.pomTab}, ivec2(int(uv.z + 0.5), 0), 0).r * 0.25, foliage ? 0.05 * ${Fps.leafPom} * ${Fps.leafPbr} : 0.0) * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d)) * mix(1.0, 1.5, rainW);
   vec3 Vt = vec3(dot(V, Tg), dot(V, Bg), dot(V, N0));
   float hgt = 1.0; float pomSh = 1.0;
   // 掠射角限幅：原来 Vt.xy / max(Vt.z, 0.25) 最多放大到 4×pomD（cobblestone 0.12 → ~8 texel），14 步走不密 → 顶面横条 / 侧面竖条的阶梯拉丝。
@@ -209,7 +210,7 @@ void main(){
   bool pomRain = rainW > 0.01;
   if (!pomRain) pomD *= smoothstep(0.06, 0.25, Vt.z);
   // 屏幕足迹淡出：一个 texel 不到 ~2 像素时，几个 texel 的逐像素位移会混叠，TAA 抖动下逐帧变 → 远处闪烁。按 texel/像素（取较长轴，掠射角也跟着淡）淡出
-  float pomTx = float(textureSize(${X.nrm}, 0).x);
+  float pomTx = min(float(textureSize(${X.nrm}, 0).x), 16.0);   // 限幅 / 淡出按 16 texel 一格算：HD 包（rgl/texpack.js）的 POM 不会因为 texel 变小而缩没
   if (!pomRain) pomD *= 1.0 - smoothstep(0.3, 0.6, sqrt(max(dot(gdx, gdx), dot(gdy, gdy))) * pomTx);
   vec2 pomShift = -Vt.xy / (pomRain ? max(Vt.z, 0.25) : Vt.z + 0.35) * pomD;
   float pomMax = min(pomD * 1.5, 3.0 / pomTx), pomLen = length(pomShift);
@@ -440,6 +441,9 @@ void main(){
       col = mix(col, ${Fps.foamColor} * fl, clamp(fm, 0.0, 1.0) * 0.9);
     }
   }
+#if EMIT_ON
+  col += albedo * sp.a * 2.6 * ${X.emissive};   // 资源包 _s.A 逐纹素自发光（rgl/texpack.js：procgen 层 = 0；POM 深度已挪进 pomTab）
+#endif
   if ((v_flags & 64) != 0) { col = albedo * ((v_flags & 256) != 0 ? 3.0 : 2.6) + albedo * (direct + amb); o2 = vec4(0.0); }
   if (mat >= 2) o2 = vec4(0.0);
   o = vec4(col, (mat >= 2) ? c.a : 1.0);

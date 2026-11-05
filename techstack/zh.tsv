@@ -1,0 +1,87 @@
+key	value
+title	MC/SC Web 工具链：主包严选
+category_building	🏗️ 建筑 Schematic   (Ctrl+W 返回)
+category_survivalcraft	🌍 生存战争（种田/捕猎流高度优化）
+category_terraria	🎮 泰拉瑞亚（2D体素/横版）
+category_map_resources	📦 地图资源与创作
+category_open_source_games	🧱 开源沙盒游戏推荐
+category_game_topdown	🎮 游戏俯视视角
+category_source_editors	🛠️ 源码级编辑创作
+category_top_down_maps	俯视地图
+category_redstone_circuits	电路实现和测试
+category_datapack_generators	📝 数据包生成器
+category_dev_server_panels	📦 完整包 / 开发环境
+shulkr_name	🔷 Shulkr
+shulkr_desc	浏览器里直接改，不用自备文件，支持 litematic / schem，房屋分类做得最全
+structmatic_name	🤖 Structmatic
+structmatic_desc	文字或图片描述就能出建筑，生成后还能在网页上微调再导出
+cubical_name	🧊 cubical.xyz
+cubical_desc	老牌在线编辑器，操作手感和生成种树接近游戏，格式支持略差
+scapiweb_name	🎮 SCAPI Web
+scapiweb_desc	生存战争的网页版。默认有折纸版动物和爆炸飞溅，支持插件和电路，支持Linux
+scwk_guide_name	📖 SCWK 入门(no EN)
+scwk_guide_desc	生存战争工坊的新手指南，机制和资料代码级整理。想看更多？去 scnet.top
+modrinth_mods_name	🧪 Modrinth 模组库
+modrinth_mods_desc	注意：这一页实为 MC 生态（Java 版）的模组/整合包发现页，与 Survivalcraft 无关。按版本、加载器、分类筛选，例：Create（机械动力）、Farmer's Delight（农夫乐事）、Sodium（渲染优化）。
+sandboxworld_name	🏝️ SandboxWorld WEB
+sandboxworld_desc	v1.4.5.8 一比一复刻开源版，能导原版存档，也支持原版 mod 和材质
+curseforge_maps_name	🗺️ CurseForge Maps
+curseforge_maps_desc	泰拉瑞亚地图下载，作为 Steam 创意工坊的补充
+tedit_web_name	✏️ TEdit Web
+tedit_web_desc	像素编辑，改泰拉瑞亚的 .wld 地图
+minecraftmaps_name	🗺️ MinecraftMaps
+minecraftmaps_desc	MC 最大的地图站（没有之一）。冒险跑酷生存都有
+minetexture_name	🖌️ MineTexture
+minetexture_desc	完整资源包编辑器，原版贴图直接改，动画、模型、声音都能动
+voxbox_name	📦 VoxBox
+voxbox_desc	分享 .vox 的站，道具和植被分了类，能实时预览
+veloren_name	⚔️ Veloren
+veloren_desc	Rust 大地图开放世界 ARPG，探索地牢、刷装备、滑翔，强化多人联机+洞穴探险，想要更多战斗、更复杂操控的老玩家会爱不释手。
+luanti_mineclone2_name	🧩 Luanti+内容DB
+luanti_mineclone2_desc	Luanti 引擎上最接近 MC 体验的游戏模组，生存、建造、红石、下界等内容齐全，可高度自定义。
+mindustry_name	🏭 Mindustry
+mindustry_desc	模拟工业 + 塔防，采矿、铺传送带、建产线、造炮塔。红石和红警玩家必玩，像素风很上瘾。
+chunkbase_slime_name	🟩 Chunkbase Slime Finder
+chunkbase_slime_desc	输入种子和版本就能标出所有史莱姆区块；史莱姆只在这些区块的 Y<40 刷，所以先圈区块再挖史莱姆农场（分层平台收粘液球/粘液块）。
+bluemap_name	💡 BlueMap
+bluemap_desc	服务器存档直接渲染成网页 3D 地图，官方示例能打开 31GB 的存档。双击任意位置即可定位；点右上角第四个按钮试玩，点第一个按钮开/关灯光。
+wynncraft_map_name	⚔️ Wynncraft Map
+wynncraft_map_desc	Wynncraft 官方 3D 地图：按维度分层（Wynn、Gavel、Corkus、空岛…），任务点、路径点、贸易市场价和在线玩家位置都有，链接能直接分享到某个坐标。服务器 play.wynncraft.com，原版客户端直接联机。
+voxigen_name	✏️ VoxiGen
+voxigen_desc	.vox 生态浏览器体素编辑器，画布比较大，也能用 AI 生成后导出
+blockbench_web_name	⚙️ Blockbench Web
+blockbench_web_desc	MC生态专业模型编辑器的网页版，骨骼和动画功能比较全
+craftplicator_name	🧱 Craftplicator
+craftplicator_desc	浏览器里直接开 Java 存档，飞行查看、框选导出 .schem/.glb/.stl，还能把 3D 模型拖进地形比对
+seed_map_name	🗺️ Seed Map
+seed_map_desc	种子地图，村庄要塞生物群系史莱姆区块一眼看完，Java 和基岩版可用
+voxelier_name	⚙️ Voxelier
+voxelier_desc	MC生态，地形生成器+编辑器App的网页版
+mapartcraft_name	🖼️ MapartCraft
+mapartcraft_desc	图片逐像素转地图，贴地面或看板都能做，直接出 schematic 或 map.dat
+chunky_name	🎬 Chunky
+chunky_desc	离线世界渲染器，影院级光影和景深，画廊里全是把 MC 当电影拍的效果
+kubejs_name	🧩 KubeJS
+kubejs_desc	JS 脚本改包，注册/事件/配方/标签/客户端 5 类 API 全覆盖，改方块、改掉落不用写 Java
+redstone_tools_name	🧪 Redstone Tools
+redstone_tools_desc	直接模拟红石行为，交互与游戏一致
+redstone_studio_name	🔴 Redstone Studio
+redstone_studio_desc	与2D电路连线对照，轻松创建和单步调试
+packcrafter_name	🎨 MineTexture 平替
+packcrafter_desc	PackCrafter 的资源包编辑更全，像素、动画、声音、3D 预览都能做
+bloxelizer_name	🔍 Shulkr 平替
+bloxelizer_desc	Bloxelizer 偏查看和转换，生成逐步构造视频、图层切、材料清单、模型转方块都有
+misode_recipe_name	📝 Misode Recipe Generator
+misode_recipe_desc	不止配方：配方本身就有 20+ 种 type，战利品表、进度、谓词、物品修饰符、伤害类型、附魔、盔甲纹饰、旗帜图案、唱片机曲目，以及维度等世界生成 schema 都能填。填表即出 JSON，26.2–26.4 版本随手切。
+mcworldtools_cmd_name	🧰 MCWorldTools 指令
+mcworldtools_cmd_desc	86 条 Java 指令按 1.17–26.3 自动切语法，填表即出 /give /summon /execute；整站还带 Skin 编辑器
+mcworldtools_mob_name	🐗 MCWorldTools 生物
+mcworldtools_mob_desc	可视化拼生物装备、属性、变体，3D 预览直出 /summon 指令
+pterodactyl_name	🖥️ Pterodactyl Panel
+pterodactyl_desc	Linux服务器，自托管游戏面板，支持 Docker 隔离
+mcreator_name	⚙️ MCreator
+mcreator_desc	老牌MC源码级创作IDE，也支持数据包、结构、生物AI可视化编程。支持Linux和RPi
+modrinth_app_name	🟢 Modrinth App
+modrinth_app_desc	开源启动器 + 整合包管理器，模组和整合包一键装更，能导旧启动器实例，还内置皮肤切换
+bridge_core_name	🌉 bridge.
+bridge_core_desc	基岩版神器：Minecraft Add-On 的 IDE。编译器可扩展、补全齐全、改什么就实时预览什么，还能把行为包/资源包/皮肤包/世界自动同步进 com.mojang 目录，GPL-3.0 开源

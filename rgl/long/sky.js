@@ -53,9 +53,15 @@ void main(){
 
 // ======== skyf.js ========
 // rgl/shaders/skyf.js —— goodGL skyFancyFS（R5：uniform 声明删掉，用处内联；GLSL 逻辑一字不改，只有 u_xxx → xxx。由 tools/pass-conv.mjs 生成后人工检查）
+// 资源包天空（rgl/skypack.js）：五个宏都取原值时与上面的原文逐字等价；sun.png / moon_phases.png（SKY_SUN / SKY_MOON = 2）、Iris 开关（= 0）、HDR 全景（SKY_PANO）
 export const skyF = (Pass, X = {}) => Pass({ tag: 'skyF' })`#version 300 es
 precision highp float;
 in vec2 v_uv; out vec4 o;
+#define SKY_SUN ${X.skySunM}
+#define SKY_MOON ${X.skyMoonM}
+#define SKY_BASE ${X.skyBaseM}
+#define SKY_STARS ${X.skyStarsM}
+#define SKY_PANO ${X.skyPanoM}
 
 
 
@@ -80,12 +86,35 @@ vec3 skyBase(vec3 d){
 vec3 skyHorizon(vec3 d){ return skyBase(normalize(vec3(d.x, max(d.y, 0.0), d.z))); }
 
 vec3 rotAxis(vec3 v, vec3 k, float a){ float c = cos(a), s = sin(a); return v*c + cross(k, v)*s + k*dot(k, v)*(1.0-c); }
+#if SKY_PANO > 0
+// 等距柱状：u = 方位（panoRot 圈），v = 天顶角（行 0 = 天顶）；按 mean 归一化，panoClamp 截掉烘进去的太阳（单位 = mean）
+vec3 panoAt(sampler2D s, vec3 d, float inv){
+  vec2 uv = vec2(atan(d.x, -d.z) * 0.15915494 + 0.5 + ${X.panoRot}, acos(clamp(d.y, -1.0, 1.0)) * 0.31830989);
+  return min(textureLod(s, uv, 0.0).rgb * inv, vec3(${X.panoClamp}));
+}
+#endif
 void main(){
   vec4 w = ${Fps.invViewProjSky} * vec4(v_uv * 2.0 - 1.0, 1.0, 1.0);
   vec3 d = normalize(w.xyz / w.w);
   vec3 col = d.y >= 0.0 ? skyBase(d) : skyBase(normalize(vec3(d.x, 0.0, d.z))) * mix(1.0, 0.45, smoothstep(0.0, -0.5, d.y));
   float night = 1.0 - smoothstep(-0.22, 0.02, ${Fps.sunDir}.y);
   float clear = 1.0 - ${Fps.rain};
+#if SKY_PANO > 0
+  { vec3 pd = d;
+  #if SKY_PANO == 2
+    pd = normalize(vec3(d.x, max(d.y, 0.0), d.z) + vec3(0.0, 1e-4, 0.0));   // 有夜景：只取上半球
+  #endif
+    float zl = dot(skyBase(vec3(0.0, 1.0, 0.0)), vec3(0.2126, 0.7152, 0.0722));   // 大气天顶亮度：黄昏 / 下雨 / 闪电自动跟
+    vec3 pc = mix(panoAt(${X.panoD0}, pd, ${X.panoInv}.x), panoAt(${X.panoD1}, pd, ${X.panoInv}.y), ${X.panoMix}.x) * zl * ${X.panoExp}.x;
+  #if SKY_PANO == 2
+    if (${X.panoMix}.w < 0.5) pc = col;   // 只有夜景：白天仍是大气天空
+    pc = mix(pc, mix(panoAt(${X.panoN0}, pd, ${X.panoInv}.z), panoAt(${X.panoN1}, pd, ${X.panoInv}.w), ${X.panoMix}.y) * ${X.panoExp}.y, night);
+  #endif
+    col = mix(pc, vec3(dot(pc, vec3(0.2126, 0.7152, 0.0722))) * vec3(0.92, 0.96, 1.0), ${Fps.rain} * 0.75);
+  }
+#elif SKY_BASE == 0
+  col = vec3(0.0);
+#endif
   if (night > 0.0 && d.y > -0.1) {
     vec3 sd = rotAxis(d, ${Fps.pathAxis}, -${Fps.starRot});
     vec3 p = sd * 190.0; vec3 ip = floor(p); vec3 fp = fract(p); float h = hash13(ip); float star = 0.0;
@@ -98,7 +127,9 @@ void main(){
     vec3 mwc = mix(vec3(0.16, 0.14, 0.30), vec3(0.62, 0.55, 0.62), cl) * mw * pow(cl, 1.4) * (1.0 - dust * 0.8);
     float fine = step(0.982, hash13(floor(sd * 560.0))) * mw * 0.5;
     float hf = smoothstep(-0.02, 0.22, d.y);
+#if SKY_STARS
     col += (tint * star * 2.4 + mwc * 0.42 + fine * 0.35) * night * hf * clear;
+#endif
     // meteors
     float slot = floor(${Fps.time} / 7.0); float ph = fract(${Fps.time} / 7.0);
     if (ph < 0.12 && hash12(vec2(slot, 3.0)) > 0.35) {
@@ -125,9 +156,17 @@ void main(){
     }
   }
   // sun & moon discs (square, soft limb)
+#if SKY_SUN == 1
   { vec3 U = ${Fps.pathAxis}; vec3 V = normalize(cross(${Fps.sunDir}, U)); float mu = dot(d, ${Fps.sunDir});
     if (mu > 0.0) { vec2 q = vec2(dot(d, U), dot(d, V)) / mu; float m = max(abs(q.x), abs(q.y));
       float disk = smoothstep(0.05, 0.043, m); col += ${Fps.sunCol} * disk * 16.0 * (1.0 - ${Fps.rain}) * smoothstep(-0.05, 0.02, ${Fps.sunDir}.y); } }
+#elif SKY_SUN == 2
+  { vec3 U = ${Fps.pathAxis}; vec3 V = normalize(cross(${Fps.sunDir}, U)); float mu = dot(d, ${Fps.sunDir});   // sun.png：原版 32×32 叠加贴图（黑底），方块大小同原版
+    if (mu > 0.0) { vec2 q = vec2(dot(d, U), dot(d, V)) / mu; float sz = ${X.sunSize};
+      if (max(abs(q.x), abs(q.y)) < sz) { vec4 t = textureLod(${X.sunTex}, q / sz * 0.5 + 0.5, 0.0);
+        col += ${Fps.sunCol} * pow(t.rgb, vec3(2.2)) * t.a * 16.0 * (1.0 - ${Fps.rain}) * smoothstep(-0.05, 0.02, ${Fps.sunDir}.y); } } }
+#endif
+#if SKY_MOON == 1
   { vec3 U = ${Fps.pathAxis}; vec3 V = normalize(cross(${Fps.moonDir}, U)); float mm = dot(d, ${Fps.moonDir});
     if (mm > 0.0) { vec2 q = vec2(dot(d, U), dot(d, V)) / mm; float m = max(abs(q.x), abs(q.y));
       if (m < 0.042) { vec2 pq = floor((q / 0.042 * 0.5 + 0.5) * 8.0); float crater = hash12(pq) > 0.72 ? 0.7 : 1.0;
@@ -135,6 +174,14 @@ void main(){
         if (ph > 0.0) lit = ph < 0.5 ? smoothstep(-1.0 + ph * 4.0 - 0.05, -1.0 + ph * 4.0 + 0.05, xx) : smoothstep(-1.0 + (ph - 0.5) * 4.0 + 0.05, -1.0 + (ph - 0.5) * 4.0 - 0.05, xx);
         col += vec3(0.85, 0.9, 1.0) * crater * (0.08 + 0.92 * lit) * 2.2 * smoothstep(-0.1, 0.05, ${Fps.moonDir}.y) * (1.0 - ${Fps.rain}) * (0.12 + 0.88 * night); }
       col += vec3(0.5, 0.6, 0.9) * pow(max(mm, 0.0), 400.0) * 0.25 * (1.0 - ${Fps.rain}) * night; } }
+#elif SKY_MOON == 2
+  { vec3 U = ${Fps.pathAxis}; vec3 V = normalize(cross(${Fps.moonDir}, U)); float mm = dot(d, ${Fps.moonDir});   // moon_phases.png：4 × 2 格，第 0 格满月
+    if (mm > 0.0) { vec2 q = vec2(dot(d, U), dot(d, V)) / mm; float sz = ${X.moonSize};
+      if (max(abs(q.x), abs(q.y)) < sz) { int ph = int(${Fps.moonPhase} * 8.0 + 0.5) & 7; vec2 tuv = (vec2(float(ph & 3), float(ph >> 2)) + q / sz * 0.5 + 0.5) / vec2(4.0, 2.0);
+        vec4 t = textureLod(${X.moonTex}, tuv, 0.0);
+        col += vec3(0.85, 0.9, 1.0) * pow(t.rgb, vec3(2.2)) * t.a * 2.2 * smoothstep(-0.1, 0.05, ${Fps.moonDir}.y) * (1.0 - ${Fps.rain}) * (0.12 + 0.88 * night); }
+      col += vec3(0.5, 0.6, 0.9) * pow(max(mm, 0.0), 400.0) * 0.25 * (1.0 - ${Fps.rain}) * night; } }
+#endif
   o = vec4(col, 1.0);
 }`;
 

@@ -1,0 +1,87 @@
+key	value
+title	MC/SC Toolchain Index
+category_building	🏗️ Building Schematics  (Ctrl+W back)
+category_survivalcraft	🌍 SurvivalCraft (Farming/Hunting Optimized)
+category_terraria	🎮 Terraria (2D Voxel / Side-scroller)
+category_map_resources	📦 Map Resources & Creation
+category_open_source_games	🧱 Open Source Sandbox Games
+category_game_topdown	🎮 In-game Top-down View
+category_source_editors	🛠️ Source-level Editors & Creation
+category_top_down_maps	Top-down Maps
+category_redstone_circuits	Redstone Circuit Simulation & Testing
+category_datapack_generators	📝 Data Pack Generators
+category_dev_server_panels	📦 Full Pack / Dev Environment
+shulkr_name	🔷 Shulkr
+shulkr_desc	Edit directly in your browser, no local files needed; supports litematic/schem with comprehensive house categories.
+structmatic_name	🤖 Structmatic
+structmatic_desc	Generate builds from a text or image description, then fine-tune on the page before exporting.
+cubical_name	🧊 cubical.xyz
+cubical_desc	Veteran online editor with controls close to in-game; format support is slightly weaker.
+scapiweb_name	🎮 SCAPI Web
+scapiweb_desc	Web version of Survivalcraft. Includes origami-style animals and explosion splashes by default; supports plugins, circuits, and Linux.
+scwk_guide_name	📖 SCWK Guide (no EN)
+scwk_guide_desc	Survivalcraft Workshop beginner guide with code-level details on mechanics and data. For more, visit scnet.top.
+modrinth_mods_name	🧪 Modrinth Mods
+modrinth_mods_desc	Heads-up: this is actually the Minecraft (Java) ecosystem — mod and modpack discovery, nothing to do with Survivalcraft. Filter by version, loader and category; e.g. Create, Farmer's Delight, Sodium.
+sandboxworld_name	🏝️ SandboxWorld WEB
+sandboxworld_desc	1:1 open-source replica of v1.4.5.8. Import original saves, supports original mods and textures.
+curseforge_maps_name	🗺️ CurseForge Maps
+curseforge_maps_desc	Terraria map downloads as a supplement to the Steam Workshop.
+tedit_web_name	✏️ TEdit Web
+tedit_web_desc	Pixel editing for Terraria .wld map files.
+minecraftmaps_name	🗺️ MinecraftMaps
+minecraftmaps_desc	Largest MC map site. Adventure, parkour, survival and more.
+minetexture_name	🖌️ MineTexture
+minetexture_desc	Full resource pack editor: edit vanilla textures directly, animations, models and sounds.
+voxbox_name	📦 VoxBox
+voxbox_desc	Share .vox files with categorized props and vegetation; live preview included.
+veloren_name	⚔️ Veloren
+veloren_desc	Rust-built open-world ARPG with dungeons, loot, gliding, multiplayer and cave exploration. Great for players who want more combat and complex controls.
+luanti_mineclone2_name	🧩 Luanti + ContentDB
+luanti_mineclone2_desc	The closest MC experience on the Luanti engine. Survival, building, redstone, nether and more, highly customizable.
+mindustry_name	🏭 Mindustry
+mindustry_desc	Industrial simulation + tower defense. Mining, conveyors, production lines, turrets. A must-play for redstone and RTS fans.
+chunkbase_slime_name	🟩 Chunkbase Slime Finder
+chunkbase_slime_desc	Feed in a seed and version to see every slime chunk. Slimes only spawn below Y=40 inside those chunks — mark them here first, then carve the farm (layered platforms) for slimeballs and slime blocks.
+bluemap_name	💡 BlueMap
+bluemap_desc	Renders a server world into a web 3D map; the official demo opens a 31 GB save. Double-click anywhere to jump there, hit the 4th button at the top right to fly around, the 1st to toggle lighting.
+wynncraft_map_name	⚔️ Wynncraft Map
+wynncraft_map_desc	Official 3D map of the Wynncraft MMO: per-dimension layers (Wynn, Gavel, Corkus, sky islands…), quest markers, waypoints, trade-market prices and live player dots; links share exact coordinates. Connect at play.wynncraft.com straight from a vanilla client.
+voxigen_name	✏️ VoxiGen
+voxigen_desc	Browser voxel editor for the .vox ecosystem. Large canvas, AI generation and export.
+blockbench_web_name	⚙️ Blockbench Web
+blockbench_web_desc	Web version of the professional MC model editor. Full bone and animation tools.
+craftplicator_name	🧱 Craftplicator
+craftplicator_desc	Open a Java world in the browser, fly through it, export .schem/.glb/.stl, and drop 3D models onto the terrain to test them.
+seed_map_name	🗺️ Seed Map
+seed_map_desc	Seed map showing villages, strongholds, biomes and slime chunks at a glance. Java and Bedrock supported.
+voxelier_name	⚙️ Voxelier
+voxelier_desc	MC ecosystem terrain generator and editor app as a web version.
+mapartcraft_name	🖼️ MapartCraft
+mapartcraft_desc	Convert images pixel-by-pixel into map art. Floor or board, export as schematic or map.dat.
+chunky_name	🎬 Chunky
+chunky_desc	Offline world renderer with cinematic lighting and depth of field; the gallery is MC shot like a film.
+kubejs_name	🧩 KubeJS
+kubejs_desc	JavaScript pack scripting with 5 API groups — registry, events, recipes, tags, client — no Java required.
+redstone_tools_name	🧪 Redstone Tools
+redstone_tools_desc	Simulates redstone behavior directly; interactions match the game.
+redstone_studio_name	🔴 Redstone Studio
+redstone_studio_desc	2D circuit wiring view, easy creation and single-step debugging.
+packcrafter_name	🎨 MineTexture Alternative
+packcrafter_desc	PackCrafter is the fuller resource-pack editor: pixels, animations, sounds and 3D preview.
+bloxelizer_name	🔍 Shulkr Alternative
+bloxelizer_desc	Bloxelizer leans toward viewing and conversion: step-by-step build video, layer slicing, bill of materials, model-to-blocks.
+misode_recipe_name	📝 Misode Generators
+misode_recipe_desc	More than recipes: 20+ recipe types plus loot tables, advancements, predicates, item modifiers, damage types, enchantments, trim patterns, banner patterns, jukebox songs and worldgen schemas like dimensions. Fill the form, get JSON, switch schemas 26.2–26.4.
+mcworldtools_cmd_name	🧰 MCWorldTools Commands
+mcworldtools_cmd_desc	86 Java commands with version-aware syntax for 1.17–26.3; the same site ships a full skin editor.
+mcworldtools_mob_name	🐗 MCWorldTools Mob Builder
+mcworldtools_mob_desc	Assemble mob equipment, attributes and variants, preview in 3D, export a /summon command.
+pterodactyl_name	🖥️ Pterodactyl Panel
+pterodactyl_desc	Linux server, self-hosted game panel with Docker isolation.
+mcreator_name	⚙️ MCreator
+mcreator_desc	Veteran MC source-level creation IDE. Supports data packs, structures, and visual programming for mob AI. Linux and Raspberry Pi supported.
+modrinth_app_name	🟢 Modrinth App
+modrinth_app_desc	Open-source launcher and modpack manager: one-click mod installs and updates, instance import, built-in skin switcher.
+bridge_core_name	🌉 bridge.
+bridge_core_desc	The Bedrock-edition powerhouse: an IDE for Minecraft Add-Ons with an extensible compiler, rich autocompletion and live previews, auto-syncing behavior/resource/skin packs and worlds into the com.mojang folder. GPL-3.0.
