@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 410" width="560" height="410" style="filter:url(#outline-filter-0)" xmlns:bx="https://boxy-svg.com">
+  <defs>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="3" dy="8" stdDeviation="5" flood-color="#000" flood-opacity=".25"/>
+    </filter>
+    <linearGradient id="gradient-0" gradientUnits="userSpaceOnUse" x1="428.156" y1="82.026" x2="428.156" y2="122.843">
+      <stop offset="0" stop-color="#da5555"/>
+      <stop offset="1" stop-color="#981024"/>
+    </linearGradient>
+    <linearGradient id="gradient-2" gradientUnits="userSpaceOnUse" x1="265.869" y1="163.083" x2="265.869" y2="203.9">
+      <stop offset="0" stop-color="#da5555"/>
+      <stop offset="1" stop-color="#981024"/>
+    </linearGradient>
+    <filter id="drop-shadow-filter-0" color-interpolation-filters="sRGB" x="-50%" y="-50%" width="200%" height="200%">
+      <feOffset in="SourceAlpha" dx="4" dy="10" result="offset"/>
+      <feFlood flood-color="#000" flood-opacity=".3"/>
+      <feComposite in2="offset" operator="in"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="outline-filter-0" color-interpolation-filters="sRGB" x="-50%" y="-50%" width="200%" height="200%">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="4" result="dilated"/>
+      <feFlood flood-color="#bada55" result="flood"/>
+      <feComposite in="flood" in2="dilated" operator="in" result="outline"/>
+      <feMerge>
+        <feMergeNode in="outline"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="pixelete-filter-0" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
+      <feFlood height="2" width="2"/>
+      <feComposite width="8" height="8"/>
+      <feTile result="a"/>
+      <feComposite in="SourceGraphic" in2="a" operator="in"/>
+      <feMorphology operator="dilate" radius="4"/>
+    </filter>
+    <linearGradient gradientUnits="userSpaceOnUse" x1="102.614" y1="106.04" x2="102.614" y2="169.308" id="gradient-1">
+      <stop offset="0" style="stop-color: rgb(34, 238, 142)"/>
+      <stop offset="1" style="stop-color: rgb(0% 54.627% 26.86%)"/>
+    </linearGradient>
+    <filter id="point-light-filter-1" bx:preset="point-light 1 0.4 0.72 0.5 5 1.21 0.52 0.47 #ffffff" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB" x="-50%" y="-50%" width="200%" height="200%">
+      <feSpecularLighting result="specular-lighting" lighting-color="#ffffff" specularConstant="1.21" specularExponent="5">
+        <fePointLight x="0.4" y="0.72" z="0.5"/>
+      </feSpecularLighting>
+      <feDiffuseLighting result="diffuse-lighting" lighting-color="#ffffff" diffuseConstant="0.52">
+        <fePointLight x="0.4" y="0.72" z="0.5"/>
+      </feDiffuseLighting>
+      <feMerge result="lighting">
+        <feMergeNode in="diffuse-lighting"/>
+        <feMergeNode in="specular-lighting"/>
+      </feMerge>
+      <feComposite in="SourceGraphic" in2="lighting" operator="arithmetic" k1="1" k2="0.47" k3="0" k4="0"/>
+    </filter>
+    <linearGradient gradientUnits="userSpaceOnUse" x1="6.687" y1="3.068" x2="6.687" y2="4.474" id="gradient-5" gradientTransform="matrix(1, 0, 0, 1, 0.000001, 0.000001)">
+      <stop offset="0" style="stop-color: rgb(255, 255, 19)"/>
+      <stop offset="1" style="stop-color: rgb(54.497% 57.668% 0%)"/>
+    </linearGradient>
+    <linearGradient gradientUnits="userSpaceOnUse" x1="193.685" y1="21.286" x2="193.685" y2="161.747" id="gradient-3">
+      <stop offset="0" style="stop-color: rgb(177, 54, 65)"/>
+      <stop offset="1" style="stop-color: rgb(49.849% 0% 11.365%)"/>
+    </linearGradient>
+  </defs>
+  <g filter="url(#sh)" transform="translate(-11.707986 9.744684)">
+    <polygon points="174,275 192,284 192,306 174,297" fill="#c86838"/>
+    <polygon points="192,284 210,275 210,297 192,306" fill="#e07a45"/>
+    <polygon points="282,311 300,320 300,342 282,333" fill="#c86838"/>
+    <polygon points="300,320 318,311 318,333 300,342" fill="#e07a45"/>
+    <polygon points="372,266 390,275 390,297 372,288" fill="#c86838"/>
+    <polygon points="390,275 408,266 408,288 390,297" fill="#e07a45"/>
+    <g fill="none" stroke="#3b2a1b" stroke-width="2" stroke-linejoin="round">
+      <polyline points="174,275 174,297 192,306 210,297 210,275"/>
+      <line x1="192" y1="284" x2="192" y2="306"/>
+      <polyline points="282,311 282,333 300,342 318,333 318,311"/>
+      <line x1="300" y1="320" x2="300" y2="342"/>
+      <polyline points="372,266 372,288 390,297 408,288 408,266"/>
+      <line x1="390" y1="275" x2="390" y2="297"/>
+    </g>
+    <polygon points="444,172 462,181 444,190" fill="#f7a070"/>
+    <polygon points="444,190 462,181 462,199 444,208" fill="#e07a45"/>
+    <polyline points="444,172 462,181 462,199 444,208" fill="none" stroke="#3b2a1b" stroke-width="2" stroke-linejoin="round"/>
+    <g transform="matrix(18,9,-18,9,300,50)" style="filter: url(&quot;#point-light-filter-1&quot;);">
+      <rect width="8" height="9" fill="#7c9b47"/>
+      <g fill="#688438">
+        <rect x="1" y="0" width="1" height="1"/>
+        <rect x="5" y="0" width="1" height="1"/>
+        <rect x="3" y="1" width="1" height="1"/>
+        <rect x="7" y="1" width="1" height="1"/>
+        <rect x="0" y="2" width="1" height="1"/>
+        <rect x="4" y="2" width="1" height="1"/>
+        <rect x="6" y="3" width="1" height="1"/>
+        <rect x="2" y="3" width="1" height="1"/>
+        <rect x="1" y="4" width="1" height="1"/>
+        <rect x="5" y="5" width="1" height="1"/>
+        <rect x="3" y="6" width="1" height="1"/>
+        <rect x="7" y="6" width="1" height="1"/>
+        <rect x="0" y="6" width="1" height="1"/>
+        <rect x="4" y="7" width="1" height="1"/>
+        <rect x="2" y="8" width="1" height="1"/>
+        <rect x="6" y="8" width="1" height="1"/>
+      </g>
+      <g fill="#91ad55">
+        <rect x="3" y="0" width="1" height="1"/>
+        <rect x="0" y="1" width="1" height="1"/>
+        <rect x="6" y="1" width="1" height="1"/>
+        <rect x="2" y="2" width="1" height="1"/>
+        <rect x="7" y="3" width="1" height="1"/>
+        <rect x="4" y="4" width="1" height="1"/>
+        <rect x="0" y="4" width="1" height="1"/>
+        <rect x="6" y="5" width="1" height="1"/>
+        <rect x="1" y="6" width="1" height="1"/>
+        <rect x="5" y="7" width="1" height="1"/>
+        <rect x="7" y="8" width="1" height="1"/>
+        <rect x="3" y="5" width="1" height="1"/>
+      </g>
+      <g fill="#809b43">
+        <rect x="0" y="7" width="1" height="1"/>
+        <rect x="1" y="8" width="1" height="1"/>
+      </g>
+      <rect x="0" y="8" width="1" height="1" fill="#617c34"/>
+      <g fill="#a1b96a">
+        <rect x="2.15" y="1.2" width=".35" height=".25"/>
+        <rect x="5.25" y="2.2" width=".4" height=".3"/>
+        <rect x="3.2" y="4.15" width=".3" height=".35"/>
+        <rect x="6.1" y="6.2" width=".45" height=".25"/>
+        <rect x="1.2" y="7.2" width=".3" height=".3"/>
+      </g>
+      <g fill="#5e7934">
+        <rect x="4.15" y=".2" width=".3" height=".3"/>
+        <rect x="1.2" y="3.2" width=".35" height=".25"/>
+        <rect x="7.2" y="5.15" width=".3" height=".35"/>
+        <rect x="3.15" y="7.3" width=".4" height=".25"/>
+      </g>
+    </g>
+    <g transform="matrix(18,9,0,18,138,131)" style="filter: none;">
+      <rect width="8" height="7" fill="#f08c58"/>
+      <rect width="8" height="1" fill="#587c32"/>
+      <g fill="#587c32">
+        <rect x="0" y="1" width="1" height="1"/>
+        <rect x="2" y="1" width="2" height="1"/>
+        <rect x="6" y="1" width="1" height="1"/>
+      </g>
+      <g fill="#6b8c3e">
+        <rect x="1" y="0" width="1" height=".5"/>
+        <rect x="4" y="0" width="1" height=".6"/>
+        <rect x="7" y="0" width="1" height=".5"/>
+      </g>
+      <rect x="1" y="1" width="1" height="1" fill="#7b4b22"/>
+      <rect x="5" y="1" width="1" height="1" fill="#8f5a2c"/>
+      <g fill="#e37a46">
+        <rect x="6" y="2" width="1" height="1"/>
+        <rect x="0" y="3" width="1" height="1"/>
+        <rect x="7" y="5" width="1" height="1"/>
+        <rect x="3" y="6" width="1" height="1"/>
+        <rect x="4" y="2" width="1" height="1"/>
+      </g>
+      <g fill="#8f5a2c">
+        <rect x="3" y="2" width="1" height="1"/>
+        <rect x="0" y="4" width="1" height="1"/>
+        <rect x="0" y="6" width="1" height="1"/>
+      </g>
+      <g fill="#7b4b22">
+        <rect x="5" y="3" width="1" height="1"/>
+        <rect x="6" y="4" width="1" height="1"/>
+      </g>
+      <rect x="1" y="2" width="1" height="1" fill="#ffb020"/>
+      <rect x="2" y="3" width="1" height="1" fill="#ffe030"/>
+      <rect x="3" y="4" width="1" height="1" fill="#7ee030"/>
+      <rect x="2" y="5" width="1" height="1" fill="#2ed0a0"/>
+      <rect x="4" y="5" width="1" height="1" fill="#30b8ff"/>
+      <rect x="1" y="6" width="1" height="1" fill="#4a7cff"/>
+      <rect x="5" y="6" width="1" height="1" fill="#b060ff"/>
+      <rect x="6" y="6" width="1" height="1" fill="#fff"/>
+    </g>
+    <g transform="matrix(18,-9,0,18,282,203)">
+      <rect width="9" height="7" fill="#f08c58"/>
+      <rect width="9" height="1" fill="#658637"/>
+      <g fill="#658637">
+        <rect x="1" y="1" width="2" height="1"/>
+        <rect x="5" y="1" width="1" height="1"/>
+        <rect x="7" y="1" width="2" height="1"/>
+      </g>
+      <g fill="#7b9947">
+        <rect x="1" y="0" width="1" height=".5"/>
+        <rect x="4" y="0" width="1" height=".6"/>
+        <rect x="7" y="0" width="1" height=".5"/>
+      </g>
+      <rect x="0" y="1" width="1" height="1" fill="#7b4b22"/>
+      <rect x="4" y="1" width="1" height="1" fill="#8f5a2c"/>
+      <g fill="#e37a46">
+        <rect x="0" y="3" width="1" height="1"/>
+        <rect x="3" y="2" width="1" height="1"/>
+        <rect x="7" y="2" width="1" height="1"/>
+        <rect x="1" y="5" width="1" height="1"/>
+        <rect x="4" y="4" width="1" height="1"/>
+        <rect x="8" y="5" width="1" height="1"/>
+        <rect x="5" y="6" width="1" height="1"/>
+        <rect x="2" y="6" width="1" height="1"/>
+      </g>
+      <g fill="#f7a070">
+        <rect x="1" y="3" width="1" height="1"/>
+        <rect x="4" y="3" width="1" height="1"/>
+        <rect x="7" y="4" width="1" height="1"/>
+        <rect x="0" y="5" width="1" height="1"/>
+        <rect x="6" y="5" width="1" height="1"/>
+        <rect x="3" y="5" width="1" height="1"/>
+      </g>
+      <rect x="2" y="2" width="1" height="2" fill="#1a1a1a"/>
+      <rect x="6" y="2" width="1" height="2" fill="#1a1a1a"/>
+    </g>
+    <g fill="none" stroke="#3b2a1b" stroke-width="2.5" stroke-linejoin="round">
+      <polygon points="300,50 444,122 282,203 138,131"/>
+      <polygon points="138,131 282,203 282,329 138,257"/>
+      <polygon points="282,203 444,122 444,248 282,329"/>
+    </g>
+    <g id="left-hand" transform="matrix(1, 0, 0, 1, -3.501546, -17.896483)" stroke="#3b2a1b" stroke-width="2" stroke-linejoin="round">
+      <path d="M267 273 L285 282 L303 264 L303 286 L285 304 L267 295 Z" fill="#63381f" fill-opacity=".2" stroke="none"/>
+      <polygon points="282,248 300,257 282,275 264,266" fill="#f7a070"/>
+      <polygon points="264,266 282,275 282,297 264,288" fill="#c86838"/>
+      <polygon points="282,275 300,257 300,279 282,297" fill="#e07a45"/>
+      <g stroke="none">
+        <path d="M270 271 L276 274 L276 281 L270 278 Z" fill="#e18a54"/>
+        <path d="M264 280 L270 283 L270 291 L264 288 Z" fill="#aa542e"/>
+        <path d="M288 269 L294 263 L294 270 L288 276 Z" fill="#f1a06a"/>
+        <path d="M294 278 L300 272 L300 279 L294 285 Z" fill="#c76c3d"/>
+        <path d="M276 257 L282 254 L288 257 L282 260 Z" fill="#ffb27d"/>
+      </g>
+    </g>
+    <polygon points="410.991,82.026 445.32,95.632 445.32,122.843 410.991,109.237" fill="url(#gradient-0)"/>
+    <path d="M139.987 169.232 C135.624 169.558 45.177 169.419 118.052 156.058 C115.607 157.197 76.865 146.38 67.656 138.841 C60.239 132.768 64.695 136.317 100.241 135.182 C84.9 126.948 66.723 106.589 80.691 106.048 C92.279 105.6 134.636 123.973 140.611 127.18" stroke-width="2" stroke-linejoin="round" filter="url(#drop-shadow-filter-0)" style="transform-box: fill-box; transform-origin: 50% 50%; stroke: rgb(129, 255, 0); fill: url(&quot;#gradient-1&quot;);" transform="matrix(.999986,.005198,-.005198,.999986,0,0)"/>
+    <g id="mc-poppy" transform="matrix(9,0,0,9,228.650486,17.484122)" shape-rendering="crispEdges" style="filter: none;">
+      <g fill="#c83222">
+        <rect x="6" y="0" width="1" height="1"/>
+        <rect x="5" y="1" width="3" height="1"/>
+        <rect x="4" y="2" width="5" height="1"/>
+        <rect x="3" y="3" width="7" height="1"/>
+        <rect x="2" y="4" width="9" height="1"/>
+        <rect x="3" y="5" width="7" height="1"/>
+        <rect x="4" y="6" width="5" height="1"/>
+        <rect x="5" y="7" width="3" height="1"/>
+      </g>
+      <g fill="#e34b32">
+        <rect x="6" y="0" width="1" height="1"/>
+        <rect x="5" y="1" width="1" height="1"/>
+        <rect x="4" y="2" width="2" height="1"/>
+        <rect x="3" y="3" width="1" height="1"/>
+        <rect x="2" y="4" width="1" height="1"/>
+        <rect x="8" y="1" width="1" height="1"/>
+      </g>
+      <g fill="#9e251b">
+        <rect x="10" y="4" width="1" height="1"/>
+        <rect x="9" y="5" width="1" height="1"/>
+        <rect x="7" y="6" width="2" height="1"/>
+        <rect x="7" y="7" width="1" height="1"/>
+        <rect x="4" y="6" width="1" height="1"/>
+      </g>
+      <rect x="5.339" y="3.542" width="3" height="2" style="fill: rgb(247, 5, 5);"/>
+      <rect x="5.848" y="3.068" width="1.678" height="1.406" style="fill: url(&quot;#gradient-5&quot;); transform-box: fill-box; transform-origin: 50% 50%;" transform="matrix(0, 1, -1, 0, -0.744795, -0.270836)"/>
+      <rect x="6" y="8" width="1" height="7" fill="#52752c"/>
+      <rect x="6" y="14" width="1" height="1" fill="#365421"/>
+      <g fill="#688c38" style="" transform="matrix(1, 0, 0, -1, 0, 24.022885)">
+        <rect x="5" y="10" width="1" height="1"/>
+        <rect x="4" y="11" width="1" height="1"/>
+        <rect x="3" y="12" width="1" height="1"/>
+        <rect x="7" y="10" width="1" height="1"/>
+        <rect x="8" y="11" width="1" height="1"/>
+        <rect x="9" y="12" width="1" height="1"/>
+      </g>
+      <g fill="#3d6126" style="" transform="matrix(1, 0, 0, -1, 0.323007, 25.008093)">
+        <rect x="5" y="12" width="1" height="1"/>
+        <rect x="4" y="13" width="1" height="1"/>
+        <rect x="3" y="14" width="1" height="1"/>
+        <rect x="7" y="12" width="1" height="1"/>
+        <rect x="8" y="13" width="1" height="1"/>
+        <rect x="9" y="14" width="1" height="1"/>
+      </g>
+    </g>
+    <polygon points="248.705,163.083 283.034,176.689 283.034,203.9 248.705,190.294" fill="url(#gradient-2)"/>
+    <text style="fill: url(&quot;#gradient-3&quot;); font-family: Arial, sans-serif; font-size: 126px; font-weight: 700; white-space: pre; filter: url(&quot;#pixelete-filter-0&quot;);" x="171.488" y="225.987" dx="-12.84" dy="-90.994">λ</text>
+  </g>
+</svg>

@@ -17,6 +17,7 @@ mindustry	open_source_games	https://anuke.itch.io/mindustry	anuke.itch.io
 chunkbase_slime	game_topdown	https://www.chunkbase.com/apps/slime-finder	chunkbase.com
 bluemap	game_topdown	https://bluecolored.de/bluemap/#overworld:-559:24:370:324:0.29:0.51:0:0:perspective	bluecolored.de
 wynncraft_map	game_topdown	https://map.wynncraft.com/#/195/64/-4920/-3/wynn-main/Wynncraft	map.wynncraft.com
+bridge_core	source_editors	https://bridge-core.app/	bridge-core.app
 voxigen	source_editors	https://voxigen.io/	voxigen.io
 blockbench_web	source_editors	https://web.blockbench.net/	web.blockbench.net
 craftplicator	top_down_maps	https://craftplicator.com/	craftplicator.com
@@ -35,4 +36,3 @@ mcworldtools_mob	datapack_generators	https://mcworldtools.com/tools/mob-builder	
 pterodactyl	dev_server_panels	https://pterodactyl.io/	pterodactyl.io
 mcreator	dev_server_panels	https://mcreator.net/	mcreator.net
 modrinth_app	dev_server_panels	https://modrinth.com/app	modrinth.com
-bridge_core	dev_server_panels	https://bridge-core.app/	bridge-core.app

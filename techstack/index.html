@@ -448,7 +448,6 @@
           return r.text();
         }));
       state.data = parseTSV(dataTxt).filter(r => r.id && r.url);
-      buildIdMap();
       await loadShots();
       state.i18n = { zh: kv(zhTxt), en: kv(enTxt) };
       // 分类顺序 = i18n 里 category_* 的声明顺序；data 里多出来的分类追加在后面
@@ -530,35 +529,53 @@
   const groupsFor = (host, tag) => (groupsByHost.get(host) || []).map(g => (
     { group: g.group, name: g.name, urls: pickTag(g.files, tag) }));
 
-  // 退回老命名：res/<host>/<id>-<tag>.webp（index.tsv 里还没有的站，如 cubical/modrinth）
-  const idsByHost = new Map();
-  const buildIdMap = () => {
-    idsByHost.clear();
-    for (const r of state.data) {
-      const list = idsByHost.get(r.host) || [];
-      if (!list.includes(r.id)) list.push(r.id);
-      idsByHost.set(r.host, list);
-    }
-  };
+  // 退回按文件名编号扫：shoot.js 写的是 res/<host>/<n>-<tag>.webp，n = 页面计数器
+  // （每站从 0 起、Next 归零），跟 data.tsv 的 id 毫无关系；所以只能挨个探。
+  // index.tsv 缺行（如 tedit.github.io 的 137/138 被删）时靠这条路兜底；
+  // 分组按 GROUP=10 还原 —— 与 shoot.js alignGroup 的取整一致。
+  const PROBE_MAX = 40, PROBE_MISS = 3;
   const shotCache = new Map();
   function probe(url) {
     if (!shotCache.has(url)) {
-      shotCache.set(url, new Promise(resolve => {
-        const im = new Image();
-        im.onload = () => resolve(url);
-        im.onerror = () => resolve(null);
-        im.src = url;
-      }));
+      shotCache.set(url, (async () => {
+        try {
+          const r = await fetch(url, { method: 'HEAD' });
+          return r.ok ? url : null;
+        } catch {                       // file:// 下 HEAD 不可用，退回 Image
+          return await new Promise(resolve => {
+            const im = new Image();
+            im.onload = () => resolve(url);
+            im.onerror = () => resolve(null);
+            im.src = url;
+          });
+        }
+      })());
     }
     return shotCache.get(url);
   }
-  // 该站的分组表：有 index.tsv 就只信它，否则退回 <id>-<tag>.webp（单组、没有分组名）
+  async function probeNumbers(host, tag) {
+    const hits = [];
+    let miss = 0;
+    for (let n = 0; n < PROBE_MAX && miss < PROBE_MISS; n++) {
+      const url = await probe(`res/${host}/${n}-${tag}.webp`);
+      if (url) { hits.push({ n, url }); miss = 0; } else miss++;
+    }
+    return hits;
+  }
+  // 该站的分组表：有 index.tsv 就只信它，否则扫编号（编号断了 3 个就收手）
   async function shotsForHost(host, tag) {
     const indexed = groupsFor(host, tag).filter(g => g.urls.length);
     if (indexed.length) return indexed;
-    const ids = idsByHost.get(host) || [];
-    const urls = (await Promise.all(ids.map(id => probe(`res/${host}/${id}-${tag}.webp`)))).filter(Boolean);
-    return urls.length ? [{ group: -1, name: '', urls }] : [];
+    let hits = await probeNumbers(host, tag);
+    if (!hits.length) hits = await probeNumbers(host, tag === 'L' ? 'M' : 'L');
+    if (!hits.length) return [];
+    const groups = new Map();
+    for (const h of hits) {
+      const group = Math.floor(h.n / 10) * 10;
+      if (!groups.has(group)) groups.set(group, { group, name: '', urls: [] });
+      groups.get(group).urls.push(h.url);
+    }
+    return [...groups.values()];
   }
 
   let hoverCard = null, hoverPaint = null, rotTimer = 0, primeToken = 0;
@@ -576,12 +593,14 @@
     if (!host) return stopRotate();
     const token = ++primeToken;
 
-    if (!card.dataset.groups) {
-      const groups = await shotsForHost(host, shotTag());
+    const tag = shotTag();
+    if (!card.dataset.groups || card.dataset.shotTag !== tag) {
+      const groups = await shotsForHost(host, tag);
       if (token !== primeToken) return;         // 探测期间鼠标已经移开
       if (!groups.length) return;
       card.dataset.groups = JSON.stringify(groups);
       card.dataset.shots = JSON.stringify(groups.flatMap(g => g.urls));
+      card.dataset.shotTag = tag;
     }
     const urls = JSON.parse(card.dataset.shots);
 
@@ -651,9 +670,9 @@
     if (pv.select) pv.select.value = String(pv.gi);   // 下拉跟着走，显示当前分组
   }
 
-  // 全屏时卡片上临时挂一个分组下拉：选中即跳到该组第一张
+  // 全屏时卡片上临时挂一个分组下拉：选中即跳到该组第一张；
+  // 只有一组也照样显示，用来标明当前在哪一组
   function addGroupSelect(card) {
-    if (pv.groups.length < 2) return;      // 只有一组（或退回老命名）就没得选
     const en = state.lang === 'en';
     const sel = document.createElement('select');
     sel.className = 'pv-groups';
