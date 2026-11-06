@@ -15,7 +15,7 @@
 | 生物 AI | `c_MobAI` | `Mobs` | mobsim L12 |
 | 移动手感 | `c_Motion` | `Motion` | index L1603 |
 | 入水 / 出水特效 | `c_LiquidFx` | `LiquidFx` | index L1630 |
-| 实心水 | `c_Fluid` `isSolidFluid` | `Physics` | index L1464 |
+| 流入格 / 水体碰撞 | `c_Fluid` `isSolidFluid` | `Physics` | index L1464 |
 | 线 / 面放置 | `c_Build` | `Build` | index L1885 |
 | 结构库 | `c_BBat` | `BBat` | index L2415 |
 | 值物品 | `c_gm` | `gm` | index L2504 |
@@ -37,7 +37,7 @@
 |---|---|---|---|
 | survival | 生存 | – | 基线 |
 | creative | 创造 | `creative` | 无限物品、不受伤、飞行 |
-| creative+water | 创造W | `creative solidWater depthPlace` | **实心水**：水/岩浆可碰撞、半透明渲染、像土一样挖（回流防抖）；**开启 Build 的距离/线/面放置，可配合XRay+BBat** |
+| creative+water | 游戏创造 | 创造G | `creative solidWater depthPlace` | 水/岩浆可碰撞、半透明渲染、像土一样挖（回流防抖）；**开启 Build 的距离/线/面放置，可配合XRay+BBat** |
 | survival+peace | 生存P | `peaceful` | 怪物不生成且已有的消失（刷怪笼也停） |
 | survival+puzzle | 生存T | `toolOnly` | 徒手挖不动任何东西 |
 
@@ -92,9 +92,9 @@
 - `Physics`：GRAVITY 32、TERMINAL 78、JUMP_VEL 8.4；AABB 逐轴 sweep，**未加载区块视为实心**。
 - `c_Motion`：步长 3.2 m 触发脚步；bob 频率 1.6、幅度 y 0.11 / x 0.035；落地下沉 0.4 衰减 7；FOV 乘数 sprint 1.1 / water 0.92 / fly 1.23；受伤翻滚 0.46 rad 持续 0.15 s；死亡视线高 1.6 并按 `deathRoll(t)` 倒下；`eyeEase 0.5` 台阶上行平滑；自动跳 `autoJumpReach 0.25`、疾跑时 1.65。
 - `c_LiquidFx`：入水 / 出水全屏特效（`splashVy -4`、820 ms、42 滴），水 / 岩浆各两色。
-- `c_Fluid.ghostAlpha 0.4`：**实心水模式下"流入格"（挖掉源后会干的非源液体）半透明显示，XRay也效仿。**
+- `c_Fluid.ghostAlpha 0.4`：**游戏创造模式下"流入格"（挖掉源后会干的非源液体）半透明显示，XRay也效仿。**
 
-## 6. 创造W 的建造工具
+## 6. 创造G 的建造工具
 
 构造均可使用CtrlZ
 

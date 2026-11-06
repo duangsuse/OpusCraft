@@ -1,0 +1,7 @@
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
+#game { image-rendering: auto; }
+#ui { image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; }
+#ui.interactive { pointer-events: auto; }
+#screens { position: absolute; inset: 0; pointer-events: none; }
+body.cursor-none { cursor: none; }

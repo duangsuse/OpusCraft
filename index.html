@@ -259,7 +259,7 @@
       <span><b>Alt</b> sneak</span><span><b>wheel(1-9)</b> select slot</span>
       <span><b>MouseL</b> dig</span><span><b>MouseR</b> put / use / eat</span>
       <span class="wide hl"><b>F3</b> debug · <b>R</b> weather</span>
-      <span class="wide hl">CreatW: <b>1</b> line · <b>0</b> plane from here · <b>2</b>-<b>5</b>-<b>9</b> reach · <b>Ctrl+Z</b> undo</span>
+      <span class="wide hl">GCreat: <b>1</b> line · <b>0</b> plane from here · <b>2</b>-<b>5</b>-<b>9</b> reach · <b>Ctrl+Z</b> undo</span>
       <span class="wide dim"><b>G</b> cycle 5 modes · <b>T</b> morning · <b>F</b> pick block (creative) · <b>F11</b> fullscr</span>
       <span class="wide try" id="try">Give a try: </span>
     </div>
@@ -1671,7 +1671,7 @@ const LiquidFx = gg.my(new class LiquidFx {
 const MODES = {
   'survival':       { label: '生存', abbr: '生存' },
   'creative':       { label: '创造', abbr: '创造', creative: true },
-  'creative+water': { label: '创造+实心水', abbr: '创造W', creative: true, solidWater: true, depthPlace: true },  // W = walk on fluids: water/lava collide, render translucent, are mined like dirt (reflow debounced); see Build for depth/line/plane placing
+  'creative+water': { label: '游戏创造', abbr: '创造G', creative: true, solidWater: true, depthPlace: true },  // G = game: see Build for depth/line/plane placing
   'survival+peace': { label: '生存+和平', abbr: '生存P', peaceful: true },                        // P = peaceful: no hostile mobs
   'survival+puzzle': { label: '生存+解谜', abbr: '生存T', toolOnly: true },                        // T = tool: bare hands (no tool held) mine nothing
 };
@@ -2411,7 +2411,7 @@ Events.on('tileRemoved', (x, y, z, tile) => {
   if (Screens.isOpen() && Screens.data && Screens.data.x === x && Screens.data.y === y && Screens.data.z === z) Screens.close();
 });
 
-/* ---- BBat: block groups (creative W) ------------------------------------------------
+/* ---- BBat: block groups (creative G) ------------------------------------------------
    Capture = iterative DFS over face-neighbours from the aimed block: air (and fluids) separate groups, blue wool links
    floating parts and is stored as air. The group is kept in a global library (localStorage, also embedded in every save
    and merged back on load) as { id, name, w, h, d, b: base64 [id, meta] per cell, x fastest then z then y }.
@@ -2441,7 +2441,7 @@ const BBat = gg.my(new class BBat {
   dims(g, r = this.turns(g)) { return r & 1 ? [g.d, g.w] : [g.w, g.d]; }
   rot(x, z, w, d, r) { for (let k = 0; k < r; k++) { [x, z, w, d] = [z, w - 1 - x, d, w]; } return [x, z]; }
   capture(t) {
-    if (!Game.modeDef.solidWater) { HUD.message('BBat: 仅在创造W模式可用'); return null; }
+    if (!Game.modeDef.solidWater) { HUD.message('BBat: 仅在创造G模式可用'); return null; }
     if (!t || world.getBlock(t.x, t.y, t.z) === AIR) { HUD.message('BBat: 先对准一个方块'); return null; }
     const link = B[c_BBat.link], seen = new Set(), stack = [[t.x, t.y, t.z]], cells = [];
     const lo = [t.x, t.y, t.z], hi = [t.x, t.y, t.z];
@@ -2540,7 +2540,7 @@ const gm = window.gm = gg.my(new class gm {
     get: () => { const g = BBat.capture(Screens.aim ?? Interaction.target); return g && { id: g.id }; },   // side effect: adds to the library
     peek: () => Game.modeDef.solidWater ? {} : null,                                                       // generator cell preview (no capture)
     set: (v) => { const g = BBat.get(v.id); if (!g) { HUD.message('BBat: 已删除'); return false; } return BBat.place(g, Screens.isOpen() ? Screens.aim : Interaction.target); },   // in the E panel: the block aimed when it opened
-    label: (v) => { const g = BBat.get(v.id); return g ? BBat.title(g) : v.id ? 'BBat (deleted)' : 'BBat: capture the aimed group (creative W)'; },
+    label: (v) => { const g = BBat.get(v.id); return g ? BBat.title(g) : v.id ? 'BBat (deleted)' : 'BBat: capture the aimed group (creative G)'; },
     short: (v) => { const g = BBat.get(v.id); return g ? g.name.slice(emojiHead(g.name).length).slice(0, 6) : ''; },
   };
   // goodGL (?r=gl) light FX — undefined on host A / until the renderer has loaded
@@ -3168,7 +3168,7 @@ const rndr = gg.rndr = {
 const sim = gg.sim = {
   ambient: 0.609, screensaver: 0, lookFly: false, _cross: .6, crossDepth: .6,
   // 十字/边框: centre crosshair + block outline opacity; 0 = both off (phones default to 0, see Touch.phone).
-  // crossFx = what is shown: depthPlace modes (创造W) aim with the crosshair, so on phones they override cross with >= crossDepth.
+  // crossFx = what is shown: depthPlace modes (创造G) aim with the crosshair, so on phones they override cross with >= crossDepth.
   // Painted by Interaction.update whenever crossFx changes (pane edit, G, world load...).
   get cross() { return this._cross; }, set cross(v) { this._cross = v; },
   get crossFx() { return gg.Touch?.isPhone && Game.modeDef.depthPlace ? Math.max(this._cross, this.crossDepth) : this._cross; },
@@ -3246,7 +3246,7 @@ const menu = gg.menu = {
       ['flySpeed', () => sim, { label: '航速', ...R(2, 80, 0.5) }],
       ['lookFly', () => sim, { label: '视线飞行' }],
       ['screensaver', () => sim, { label: '屏幕保护 s', ...R(0, 120, 1) }],
-      ['undo', () => c_Build, { label: '创造W可撤销', ...R(1, 60, 3) }],
+      ['undo', () => c_Build, { label: '创造G可撤销', ...R(1, 60, 3) }],
     ]],
   ],
   // Top-right corner menu
@@ -3736,9 +3736,10 @@ const Game = {
   resume() { Title.enter(); },
   get modeDef() { return MODES[this.mode] || MODES.survival; },
   setMode(m) {
-    const was = this.modeDef.creative; this.mode = MODES[m] ? m : 'survival';
+    const was = this.modeDef.creative, wasSolid = this.modeDef.solidWater; this.mode = MODES[m] ? m : 'survival';
     if (!this.modeDef.creative && !player.noclip) player.flying = false; else if (this.modeDef.creative && !was && this.running) Player.startFly();
-    Build.clear(); this.applyFluidLook(); remeshAll();
+    Build.clear(); this.applyFluidLook();
+    if (wasSolid && !this.modeDef.solidWater) XRay.set(false); else remeshAll();   // XRay is host-renderer only: leaving G (solidWater) must close it
     HUD.message('Game mode: ' + this.modeDef.label); HUD.refreshHotbar(); Title.pane?.refresh(); if (Title.visible) Title.render();
   },
   // goodGL <-> 宿主渲染器：宿主网格器在 goodGL 下不出几何（Mesher.only = 空集），切换要全部重网格化；天空组由 goodGL 每帧隐藏，切回宿主时要显示
@@ -3805,7 +3806,7 @@ const Game = {
       Sky.update(dt, this.camera, this.scene);
     }
     if (!this.hold) {
-      if (gg.VR && !this.modeDef.solidWater !== this.glOn) this.setGL(!this.glOn);   // 创造W（实心水）：暂时用宿主渲染器，出来再切回 goodGL
+      if (gg.VR && !this.modeDef.solidWater !== this.glOn) this.setGL(!this.glOn);   // 创造G：暂时用宿主渲染器，出来再切回 goodGL
       if (this.glOn) { gg.VR.update(dt); this.renderer.clear(); gg.VR.render(); }   // goodGL 画完整帧（含 three 的实体 / 粒子 / 选框），HUD 是 DOM
       else { this.renderer.clear(); this.renderer.render(this.scene, this.camera); }
     }

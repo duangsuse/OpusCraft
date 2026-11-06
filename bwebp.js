@@ -21,7 +21,7 @@ const c_BW = {
     ['m', (cs) => bwebp.packAll(cs, 'meta'), (u8, cs) => bwebp.unpackAll(u8, cs, 'meta')],
     ['bio', (cs) => bwebp.zx(cs), (u8, cs) => bwebp.unzx(u8, cs)],
   ],
-  prefix: 'bw_',                // download name: bw_<save name>.webp
+  prefix: 'Pusc_',                // download name: bw_<save name>.webp
   logo: { src: 'res/logo.webp', w: 0.4, top: 0.03, q: 0.85 },   // stamped top-centre on downloaded covers: width share, top margin share, webp quality
   pickAccept: '',               // Android file picker: no filter (Firefox's image/* opens the gallery only)
 };

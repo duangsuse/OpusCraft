@@ -42,7 +42,7 @@
 | `layer` | 7 | 1 个 AABB，高度 = (meta+1)·2/16 | 雪层 8 档 = 8 个状态行 |
 | `ladder` | 7 | 1 个薄 AABB（厚 1/16，贴 facing 面） | alpha 镂空面 |
 | `door` | 7 | 1 个 3/16 厚 AABB，位置由 facing + open 位决定 | 上下半各一 id/状态，各自 tile；镂空 alpha 走现有 cutout 路径 |
-| `liquid` | 4 | ~~格内高度来自状态行（`uShape` 的 1 个 AABB 高度）~~ ⚠ TODO-4 已决定：**公式** `fluidTop = above ? 1 : 1 − (meta&15)/9 + uFluidTop0`，`uFluidTop0` 取使 meta 0 → 0.875（= 现状 7/8，0 px 硬要求）；`uShape` 不参与流体 | ~~meta 0 源 → 14/16；1–7 → `round((8−lvl)/9·16)/16`；≥8 下落柱 → 16/16。`fluidTop()`（§10.2）改为查表，不再解释 meta。~~ 下落柱（≥8）仍 → 1.0。岩浆 = `kind 4 + emissive`，不走反射。**偏差**：gls 网格把流动水面做成随邻格插值的斜面，v2 是逐格阶梯；实心水模式（`solidWater` 的 `ghostAlpha 0.4`）v2 不表达 |
+| `liquid` | 4 | ~~格内高度来自状态行（`uShape` 的 1 个 AABB 高度）~~ ⚠ TODO-4 已决定：**公式** `fluidTop = above ? 1 : 1 − (meta&15)/9 + uFluidTop0`，`uFluidTop0` 取使 meta 0 → 0.875（= 现状 7/8，0 px 硬要求）；`uShape` 不参与流体 | ~~meta 0 源 → 14/16；1–7 → `round((8−lvl)/9·16)/16`；≥8 下落柱 → 16/16。`fluidTop()`（§10.2）改为查表，不再解释 meta。~~ 下落柱（≥8）仍 → 1.0。岩浆 = `kind 4 + emissive`，不走反射。**偏差**：gls 网格把流动水面做成随邻格插值的斜面，v2 是逐格阶梯；游戏创造模式（`solidWater` 的 `ghostAlpha 0.4`）v2 不表达 |
 | `fire` | 2 | 交叉面 + 贴墙面 | `emissive` 自发光；meta 是年龄，不影响外观 → 16 行同状态 |
 | `none` | 0 | 空气 | — |
 
