@@ -1,6 +1,7 @@
 # goal-pgviz —— 地形生成查看器 `pgviz/index.html?g=mini`
 
 > 状态（2026-11-04）：设计已定，未动代码。三个阶段，每阶段独立可用、独立验收。
+> **gode 版本见 `gode/s13-pgviz.md`（11-09）**：直接用 gode 生成器 Worker，去掉 shim / GenDesc / CLI，参数即 `c_.Gen`，排在 gode M0。
 > 归属：goal-remix 的生成器线（步骤 0 / 2 / 3 / 7 的一部分提前到这里做）。渲染线（`?r=gl`）不受影响。
 
 ## 0. 目标
