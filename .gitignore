@@ -1,2 +1,3 @@
 tools/out/
-gode/shots/
+gode/shots/*
+!gode/shots/index.html

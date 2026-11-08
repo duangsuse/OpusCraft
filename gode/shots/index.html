@@ -1,0 +1,79 @@
+<!doctype html>
+<!-- gode/shots 实时画廊（s12 §3）：每秒轮询 index.tsv，最新在上；点图看大图，← → 在同 tag 内翻，V 切「上一张 / 这一张」并排对比。
+     打开：http://localhost:8765/gode/shots/  （或直接用看图软件开 latest.webp） -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gode shots</title>
+<style>
+  :root { --bg: #111; --fg: #ddd; --dim: #888; --card: #1b1b1b; --ok: #6c6; --bad: #e66; --acc: #6af; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13px/1.4 ui-monospace, monospace; }
+  header { position: sticky; top: 0; z-index: 2; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: #0b0b0bee; border-bottom: 1px solid #222; flex-wrap: wrap; }
+  header b { color: var(--acc); }
+  header input, header select { background: #222; color: var(--fg); border: 1px solid #333; padding: 3px 6px; font: inherit; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; padding: 12px 16px; }
+  .card { background: var(--card); border-radius: 4px; overflow: hidden; cursor: pointer; border: 1px solid transparent; }
+  .card.new { border-color: var(--acc); }
+  .card img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #000; }
+  .meta { padding: 5px 8px; display: flex; gap: 8px; flex-wrap: wrap; color: var(--dim); }
+  .meta .tag { color: var(--fg); } .ok { color: var(--ok); } .FAIL { color: var(--bad); }
+  .row { grid-column: 1 / -1; background: var(--card); padding: 4px 8px; border-radius: 3px; color: var(--dim); }
+  #big { position: fixed; inset: 0; z-index: 5; background: #000e; display: none; flex-direction: column; }
+  #big.on { display: flex; }
+  #big .imgs { flex: 1; display: flex; gap: 4px; min-height: 0; padding: 8px; }
+  #big img { flex: 1; min-width: 0; object-fit: contain; }
+  #big .bar { padding: 6px 16px; color: var(--dim); }
+  @media (max-width: 480px) { #grid { grid-template-columns: 1fr; padding: 8px; } }
+</style>
+</head>
+<body>
+<header><b>gode/shots</b><span id="n"></span><label>tag <select id="tag"><option value="">全部</option></select></label><label><input type="checkbox" id="checks" checked> 检查行</label><span id="st"></span></header>
+<div id="grid"></div>
+<div id="big"><div class="imgs"></div><div class="bar"></div></div>
+<script>
+const $ = id => document.getElementById(id);
+let rows = [], seen = 0, cur = null, vs = false, sig = '';
+const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+async function poll() {
+  try {
+    const t = await (await fetch('index.tsv', { cache: 'no-store' })).text();
+    if (t === sig) return; sig = t;
+    const [h, ...ls] = t.trim().split('\n'), H = h.split('\t');
+    rows = ls.map(l => Object.fromEntries(l.split('\t').map((v, i) => [H[i], v])));
+    const tags = [...new Set(rows.map(r => r.tag))].sort(), sel = $('tag'), keep = sel.value;
+    sel.innerHTML = '<option value="">全部</option>' + tags.map(t => `<option>${esc(t)}</option>`).join(''); sel.value = keep;
+    render(); $('st').textContent = '更新于 ' + new Date().toLocaleTimeString();
+  } catch { $('st').textContent = '还没有 index.tsv'; }
+}
+function render() {
+  const tag = $('tag').value, show = rows.filter(r => (!tag || r.tag === tag) && (r.files || $('checks').checked)).reverse(), max = Math.max(0, ...rows.map(r => +r.seq));
+  $('n').textContent = `${rows.length} 条`;
+  $('grid').innerHTML = show.slice(0, 300).map(r => r.files
+    ? `<div class="card${+r.seq > seen && seen ? ' new' : ''}" data-seq="${r.seq}"><img loading="lazy" src="${esc(r.files)}"><div class="meta"><span>#${r.seq}</span><span class="tag">${esc(r.tag)}</span><span>${esc(r.pose)}</span><span>${esc(r.ms)}ms</span><span class="${esc(r.verdict)}">${esc(r.verdict)}</span><span>${esc(r.note)}</span><span>${esc(r.ts?.slice(11, 19))}</span></div></div>`
+    : `<div class="row">#${r.seq} ${esc(r.tag)} ${esc(r.pose)} <span class="${esc(r.verdict)}">${esc(r.verdict)}</span> ${esc(r.ms)}ms ${esc(r.note)}</div>`).join('');
+  seen = max;
+}
+const sameTag = r => rows.filter(x => x.files && x.tag === r.tag && x.pose === r.pose);
+function open(seq) {
+  cur = rows.find(r => r.seq === String(seq)); if (!cur) return;
+  const list = sameTag(cur), i = list.indexOf(cur), prev = list[i - 1];
+  $('big').classList.add('on');
+  $('big').querySelector('.imgs').innerHTML = (vs && prev ? `<img src="${esc(prev.files)}">` : '') + `<img src="${esc(cur.files)}">`;
+  $('big').querySelector('.bar').textContent = `#${cur.seq} ${cur.tag} ${cur.pose} ${cur.note || ''}  ·  ${i + 1}/${list.length}  ← → 翻页  V 对比上一张${vs ? '（开）' : ''}  Esc 关闭`;
+}
+$('grid').onclick = e => { const c = e.target.closest('.card'); if (c) open(c.dataset.seq); };
+$('big').onclick = () => $('big').classList.remove('on');
+$('tag').onchange = $('checks').onchange = render;
+addEventListener('keydown', e => {
+  if (!$('big').classList.contains('on') || !cur) return;
+  const list = sameTag(cur), i = list.indexOf(cur);
+  if (e.key === 'Escape') $('big').classList.remove('on');
+  else if (e.key === 'ArrowLeft' && list[i - 1]) open(list[i - 1].seq);
+  else if (e.key === 'ArrowRight' && list[i + 1]) open(list[i + 1].seq);
+  else if (e.key === 'v' || e.key === 'V') { vs = !vs; open(cur.seq); }
+});
+poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>

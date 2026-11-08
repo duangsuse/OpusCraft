@@ -1,0 +1,9 @@
+XZ1
+@0,0^0 house
+box  @0,0^0  9x7x4  :cobblestone
+box  @1,1^1  7x5x3  :air
+face @0,0^4  9x7    :oak_planks
+tile @0,0^0  9x1x1  :glass every 2
+cyl  @4,3^5  r2 h3  :oak_leaves
+ball @12,3^3 r3     :stone
+line @0,8^0 @8,8^4  :oak_log

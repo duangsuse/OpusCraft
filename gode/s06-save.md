@@ -101,6 +101,7 @@ cyl  @4,3^5  r2 h3  :oak_leaves
 ball @12,3^3 r3     :stone
 ```
 
+- 语法细节 [M0 实现，`gode/tools/xz.js`]：坐标 `@x,z^y`；尺寸 `XxZxY`（`face` 可省 Y=1）；`tile … every N` = 盒内各轴相对起点为 N 的倍数的格；`cyl` 竖直、`@` 为底面圆心；`ball` `@` 为球心；`line @a @b` 含两端点；`#` 行注释；零点行可出现多次，之后的 op 相对最近零点。
 - 第二行是零点与名字：每个连续建筑以 xz 轴左下角为零点，op 内坐标相对零点。
 - 形状：`box face ball cyl line tile`（周期平铺）。**后写的覆盖先写的**，`:air` 即挖空。
 - 方块写法同 BIME（`:oak_stairs{linkBlk @0,1; half bottom}`）。

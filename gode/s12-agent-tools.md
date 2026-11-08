@@ -156,3 +156,28 @@ gd down                                 # 收尾（忘了也会 10 min 自退）
 | A-2 | 用户看图：`gode/shots/` 画廊页 + `latest.webp`；不挂进游戏 taskbar |
 | A-3 | XZ1 **解析与放置提前到 M0**；识别器（`read`）留在 M4 |
 | A-4 | M0 先对**宿主 B**（`index.html`）跑通工具链，`gm.test` 先做宿主 B 的等价垫片；gode/index.html 起来后换成 gode 版，同机位数字可对照 |
+| A-5 | 宿主 B 垫片的挂法：`index.html` 读 `&test=1` 时 `import('./gode/tools/gmtest-b.js')`（宿主 B 唯一的改动）；gd 打开宿主 B 时自动带 `&test=1` [11-09] |
+
+## 9. 实现状态 [11-09，M0-1…5]
+
+| 文件 | 内容 |
+|---|---|
+| `tools/gd.js` | 守护进程 + CLI，§2 全部命令；`node gode/tools/gd.js help` 即 `--help` |
+| `tools/gmtest-b.js` | 宿主 B 的 `gm.test`（A-5）：`freeze settle pose frame xz mark revert hash probe stats errors set find` + `checks.*` |
+| `tools/xz.js` | XZ1 解析 + 光栅化（页面与 node 共用） |
+| `tools/xz/*.xz` | `xz-roundtrip` 的样例 |
+| `tools/checks.tsv` | 列 `name host files js note`；`host` = `b / viz / gode`，只跑适用于当前页面的行 |
+| `shots/index.html` | 画廊（← → 同 tag 翻页、V 并排上一张） |
+| `defl/c_.json` | `c_.Bench.poses['20240607@old']`（导入）+ `c_.Bench.ref`（视觉目标 ↔ 参考图） |
+
+实测（宿主 B，RTX，1280×720）：冷 `up` 7–8 s（大头是 rd 6 世界 settle）；热 `shot` 0.15–0.4 s；四机位联系表 2.3 s；`eval` 10 ms；`check all` 1.5 s；`--ref` 3 s。十轮 `up / 超时杀 / kill -9` 后再 `up` 由 `sweepStale` 清干净，`pgrep` 无残留。
+
+与 §2–§6 的差异 / 补充：
+
+- `sweepStale` 只清**带 owner 文件且 owner 已死**的 `/tmp/gode-gd-*`，别的工具（如 pgviz 自测脚本）起的同前缀浏览器不碰。守护进程被 `kill -9` 时浏览器会留到下一次 `up` / `down` / `ps` 才清。
+- 自动重载：shot / check / pose / mark / xz **之前**比较 `gode/ rgl/ vendor/` 与宿主 B 的 js/html 修改时间（`gd.js` 自身与 `defl/` 不算——`gd.js` 改了要 `down / up`）。xz 若触发重载会重新 `mark`。
+- 宿主 B 没有 F4 相机：`frame / iso-*` 用透视相机从斜上 35° 框住 bbox。
+- 机位名不在表里且是 `plain canopy cave water uw` 之一时，`gm.test.find` 按 handover/tools.md §3 的规则搜索并写回 `c_.json`。`--ref` 的格子默认 hour 10、隐藏 HUD；`ice / mobs / map` 还没有机位（只放参考图），`trees / caustic / uwrefl` 借用 bench 机位，与参考图的构图差很多，M1 起补专门机位。
+- 一个守护进程只有**一个页面**：两个 Agent 共用时会互相 `go` 走对方的页面（命令会报「当前页面没有机位」）。需要时再加 `--tab`。
+- `freeze` 默认同时停宿主 B 的游戏 tick（随机 tick / 流体 / 火 / 草蔓延），否则世界随 settle 时长变化，`genhash` 时好时坏；要看动态时 `freeze({ tick: true })`。
+- `settle` 用 `freeze` 后 `VR.D.time` 非空的事实关掉 rgl 的升起 / 淡入动画，不再单独等 riseFade。

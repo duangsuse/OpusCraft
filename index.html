@@ -3083,7 +3083,7 @@ const Save = gg.my(new class Save {
   }
   // -> { blob, name } (for sharing) or null
   async save(silent) {
-    if (!Game.running || !Game.ready) return null;
+    if (!Game.running || !Game.ready || Game.oneshot === Game.seed) return null;   // oneshot：pgviz 一次性世界不落盘（Title.urlStart）
     try {
       if (!Game.paused) this.capture();
       await this.coverP; const seed = Game.seed, blob = await this.put(seed, await bwebp.dump(this.shot));
@@ -3092,7 +3092,7 @@ const Save = gg.my(new class Save {
     } catch (e) { HUD.message('Save failed: ' + e.message); return null; }
   }
   // Page unload: compression is async, so columns go palette/bit-packed uncompressed; the IDB write is best effort
-  saveSync() { if (Game.running && Game.ready) this.put(Game.seed, bwebp.dumpSync(this.shot)).catch(() => {}); }
+  saveSync() { if (Game.running && Game.ready && Game.oneshot !== Game.seed) this.put(Game.seed, bwebp.dumpSync(this.shot)).catch(() => {}); }
 
   // ---- file -> data (Game.start input) ----
   async loadData(seed) { try { return await this.read(seed); } catch (e) { HUD.message('Load failed: ' + e.message); return null; } }
@@ -3372,6 +3372,7 @@ const Title = gg.my(new class Title {
   }
   // Boot world, idling behind the title: the &xyzb= file (overwrites its seed's slot) or else the last world
   async boot() {
+    if (this.urlStart()) return;   // ?seed=…[&p1=…]：pgviz ↗ 进游戏，一次性世界直接开局
     const id = ++this.bootId;
     this.set('title');
     await Save.ready;   // the 1scr #save-list rows stay up until the save index is known (no empty-list flash)
@@ -3386,6 +3387,18 @@ const Title = gg.my(new class Title {
       Game.start(seed, data, true);
     } else $('sky1').classList.add('off');
     this.render();
+  }
+  /* pgviz「↗ 进游戏」（gode/s13 V-9）：?seed=S[&p1=@x,z[^y][,yaw]] → 不进标题屏、直接开 S 的一次性世界（创造 + 飞行），落在 p1
+     （y 缺省 = 噪声地表 + 2，区块就绪后若卡在方块里再抬到实际地表）。不写存档槽 / Save.last、不自动存档（Game.oneshot，见 Save.save）。
+     &test=1 时让给 gode/tools/gmtest-b.js（它也读 seed，自己开局）。 */
+  urlStart() {
+    const q = new URLSearchParams(location.search), seed = q.get('seed');
+    if (!seed || q.has('test')) return false;
+    const m = /^@?(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:\^(-?\d+(?:\.\d+)?))?(?:,(-?[\d.]+))?/.exec(q.get('p1') || '');
+    Game.mode = 'creative'; Game.start(seed, null, false); Game.oneshot = Game.seed;
+    if (m) { const x = floor(+m[1]), z = floor(+m[2]); Player.reset([x + 0.5, m[3] ? +m[3] : Terrain.heightAt(x, z) + 2, z + 0.5]); Game.freshSpawn = false; if (m[4]) player.yaw = +m[4]; }
+    player.flying = true;
+    return true;
   }
   // Two states share this screen: 'title' (page just opened, world idles behind) and 'paused' (in-game Esc)
   open(state = Game.running && Game.ready && !Game.atTitle ? 'paused' : 'title') {
@@ -3784,6 +3797,7 @@ gg.ev(window, {
   load() {
     try { Game.init(); }
     catch (e) { console.error(e); document.body.insertAdjacentHTML('beforeend', '<pre style="color:#f88;position:absolute;top:0;left:0;z-index:99;background:#000;padding:8px">Startup error: ' + e.message + '\n' + e.stack + '</pre>'); }
+    if (/[?&]test\b/.test(location.search)) import('./gode/tools/gmtest-b.js').then(m => m.install(gg, gm));   // gm.test 垫片（gode/s12 A-5，gd 用）
   },
   beforeunload: unloadSave, pagehide: unloadSave,
 });

@@ -4,6 +4,8 @@
 
 ## M0 · Agent 工具 + pgviz（先于 M1）
 
+> 11-09 本轮：M0-1…5 + pgviz V1；V2 / V3 下一轮。不提交，留工作区审。M0-1…5 已完成，实测数字见 s12 §9。
+
 | # | 内容 | 节 | 验收 |
 |---|---|---|---|
 | 1 | `gode/tools/gd.js`：守护进程、进程组、空闲自退、`sweepStale`、复用 :8765；`up down ps go reload eval log` | s12 §2 | 连续 `up / Ctrl-C / kill -9` 十次后 `pgrep -f gode-gd-` 为空；热 `eval` < 200 ms |

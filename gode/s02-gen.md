@@ -21,30 +21,39 @@ temp/hum Uint8Array(256)?                // 可选，连续群系色（world-gen
 
 ```js
 // defl/g/liq.js —— 整个文件就是 worker
-import '../../w/slicer.js';              // 引擎运行时：信封分派、xlate、光照、mesh、map 动词（s01 §3）
-import { Generator } from '../../vendor/liq/generator.js';
+import { serve } from '../../w/slicer.js';   // 引擎运行时：信封分派、xlate（M1 起再加光照、mesh、map 动词，s01 §3）
+import { Generator } from '../../../goodLiqPG/src/world/gen/generator.js';   // ESM 供体直接 import（M1 vendor 化后改指 vendor/liq）
 
-export const meta = { id: 'liq', ver: 1, sea: 127, names: ['air', 'stone', …], biomes: […] };
+export const meta = { id: 'liq', ver: 1, sea: 127, h: 256, names: ['air', 'stone', …], biomes: […],
+  colors: { biomes: [0x000070, …] },     // 可选：群系地图色（pgviz）；方块色由查看器按 names 查
+  over: { 2: [/* soft 2 额外可覆盖的 type */] },   // outside 合并规则（下）
+  layout: 'yzx16' };                     // 可选，非规范布局时运行时 xlate（old = 'xzy8'）
 let SEED, G, K;                          // 模块级全局，由 onkwarg 设置
 
 export function onkwarg({ seed, kw }) {  // 初始化：直接设全局；再次收到 = 热重置
-  SEED = seed; K = kw.gen;               // K = c_.Gen 的镜像（§2.1）
+  SEED = seed; K = kw?.gen;              // K = c_.Gen 的镜像（§2.1）
   G = new Generator(SEED, K);
   return { meta };                       // 运行时把返回值包成 {ready: {meta}}
 }
-export function gen({ cx, cz }, out) {}  // 写 out.{blocks, biomes, heights, temp?, hum?}，返回 { outside? }
+export function gen({ cx, cz }, out) {}  // 写 out.{blocks, biomes, heights, temp?, hum?}，返回 { outside?, clip? }
 export function set(kv) {}               // 面板 / 模组改了 c_.Gen.*（§2.1），更新 K；运行时随后通知 main 重生成
 export function sample({ x, z }) {}      // → { h, biome, …气候字段 }
 export function spawn() {}               // 出生点
 export function tree({ x, y, z, bio }) {} // 树苗长大：返回要写的格 [x,y,z,v,soft]…（main 不再加载生成器代码）
 export function explain({ x, y, z }) {}  // 可选，genscope（gen.md §2）
+
+serve(import.meta.url);                  // 末行：运行时再 import 自己一次（模块表里同一实例），拿到全部导出、装消息循环
 ```
 
-- **导出函数名就是动词名**：`slicer.js` 收到 `{gen: {...}, id}` 就调用模块导出的 `gen`，返回值包成同名应答（s01 §2 的 `for (k in msg)` 分派）。没导出的动词由运行时给默认实现或忽略。
+- **导出函数名就是动词名**：`slicer.js` 收到 `{gen: {...}, id}` 就调用模块导出的 `gen`，返回值包成同名应答（s01 §2 的 `for (k in msg)` 分派）。没导出的动词由运行时给默认实现或忽略。[定 11-09，pgviz V1 实现]
+  - **拿导出的办法**：生成器末行 `serve(import.meta.url)`。`slicer.js` 在被 import 时就装上 `onmessage` 并缓存早到的消息，`serve` 动态 `import()` 同一 URL 得到本模块命名空间（模块表去重，不会二次执行），然后按到达顺序串行处理。也接受 `serve({ meta, onkwarg, gen, … })` 显式传对象。在 node / 页面里 import 生成器（测试）时 `serve` 不装消息循环，导出照常可调。
+  - `gen` 的 `out` 由运行时分配（规范 `Uint16Array(65536)` 等，见 §1）；生成器若用自己的布局，声明 `meta.layout` 并把 `out.blocks`（以及 `out.meta`、x 主序的 `out.biomes / heights`）换成原生数组，运行时 `xlate` 转成规范布局后再发。应答带 `ms`（worker 内耗时），各缓冲 transfer。
+  - 引擎默认动词 `col({cx, cz, cls})`：整块生成后归约成列级地表 `Int16Array(1024)` = 每列 `[实体 type, 实体 y, 群系, 水深]`（`cls` = main 按方块名算的分类表，植物跳过、流体计水深），pgviz 外圈 2D 用（s13 V-8）。生成器可导出只算列噪声的 `col` 覆盖它。
+  - 异常一律回 `{err: {msg, stack}, id}`；`onkwarg` 总回 `{ready: {meta}}`（`meta` 取返回值的 `meta`，没有就取模块导出的 `meta`）；无 `id` 的广播事件不应答。
 - 光照、网格、地图这些**引擎动词**由 `slicer.js` 提供，生成器不用管；所以 s01 的「slicer 池 = 生成 + 光照 + 网格」照旧，池里每个 worker 都是同一个生成器脚本。
 - 短名映射：`old / gp / liq` → `$baseUrl/defl/g/<名>.js`；其余 URL 原样当 Worker 入口。`Pusc.json` 的 `$slicer` 存同一个字符串。
 - 生成器可以直接写规范布局；用自己的布局时声明 `meta.layout`（`'yzx16' | 'xzy8' | …`），由运行时的 `xlate` 转换。
-- `outside`：`Int32Array`，每 5 个一组 `[x, y, z, v, soft]`（世界坐标），`soft` 规则号同 gen.md §2（1 = 只覆盖空气 / 树叶，2 = 覆盖空气或非流体可替换格）。
+- `outside`：`Int32Array`，每 5 个一组 `[x, y, z, v, soft]`（世界坐标），`soft` 规则号同 gen.md §2（1 = 只覆盖空气 / 树叶，2 = 覆盖空气或非流体可替换格）。规则落到具体 type 由生成器声明：`meta.over[soft]` = 除空气外还可覆盖的 type 列表（old：三种树叶；liq：`T_REPLACEABLE && !T_FLUID`），soft 0 = 直写。main 不需要知道各生成器的方块属性。
 - 树苗生长原先是 main 直接调 `placeTree`（宿主 B mobsim.js:570）；现在改为发 `{tree}` 请求，异步返回写入列表，走 §3 的合并。
 
 ### 2.1 可调参数：湖泊与树 [定 11-08]
@@ -70,10 +79,11 @@ export function explain({ x, y, z }) {}  // 可选，genscope（gen.md §2）
 
 | 短名 | 来源 | 原布局 | 转换 | 溢出 |
 |---|---|---|---|---|
-| `old` | 宿主 B `gen.js` | u8 + meta，XZY，H 128 | 转置为 YZX，y 原样（上半部空气） | `pendingFeatures` → outside |
-| `gp` | goodGP `js/world.js`（vendor 化，gen.md §4） | u8 id + u8 meta，`(y<<8)\|(z<<4)\|x`，H 256 | **索引顺序与规范相同**，只需 `type = LUT[id] \| meta<<12` | 不外写（重算 3×3 树表），outside 为空 |
+| `old` | 宿主 B `gen.js` 的抽副本（`vendor/old/{prng,blocks,terrain}.js`，s13 V-7） | u8 + meta，XZY，H 128 | `meta.layout = 'xzy8'`，运行时转置为 YZX，y 原样（上半部空气） | `setBlockGen` 块外写入 → outside（soft 1） |
+| `gp` | goodGP `js/world.js`（`vendor/gp/load.js` 运行时 fetch 供体 util / blocks / world 原文拼成函数执行，零改动；只补 `ASSETS.tiles` 与色图两个桩） | u8 id + u8 meta，`(y<<8)\|(z<<4)\|x`，H 256 | **索引顺序与规范相同**，只需 `type = LUT[id] \| meta<<12` | 不外写（重算 3×3 树表），outside 为空 |
 | `liq` | goodLiqPG `src/world/gen/generator.js` | u16 12+4，`(yi*16+z)*16+x`，y −64…320 | 编码相同，查 LUT；**y + 64，191 以上裁掉**（§5） | `generateChunk` 已返回 `outside` |
 
+- V1 里 type 就是各生成器自己的 id（gp 0–168、liq 0–227、old 0–87），名字表在 `meta.names[type]`，pgviz 按名字着色 / 分类；统一 id LUT 等 s04 定表后再加。
 - `Generator` 实例不可重入（gen.md §5），每个 slicer 一个实例。
 - 缺失方块先 SUB 到已有方块，按画面影响分批补（gen.md §5「4a / 4b」）。
 

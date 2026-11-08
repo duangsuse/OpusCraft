@@ -1,0 +1,123 @@
+<!doctype html>
+<!-- gode/viz/index.html —— pgviz：地形查看与调参（s13，M0）。直接起 s02 的生成器 Worker（defl/g/<g>.js）池，R16UI 3D 纹理轴向步进出图。
+     URL：?g=old|gp|liq|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&n=&rate=12&minip=1&air=1&shade=block|biome|height&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
+     Agent：window.viz = { ready, stats, c4, airDist, probe, regen, set, errors, sel, pin, click, jump, … }（app.js） -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pgviz</title>
+<style>
+  :root { --bg: #111317; --pn: #181b21; --pn2: #1f232b; --ln: #2b303a; --fg: #d6d9df; --dim: #8a909c; --ac: #5aa0ff; --ok: #6c6; --bad: #e66; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.35 system-ui, sans-serif; overflow: hidden; }
+  input, select, button { font: inherit; color: var(--fg); background: var(--pn2); border: 1px solid var(--ln); border-radius: 4px; padding: 3px 7px; }
+  button { cursor: pointer; } button:hover:not(:disabled) { border-color: var(--ac); } button:disabled { opacity: .4; cursor: default; }
+  input[type=number], .num { font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+  .app { position: relative; display: grid; grid-template: 'top top' 38px 'side map' 1fr 'st st' auto / var(--sw, 300px) minmax(0, 1fr); height: 100%; }
+  .app.zen { grid-template: 'map map' 1fr / minmax(0, 1fr); } .app.zen #top, .app.zen #side, .app.zen #st, .app.zen #rsz { display: none; }
+  .app.nosd { grid-template-columns: 0 minmax(0, 1fr); } .app.nosd #side, .app.nosd #rsz { display: none; }
+  #sdbtn { display: none; } .app.nosd #sdbtn { display: inline-block; }
+  #rsz { position: absolute; top: 38px; bottom: 0; left: calc(var(--sw, 300px) - 3px); width: 7px; cursor: ew-resize; z-index: 6; } #rsz:hover, #rsz.on { background: #5aa0ff55; }
+  #ctx { position: fixed; z-index: 20; background: var(--pn2); border: 1px solid var(--ac); border-radius: 4px; padding: 3px 0; display: none; box-shadow: 0 4px 14px #000a; }
+  #ctx { min-width: 250px; } #ctx .hdr { padding: 4px 12px; color: var(--dim); font-size: 12px; } #ctx .oi { display: flex; gap: 6px; align-items: center; padding: 3px 10px; } #ctx .oi:hover { background: #2a4a78; }
+  #ctx .oi input { width: 80px; padding: 1px 4px; } #ctx .oc { flex: 1; cursor: pointer; font: 12px ui-monospace, monospace; padding: 3px 0; } #ctx .ox { cursor: pointer; color: var(--bad); padding: 0 4px; } #ctx .bar { display: flex; gap: 4px; padding: 5px 8px 3px; border-top: 1px solid var(--ln); margin-top: 3px; } #ctx .bar button { padding: 2px 6px; }
+  #paste { width: 150px; }
+  .hd { color: var(--ac); font-weight: 600; margin-top: 4px; }
+  #top { grid-area: top; display: flex; gap: 6px; align-items: center; padding: 0 8px; background: var(--pn); border-bottom: 1px solid var(--ln); white-space: nowrap; overflow-x: auto; }
+  #top .sep { width: 1px; height: 20px; background: var(--ln); margin: 0 4px; }
+  #seed { width: 130px; } #gx, #gz { width: 78px; }
+  .seg { display: inline-flex; } .seg button { border-radius: 0; margin-left: -1px; } .seg button:first-child { border-radius: 4px 0 0 4px; } .seg button:last-child { border-radius: 0 4px 4px 0; }
+  .seg button.on { background: #2a4a78; border-color: var(--ac); }
+  #side { scrollbar-color: #3a404c transparent; scrollbar-width: thin; grid-area: side; background: var(--pn); border-right: 1px solid var(--ln); overflow-y: auto; overflow-x: hidden; }
+  details { border-bottom: 1px solid var(--ln); } summary { padding: 7px 10px; cursor: pointer; font-weight: 600; user-select: none; }
+  .sec { padding: 2px 10px 10px; display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 5px 8px; align-items: center; }
+  .sec .full { grid-column: 1 / 3; } .sec label { color: var(--dim); }
+  .kv { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 12px; color: var(--dim); white-space: pre-wrap; }
+  .kv b { color: var(--fg); font-weight: 600; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #map { grid-area: map; position: relative; overflow: hidden; cursor: crosshair; }
+  #cv, #fade, #rul { position: absolute; inset: 0; width: 100%; height: 100%; } #fade, #rul { pointer-events: none; }
+  #fade { opacity: 0; transition: opacity 150ms ease-out; }
+  #toast { position: absolute; right: 140px; bottom: 16px; background: #000c; color: #ffd84a; padding: 3px 9px; border-radius: 4px; font: 12px ui-monospace, monospace; opacity: 0; transition: opacity 200ms; pointer-events: none; }
+  #read { position: absolute; left: 8px; bottom: 8px; background: #000a; padding: 3px 8px; border-radius: 4px; font: 12px ui-monospace, monospace; font-variant-numeric: tabular-nums; pointer-events: none; }
+  #giz { position: absolute; right: 10px; bottom: 10px; width: 120px; height: 120px; background: #000a; border-radius: 8px; cursor: pointer; }
+  #giz.play { outline: 1px solid #fd5; }
+  #tools { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
+  #tools button { width: 30px; height: 30px; padding: 0; background: #000a; }
+  #mini { display: block; background: #000; border: 1px solid var(--ln); border-radius: 4px; }
+  /* 小图只有一个元素 #minid：俯视挂在左栏顶部（宽随栏、只改高），其他视角挂在地图左上角（宽高都可拖）。只改 opacity / 类，不动其它布局 */
+  #minid { position: fixed; z-index: 5; background: var(--pn); opacity: 0; pointer-events: none; transition: opacity 120ms; padding: 4px 8px 8px; }
+  #minid .mh { color: var(--dim); font-size: 12px; padding: 1px 0 4px; }
+  #minid.side { left: 0; top: var(--mtop, 38px); width: var(--sw, 300px); border-bottom: 1px solid var(--ac); } #minid.side #mini { width: 100%; height: var(--mh, 178px); }
+  #minid.inmap { left: calc(var(--sw, 300px) + 8px); top: 46px; border: 1px solid var(--ac); border-radius: 6px; }
+  #minid.inmap #mini { width: var(--mw, 300px); height: var(--mh2, 200px); max-width: calc(100vw - var(--sw, 300px) - 90px); max-height: calc(100vh - 230px); }
+  .app.nosd #minid.inmap { left: 8px; } .app.zen #minid.inmap { left: 8px; top: 8px; }
+  #minid.on { opacity: 1; } #minid.on #mrz { pointer-events: auto; }
+  #mrz { position: absolute; pointer-events: none; } #minid.side #mrz { left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; } #minid.inmap #mrz { right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, #5aa0ffaa 50%); }
+  #minid.side #mrz:hover, #mrz.on { background-color: #5aa0ff66; }
+  #st { grid-area: st; display: flex; flex-wrap: nowrap; gap: 14px; align-items: center; height: 24px; min-width: 0; padding: 0 10px; background: var(--pn); border-top: 1px solid var(--ln); font: 12px ui-monospace, monospace; font-variant-numeric: tabular-nums; color: var(--dim); overflow: hidden; }
+  /* 单行，按优先级收缩：进度 / ms/块 几乎不缩；（worker）墙钟 其次；池 / 代 / 已复制 最先缩成省略号；「在途」永不缩（行末） */
+  #st span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #st #s1, #st #s2 { flex: 0 0.05 auto; } #st #s2b { flex: 0 1 auto; } #st #s3 { flex: 0 4 auto; } #st #s4 { flex: none; } #st #s5 { flex: none; margin-left: auto; }
+  #st b { color: var(--fg); font-weight: 500; } #st .bad { color: var(--bad); }
+  input[type=range] { width: 100%; padding: 0; }
+  a { color: var(--ac); }
+  @media (max-width: 760px) { .app { grid-template-columns: 0 minmax(0, 1fr); } #side { display: none; } }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div id="rsz" title="拖动改左栏宽度；< 140 px 自动隐藏"></div>
+  <div id="ctx"></div>
+  <div id="top">
+    <button id="sdbtn" title="展开左栏">⫷</button>
+    <select id="gsel" title="生成器（s02 §4）"><option value="old">old</option><option value="gp">gp</option><option value="liq">liq</option></select>
+    <input id="seed" placeholder="种子" spellcheck="false"><button id="go">Go</button>
+    <span class="sep"></span>
+    <span class="seg" id="modes"><button data-m="surface" title="切片面回到最外层">地表</button><button data-m="slice" title="切片面放到海平面 / 屏幕中心（Shift+滚轮调）">切片</button><button data-m="stack" disabled title="V2">层叠</button></span>
+    <span class="sep"></span>
+    <span title="地图视口左上角的世界坐标（相对当前原点），实时更新；改了就把左上角移到那里">⌜ X</span> <input id="gx" type="number"> Z <input id="gz" type="number"> <input id="paste" placeholder="粘贴 @x,z 或 @x,z^y" spellcheck="false" title="粘贴 @x,z / @x,z^y（或 gd 复制出的写法）后视口跳到该点居中；回车确认">
+    <span class="sep"></span>
+    <button id="game">↗ 进游戏</button>
+  </div>
+  <div id="minid" class="side"><div class="mh">↔ 小图：快放 / 原点预览</div><canvas id="mini"></canvas><div class="kv" id="minik"></div><div id="mrz" title="拖动改小图大小（俯视在左栏顶部只改高度；其他视角在地图左上角，宽高都能改）。快放 / 悬停会随鼠标离开消失，打开原点菜单（⌖ 右键）时它保持显示，可在那时拖"></div></div>
+  <div id="side">
+    <details><summary>① 世界 <span class="kv" id="wsum" style="font-weight:400"></span></summary><div class="sec">
+      <div class="full kv" id="w1"></div>
+      <label title="3D 窗口（侧视 / 切片用的整块体素，≤ 48 区块）占画布的比例；之外是 2D 地表（≤ 80 区块）">细节绘制</label><div class="row" style="flex-wrap:nowrap"><input id="fillr" type="range" min="0.2" max="1" step="0.05"><span class="num" id="fillv" style="width:38px;text-align:right"></span></div>
+      <div class="full kv" id="wkv"></div>
+    </div></details>
+    <details open><summary>② 视图</summary><div class="sec">
+      <label>视角 (V)</label><select id="vsel"><option value="top">俯视 −Y（7）</option><option value="south">南侧视 →北（1）</option><option value="north">北侧视 →南（Ctrl 1）</option><option value="east">东侧视 →西（3）</option><option value="west">西侧视 →东（Ctrl 3）</option><option value="bottom">仰视 +Y（Ctrl 7）</option></select>
+      <label>着色 (T)</label><select id="shsel"><option value="block">方块色</option><option value="biome">群系色</option><option value="height">高度</option></select>
+      <label id="sllab" title="Shift+滚轮在地图上调；拉到最外层 = 地表">切片 Y</label><div class="row" style="flex-wrap:nowrap"><input id="slr" type="range" min="0" max="255"><span class="num" id="slv" style="width:38px;text-align:right"></span></div>
+      <label title="悬停 gizmo 快放：沿视线往深处播放 N 层，每秒 R 层；在这一行上滚轮调速度">+N 层/秒</label><div class="row" id="nrow">+<input id="nin" type="number" min="1" max="64" style="width:56px" title="N：层数 1…64">层 /<input id="rate" type="number" min="1" max="60" style="width:56px" title="速度：层 / 秒 1…60">秒</div>
+      <label></label><label style="color:var(--fg)"><input type="checkbox" id="airc"> 显示空气距离</label>
+      <label></label><label style="color:var(--fg)"><input type="checkbox" id="gridc"> 区块网格（G）</label>
+      <label></label><label style="color:var(--fg)" title="小图常驻显示（否则只在悬停 gizmo / 原点菜单时出现）；URL minip=1"><input type="checkbox" id="minipc"> 小图持久化</label>
+      <label title="选区沿视线轴的深度（格）；右键一下的选区用它">选区深度</label><input id="seld" type="number" min="1" max="256" style="width:70px">
+      <label>缩放</label><span class="num kv" id="zv"></span>
+    </div></details>
+    <details open><summary>③ 方块</summary><div class="sec">
+      <div class="full hd">悬停</div><div class="full kv" id="hkv">（把鼠标移到地图上）</div>
+      <div class="full hd">已选中</div><div class="full kv" id="pkv">（左键点一格）</div>
+      <div class="full row"><button id="ppt" title="复制被点中那一格的 @x,z^y（相对原点，原点非 0,0 带 (origin x,z)；粘贴 = 左键点该格）">⎘ 点</button><button id="psamp" title="复制选区近端格的 sample（一行 JSON：{at, sample}）">⎘ sample</button></div>
+    </div></details>
+    <details open><summary>⑤ 选区</summary><div class="sec">
+      <div class="full kv" id="skv">右键一下 = 该格 × 深度的选区，再右键一下并进另一角成矩形；右键拖框边改范围；Esc 取消</div>
+      <div class="full row"><button id="scp" title="复制两角 @x,z^y">⎘ 坐标</button><button id="surl" title="复制复现当前视角 + 选区的 pgviz URL">⎘ URL</button><button id="sgd" title="复制 gd 命令">⎘ gd</button><button id="sclr">清除</button></div>
+    </div></details>
+  </div>
+  <div id="map">
+    <canvas id="cv"></canvas><canvas id="fade"></canvas><canvas id="rul"></canvas>
+    <div id="tools"><button id="zin" title="放大">＋</button><button id="zout" title="缩小">－</button><button id="home" title="左键：回原点；右键：原点菜单">⌖</button><button id="png" title="导出 PNG">⬇</button><button id="full" title="全屏">⤢</button></div>
+    <div id="toast"></div>
+    <div id="read">—</div>
+    <canvas id="giz" width="240" height="240" title="点端点切视角；悬停 = 沿视线轴快放 +N 层；悬停其它轴端点 = 沿该轴快放切面（左栏 ④ 画那个方向的剖面）"></canvas>
+  </div>
+  <div id="st"><span id="s1">…</span><span id="s2"></span><span id="s2b"></span><span id="s3"></span><span id="s4"></span><span id="s5"></span></div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

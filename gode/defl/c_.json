@@ -1,0 +1,78 @@
+{
+ "Bench": {
+  "#": "机位表（gode/s12 §5）。键 = '<seed>@<生成器>'，坐标是该生成器的规范 y（liq 要 +64）。20240607@old 导入自 tools/bench-b-poses.json（宿主 B）。ref = 视觉目标机位 ↔ gode/reference-vision/ 参考图，gd shot --ref 拼左右对照表；没有 pose 的格只放参考图",
+  "poses": {
+   "20240607@old": {
+    "plain": {
+     "x": -19.5,
+     "y": 67,
+     "z": 52.5,
+     "yaw": 0.6,
+     "pitch": -0.04
+    },
+    "canopy": {
+     "x": 69.5,
+     "y": 70,
+     "z": 36.5,
+     "yaw": 0.6,
+     "pitch": 0.45
+    },
+    "cave": {
+     "x": -63.5,
+     "y": 11,
+     "z": 45.5,
+     "yaw": 1.57,
+     "pitch": -0.05
+    },
+    "water": {
+     "x": -3.5,
+     "y": 63.38,
+     "z": -13.5,
+     "yaw": 0.6,
+     "pitch": -0.18
+    },
+    "uw": {
+     "x": -3.5,
+     "y": 55.58,
+     "z": -13.5,
+     "yaw": 0.6,
+     "pitch": 1.05
+    }
+   }
+  },
+  "ref": {
+   "trees": {
+    "img": "tree-and-shadow.png",
+    "pose": "canopy",
+    "hour": 15
+   },
+   "clouds": {
+    "img": "clouds1.png",
+    "pose": "@-19.5,52.5^67,0.6,0.35",
+    "hour": 10
+   },
+   "sunset": {
+    "img": "cloud-match-sunDir.png",
+    "pose": "plain",
+    "hour": 18
+   },
+   "caustic": {
+    "img": "bliss-caustics.png",
+    "pose": "uw"
+   },
+   "uwrefl": {
+    "img": "bliss-reflect.png",
+    "pose": "water"
+   },
+   "ice": {
+    "img": "ice-alike-coloredglass.png"
+   },
+   "mobs": {
+    "img": "mobs1.png"
+   },
+   "map": {
+    "img": "minimap.png"
+   }
+  }
+ }
+}
