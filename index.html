@@ -80,12 +80,8 @@
   #damage-flash { position: absolute; inset: 0; background: rgba(255,0,0,0); pointer-events: none; transition: background .15s; }
   #water-tint { position: absolute; inset: 0; background: rgba(20,60,160,0); pointer-events: none; }
   #fire-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(255,120,0,0.55), rgba(255,60,0,0)); pointer-events: none; }
-  /* liquid enter/leave: painted once per transition on canvas#overlay, motion is pure CSS (no gradients stripes -> no seams) */
-  #overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; will-change: transform, opacity; }
-  #overlay.lq-in { animation: lqIn .7s cubic-bezier(.2,.7,.3,1); }
-  #overlay.lq-out { animation: lqOut .8s ease-in; }
-  @keyframes lqIn { 0% { opacity: 1; transform: translateY(-100%); } 45% { opacity: 1; transform: translateY(0); } 100% { opacity: 0; transform: translateY(0); } }
-  @keyframes lqOut { 0% { opacity: 1; transform: translateY(0); filter: blur(1.5px); } 100% { opacity: 0; transform: translateY(18%); filter: blur(0); } }
+  /* animation canvas (kept; liquid transitions no longer paint here) */
+  #overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0; }
   #hud.menu #mode { display: none; }   /* top-left HUD: hidden behind the title / pause screen */
   #mode { position: absolute; left: 8px; top: 8px; font-size: 12px; color: #fff; text-shadow: 1px 1px #000; background: rgba(0,0,0,0.25); padding: 4px 6px; white-space: pre; }
   #breakhint { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); width: 120px; height: 6px; background: rgba(0,0,0,0.5); display: none; }
@@ -1628,43 +1624,14 @@ const Motion = gg.my(new class Motion {
     cam.rotation.set(p.pitch - p.land * 0.08, p.yaw, roll);
   }
 });
-/* ---- Full-screen liquid enter/leave animation + splash/sizzle ---- */
-const c_LiquidFx = {
-  splashVy: -4, ms: 820, scale: 4, drops: 42,
-  rgb: { water: ['40,95,225', '175,220,255'], lava: ['255,85,0', '255,215,70'] }
-};
+/* ---- Liquid enter/leave splash/sizzle ---- */
+const c_LiquidFx = { splashVy: -4 };
 const LiquidFx = gg.my(new class LiquidFx {
-  // kind: water|lava, dir: in (surface sweeps down over the view) | out (droplets slide off)
-  play(kind, dir) {
-    const C = c_LiquidFx, cv = $('overlay'), w = cv.width = Math.max(1, innerWidth / C.scale | 0), h = cv.height = Math.max(1, innerHeight / C.scale | 0);
-    const g = cv.getContext('2d'), [c1, c2] = C.rgb[kind], ph = Math.random() * 6.3;
-    g.clearRect(0, 0, w, h);
-    if (dir === 'in') {
-      const wave = (x) => h * 0.9 + Math.sin(x * 0.09 + ph) * h * 0.025 + Math.sin(x * 0.23 + ph * 2) * h * 0.01;
-      const body = g.createLinearGradient(0, 0, 0, h); body.addColorStop(0, `rgba(${c1},.9)`); body.addColorStop(1, `rgba(${c1},.6)`);
-      g.beginPath(); g.moveTo(0, 0); for (let x = 0; x <= w; x++) g.lineTo(x, wave(x)); g.lineTo(w, 0); g.closePath(); g.fillStyle = body; g.fill();
-      g.beginPath(); for (let x = 0; x <= w; x++) g.lineTo(x, wave(x)); g.lineWidth = Math.max(2, h * 0.012); g.strokeStyle = `rgba(${c2},.95)`; g.stroke();
-    } else {
-      const fog = g.createLinearGradient(0, 0, 0, h); fog.addColorStop(0, `rgba(${c1},.35)`); fog.addColorStop(1, `rgba(${c1},0)`);
-      g.fillStyle = fog; g.fillRect(0, 0, w, h);
-      for (let i = 0; i < C.drops; i++) {
-        const x = Math.random() * w, y = Math.random() * h, r = (0.6 + Math.random() * 1.6) * w / 160, tail = r * (3 + Math.random() * 8);
-        const tr = g.createLinearGradient(0, y - tail, 0, y); tr.addColorStop(0, `rgba(${c2},0)`); tr.addColorStop(1, `rgba(${c2},.35)`);
-        g.fillStyle = tr; g.fillRect(x - r * 0.45, y - tail, r * 0.9, tail);
-        const d = g.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.3);
-        d.addColorStop(0, `rgba(${c2},.85)`); d.addColorStop(0.6, `rgba(${c1},.45)`); d.addColorStop(1, `rgba(${c1},0)`);
-        g.fillStyle = d; g.beginPath(); g.ellipse(x, y, r, r * 1.35, 0, 0, Math.PI * 2); g.fill();
-      }
-    }
-    cv.className = ''; void cv.offsetWidth; cv.className = 'lq-' + dir;
-    clearTimeout(this._t); this._t = setTimeout(() => cv.className = '', C.ms);
-  }
   transition(was, p) {
     const a = gg.res_vam.a;
     if (p.inWater && !was.w) { if (p.vy < c_LiquidFx.splashVy) { a.splash(); Particles.splash?.(p.x, p.y + 0.5, p.z, 12); } }
     if (p.inLava && !was.l) a.sizzle();
-    if (p.headInWater !== was.hw) { this.play('water', p.headInWater ? 'in' : 'out'); if (!p.headInWater) a.splash(); }
-    if (p.headInLava !== was.hl) this.play('lava', p.headInLava ? 'in' : 'out');
+    if (p.headInWater !== was.hw && !p.headInWater) a.splash();
   }
 });
 /* ---- Game modes (declarative), G cycles in order. Saves store the key; old saves ('survival'/'creative') stay valid. */

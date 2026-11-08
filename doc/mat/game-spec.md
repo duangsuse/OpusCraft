@@ -14,7 +14,7 @@
 | 流体 / 火 / 随机 tick | `FLUID` `c_Flow` | `Fluids` `Fire` `RandomTicks` | mobsim L377 |
 | 生物 AI | `c_MobAI` | `Mobs` | mobsim L12 |
 | 移动手感 | `c_Motion` | `Motion` | index L1603 |
-| 入水 / 出水特效 | `c_LiquidFx` | `LiquidFx` | index L1630 |
+| 入水 / 出水音效与粒子 | `c_LiquidFx` | `LiquidFx` | index L1627 |
 | 流入格 / 水体碰撞 | `c_Fluid` `isSolidFluid` | `Physics` | index L1464 |
 | 线 / 面放置 | `c_Build` | `Build` | index L1885 |
 | 结构库 | `c_BBat` | `BBat` | index L2415 |
@@ -91,7 +91,7 @@
 
 - `Physics`：GRAVITY 32、TERMINAL 78、JUMP_VEL 8.4；AABB 逐轴 sweep，**未加载区块视为实心**。
 - `c_Motion`：步长 3.2 m 触发脚步；bob 频率 1.6、幅度 y 0.11 / x 0.035；落地下沉 0.4 衰减 7；FOV 乘数 sprint 1.1 / water 0.92 / fly 1.23；受伤翻滚 0.46 rad 持续 0.15 s；死亡视线高 1.6 并按 `deathRoll(t)` 倒下；`eyeEase 0.5` 台阶上行平滑；自动跳 `autoJumpReach 0.25`、疾跑时 1.65。
-- `c_LiquidFx`：入水 / 出水全屏特效（`splashVy -4`、820 ms、42 滴），水 / 岩浆各两色。
+- `c_LiquidFx`：入水 / 出水音效与粒子（`splashVy -4`；全屏动画已移除，`canvas#overlay` 保留）。
 - `c_Fluid.ghostAlpha 0.4`：**游戏创造模式下"流入格"（挖掉源后会干的非源液体）半透明显示，XRay也效仿。**
 
 ## 6. 创造G 的建造工具
