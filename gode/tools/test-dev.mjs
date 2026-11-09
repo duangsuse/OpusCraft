@@ -5,7 +5,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { request } from 'node:http';
-import { mkdtempSync, mkdirSync, writeFileSync, renameSync, rmSync, readFileSync, existsSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, renameSync, rmSync, readFileSync, readdirSync, existsSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createDev } from './dev.js';
@@ -126,6 +126,36 @@ test('写回：只收本机（Host 与源地址两层）', async () => {
   assert.equal((await raw(q, { method: 'PUT', headers: { Host: `localhost:${port}` }, body: 'x' })).status, 200);
   const r = await raw(q, { method: 'PUT', headers: { Host: `localhost:${port}` }, body: 'x', localAddress: '127.0.0.2' }).catch(() => null);   // 源地址不是 127.0.0.1
   if (r) assert.equal(r.status, 403); else console.warn('  （这台机器不能绑 127.0.0.2，跳过源地址那一层）');
+});
+
+test('改声明：POST /__dev/patch（只改 gode/ 下 .js 里 c_.X = {…} 的字面量）', async () => {
+  const F = 'gode/mock/decl.js', src = "// 头\nc_.Fx = {\n  gravity: [0.8, 0, 2, '重力'],\n  on: [true, '开'],\n}\n";
+  w(F, src);
+  const at = { line: 2, col: 7, topic: 'Fx' };
+  const post = (rel, body, headers = {}) => fetch(`${B}/__dev/patch?path=${rel}`, { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body), headers });
+  const ok = await post(F, { ...at, edits: [{ key: 'gravity', idx: 0, old: 0.8, value: 1.5 }, { key: 'on', idx: 0, old: true, value: false }] });
+  assert.equal(ok.status, 200); const j = await ok.json(); assert.equal(j.changed.length, 2); assert.equal(j.path, F);
+  assert.equal(readFileSync(join(root, F), 'utf8'), src.replace("[0.8, 0, 2, '重力']", "[1.5, 0, 2, '重力']").replace("[true, '开']", "[false, '开']"));
+  const cur = readFileSync(join(root, F), 'utf8');
+  const stale = await post(F, { ...at, edits: [{ key: 'gravity', idx: 0, old: 0.8, value: 9 }] });          // 页面还以为是 0.8：整体拒绝
+  assert.equal(stale.status, 409); assert.match((await stale.json()).error, /源码里是 1\.5/); assert.equal(readFileSync(join(root, F), 'utf8'), cur);
+  assert.equal((await post(F, { ...at, col: 8, edits: [{ key: 'on', idx: 0, old: false, value: true }] })).status, 409);
+  assert.equal((await post(F, '{bad')).status, 400);
+  assert.equal((await post(F, { ...at, edits: [{ key: 'on', idx: 0, old: false, value: { a: 1 } }] })).status, 400);
+  // 白名单
+  w('gode/tools/x.js', src); w('gode/vendor/v.js', src); w('gode/defl/x.json', '{}'); w('other/y.js', src);
+  for (const rel of ['gode/tools/x.js', 'gode/vendor/v.js', 'gode/defl/x.json', 'other/y.js', 'gode/../other/y.js', 'gode/.h.js', '/etc/passwd'])
+    assert.equal((await post(rel, { ...at, edits: [{ key: 'on', idx: 0, old: true, value: false }] })).status, 403, rel);
+  assert.equal((await post('gode/mock/none.js', { ...at, edits: [{ key: 'on', idx: 0, old: true, value: false }] })).status, 404);
+  assert.equal((await fetch(`${B}/__dev/patch?path=${F}`)).status, 405);
+  symlinkSync(join(root, 'gode/tools/x.js'), join(root, 'gode/mock/l.js'));
+  assert.equal((await post('gode/mock/l.js', { ...at, edits: [{ key: 'on', idx: 0, old: true, value: false }] })).status, 403);
+  assert.equal(readFileSync(join(root, 'gode/tools/x.js'), 'utf8'), src, '符号链接指向的文件没被改');
+  // 只收本机
+  const q = `/__dev/patch?path=${F}`, body = JSON.stringify({ ...at, edits: [{ key: 'on', idx: 0, old: false, value: true }] });
+  assert.equal((await raw(q, { method: 'POST', headers: { Host: 'evil.example.com' }, body })).status, 403);
+  assert.equal((await raw(q, { method: 'POST', headers: { Host: `localhost:${port}` }, body })).status, 200);
+  assert.ok(!readdirSync(join(root, 'gode/mock')).some(n => n.includes('.tmp-')), '不留临时文件');
 });
 
 test('ls / info', async () => {

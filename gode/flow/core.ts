@@ -121,7 +121,6 @@ export type Screen = 'title' | 'paused' | 'ask' | 'loading' | 'game' | (string &
 export interface Meta {
   label?: string; doc?: string
   range?: readonly [min: num, max: num, step?: num]; log?: boolean
-  tier?: 0 | 1 | 2 | 3                      // 0 玩家 / 1 调优 / 2 仅 API / 3 冻结（goal-panify §6）
   fx?: string                               // 改后的副作用路由：'regen' 重生成视野、'gl_wtf' GL 重编译…（s09 §2）
   options?: readonly string[]               // 枚举的取值顺序：MOVES 的 '<next>' / '<prev>' 照它循环
 }

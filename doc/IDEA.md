@@ -81,7 +81,7 @@ VoxelLibre 有手持火把光照，掉落物有厚度，goodLiqPG的方块破坏
 
 ==三大件==
 
-pkv(xzyb#matBIME)/gm API × (gpane (Tweakpane分支) + Pass.js) 以glsl里${}getter注入(Fps.引用/()=>/Fpv.值)为基础，提供了动态调优项目基建，同时是边做游戏，边准备MOD生态
+pkv(xzyb#matBIME)/c_/gm API × (gpane (Tweakpane分支) + Pass.js) 以glsl里${}getter注入(Fps.引用/()=>/Fpv.值)为基础，提供了动态调优项目基建，同时是边做游戏，边准备MOD生态
 
 大量使用文件夹级预设、两个相关键并成vec2,+-1手调、键区间/默认值可热编辑落盘、[{pickLib}]先划选后改KV、checkbox开关后可看fps差异、前3下拉项目转 `<a>` 折叠时也可见，等等
 

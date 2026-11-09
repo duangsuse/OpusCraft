@@ -48,7 +48,7 @@
 | # | 内容 | 节 |
 |---|---|---|
 | 1 | `defl/` 默认模组：`mode.js`、宿主 B DEF 表 → tsv、`c_.json` | s07 §1 |
-| 2 | 模组协议：`ready.subs`、`set` 白名单（tier ≤ 2）、`give / tp / time / weather / spawn / popup` | s07 §2 |
+| 2 | 模组协议：`ready.subs`、`set` 白名单（参数与表行）、`give / tp / time / weather / spawn / popup` | s07 §2 |
 | 3 | 模式 + cheat：默认创造、红羊毛、G 键、暂停屏切换弹框 | s07 §3 |
 | 4 | 注册：模组 tsv 覆盖 + `{reg}` 补丁 | s07 §4 |
 | 5 | iframe：弹框、HUD 叠层、方块绑定；`gode-ui.js` | s07 §5 |
@@ -63,11 +63,5 @@
 | 2 | 文本体素识别器（`gm.test.read`，解析与放置已在 M0-5）（逐格相等校验） | s06 §5 |
 | 3 | BBat 多图层 + 依存骨骼树 → 动画实体 | s08 §5 |
 | 4 | clawd、LS、零点同步写回、钻石箱 | s08 |
-- [11-09 追加] pgviz：快放 N 框去掉（层数 = 选区深度，速度单框挪到「选区深度」下）；左 / 右键选区只有俯视到基岩，其余视角按 seld（检查 `viz-seldepth`）。
-- [11-09 追加] pgviz V2 一部分：图层 chip（树种 + 各 sample 场热力图，`L` 键）、树按种统计；slicer 引擎默认动词 `field`；`gd check --matrix`；生成器基线 `gd baseline`（偏差只写 shots + `gd down` 时桌面通知，不进 Agent 的输出），见 s13 §9、s12 §11。genhash 在宿主 B 连跑 39 次（含 check all 之后、reload 之后）全稳定。
-- [11-09 追加（三）] pgviz：空气距离改复选框（灰渐变，> 22 px 叠黑数字）、深度 / 快放一行、giz 悬停 = Numpad 帮助；Numpad 4 6 8 2 翻页、5 图层暂时关、9 按住快放，见 s13 §10。
-- [11-09 追加（四）] **M1 首刀：1 · 3 · 4 · 5 · 6 的主干跑通**（`gode/index.html?g=mini|gp|liq|old&seed=&rd=…`，v7 / valleys 未接）。实测：mini 在 gode 与宿主 B 的 128×128×128 区域**逐格哈希相同**（含跨块树冠）；`gd check genhash-g`（同种子热重置，区块到达顺序重来）mini / gp / liq / old 都稳；`phys` 跳高 1.10（理论 1.103）、走 4.27 格 / s；plain 机位帧时间中位数 gode 5.5 ms / 宿主 B 5.7 ms（p95 9.4 / 9.8）；宿主 B 与 pgviz 的 `gd check all` 照旧（`viz-keys` 的 ⏎ 项在改动前就已失败：`b7435b2` 给 `gameUrl()` 加了 `test=1`，检查里的正则没跟上，未动）。
-  - 落地形状（与 s01–s03 的差异都在这里）：`w/slicer.js` 的 `gen` 带 `light:true` 才算初始光照（`w/light.js`，块边界外不看；`w/glid.js` 按 `meta.names` 查 goodGL 名字，找不到按 SUBST + 后缀规则落到已有块，实在没有当石头并在控制台列出：liq 3 个、gp 约 30 个，多是染色玻璃 / 混凝土）；新动词 `mesh` 的参数沿用 `vendor/gl/pool.js` 的 `{pb,pm,pl,tg,tf,cls,wx,wy,wz}` 并 transfer，没有改成 s01 写的 `{cx,cy,cz,pad,rev}`（padded 由 main 拼，规则同 rgl `padded()` 的 YZX 版）；`viz/pool.js` 搬到 `w/pool.js`（`job` 多一个 transfer 参数），pgviz 照旧 re-export。
-  - rgl 的改动（宿主 B 行为不变，靠钩子）：`source.layout === 'yzx16'`、`source.padded / secHash / secHas`、`source.meshPool`（`rgl/terrain.js`）；`SurfaceField({ yzx })`；`rgl/fire.js` 的 YZX 读法与按 type 的 `bt.kind`（4096 项）；`rgl/index.js` 读 `ch.light`。适配器在 `main/rgl.js`，物理在 `main/phys.js`（宿主 B `Physics` + `Player.update` 的搬运，去掉生存 / 摔伤 / 梯子 / 视角晃动），世界镜像在 `main/world.js`（流式加载、outside 合并 + 挂起表、`onChunk` 事件）。
-  - **还没做**（对应 M1 其余项）：#2 `gg.vars / c_ / gg.pane / &json=`（`main/phys.js` 的 `c_Motion` 是临时常量表）；#7 `?r=lite`；#8 增量光照与改块（`World.set` 只写不重算光；outside 合并也不重算，树冠下的光照偏亮；块间光照接缝未补）、`blk.tsv`；#9 F3 逐行对齐 / F4 相机 / 快调面板（现在 F3 只是简版）；#10 体积云。已知小毛病：gp 出生点可能落在树里（取柱顶高度，没跳过树叶）；rgl 群系 tint 仍是平原常量（`source.tintColor` 回调未接）；`find` 机位规则未做所以只有 `20240607@mini` 的五个命名机位可用。
 
+- [11-09 追加] pgviz V2 一部分：图层 chip（树种 + 各 sample 场热力图，`L` 键）、树按种统计；slicer 引擎默认动词 `field`；`gd check --matrix`；生成器基线 `gd baseline`（偏差只写 shots + `gd down` 时桌面通知，不进 Agent 的输出），见 s13 §9、s12 §11。genhash 在宿主 B 连跑 39 次（含 check all 之后、reload 之后）全稳定。

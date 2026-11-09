@@ -51,7 +51,7 @@ defl/
 - **[改 11-09，s16 K-11]** 模组 worker 与 main 里的游戏模块同写法：一段脚本，`gg / gm / c_` 是注入的形参（worker 里的 `gm` 是消息代理）。订阅写 `gm.on({ key(k) {…}, onhit(h) {…} })`，不再 `export function`；`ready.meta.subs` 由 `gm.on` 的键自动生成，不手写；向 main 发请求就是调 `gm.<命名空间>.<动词>()`（经 M-2 白名单，运行时转成下面的 `{set / give / tp …}` 消息）。信封和消息本身不变；`onkwarg` 里的 `seed / mode / cheat` 变成 `gm.game` 的只读成员，`kw` 写进模组自己的 `c_` 主题。
 - 旧写法（`import '…/w/mod.js'` + `export function onkwarg / key / onhit`，s02 §2 / G-8）只留给生成器和渲染器 Worker。
 - `set` 的路径就是 `gm.pane.set` 的路径（goal-panify §5），面板写入、API 写入、模组写入走同一条 `Ref.set` 路由，面板自己会刷新。
-- 可写范围由面板 `tier` 决定：tier ≤ 2 可写，tier 3（冻结）不可写。
+- 可写范围 [改 11-09，tier 取消]：参数主题（`$X`）与表行；`mod.*`、存档、世界方块不可写（s09 §12 待定）。
 
 ## 3. 模式与 cheat [定 11-08]
 

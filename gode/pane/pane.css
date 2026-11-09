@@ -1,0 +1,102 @@
+/* gode/pane/pane.css —— 面板外壳样式：独立面板页（竖向标签条）+ 游戏窗口（任务栏 / 停靠）。Tweakpane 行用它自己的主题 */
+:root { --bg: #1b1d23; --bg2: #23262e; --fg: #d6d9e0; --dim: #7d8391; --acc: #5b9cff; --chg: #ffb454; --good: #5fd38d; --bad: #ff6b6b; --line: #333843; color-scheme: dark; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 12px/1.4 system-ui, sans-serif; }
+button { font: inherit; color: inherit; cursor: pointer; }
+select option, select optgroup { background: var(--bg2); color: var(--fg); }   /* 原生下拉弹层不跟随 select 自己的背景：不写就是白底配继承来的浅色字 */
+.toast { position: fixed; left: 50%; bottom: 56px; transform: translateX(-50%); z-index: 9999; background: #2c313c; border: 1px solid var(--line); padding: 6px 12px; border-radius: 6px; max-width: 70vw; box-shadow: 0 4px 16px #0008; }
+.toast.bad { border-color: var(--bad); color: #ffd0d0; }
+
+/* 通用：行标记 / 徽标 / 预设头 / 右键菜单 */
+.chg > .tp-lblv_l::before, .chg > .tp-lblv_l::before { content: '●'; color: var(--chg); font-size: 8px; margin-right: 3px; vertical-align: 1px; }
+.tp-lblv_l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-lblv.flash { animation: flash 1.6s ease-out; }
+@keyframes flash { 0%, 40% { background: #5b9cff55; outline: 1px solid var(--acc); } 100% { background: transparent; outline-color: transparent; } }
+.pf { margin-left: 6px; font-size: 10px; padding: 0 4px; border-radius: 3px; background: #ffffff18; color: var(--dim); }
+.pf.up { color: var(--good); } .pf.down { color: var(--bad); }
+.tabs { margin-left: auto; padding-left: 8px; display: inline-flex; gap: 6px; float: right; }
+.tabs a { color: var(--dim); text-decoration: underline dotted; cursor: pointer; font-size: 11px; } .tabs a.on { color: var(--acc); text-decoration: none; font-weight: 600; } .tabs a:hover { color: var(--fg); }
+.pp { display: flex; gap: 2px; width: 100%; box-sizing: border-box; } .pp.dirty select { border-color: var(--chg); box-shadow: 0 0 0 1px var(--chg) inset; }
+.pp select { flex: 1; width: 0; min-width: 0; background: #0003; color: inherit; border: 1px solid var(--line); border-radius: 3px; font-size: 11px; }
+.pp button { flex: none; background: #ffffff10; border: 0; border-radius: 3px; padding: 0 5px; } .pp button:hover { background: #ffffff28; }
+.tp-lblv-nol > .tp-lblv_v { flex-grow: 1; width: 100%; }
+.logrow input[type=range] { accent-color: var(--acc); height: 14px; margin: 0; }
+.logrow { display: flex; gap: 6px; align-items: center; } .logrow input[type=range] { flex: 1; min-width: 0; } .logrow .num { width: 64px; background: #0003; color: inherit; border: 1px solid var(--line); border-radius: 3px; }
+.tp-lblv_v textarea { width: 100%; box-sizing: border-box; background: #0003; color: inherit; border: 1px solid var(--line); border-radius: 3px; font: 11px/1.4 ui-monospace, monospace; resize: vertical; }
+.pick input[type=text], .pick > input { width: 100%; box-sizing: border-box; background: #0003; color: inherit; border: 1px solid var(--line); border-radius: 3px; padding: 2px 4px; }
+.pick ul { list-style: none; margin: 4px 0; padding: 0; max-height: 132px; overflow: auto; border: 1px solid var(--line); border-radius: 3px; }
+.pick li { padding: 1px 6px; cursor: pointer; } .pick li:hover { background: #ffffff14; } .pick li.on { background: #5b9cff44; } .pick li small { color: var(--dim); }
+.pick .fields label { display: flex; align-items: center; gap: 6px; padding: 1px 0; } .pick .fields span { width: 64px; color: var(--dim); } .pick .fields input:not([type=checkbox]):not([type=color]) { flex: 1; min-width: 0; background: #0003; color: inherit; border: 1px solid var(--line); border-radius: 3px; }
+.pick .info { color: var(--dim); font-size: 10px; }
+.ctxmenu { position: fixed; z-index: 9998; background: #2c313c; border: 1px solid var(--line); border-radius: 6px; padding: 3px; display: flex; flex-direction: column; box-shadow: 0 6px 20px #000a; min-width: 160px; }
+.ctxmenu button { background: none; border: 0; text-align: left; padding: 4px 10px; border-radius: 3px; } .ctxmenu button:hover { background: #5b9cff44; }
+.rangeform { display: flex; gap: 4px; align-items: center; padding: 3px; } .rangeform input { width: 64px; background: #0003; color: inherit; border: 1px solid var(--line); border-radius: 3px; }
+.rangeform button { background: var(--acc); border: 0; border-radius: 3px; color: #fff; padding: 2px 8px; }
+
+/* 搜索 */
+.sq { width: 100%; box-sizing: border-box; padding: 8px 10px; font-size: 14px; background: #0004; color: inherit; border: 1px solid var(--line); border-radius: 6px; outline: none; } .sq:focus { border-color: var(--acc); }
+.hits { list-style: none; margin: 6px 0 0; padding: 0; overflow: auto; flex: 1; }
+.hits li { display: grid; grid-template-columns: 18px auto 1fr; column-gap: 6px; padding: 4px 8px; border-radius: 4px; cursor: pointer; align-items: baseline; }
+.hits li.on { background: #5b9cff33; } .hits .k { color: var(--dim); } .hits i { color: var(--dim); font-style: normal; font-size: 11px; font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .hits small { grid-column: 2 / 4; color: var(--dim); }
+.hint { color: var(--dim); font-size: 11px; padding: 6px 2px; }
+
+/* 独立面板页：竖向图标标签条 + 单区域 */
+.pw { display: grid; grid-template-columns: auto 1fr; height: 100vh; }
+.pw .strip { display: flex; flex-direction: column; background: var(--bg2); border-right: 1px solid var(--line); padding: 4px; gap: 2px; overflow: auto; }
+.pw .tab { display: flex; align-items: center; gap: 8px; background: none; border: 0; border-radius: 6px; padding: 6px 8px; text-align: left; color: var(--fg); white-space: nowrap; }
+.pw .tab .ic { font-size: 18px; width: 22px; text-align: center; } .pw .tab .nm { display: none; } .pw .strip.wide .tab .nm { display: inline; padding-right: 8px; }
+.pw .tab:hover { background: #ffffff14; } .pw .tab.on { background: #5b9cff33; box-shadow: inset 2px 0 var(--acc); } .pw .tab.dim { opacity: .45; } .pw .tab.dim:hover { opacity: 1; }
+.pw .strip .sp { flex: 1; } .pw .strip .grp { color: var(--dim); font-size: 10px; padding: 4px 8px 0; display: none; } .pw .strip.wide .grp { display: block; } .pw .tab.wd { color: var(--dim); justify-content: center; }
+.pw main { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+.pw header { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); min-height: 32px; flex-wrap: wrap; } .pw header h1 { font-size: 13px; margin: 0; flex: 0 0 auto; } .pw header .pp { flex: 1; min-width: 160px; } .pw header .mv { background: #ffffff10; border: 0; border-radius: 4px; padding: 2px 8px; }
+.pw .body { flex: 1; overflow: auto; padding: 6px; } .pw .body section[hidden] { display: none; } .pw .searchpane { display: flex; flex-direction: column; height: 100%; }
+.pw .empty { padding: 24px; color: var(--dim); }
+.pw .wait { position: absolute; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--dim); } .pw.ready .wait { display: none; }
+.pw.gone .body { opacity: .4; filter: grayscale(1); pointer-events: none; } .pw.gone header::after { content: '⚠ 游戏窗口没有响应（关闭 / 刷新 / 被遮挡节流）'; color: var(--bad); margin-left: auto; }
+.pair { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; background: var(--bg); z-index: 9000; } .pair input { font-size: 18px; padding: 6px 10px; text-align: center; letter-spacing: 3px; background: #0004; color: inherit; border: 1px solid var(--line); border-radius: 6px; }
+
+/* 游戏窗口替身 */
+#app { position: fixed; inset: 0; } #cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { position: absolute; left: 10px; top: 52px; color: #fff; text-shadow: 1px 1px 0 #000; font: 12px ui-monospace, monospace; pointer-events: none; }
+#log { position: absolute; right: calc(10px + var(--inl-w, 0px)); bottom: 54px; width: 320px; max-height: 40vh; overflow: hidden; font: 11px/1.35 ui-monospace, monospace; color: #fffc; text-shadow: 1px 1px 0 #000; pointer-events: none; display: flex; flex-direction: column-reverse; text-align: right; } #log .fx { color: #8fd; } #log .act { color: #fd8; } #log .bad { color: #ff9a9a; }
+#pausemsg { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 28px; color: #fffa; background: #0006; pointer-events: none; } #app.paused #pausemsg { display: flex; }
+.dock { position: absolute; display: flex; flex-direction: column; gap: 8px; max-height: calc(100vh - 16px); overflow: auto; z-index: 10; }
+.dock.tl { left: 8px; top: 120px; width: 280px; } .dock.tr { right: 8px; top: 8px; width: 280px; } .dock.pause { display: none; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 320px; max-height: 80vh; } .paused .dock.pause { display: flex; }
+.win { background: #1b1d23ee; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; min-height: 0; } .win[hidden] { display: none; }
+.win > header { display: flex; gap: 4px; align-items: center; padding: 3px 4px 3px 8px; background: var(--bg2); } .win > header .t { flex: 1; font-weight: 600; } .win > header button { background: none; border: 0; border-radius: 3px; width: 22px; } .win > header button:hover { background: #ffffff20; }
+.win > .pp { padding: 3px 6px 0; } .win .wb { overflow: auto; }
+.taskbar { position: absolute; left: 8px; top: 8px; z-index: 20; display: flex; align-items: center; gap: 2px; padding: 3px; background: #14161bcc; border: 1px solid var(--line); border-radius: 8px; backdrop-filter: blur(4px); }
+.taskbar .tab { background: none; border: 0; border-radius: 5px; padding: 3px 7px; font-size: 16px; } .taskbar .tab:hover { background: #ffffff20; } .taskbar .tab.on { background: #5b9cff44; } .taskbar .tab.dim { opacity: .45; } .taskbar .tab.up { background: #5fd38d44; }
+.taskbar .grp { font-size: 10px; color: var(--dim); padding: 0 4px; border-left: 1px solid var(--line); margin-left: 3px; } .taskbar .sp { width: 10px; } .taskbar .fallback { color: var(--acc); font-size: 11px; padding: 0 6px; }
+.searchover { position: absolute; inset: 0; z-index: 30; background: #0008; display: flex; justify-content: center; padding-top: 12vh; } .searchover[hidden] { display: none; }
+.sbox { width: min(560px, 92vw); height: min(60vh, 520px); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; box-shadow: 0 10px 40px #000a; }
+
+/* F3 开关的一层：任务栏、停靠、↗ */
+.ui-off .dock, .ui-off .taskbar, .ui-off #hud { display: none !important; }
+.popbtn { background: none; border: 0; border-radius: 5px; padding: 3px 7px; font-size: 16px; color: var(--fg); } .popbtn:hover { background: #ffffff20; } .popbtn.up { background: #5fd38d44; }
+/* 自绘 vec2：-1…+1 方块 + 两个真实值输入框 */
+.vec2 { display: flex; gap: 6px; align-items: center; }
+.vec2 .pad { position: relative; width: 52px; height: 52px; flex: none; background: #0004; border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }
+.vec2 .pad i { position: absolute; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--acc); pointer-events: none; }
+.vec2 .pad b { position: absolute; background: #ffffff22; pointer-events: none; } .vec2 .pad .h { left: 0; right: 0; top: 50%; height: 1px; } .vec2 .pad .v { top: 0; bottom: 0; left: 50%; width: 1px; }
+.vec2 .ins { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; } .vec2 .ins input { width: 100%; box-sizing: border-box; background: #0003; color: inherit; border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; }
+
+/* 表 pane（tsv 挂钩） */
+.pick .tb { display: flex; gap: 4px; align-items: center; margin-bottom: 4px; } .pick .tb .file { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); font: 10px ui-monospace, monospace; } .pick .tb .cnt { font-size: 10px; color: var(--dim); } .pick .tb .cnt.chg { color: var(--chg); }
+.pick .tb button, .pick .rev { background: #ffffff10; border: 0; border-radius: 3px; padding: 1px 6px; } .pick .tb button:hover:not(:disabled), .pick .rev:hover { background: #ffffff28; } .pick .tb button:disabled { opacity: .35; cursor: default; } .pick .rev { margin-top: 3px; }
+.pick li.chg::before { content: '●'; color: var(--chg); font-size: 8px; margin-right: 4px; } .pick li em { color: var(--chg); font-style: normal; font-size: 10px; }
+.pick .fields span.chg::before { content: '●'; color: var(--chg); font-size: 8px; margin-right: 2px; }
+.tp-lblv_l.lk { cursor: pointer; text-decoration: underline dotted #ffffff44; } .tp-lblv_l.lk.open { color: var(--acc); }
+
+/* 内嵌面板：右侧 iframe 停靠，左边缘可拖 */
+.inline { position: absolute; right: 0; top: 0; bottom: 0; z-index: 15; background: var(--bg); border-left: 1px solid var(--line); display: flex; } .inline[hidden] { display: none; }
+.inline iframe { flex: 1; border: 0; min-width: 0; } .inline.drag iframe { pointer-events: none; }
+.inline .grip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: ew-resize; z-index: 2; } .inline .grip:hover, .inline.drag .grip { background: #5b9cff66; }
+.ui-off .inline { display: none; }
+.dock.tr { right: calc(8px + var(--inl-w, 0px)); }
+
+/* vec2 的放大拖动板（浮动，单个） */
+.bigpad { position: fixed; z-index: 9997; width: 224px; background: #2c313c; border: 1px solid var(--line); border-radius: 8px; padding: 8px; box-shadow: 0 8px 28px #000a; }
+.bigpad .cap { color: var(--dim); font-size: 11px; margin-bottom: 6px; }
+.bigpad .pad { position: relative; width: 206px; height: 206px; background: #0005; border: 1px solid var(--line); border-radius: 4px; cursor: crosshair; touch-action: none; }
+.bigpad .pad i { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--acc); pointer-events: none; }
+.bigpad .pad b { position: absolute; background: #ffffff22; pointer-events: none; } .bigpad .pad .h { left: 0; right: 0; top: 50%; height: 1px; } .bigpad .pad .v { top: 0; bottom: 0; left: 50%; width: 1px; }

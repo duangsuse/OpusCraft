@@ -15,6 +15,7 @@
  *                                            settle → 截图 → gode/shots/；多机位 + --sheet 拼一张联系表；
  *                                            --vs 每格左右并排「上一张 / 这一张」并标粗差异 Δ%；
  *                                            --ref 按 c_.Bench.ref 拍视觉目标机位，与 gode/reference-vision/ 左右对照
+ *   gd snap [--tag T] [--note N]             直接截当前页面（不等 settle，不要求是宿主 B；面板 mock 等非游戏页用）
  *   gd xz <file.xz|-> [--at @x,z^y] [--frame] [--shot] [--tag T]   追加 XZ1 文本体素（s06 §5）
  *   gd mark | gd revert                      改块打点 / 回滚到打点
  *   gd hash <x0,y0,z0,x1,y1,z1|LAST>         区域体素哈希
@@ -612,6 +613,7 @@ async function daemon(opts) {
     async reload() { return [JSON.stringify(await reload())]; },
     async pose(o) { const rl = await autoReload(); return [...(rl ? ['# 代码有改动，已重载'] : []), JSON.stringify(await doPose(o.p))]; },
     async shot(o) { return shot(o); },
+    async snap(o) { const r = writeShot(await capture(), { tag: o.tag || 'snap', pose: '-', note: o.note || '', ms: 0 }); return [`${r.seq}\t${r.file}`]; },   // 不等 settle、不碰宿主：任何页面（面板 mock 等）直接截当前画面
     async xz(o) {
       const rl = await autoReload();
       if (rl) await evalJS('gm.test.mark()');   // 重载丢了打点：重新打，revert 仍然只撤本次
@@ -746,6 +748,7 @@ async function main() {
     case 'log': if (o.f) { if (!await alive()) process.exit(1); for (;;) { const r = await req('log'); for (const l of r.out) console.log(l); await sleep(1000); } } break;
     case 'go': body = { q: pos[1] || '' }; break;
     case 'pose': body = { p: pos[1] }; break;
+    case 'snap': body = { tag: o.tag, note: o.note }; break;
     case 'shot': body = { poses: pos.slice(1), tag: o.tag, note: o.note, sheet: o.sheet, vs: o.vs, ref: o.ref }; break;
     case 'xz': body = { text: !pos[1] || pos[1] === '-' ? readFileSync(0, 'utf8') : readFileSync(pos[1], 'utf8'), at: o.at, frame: o.frame, shot: o.shot, tag: o.tag }; break;
     case 'hash': body = { b: pos[1] || 'LAST' }; break;

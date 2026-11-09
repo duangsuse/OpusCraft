@@ -104,7 +104,7 @@ mod.fx    触发与放置在 main；模拟与绘制在渲染器（RenderFx）
 
 - 状态型事件在持有者的命名空间里各有一个同名的「最新值」Ref：事件是变化的推送，Ref 是页面绑定和 `gm` 读取用的。
 - `index.ts` 的 `RefPath` 从 `Gm` 里推出所有 Ref 型成员，`MOVES` 与 `BIND` 的路径用它做类型检查。
-- `Ref` 带 `key / owner / meta`（`label doc range tier fx options`），`doc` 与 `options`（枚举取值顺序）是这次加的。
+- `Ref` 带 `key / owner / meta`（`label doc range fx options`），`doc` 与 `options`（枚举取值顺序）是这次加的。
 - 取值优先级沿用 s09 §1：声明字面量 < `defl/c_.json` < 模组层 < 存档 < `gg_v` < `&json=`。`mod.<id>.on` 也走这条（存档层 = `Pusc.json` 的 `mods`，同一个世界总用同一组模组）。
 
 ## 4. 虚拟键

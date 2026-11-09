@@ -7,7 +7,7 @@
  *   key(cmd) ──▶ 命令行 ──CMDS 表 + 补全──▶ 与模组 worker 同一组动词（gm.p1.tp / gm.weather.set / gm.inv.give / gm.pane.set …）──▶ cmd 事件
  *   模组 ──gm.hud.add / change / remove（照 Luanti hud_add）或 {hud:{url, rect}} iframe 叠层（s07 §5）──▶ 自定义 HUD 元素
  *
- * 命令就是「打字版的模组动词」：/tp /time /weather /give /spawn /set 与 s07 M-2 的白名单一一对应，权限也一样（tier ≤ 2 可写）；
+ * 命令就是「打字版的模组动词」：/tp /time /weather /give /spawn /set 与 s07 M-2 的白名单一一对应，权限也一样（参数与表行可写）；
  *   区别只在 cheat：命令是玩家行为，cheat 关闭后带 cheat 标记的命令不可用（s07 §6）。参数用口诀写：@x,z^y、@地名、#生物、:物品*数量、c_.路径。
  * 宿主 B 出处：HUD :2921（debugText :2927、message :2966、drawBars :2973、update :2991）· c_Dbg :2920 · Player.handleKey 的 T / R（改成命令行）。
  *   宿主 B 没有命令行，CMDS / 补全 / 地名 / 模组 HUD 都是 [新]（IDEA「/t命令 触发 @地名 #人或附近动物 补齐，或直输跳过去」）。
@@ -100,7 +100,7 @@ export const CMDS: Readonly<Record<string, Cmd>> = {
   weather: { args: ['wx', 'ticks?'],    cheat: true,  desc: 'clear / rain / thunder / next',       run: 'gm.weather.set' },
   give:    { args: ['item'],            cheat: true,  desc: '给物品：:torch*16',                   run: 'gm.inv.give' },
   spawn:   { args: ['mob', 'P?'],       cheat: true,  desc: '生成生物，缺省在准星处',               run: 'gm.ents.spawn' },
-  set:     { args: ['path', 'json'],    cheat: true,  desc: '写面板路径（tier ≤ 2）：/set $Motion.flySpeed 20', run: 'gm.pane.set' },
+  set:     { args: ['path', 'json'],    cheat: true,  desc: '写面板路径（参数与表行）：/set $Motion.flySpeed 20', run: 'gm.pane.set' },
   fly:     { args: [],                  cheat: true,  desc: '飞行开关',                            run: 'gm.p1.fly' },
   noclip:  { args: [],                  cheat: true,  desc: '穿墙开关',                            run: 'gm.p1.noclip' },
   mode:    { args: ['mode?'],           cheat: true,  desc: '读 / 切模式（= G 键）',                run: 'gm.game.mode' },
@@ -114,7 +114,7 @@ export const COMPLETE: Readonly<Record<string, string>> = {
   '@':   '地名表 gm.pts() + @p1 + 准星格的 @x,z^y',
   '#':   '附近生物 gm.ents.near(32)（近的在前）+ mob.json 的名字',
   ':':   '方块 / 物品名（blk.tsv、item.json、存档 BIME.tsv）',
-  '$':   '参数路径 $Topic.key（gm.pane，tier ≤ 2 的才列）',
+  '$':   '参数路径 $Topic.key（gm.pane）',
   '/':   'CMDS 的键 + 模组注册的命令',
 }
 export const c_Hud = { msgMax: 6, msgMs: 6000, nameMs: 1500, flashMs: 200, barsHz: 10, f3Hz: 2, history: 50 }

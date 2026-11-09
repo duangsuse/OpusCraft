@@ -19,6 +19,10 @@
  *                            .json 必须能 JSON.parse；原子写（临时文件 + rename）；最大 4 MB。
  *                            并发保护：改已有文件要带 If-Match（= 你读到它时的 ETag），新建要带 If-None-Match: *；别处先改过 → 409 并给当前 ETag；
  *                            两个头都没有 → 428；?force=1 跳过检查。成功返回 200 { path, etag, size }
+ *   POST /__dev/patch?path=  面板 ✎ 落盘：改 JS 源码里的参数声明 `c_.X = { k: [默认, 最小, 最大, 标签] }`（gode/pane 的 core.js 登记时取 caller sloc）。
+ *                            body { line, col, topic, edits: [{ key, idx, old, value }] }；只收本机；只改 gode/ 下的 .js（不含 gode/tools/、gode/vendor/）；
+ *                            line:col 必须正好是 `c_.<topic> =` 的 `=`，旧值必须是字面量且等于 old，新值由服务端从 JSON 值生成字面量（见 decl.js）；
+ *                            对不上整体拒绝（409，文件没动）；原子写。不要 If-Match：是否改过由「旧值核对」判断，比 ETag 更严。成功 200 { path, etag, size, changed }
  *   GET  /__dev/ls?dir=      列 <defl>/ 与其子目录（JSON 数组，目录带 /，跳过点开头的）
  *   GET  /__dev/info         { name:'gode-dev', pid, ... }：gd 用它区分「这是 dev.js」还是「端口上是别的静态服务」
  *   POST /t   GET /agg       性能投送与聚合（goal-panify §4 的 perf-collect 并进来）。/t 收 JSON / JSONL，追加到 --perf 文件（默认 gode/shots/perf-collect.jsonl）；
@@ -34,6 +38,7 @@ import { createServer } from 'node:http';
 import { watch, createReadStream, readdirSync, statSync, lstatSync, realpathSync, mkdirSync, writeFileSync, renameSync, unlinkSync, appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, resolve, relative, extname, dirname, basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { patchDecl, PatchError } from './decl.js';
 
 //// Lib ///////////////////////////////////////////////////////////////
 // 与具体业务无关的通用件：不得引用下方 App 段的任何变量。
@@ -248,6 +253,34 @@ export function createDev(o = {}) {
     log('write ', v.rel, `${body.length}B`);
     json(res, 200, { path: v.rel, etag: etagOf(st), size: st.size }, { ETag: etagOf(st) });
   }
+  // ---- 改源码里的参数声明（✎ 落盘）：只改 gode/ 下的 .js，且只改 `c_.X = {…}` 里的字面量（decl.js 校验）
+  const PATCH_DENY = ['gode/tools', 'gode/vendor'];
+  function patchable(rel) {
+    const segs = segsOf(rel);
+    if (!segs || segs[0] !== 'gode' || segs.length < 2) return { err: [403, '只能改 gode/ 下的文件'] };
+    if (!/\.js$/.test(segs.at(-1))) return { err: [403, '只收 .js'] };
+    const j = segs.join('/'), deny = PATCH_DENY.find(d => j.startsWith(d + '/'));
+    if (deny) return { err: [403, `${deny}/ 下的文件不收`] };
+    const abs = join(ROOT, ...segs); let st;
+    try { st = lstatSync(abs); } catch { return { err: [404, '文件不存在'] }; }
+    if (!st.isFile()) return { err: [403, st.isSymbolicLink() ? '拒绝符号链接' : '目标不是普通文件'] };
+    try { if (!realpathSync(abs).startsWith(realpathSync(join(ROOT, 'gode')) + sep)) return { err: [403, '越界（符号链接？）'] }; } catch { return { err: [404, '文件不存在'] }; }
+    return { abs, rel: j, mode: st.mode & 0o777 };
+  }
+  async function handlePatch(req, res, url) {
+    if (req.method !== 'POST') return json(res, 405, { error: '只收 POST' }, { Allow: 'POST' });
+    if (!isLoop(req.socket.remoteAddress) || !hostOk(req.headers.host)) return json(res, 403, { error: '改源码只收本机（127.0.0.1，Host 为 localhost）' });
+    const v = patchable(url.searchParams.get('path') ?? '');
+    if (v.err) return json(res, v.err[0], { error: v.err[1] });
+    let spec; try { spec = JSON.parse((await readBody(req, 1 << 20)).toString('utf8')); } catch { return json(res, 400, { error: '正文不是 JSON' }); }
+    let src; try { src = new TextDecoder('utf-8', { fatal: true }).decode(readFileSync(v.abs)); } catch { return json(res, 400, { error: '源文件不是合法的 UTF-8' }); }
+    let r; try { r = patchDecl(src, spec ?? {}); } catch (e) { if (e instanceof PatchError) return json(res, e.status, { error: e.message }); throw e; }
+    const tmp = join(dirname(v.abs), `.${basename(v.abs)}.tmp-${process.pid}-${Date.now()}`);
+    try { writeFileSync(tmp, r.src, { mode: v.mode }); renameSync(tmp, v.abs); } catch (e) { try { unlinkSync(tmp); } catch {} return json(res, 500, { error: String(e.message) }); }
+    const st = statSync(v.abs);
+    log('patch ', v.rel, `${r.changed.length} 处`, r.changed.map(c => `${spec.topic}.${c.key}[${c.idx}] ${JSON.stringify(c.from)}→${JSON.stringify(c.to)}`).join(' '));
+    json(res, 200, { path: v.rel, etag: etagOf(st), size: st.size, changed: r.changed }, { ETag: etagOf(st) });
+  }
   function handleLs(req, res, url) {
     if (req.method !== 'GET') return json(res, 405, { error: '只收 GET' }, { Allow: 'GET' });
     const segs = segsOf(url.searchParams.get('dir') ?? DEFL), d = segsOf(DEFL);
@@ -289,6 +322,7 @@ export function createDev(o = {}) {
     try {
       if (p === '/__dev/events') return hub.add(req, res, req.headers['last-event-id'] ?? url.searchParams.get('since'));
       if (p === '/__dev/write') return await handleWrite(req, res, url);
+      if (p === '/__dev/patch') return await handlePatch(req, res, url);
       if (p === '/__dev/ls') return handleLs(req, res, url);
       if (p === '/__dev/info') return json(res, 200, { name: 'gode-dev', version: 1, pid: process.pid, root: ROOT, defl: DEFL, cache: CACHE, clients: hub.size, epoch: hub.epoch, seq: hub.seq, dirs: watcher.dirs, files: watcher.files, uptime: Math.round((Date.now() - t0) / 1000) });
       if (p.startsWith('/__dev/')) return json(res, 404, { error: '没有这个端点' });

@@ -32,7 +32,7 @@ export interface Api {
     press(act: Action, edge?: 'down' | 'up' | 'tap'): void   // 默认 tap = down + up。页面元素 data-act、模组、命令行都走这里；hold 型动作按住时 down、松开时 up
   }
   cam: {
-    mode: Ref<CamMode>                             // 也是 $Cam.mode（tier 0，⚡ 快调）；F4 轮转由 MOVES 的 cam 行改它
+    mode: Ref<CamMode>                             // 也是 $Cam.mode（⚡ 快调）；F4 轮转由 MOVES 的 cam 行改它
     pose(): Pose
     look(P: XYZ | PStr): void                      // 朝向某点（gm.test.frame、/tp 后的朝向）
   }

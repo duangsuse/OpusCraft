@@ -1,0 +1,7 @@
+<!doctype html>
+<!-- gode/panel.html —— 独立面板页（s09 §10）：没有游戏代码、不开世界；经 BroadcastChannel 向游戏窗口要 schema，改动回写。启动逻辑在 pane/panel.js。
+     配对串在 URL 片段 #k=配对码&ns=存储键前缀（游戏窗口的「↗ 独立窗口」自动带上）；手动打开时粘贴。同一时刻只开一个（Web Locks）。可单独刷新，游戏刷新后自动重连。 -->
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>gode · 面板</title>
+<link rel="stylesheet" href="pane/pane.css"></head>
+<body><div id="app"></div>
+<script type="module" src="pane/panel.js"></script></body></html>
