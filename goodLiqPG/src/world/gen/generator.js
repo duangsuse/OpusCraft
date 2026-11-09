@@ -3,7 +3,7 @@
 import { ID, T_SOLID, T_REPLACEABLE, T_FLUID, T_OPAQUE, TYPE_MASK } from '../blocks.js';
 import { seedWords, mix, fmix32, posRandom, hashString } from './rng.js';
 import { makeNoise } from './noise.js';
-import { TerrainNoise, NY, VEIN_K, CL_N, CL_OFF, CL_FAC, CL_JAG, CL_BIOME } from './terrain.js';
+import { TerrainNoise, GEN_PARAMS, NY, VEIN_K, CL_N, CL_OFF, CL_FAC, CL_JAG, CL_BIOME } from './terrain.js';
 import { BIOMES as BIOME_LIST, B, IS_OCEAN, IS_RIVER, BIOME_COLORS } from './biomes.js';
 import { SurfaceBuilder } from './surface.js';
 import { Carvers } from './carvers.js';
@@ -12,6 +12,7 @@ import { Decorator } from './decorate.js';
 
 export const MIN_Y = -64, HEIGHT = 384, SEA_LEVEL = 63;
 export const BIOMES = BIOME_LIST;
+export { GEN_PARAMS };
 export { BIOME_COLORS, B as BIOME_IDS };
 
 const AIR = 0, STONE = ID.stone, DEEPSLATE = ID.deepslate, BEDROCK = ID.bedrock, WATER = ID.water, LAVA = ID.lava;
@@ -25,6 +26,7 @@ export class Generator {
     this.seed = seed;
     this.s = mix(mix(0x5eed1234, lo), hi);           // 32-bit master seed
     this.tn = new TerrainNoise(mix(this.s, 1));
+    this.P = this.tn.P;                              // 共享：setParams 写这里，tn / carvers / ores / decorator 都读
     this.surface = new SurfaceBuilder(mix(this.s, 2));
     this.carvers = new Carvers(mix(this.s, 3));
     this.ores = new Ores(mix(this.s, 4));
@@ -56,6 +58,8 @@ export class Generator {
     this._tmpBlocks = null;
     this._clim1 = new Float64Array(CL_N);
   }
+
+  setParams(o) { Object.assign(this.P, o); }
 
   // ---- biome lookup ------------------------------------------------------------------------------------
   quartBiome(qx, qz) {

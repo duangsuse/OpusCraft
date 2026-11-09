@@ -11,6 +11,20 @@ for (let i = 0; i < 256; i++) {
 }
 const AIR = 0, WATER = 7, LAVA = 8;
 
+// 生成参数（gode pgviz 调参用）：扁平表，键 = 点号路径。默认值 = 原行为（乘子 1、偏移 0），输出与未加参数时逐字节相同。
+// 用法：world.setParams({ 'terrain.hillAmp': 1.5 })；gode/w/params.js 负责校验与夹取，这里只读 this.P[k]。
+const GEN_PARAMS = [
+  { k: 'terrain.contScale', def: 1, min: 0.2, max: 5, note: '大陆尺度乘子（> 1 = 陆块 / 海洋更大）' },
+  { k: 'terrain.shift', def: 0, min: -30, max: 30, note: '整体抬升 / 下沉（格）；< 0 淹出更多水面' },
+  { k: 'terrain.hillAmp', def: 1, min: 0, max: 4, note: '丘陵起伏幅度乘子' },
+  { k: 'terrain.mountAmp', def: 1, min: 0, max: 3, note: '山峰高度乘子' },
+  { k: 'river.width', def: 0.045, min: 0, max: 0.2, note: '河道宽度（噪声阈，0 = 无河）' },
+  { k: 'cave.rate', def: 1, min: 0, max: 4, note: '洞穴体积乘子（0 = 基本无洞）' },
+  { k: 'ore.mul', def: 1, min: 0, max: 5, note: '矿脉数量乘子' },
+  { k: 'tree.dens', def: 1, min: 0, max: 5, note: '树密度乘子' },
+  { k: 'plant.dens', def: 1, min: 0, max: 5, note: '地表植物（草 / 花）密度乘子' },
+];
+
 function ckey(cx, cz) { return (cx + 32768) * 65536 + (cz + 32768); }
 
 class Chunk {
@@ -60,7 +74,9 @@ class World {
     this.savedChunks = null;  // map key -> saved data, filled by save system
     this.lightQ = [];
     this.grassMap = null; this.foliageMap = null;
+    this.P = {}; for (const p of GEN_PARAMS) this.P[p.k] = p.def;
   }
+  setParams(o) { Object.assign(this.P, o); this._treeCache = null; }
 
   // ---- access -------------------------------------------------------------
   getChunk(cx, cz) { return this.chunks.get(ckey(cx, cz)); }
@@ -89,8 +105,9 @@ class World {
 
   // ---- terrain functions -----------------------------------------------------
   column(x, z) {
-    const cont = this.nCont.fbm2(x / 900, z / 900, 4) * 1.4;
-    const ero = this.nErosion.fbm2(x / 500, z / 500, 3);
+    const P = this.P, cs = P['terrain.contScale'];
+    const cont = this.nCont.fbm2(x / (900 * cs), z / (900 * cs), 4) * 1.4;
+    const ero = this.nErosion.fbm2(x / (500 * cs), z / (500 * cs), 3);
     const pk = 1 - Math.abs(this.nPeaks.fbm2(x / 280, z / 280, 4));
     const hills = this.nHills.fbm2(x / 140, z / 140, 4);
     const det = this.nHills.n2(x / 32 + 100, z / 32);
@@ -103,13 +120,13 @@ class World {
     else h = lerp(66, 78, clamp((cont - 0.05) / 0.6, 0, 1));
     const land = smoothstep(-0.1, 0.1, cont);
     const mount = smoothstep(0.02, 0.45, cont) * smoothstep(0.05, -0.35, ero);
-    h += mount * pk**2 * 45;
-    h += hills * (5 + 10 * land) * (0.6 + mount) + det * 2;
+    h += mount * pk**2 * 45 * P['terrain.mountAmp'];
+    h += hills * (5 + 10 * land) * (0.6 + mount) * P['terrain.hillAmp'] + det * 2 + P['terrain.shift'];
     // rivers
     const rv = Math.abs(this.nRiver.fbm2(x / 420, z / 420, 3));
     let river = 0;
     if (cont > -0.12) {
-      river = 1 - smoothstep(0.0, 0.045, rv);
+      river = 1 - smoothstep(0.0, P['river.width'], rv);
       const target = 57;
       if (river > 0 && h > target) h = lerp(h, target, river * (h > 100 ? 0.5 : 1));
     }
@@ -189,7 +206,7 @@ class World {
       const b = lerp(lerp(g[i010], g[i110], tx), lerp(g[i011], g[i111], tx), tz);
       return lerp(a, b, ty);
     };
-    const rng = RNG(hashStr(seed + ':' + cx + ':' + cz));
+    const rng = RNG(hashStr(seed + ':' + cx + ':' + cz)), caveK = this.P['cave.rate'];
     for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
       const ci = (z + 1) * 18 + x + 1, c = cols[ci];
       const h = c.h, bi = ch.biome[z * 16 + x];
@@ -221,8 +238,8 @@ class World {
           if (!(wet && y > h - 9)) {
             const a = sample(g1, x, y, z), b = sample(g2, x, y, z);
             const tun = a * a + b * b;
-            let carve = tun < (nearSurf ? 0.006 : 0.011);
-            if (!carve && y < 52 && !nearSurf) carve = sample(g3, x, y, z) > 0.62 - (52 - y) * 0.004;
+            let carve = tun < (nearSurf ? 0.006 : 0.011) * caveK;
+            if (!carve && y < 52 && !nearSurf) carve = sample(g3, x, y, z) > 0.62 - (52 - y) * 0.004 - (caveK - 1) * 0.1;
             if (carve) id = y <= 10 ? LAVA : AIR;
           }
         }
@@ -249,7 +266,9 @@ class World {
 
   genOres(ch, rng) {
     const B = ch.blocks;
+    const om = this.P['ore.mul'];
     const vein = (ore, deepOre, count, ymin, ymax, size) => {
+      count = Math.round(count * om);
       for (let n = 0; n < count; n++) {
         let x = rng() * 16, y = ymin + rng() * (ymax - ymin), z = rng() * 16;
         const s = size * (0.6 + rng() * 0.6);
@@ -312,7 +331,7 @@ class World {
     const cc = this.column(ncx * 16 + 8, ncz * 16 + 8);
     const bi = this.biomeOf(cc);
     const dens = { [BI.FOREST]: 9, [BI.BIRCH]: 9, [BI.TAIGA]: 7, [BI.SNOWY]: 1.5, [BI.PLAINS]: 0.25, [BI.MOUNTAIN]: 0.6, [BI.RIVER]: 0.3 }[bi] || 0;
-    let n = Math.floor(dens + r());
+    let n = Math.floor(dens * this.P['tree.dens'] + r());
     for (let i = 0; i < n; i++) {
       const lx = r.int(16), lz = r.int(16);
       const X = ncx * 16 + lx, Z = ncz * 16 + lz;
@@ -387,14 +406,14 @@ class World {
       }
     }
     // ground plants
-    const r = RNG(hashStr('plants' + this.seed + ':' + ch.cx + ':' + ch.cz));
+    const r = RNG(hashStr('plants' + this.seed + ':' + ch.cx + ':' + ch.cz)), pd = this.P['plant.dens'];
     for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
       const c = cols[(z + 1) * 18 + x + 1];
       const h = c.h; if (h + 1 >= HEIGHT || h < SEA) continue;
       const bi = ch.biome[z * 16 + x];
       const gi = (h << 8) | (z << 4) | x, ai = ((h + 1) << 8) | (z << 4) | x;
       if (B[ai] !== AIR) continue;
-      const g = B[gi], v = r();
+      const g = B[gi], v = r() / pd;
       if (g === 2) {
         if (bi === BI.PLAINS) {
           if (v < 0.25) B[ai] = 39;

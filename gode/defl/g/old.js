@@ -5,12 +5,13 @@
 import { serve } from '../../w/slicer.js';
 import { CHUNK_H, SEA_LEVEL } from '../../vendor/old/prng.js';
 import { NAMES, AIR, isLeaves } from '../../vendor/old/blocks.js';
-import { Terrain, BIOMES, W } from '../../vendor/old/terrain.js';
+import { Terrain, BIOMES, W, PARAMS } from '../../vendor/old/terrain.js';
+import { resolveParams } from '../../w/params.js';
 
 const BIOME_COL = { 'Ocean': 0x000070, 'Plains': 0x8db360, 'Forest': 0x056621, 'Desert': 0xfa9418, 'Mountains': 0x707070, 'Snowy Tundra': 0xf0f8ff,
   'Taiga': 0x0b6a5f, 'Beach': 0xfade55, 'Birch Forest': 0x307444, 'Deep Ocean': 0x000030 };
 export const meta = {
-  id: 'old', ver: 1, sea: SEA_LEVEL, h: 256, h0: CHUNK_H, layout: 'xzy8',
+  id: 'old', ver: 1, knobs: PARAMS, sea: SEA_LEVEL, h: 256, h0: CHUNK_H, layout: 'xzy8',
   names: NAMES, biomes: BIOMES.map(b => b.name), colors: { biomes: BIOMES.map(b => BIOME_COL[b.name] ?? 0x808080) },
   over: { 1: NAMES.map((n, i) => isLeaves(i) ? i : -1).filter(i => i >= 0) },   // soft 规则 1 额外可覆盖的 type（空气总可覆盖）
 };
@@ -45,9 +46,10 @@ W.setBlockGen = (x, y, z, id, meta = 0, replaceOnly = null) => {
 W.setTileGen = () => {};      // 方块实体（箱子 / 刷怪笼内容）V1 不传
 W.applyPending = () => {};    // 挂起表在 main（s02 §3）
 
-export function onkwarg({ seed }) {
+export function onkwarg({ seed, kw }) {
   SEED = String(seed);        // 宿主 B：Game.seed = String(seed)，Terrain.init(this.seed)
   Terrain.init(SEED);
+  Terrain.setParams(resolveParams(PARAMS, kw));   // s02 §2.1
   return { meta };
 }
 

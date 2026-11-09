@@ -29,8 +29,21 @@ const BIOMES = [
 const BIO_OCEAN = 0, BIO_PLAINS = 1, BIO_FOREST = 2, BIO_DESERT = 3, BIO_MOUNTAINS = 4, BIO_SNOWY = 5, BIO_TAIGA = 6, BIO_BEACH = 7, BIO_BIRCH = 8, BIO_DEEP_OCEAN = 9;
 for (const b of BIOMES) { b.grassRGB = hexToRgb(b.grass); b.foliageRGB = hexToRgb(b.foliage); b.waterRGB = hexToRgb(b.water); }
 
+// 生成参数（gode pgviz 调参，与 goodGP 同名同义）：扁平表；默认值 = 原行为（乘子 1、偏移 0），输出逐字节不变。
+export const PARAMS = [
+  { k: 'terrain.contScale', def: 1, min: 0.2, max: 5, note: '大陆尺度乘子（> 1 = 陆块 / 海洋更大）' },
+  { k: 'terrain.shift', def: 0, min: -30, max: 30, note: '整体抬升 / 下沉（格）；< 0 淹出更多水面' },
+  { k: 'terrain.hillAmp', def: 1, min: 0, max: 4, note: '丘陵起伏幅度乘子' },
+  { k: 'terrain.mountAmp', def: 1, min: 0, max: 3, note: '山峰高度乘子' },
+  { k: 'cave.rate', def: 1, min: 0, max: 4, note: '洞穴 / 峡谷体积乘子（0 = 无洞）' },
+  { k: 'ore.mul', def: 1, min: 0, max: 5, note: '矿脉数量乘子' },
+  { k: 'tree.dens', def: 1, min: 0, max: 5, note: '树密度乘子' },
+  { k: 'plant.dens', def: 1, min: 0, max: 5, note: '地表植物（草 / 花 / 南瓜）密度乘子' },
+];
 const Terrain = {
   seed: 0,
+  P: Object.fromEntries(PARAMS.map(p => [p.k, p.def])),
+  setParams(o) { Object.assign(this.P, o); },
   init(seed) {
     this.seed = seed;
     this.nCont = new Noise(seed + ':cont'); this.nEro = new Noise(seed + ':ero'); this.nHill = new Noise(seed + ':hill');
@@ -41,14 +54,15 @@ const Terrain = {
   },
   // Column sample: height of the top solid block (y) and biome id.
   sample(x, z) {
-    const cont = this.nCont.fbm2(x * 0.0012, z * 0.0012, 4);
-    const ero = this.nEro.fbm2((x + 1000) * 0.003, (z + 1000) * 0.003, 3);
+    const P = this.P, cs = P['terrain.contScale'], fc = 0.0012 / cs, fe = 0.003 / cs;
+    const cont = this.nCont.fbm2(x * fc, z * fc, 4);
+    const ero = this.nEro.fbm2((x + 1000) * fe, (z + 1000) * fe, 3);
     const hills = this.nHill.fbm2(x * 0.012, z * 0.012, 4);
     const landness = smoothstep(-0.25, 0.15, cont);
     const mountain = smoothstep(0.15, 0.65, ero) * smoothstep(0.05, 0.3, cont);
     const ridge = mountain > 0 ? this.nRidge.ridge2(x * 0.006, z * 0.006, 4) : 0;
     const base = lerp(36 + cont * 12, 66 + cont * 6, landness);
-    let h = base + hills * (5 + 10 * mountain) + ridge * 48 * mountain;
+    let h = base + hills * (5 + 10 * mountain) * P['terrain.hillAmp'] + ridge * 48 * mountain * P['terrain.mountAmp'] + P['terrain.shift'];
     h = floor(clamp(h, 4, CHUNK_H - 6));
     let temp = (this.nTemp.fbm2((x + 5000) * 0.0017, z * 0.0017, 3) + 1) * 0.5 - Math.max(0, h - 70) * 0.006;
     const hum = (this.nHum.fbm2(x * 0.0021, (z + 5000) * 0.0021, 3) + 1) * 0.5;
@@ -128,7 +142,7 @@ const Terrain = {
       const rav = this.nRavine.noise2((ox + x) * 0.004, (oz + z) * 0.004);
       const ravWidth = 0.012 + 0.012 * (this.nDetail.noise2((ox + x) * 0.02, (oz + z) * 0.02) + 1);
       const ravMask = this.nDetail.noise2((ox + x) * 0.0016 + 300, (oz + z) * 0.0016 - 300);
-      const inRavine = ravMask > 0.45 && Math.abs(rav) < ravWidth && h > SEA_LEVEL;
+      const inRavine = ravMask > 0.45 && Math.abs(rav) < ravWidth * this.P['cave.rate'] && h > SEA_LEVEL;
       const ravBottom = Math.max(12, h - 30 - floor(ravWidth * 400));
       const i0 = x >> 2, fx = (x & 3) / 4, k0 = z >> 2, fz = (z & 3) / 4;
       for (let y = 6; y <= h; y++) {
@@ -144,7 +158,7 @@ const Terrain = {
             const w = (di ? fx : 1 - fx) * (dj ? fy : 1 - fy) * (dk ? fz : 1 - fz);
             a += w * lat(A, i0 + di, j0 + dj, k0 + dk); b += w * lat(Bf, i0 + di, j0 + dj, k0 + dk);
           }
-          const thresh = y < 20 ? 0.03 : 0.018;
+          const thresh = (y < 20 ? 0.03 : 0.018) * this.P['cave.rate'];
           carve = (a * a + b * b) < thresh;
         }
         if (!carve) continue;
@@ -171,7 +185,7 @@ const Terrain = {
       [B.coal_ore, 18, 14, 4, 120], [B.iron_ore, 16, 8, 2, 64], [B.gold_ore, 2, 8, 2, 32],
       [B.lapis_ore, 1, 6, 4, 30], [B.diamond_ore, 1, 7, 2, 16]
     ];
-    for (const [id, attempts, size, y0, y1] of table) for (let a = 0; a < attempts; a++) vein(id, size, r.int(16), y0 + r.int(y1 - y0), r.int(16));
+    for (const [id, attempts, size, y0, y1] of table) for (let a = 0, n = Math.round(attempts * this.P['ore.mul']); a < n; a++) vein(id, size, r.int(16), y0 + r.int(y1 - y0), r.int(16));
     // Emeralds only in mountains
     let mountains = false; for (let i = 0; i < 256; i++) if (c.biomes[i] === BIO_MOUNTAINS) { mountains = true; break; }
     if (mountains) for (let a = 0; a < 5; a++) { const i = bidx(r.int(16), 4 + r.int(28), r.int(16)); if (bl[i] === B.stone) bl[i] = B.emerald_ore; }
@@ -186,11 +200,11 @@ const Terrain = {
       const top = bl[bidx(x, h, z)], above = bl[bidx(x, h + 1, z)];
       if (h <= SEA_LEVEL || above !== AIR) continue;
       if (top === B.grass_block) {
-        const p = r.next();
-        if (p < bio.trees) { this.placeTree(wx, h + 1, wz, s.biome, r); continue; }
-        if (p < bio.trees + bio.grassP) { bl[bidx(x, h + 1, z)] = (bio.fernP && r.chance(0.4)) ? B.fern : B.short_grass; continue; }
-        if (p < bio.trees + bio.grassP + bio.flowerP) { bl[bidx(x, h + 1, z)] = r.pick([B.dandelion, B.poppy, B.cornflower, B.oxeye_daisy]); continue; }
-        if (bio.pumpkinP && p < bio.trees + bio.grassP + bio.flowerP + bio.pumpkinP) { bl[bidx(x, h + 1, z)] = B.pumpkin; continue; }
+        const p = r.next(), td = this.P['tree.dens'], pd = this.P['plant.dens'];
+        if (p < bio.trees * td) { this.placeTree(wx, h + 1, wz, s.biome, r); continue; }
+        if (p < bio.trees * td + bio.grassP * pd) { bl[bidx(x, h + 1, z)] = (bio.fernP && r.chance(0.4)) ? B.fern : B.short_grass; continue; }
+        if (p < bio.trees * td + bio.grassP * pd + bio.flowerP * pd) { bl[bidx(x, h + 1, z)] = r.pick([B.dandelion, B.poppy, B.cornflower, B.oxeye_daisy]); continue; }
+        if (bio.pumpkinP && p < bio.trees * td + bio.grassP * pd + bio.flowerP * pd + bio.pumpkinP * pd) { bl[bidx(x, h + 1, z)] = B.pumpkin; continue; }
       } else if (top === B.sand && s.biome === BIO_DESERT) {
         const p = r.next();
         if (p < bio.cactusP) { const ch = 1 + r.int(3); for (let k = 1; k <= ch; k++) bl[bidx(x, h + k, z)] = B.cactus; }

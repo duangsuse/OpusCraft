@@ -22,17 +22,17 @@ export class Carvers {
 
   carve(gen, cx, cz, blocks) {
     this.blocks = blocks; this.cx = cx; this.cz = cz; this.gen = gen;
-    const rng = this.rng;
+    const rng = this.rng, wk = gen.P['cave.rate'];
     for (let dz = -RANGE; dz <= RANGE; dz++) for (let dx = -RANGE; dx <= RANGE; dx++) {
       const sx = cx + dx, sz = cz + dz;
       const base = mix(mix(this.seed, sx), sz);
       rng.setSeed(mix(base, 1));
-      if (rng.nextFloat() < 0.01) this.canyon(rng, sx, sz);
+      if (rng.nextFloat() < 0.01 * wk) this.canyon(rng, sx, sz);
       if (Math.abs(dx) <= 6 && Math.abs(dz) <= 6) {
         rng.setSeed(mix(base, 2));
-        if (rng.nextFloat() < 0.15) this.caves(rng, sx, sz, -56, 180);
+        if (rng.nextFloat() < 0.15 * wk) this.caves(rng, sx, sz, -56, 180);
         rng.setSeed(mix(base, 3));
-        if (rng.nextFloat() < 0.07) this.caves(rng, sx, sz, -56, 47);
+        if (rng.nextFloat() < 0.07 * wk) this.caves(rng, sx, sz, -56, 47);
       }
     }
   }

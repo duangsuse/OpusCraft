@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- gode/viz/index.html —— pgviz：地形查看与调参（s13，M0）。直接起 s02 的生成器 Worker（defl/g/<g>.js）池，R16UI 3D 纹理轴向步进出图。
-     URL：?g=old|gp|liq|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&n=&rate=12&minip=1&air=1&shade=block|biome|height&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
+     URL：?g=old|gp|liq|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&rate=12&minip=1&air=off|num|gray&shade=block|biome|height&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
      Agent：window.viz = { ready, stats, c4, airDist, probe, regen, set, errors, sel, pin, click, jump, … }（app.js） -->
 <html lang="zh">
 <head>
@@ -75,11 +75,11 @@
     <select id="gsel" title="生成器（s02 §4）"><option value="old">old</option><option value="gp">gp</option><option value="liq">liq</option></select>
     <input id="seed" placeholder="种子" spellcheck="false"><button id="go">Go</button>
     <span class="sep"></span>
-    <span class="seg" id="modes"><button data-m="surface" title="切片面回到最外层">地表</button><button data-m="slice" title="切片面放到海平面 / 屏幕中心（Shift+滚轮调）">切片</button><button data-m="stack" disabled title="V2">层叠</button></span>
+    <span class="seg" id="modes"><button data-m="surface" title="切片面回到最外层（E 循环）">地表</button><button data-m="slice" title="切片面放到海平面 / 屏幕中心（Shift+滚轮调；E 循环）">切片</button><button data-m="stack" disabled title="V2">层叠</button></span>
     <span class="sep"></span>
     <span title="地图视口左上角的世界坐标（相对当前原点），实时更新；改了就把左上角移到那里">⌜ X</span> <input id="gx" type="number"> Z <input id="gz" type="number"> <input id="paste" placeholder="粘贴 @x,z 或 @x,z^y" spellcheck="false" title="粘贴 @x,z / @x,z^y（或 gd 复制出的写法）后视口跳到该点居中；回车确认">
     <span class="sep"></span>
-    <button id="game">↗ 进游戏</button>
+    <button id="game" title="快捷键 ⏎">↗ 进游戏 (⏎)</button> <button id="sub" style="display:none" title="把选区 / 点列表 / 选中的点 + 选区统计一次发给挂在这个页面上的 Agent（Ctrl+⏎）；任何 ⎘ 复制也会自动通知它">→ Agent</button>
   </div>
   <div id="minid" class="side"><div class="mh">↔ 小图：快放 / 原点预览</div><canvas id="mini"></canvas><div class="kv" id="minik"></div><div id="mrz" title="拖动改小图大小（俯视在左栏顶部只改高度；其他视角在地图左上角，宽高都能改）。快放 / 悬停会随鼠标离开消失，打开原点菜单（⌖ 右键）时它保持显示，可在那时拖"></div></div>
   <div id="side">
@@ -92,11 +92,11 @@
       <label>视角 (V)</label><select id="vsel"><option value="top">俯视 −Y（7）</option><option value="south">南侧视 →北（1）</option><option value="north">北侧视 →南（Ctrl 1）</option><option value="east">东侧视 →西（3）</option><option value="west">西侧视 →东（Ctrl 3）</option><option value="bottom">仰视 +Y（Ctrl 7）</option></select>
       <label>着色 (T)</label><select id="shsel"><option value="block">方块色</option><option value="biome">群系色</option><option value="height">高度</option></select>
       <label id="sllab" title="Shift+滚轮在地图上调；拉到最外层 = 地表">切片 Y</label><div class="row" style="flex-wrap:nowrap"><input id="slr" type="range" min="0" max="255"><span class="num" id="slv" style="width:38px;text-align:right"></span></div>
-      <label title="悬停 gizmo 快放：沿视线往深处播放 N 层，每秒 R 层；在这一行上滚轮调速度">+N 层/秒</label><div class="row" id="nrow">+<input id="nin" type="number" min="1" max="64" style="width:56px" title="N：层数 1…64">层 /<input id="rate" type="number" min="1" max="60" style="width:56px" title="速度：层 / 秒 1…60">秒</div>
-      <label></label><label style="color:var(--fg)"><input type="checkbox" id="airc"> 显示空气距离</label>
+      <label title="快捷键 R 循环。沿视线从切面到第一个实体要穿过的空气格数。数字：格 ≥ 8 px 时每格写数字（&lt; 10）；水体风格：灰色渐变（近亮远暗），任何缩放都能看。URL air=num|gray">空气距离 (R)</label><select id="airsel"><option value="off">无</option><option value="num">数字</option><option value="gray">水体风格（灰渐变）</option></select>
       <label></label><label style="color:var(--fg)"><input type="checkbox" id="gridc"> 区块网格（G）</label>
       <label></label><label style="color:var(--fg)" title="小图常驻显示（否则只在悬停 gizmo / 原点菜单时出现）；URL minip=1"><input type="checkbox" id="minipc"> 小图持久化</label>
-      <label title="选区沿视线轴的深度（格）；右键一下的选区用它">选区深度</label><input id="seld" type="number" min="1" max="256" style="width:70px">
+      <label title="选区沿视线轴的深度（格）；非俯视的左 / 右键选区用它（俯视一律选到基岩层）">选区深度</label><input id="seld" type="number" min="1" max="256" style="width:70px">
+      <label title="悬停 gizmo 快放：沿视线往深处播放，层数 = 当前选区的深度（没有选区则用选区深度）；在这一行上滚轮调速度">快放速度</label><div class="row" id="nrow"><input id="rate" type="number" min="1" max="60" style="width:56px" title="层 / 秒 1…60">层 / 秒</div>
       <label>缩放</label><span class="num kv" id="zv"></span>
     </div></details>
     <details open><summary>③ 方块</summary><div class="sec">
@@ -106,7 +106,7 @@
     </div></details>
     <details open><summary>⑤ 选区</summary><div class="sec">
       <div class="full kv" id="skv">右键一下 = 该格 × 深度的选区，再右键一下并进另一角成矩形；右键拖框边改范围；Esc 取消</div>
-      <div class="full row"><button id="scp" title="复制两角 @x,z^y">⎘ 坐标</button><button id="surl" title="复制复现当前视角 + 选区的 pgviz URL">⎘ URL</button><button id="sgd" title="复制 gd 命令">⎘ gd</button><button id="sclr">清除</button></div>
+      <div class="full row"><button id="scp" title="复制两角 @x,z^y">⎘ 坐标</button><button id="surl" title="复制复现当前视角 + 选区的 pgviz URL">⎘ URL</button><button id="sgd" title="复制 gd 命令">⎘ gd</button><button id="ssub" title="选区 + 点列表 + 选中的点 + 选区统计 → Agent（Ctrl+⏎；只在 gd 打开的页面里有效）">→ Agent</button><button id="sclr">清除</button></div>
     </div></details>
   </div>
   <div id="map">

@@ -181,3 +181,13 @@ gd down                                 # 收尾（忘了也会 10 min 自退）
 - 一个守护进程只有**一个页面**：两个 Agent 共用时会互相 `go` 走对方的页面（命令会报「当前页面没有机位」）。需要时再加 `--tab`。
 - `freeze` 默认同时停宿主 B 的游戏 tick（随机 tick / 流体 / 火 / 草蔓延），否则世界随 settle 时长变化，`genhash` 时好时坏；要看动态时 `freeze({ tick: true })`。
 - `settle` 用 `freeze` 后 `VR.D.time` 非空的事实关掉 rgl 的升起 / 淡入动画，不再单独等 riseFade。
+
+## 10. 页面 → Agent：收件箱 [11-09]
+
+gd 的浏览器是有头的，用户可以直接在 Agent 打开的页面里操作（pgviz 查点、画选区）。要让用户「查了一些点、框了几个范围」之后**一键交给 Agent**，页面需要一条单向通道：
+
+- **通道**：守护进程启动时 `Runtime.addBinding('gdSend')`，页面里就有 `window.gdSend(jsonString)`（导航后仍在；普通浏览器没有它，页面一切照旧）。binding 事件进守护进程的收件箱（≤ 200 条），守护进程回调页面 `window.gdAck(seq, 在听?, 待取, kind)`，页面弹 toast「已通知 Agent #3」/「（Agent 暂未在听，留在收件箱）」。
+- **Agent 取消息**：`gd inbox`（取走并清空）、`--keep`（只看）、`--wait N`（≤ 280 s，空则阻塞到有消息）、`-f`（持续跟随，每条一行）。**被唤醒的做法**：用户说「我选好了」之前就后台跑 `gd inbox --wait 280`（run_in_background，退出即唤醒我），或 Monitor 跑 `gd inbox -f`。一行 = `#序号 时间 kind JSON`；JSON 里 `ctx` 是页面状态（生成器 / 种子 / 视角 / 位置 / kw / `href` 可直接 `gd go`）。
+- **健壮性**：客户端被杀（Ctrl-C / 超时 / Monitor 停了）时，等待中的请求不取走消息（`res.on('close')`）；`gd ps` 显示「待取 / 在听」；`gd check` 期间页面置 `window.gdQuiet`，检查里点的按钮不进收件箱。
+- **kind**：`copy:point | sample | sel | url | gd | origins`（任何 ⎘ 复制都会通知，带 `text`）、`submit`（「→ Agent」按钮 / Ctrl+⏎ / `viz.submit()`）：`{ sel, selAt, hit, origins, originsText, sample, stats }`，其中 `stats` 就是 `viz.stats({sel})` 的整份结果（Agent 一收到就有数字，见 s13 §7）。
+- 页面入口：顶栏「→ Agent」、⑤ 选区行、原点菜单；`viz.submit({dry:true})` 只返回要发的内容。检查 `viz-agent`（binding、按钮、提交内容，dry）。

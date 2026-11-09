@@ -2,7 +2,8 @@
    编码相同（12 位 type + 4 位 meta），布局 (yi*16+z)*16+x 与规范相同；y_gode = y_liq + 64，即 yi 直接当规范 y，255 以上裁掉（s02 §5）。
    outside 原样 [x,y,z,v] → [x, y+64, z, v, 2]（soft 2 = 只覆盖空气或非流体可替换格，同 goodLiqPG world.js applyFeatureBlocks）。 */
 import { serve } from '../../w/slicer.js';
-import { Generator, BIOMES, SEA_LEVEL, MIN_Y } from '../../../goodLiqPG/src/world/gen/generator.js';
+import { resolveParams } from '../../w/params.js';
+import { Generator, GEN_PARAMS, BIOMES, SEA_LEVEL, MIN_Y } from '../../../goodLiqPG/src/world/gen/generator.js';
 import { BLOCKS, T_REPLACEABLE, T_FLUID } from '../../../goodLiqPG/src/world/blocks.js';
 
 // 群系地图色：goodLiqPG tools/preview_world.mjs BIOME_MAP_COL
@@ -19,15 +20,16 @@ const MAPCOL = {
 };
 const DY = -MIN_Y;   // 64
 export const meta = {
-  id: 'liq', ver: 1, sea: SEA_LEVEL + DY, h: 256, y0: MIN_Y,     // y0：供体原生坐标的零点，探针卡显示「liq y」用
+  id: 'liq', ver: 1, knobs: GEN_PARAMS, sea: SEA_LEVEL + DY, h: 256, y0: MIN_Y,     // y0：供体原生坐标的零点，探针卡显示「liq y」用
   names: BLOCKS.map(b => b.name), biomes: BIOMES.map(b => b.name), colors: { biomes: BIOMES.map(b => MAPCOL[b.name] ?? 0x808080) },
   over: { 2: BLOCKS.map((b, i) => T_REPLACEABLE[i] && !T_FLUID[i] ? i : -1).filter(i => i > 0) },
 };
 
 let G = null, tmp = new Uint16Array(16 * 16 * 384);
-export function onkwarg({ seed }) {
+export function onkwarg({ seed, kw }) {
   const s = String(seed ?? '').trim();
   G = new Generator(/^-?\d+$/.test(s) ? Number(s) : s);   // 纯整数串当数，其余字符串由供体 seedWords 哈希
+  G.setParams(resolveParams(meta.knobs, kw));             // s02 §2.1
   return { meta };
 }
 

@@ -72,7 +72,7 @@ export class Ores {
         if (o.biome && !o.biome[this.nbBiome[(dz + 1) * 3 + dx + 1]]) continue;
         const sx = cx + dx, sz = cz + dz;
         const base = mix(mix(mix(this.seed, sx), sz), f);
-        let count = o.count;
+        let count = Math.round(o.count * gen.P['ore.mul']);
         rng.setSeed(base);
         if (o.rarity && rng.nextInt(o.rarity) !== 0) continue;
         if (o.countRand) count = rng.nextInt(2);

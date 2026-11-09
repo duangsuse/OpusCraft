@@ -99,7 +99,7 @@
 
 - 侧视时「切片」就是沿该轴的深度：`slice` 的单位随视线轴换成 x 或 z（顶栏读数与 ② 的滑块标签一起换），URL 里仍是 `view=… slice=…`。
 
-**悬停快放**：② 视图段里有一个 **`+N 层`** 数字输入（默认 16，1…64）。鼠标停在 gizmo 上时，地图沿**当前视线轴**从当前切片向里逐层播放到 `slice + N`，再回到起点循环（约 12 层/秒，可在 `+N` 行悬停滚轮调速）；移开鼠标立即回到原切片。
+**悬停快放**：② 视图段里「选区深度」下面有一个 **快放速度** 数字框（层/秒，默认 12，1…60，滚轮在这一行上可调）。鼠标停在 gizmo 上时，地图沿**当前视线轴**从当前切片向里逐层播放，层数 **N = 当前选区沿该轴的深度**（没有选区则用 `seld`），再回到起点循环 [11-09 改：原先有独立的 N 框与 `n=`，已去掉]；移开鼠标立即回到原切片。
 
 - 目的：让人感受洞穴、山体、建筑**朝哪个方向走**——俯视时看到洞往下拐，侧视时看到山脊往里延伸。
 - 停在 gizmo 的某个**端点**上时，按那个轴快放（不切换视角），可以在俯视下快速瞥一眼侧向的走势；点击才真正切换。
@@ -125,14 +125,17 @@
 **Agent**（s12）：
 
 ```
-gd go 'gode/viz/?g=gp&seed=20240607&view=top&layer=cave&mode=count&x=0&z=0&zoom=2'
-gd set c_.Gen.lake.rate=0.08 c_.Gen.tree.dens.forest=6
-gd shot --tag lake --vs -1          # 前后对照，进 gode/shots/
-gd eval 'viz.stats()'               # 直方图 / 占比（goal-pgviz P2-6）：湖面积、树密度、洞穴空气按 y
+gd go 'gode/viz/?g=gp&seed=20240607&view=top&x=0&z=0&zoom=2'
+gd eval 'viz.params()'                                         # 这个生成器有哪些参数：键 / 默认 / 区间 / 说明 / 当前值
+gd eval 'viz.stats({sel:[-64,0,-64,63,255,63]})'               # 人框的区间（粘贴来的 sel）：方块 / 群系 / 水 / 树 / 洞 / 噪声场的数字
+gd eval 'viz.tune({"tree.dens":3,"terrain.shift":-6},{sel:[-64,0,-64,63,255,63]})'   # 改参数 → 重算窗口 → 同选区统计 + vs.delta（与上次的差）
+gd set c_.Gen.cave.rate=0.5                                    # 单个参数；`gd set kw=null` 全部回默认；未知键直接报错并列出可用键
+gd shot --tag tuned --vs -1                                    # 前后对照，进 gode/shots/
 ```
 
-- `viz.stats()` 返回数字，Agent 先看数字是否接近目标分布，再看图——比只看图便宜。
-- URL 含全部视图状态和非默认 knobs（`&json=`，s09 §1），一条链接复现。
+- `viz.stats()` 无参 = 状态（块数 / 在途 / ms 每块）；`viz.stats({sel})` = 区域统计，Agent 先看数字是否接近目标分布，再看图。选项：`sel`（缺省 = 页面上的选区）、`go`（盒心不在 3D 窗口时把视图挪过去；显式传 `sel` 时默认开）、`noise`（噪声场 min / mean / max，默认开；`noiseN` = 网格边长，6）、`fresh`（不与上次比）、`base`（把这次钉成基线）、`vs:'base'`（与基线比而不是上一次）。
+- 差值 `vs = { against, kw, delta }`：delta 只含变了的数字叶子（now − prev），同一个盒 + 生成器 + 种子才比。
+- URL 含全部视图状态和非默认 knobs（`&kw=tree.dens:2,cave.rate:0.5`，点号键:值，逗号分隔），一条链接复现；人在页面里的「⎘ gd」「⎘ URL」会带上它。
 
 ## 4. 阶段（替换 goal-pgviz §10）
 
@@ -190,3 +193,42 @@ gd eval 'viz.stats()'               # 直方图 / 占比（goal-pgviz P2-6）：
 **快放与小图后续 [11-09]**：① ②「+N 层/秒」一行 = `+ [N] 层 / [速度] 秒`：N（1…64，默认 16，`n=`）与速度（层/秒 1…60，默认 12，`rate=`）两个数字框，滚轮在这一行上仍可调速度并同步框，静态文字「12 层/秒」去掉。② 「区块网格」下新增「**小图持久化**」（`minip=1`）：打开后小图常驻（位置规则不变：俯视 = 左栏顶部，其他视角 = 地图左上角，可 resize）；没有快放 / 预览时显示沿主视线轴的「另一视角」静态剖面（俯视 → 南侧剖面，侧视 → 俯视图），平面过**选区中心**（无选区则视口中心），画选区盒；快放 / 原点预览期间照常覆盖，结束后回到常驻内容；关闭时只在悬停 / 预览时出现。
 ③ **快放「关于选区」**（我的理解与取舍）：悬停**其他轴**锚点时，有选区则 ① 小图剖面平面过选区中心、画选区盒；② 扫描线 / 变暗线**从选区在该轴朝向悬停端点一侧的近端边起**，向里走满 N 层（**不限于选区范围，超出继续走 N 层**——固定长度比「走到选区尽头就停」更容易读，用户也可调 N）；没有选区时仍从光标 / 视口中心。**沿视线轴的快放**（悬停空白处 / 视线轴端点）不随选区变，仍是「当前切片 → +N」。
 ④ **悬停 gizmo 空白处点击**：正在沿视线轴快放时，把切片设为**快放终点**（`当前切片 ± N`，按悬停方向，夹到合法范围；回到最外层则等于地表），随后在 gizmo 旁闪 1.4 s 提示「切片 Y → 239」；下次悬停从更深处继续。点端点仍是切视角；没在快放时点空白无事。
+
+## 7. 调参闭环最小集 + 空气距离 select [11-09]
+
+**参数机制（s02 §2.1 `meta.knobs`）**：每个生成器在 `meta` 里声明一张**扁平表** `knobs = [{ k, def, min, max, note }]`（键是点号路径），`onkwarg({ seed, kw })` 里 `w/params.js` 的 `resolveParams` 校验（未知键 / 非数字抛错并列出可用键，越界夹到区间）后交给供体 `setParams`。**默认值一律是原行为（乘子 1、偏移 0）**，已核实：三个生成器各 7×7 区块（seed 20240607）改前 / 改后哈希逐位相等。供体改动：
+
+| 供体 | 改动 | 参数 |
+|---|---|---|
+| `vendor/old/terrain.js`（宿主 B gen.js 的副本） | `PARAMS` + `Terrain.P / setParams` | `terrain.contScale shift hillAmp mountAmp`、`cave.rate`、`ore.mul`、`tree.dens`、`plant.dens` |
+| `goodGP/js/world.js` | `GEN_PARAMS` + `World.P / setParams`，`vendor/gp/load.js` 多导出 `GEN_PARAMS` | 同上，另有 `river.width`（9 个） |
+| `goodLiqPG/src/world/gen/*` | `terrain.js` 的 `GEN_PARAMS`；`TerrainNoise.P` 由 `Generator` 共享，`carvers / ores / decorate` 读 `gen.P` | `terrain.contScale shift mountAmp factor`、`cave.rate`（蠕虫洞 + 峡谷）、`cave.cheese`（芝士洞偏置）、`ore.mul`、`tree.dens` |
+
+- 同名同义：`terrain.shift`（格）、`cave.rate`、`ore.mul`、`tree.dens`、`terrain.contScale`（> 1 = 更大）在三个生成器里意思一样；liq 的 `contScale` 缩放整套气候噪声（群系也跟着变大），`mountAmp` 乘的是 jaggedness（只在高处有感），`terrain.factor` 是实验性的（扫描里影响很小）。
+- 全部参数各扫过一遍（改一个，看树 / 水 / 地面高 / 洞 / 矿 / 植物的变化）：都有响应，除了 liq 在海洋选区里 `mountAmp / tree.dens` 自然没有变化，换陆地种子（seed 1）后都有。
+- **没有**湖泊（s02 §2.1 的 `lake.*` 仍待新写）；`plant.dens` liq 没有。
+- 页面：`S.kw` 进 URL `kw=`，`viz.set('kw', {...} | 'a:1,b:2' | null)` / `viz.set('c_.Gen.<路径>', v)`（`gd set c_.Gen.cave.rate=0.5` 即可）改参数并重启池（热重置，不重建 worker，窗口重算 0.6–1.2 ms/块 × 窗口）。`viz.params()`、`viz.tune(change, opts)`、`viz.stats({sel,…})` 见 §3。
+
+**区域统计口径**（`viz/stats.js`，粗，供调参用）：地面 = 每列从最高实体往下找第一格非树叶 / 树干的实体（跳过冠下空气）；`cave.airBelowGround` = 地面以下的空气格（按 16 格一档给 y 分布）；`water.lake*` = 水面（地表实体 y + 水深）高于海平面的列，也就是高地水体；`trees.trunkBases` = 树干柱最下一格个数（多干树种会多算）。只有 2D 外圈列的部分没有体素，只进群系 / 地面 / 水的统计（`columns.only2d` 写明）。大选区会慢（盒 128×256×128 ≈ 20–40 ms）。
+
+**空气距离 select**：`#airsel` = 无 / 数字 / 水体风格（灰渐变），URL `air=off|num|gray`（旧 `air=1` = 数字），`viz.set('air', 'gray')`。数字照旧（格 ≥ 8 px，< 10）；水体风格不受缩放限制：`g = mix(0.92, 0.10, 1 − exp(−d/14))`，与底下明暗稍混（近亮远暗，思路同「水越深越暗」）。
+
+**检查**：`viz-kw`（未知键抛错、URL 往返、`ore.mul=3` 后矿数翻倍以上且 `vs.delta.ores` 存在、复原后与基线相等、无参 `stats()` 仍是状态、覆盖 = 全部列）、`viz-air`（三态的状态 / select / URL 一致）。old / gp / liq 下 `errors c4 viz-paste viz-kw viz-air` 全过。
+
+**还没做**：`viz.stats` 的「只重算选区」——现在改参数重算的是整个窗口（够快）；人那边没有参数面板（V3 的 gg.pane），人只能通过 URL / 粘贴拿到 Agent 调好的 `kw`；`stats` 的 trees 口径不分树种。
+
+## 8. 快捷键与 Agent 通道 [11-09]
+
+| 键 | 作用 |
+|---|---|
+| `E` | 循环 `#modes`（地表 ↔ 切片；V2 的层叠启用后自动入环），toast 提示当前模式 |
+| `R` | 循环空气距离：无 → 数字 → 水体风格 |
+| `C` | 原点菜单「＋添加」：选区最小角 / 无选区时视口中心；同坐标已有则只提示，不重复添加 |
+| `⏎` | ↗ 进游戏（`old` 以外 toast「M1 起可用」）；`preventDefault`，焦点在某个按钮上时也不会去触发那个按钮 |
+| `Ctrl+⏎` | 一键提交给 Agent（= 「→ Agent」按钮） |
+
+焦点在 `input / select / textarea` 里时全部不触发（顶栏种子框的 ⏎ 仍是 Go）。
+
+**Agent 通道**（s12 §10）：任何 ⎘ 复制（点 / sample / 坐标 / URL / gd / 导出列表）除了写剪贴板，还会 `gdSend` 一条 `copy:<kind>` 给挂在页面上的 Agent；「→ Agent」（顶栏、⑤ 选区行、原点菜单、Ctrl+⏎）发 `submit` = 选区 + 点列表 + 选中的点 + 选区统计。没有 gd 挂着（普通浏览器）时按钮隐藏，复制行为不变。检查 `viz-keys`、`viz-agent`。
+
+**选区深度规则 [11-09]**：左键 / 右键选区的深度轴按视角分两种——**俯视（−Y）一律选到基岩层**（左键：命中格 → y 0；右键两下：两角中较高者 → y 0）；**其他视角按 `seld`**（左键：从命中格沿视线往里数 `seld` 层，不出窗口；右键：两角深度中点 ± `seld`/2）。快放层数 = 当前选区的深度，所以俯视选区快放会一路播到基岩。检查 `viz-seldepth`。

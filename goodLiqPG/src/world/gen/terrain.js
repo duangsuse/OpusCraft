@@ -16,12 +16,26 @@ const JAGGED_SPLINE = overworldJaggedness();
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const clampedMap = (v, a0, a1, b0, b1) => { const t = (v - a0) / (a1 - a0); return t <= 0 ? b0 : t >= 1 ? b1 : b0 + t * (b1 - b0); };
 
+// 生成参数（gode pgviz 调参）：扁平表，键 = 点号路径，默认值 = 原行为（乘子 1、偏移 0），输出逐位不变。
+// Generator.setParams(o) 写进共享的 this.P；这里的 TerrainNoise、carvers / ores / decorate 都读 gen.P。
+export const GEN_PARAMS = [
+  { k: 'terrain.contScale', def: 1, min: 0.2, max: 5, note: '气候噪声（温 / 湿 / 大陆 / 侵蚀 / 山脊）整体尺度乘子；> 1 = 群系和陆块更大' },
+  { k: 'terrain.shift', def: 0, min: -60, max: 60, note: '整体抬升 / 下沉（格）；< 0 淹出更多水面' },
+  { k: 'terrain.mountAmp', def: 1, min: 0, max: 3, note: '尖峰（jaggedness）幅度乘子' },
+  { k: 'terrain.factor', def: 1, min: 0.3, max: 3, note: '密度梯度（factor 样条）乘子，实验性：影响地势起伏的陡缓' },
+  { k: 'cave.rate', def: 1, min: 0, max: 5, note: '蠕虫洞 + 峡谷出现率乘子（0 = 无）' },
+  { k: 'cave.cheese', def: 0, min: -0.3, max: 0.3, note: '芝士洞（大空腔）偏置；> 0 = 更多更大' },
+  { k: 'ore.mul', def: 1, min: 0, max: 5, note: '矿脉数量乘子' },
+  { k: 'tree.dens', def: 1, min: 0, max: 5, note: '树数量乘子（按群系基数，平原的基数 0 不受影响）' },
+];
+
 // Climate output layout (per sample point): T, H, C, E, W, PV, offset, factor, jaggedness, biome
 export const CL_T = 0, CL_H = 1, CL_C = 2, CL_E = 3, CL_W = 4, CL_PV = 5, CL_OFF = 6, CL_FAC = 7, CL_JAG = 8, CL_BIOME = 9, CL_N = 10;
 
 export class TerrainNoise {
   constructor(seed) {
     const n = (name) => makeNoise(seed, name);
+    this.P = Object.fromEntries(GEN_PARAMS.map(p => [p.k, p.def]));
     this.temperature = n('temperature'); this.vegetation = n('vegetation');
     this.continentalness = n('continentalness'); this.erosion = n('erosion'); this.ridge = n('ridge');
     this.shift = n('offset'); this.jagged = n('jagged');
@@ -40,7 +54,7 @@ export class TerrainNoise {
   climate(x, z, out, o, withShape = true) {
     const sx = this.shift.sample(x * 0.25, 0, z * 0.25) * 4;
     const sz = this.shift.sample(z * 0.25, x * 0.25, 0) * 4;
-    const px = x * 0.25 + sx, pz = z * 0.25 + sz;
+    const cs = this.P['terrain.contScale'], px = (x * 0.25 + sx) / cs, pz = (z * 0.25 + sz) / cs;
     const T = this.temperature.sample(px, 0, pz);
     const H = this.vegetation.sample(px, 0, pz);
     const Cc = this.continentalness.sample(px, 0, pz);
@@ -50,9 +64,9 @@ export class TerrainNoise {
     out[o + CL_T] = T; out[o + CL_H] = H; out[o + CL_C] = Cc; out[o + CL_E] = Ee; out[o + CL_W] = Ww; out[o + CL_PV] = pv;
     if (withShape) {
       const inp = this._inp; inp[0] = Cc; inp[1] = Ee; inp[2] = Ww; inp[3] = pv;
-      out[o + CL_OFF] = -0.50375 + evalSpline(OFFSET_SPLINE, inp);
-      out[o + CL_FAC] = evalSpline(FACTOR_SPLINE, inp);
-      out[o + CL_JAG] = evalSpline(JAGGED_SPLINE, inp);
+      out[o + CL_OFF] = -0.50375 + evalSpline(OFFSET_SPLINE, inp) + this.P['terrain.shift'] / 128;
+      out[o + CL_FAC] = evalSpline(FACTOR_SPLINE, inp) * this.P['terrain.factor'];
+      out[o + CL_JAG] = evalSpline(JAGGED_SPLINE, inp) * this.P['terrain.mountAmp'];
     }
     out[o + CL_BIOME] = pickBiome(T, H, Cc, Ee, Ww);
   }
@@ -134,7 +148,7 @@ export class TerrainNoise {
     const cl = this.caveLayer.sample(x, y * 8, z);
     const layerized = 4 * cl * cl;
     const ch = this.caveCheese.sample(x, y * 0.6666666666666666, z);
-    let caves = layerized + clamp(0.27 + ch, -1, 1) + clamp(1.5 - 0.64 * sc, 0, 0.5);
+    let caves = layerized + clamp(0.27 - this.P['cave.cheese'] + ch, -1, 1) + clamp(1.5 - 0.64 * sc, 0, 0.5);
     const ent = this.entrances(x, y, z);
     if (ent < caves) caves = ent;
     const sp = this.spaghetti2d(x, y, z, elev);

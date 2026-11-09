@@ -23,6 +23,9 @@
  *   gd check [name…|all]                     跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条
  *   gd perf [--frames 120]                   低频：帧时间中位数 / p95 + 渲染器 stats()，追加到 gode/shots/perf.tsv
  *   gd log [-f]                              页面 console / 异常（自上次调用以来）；-f 持续跟随
+ *   gd inbox [--wait N] [--keep] [-f]        收件箱：用户在页面里点「→ Agent」或任何「⎘ 复制」按钮时，页面经 CDP binding（window.gdSend）把
+ *                                            { kind, text/选区/点列表/统计, ctx } 递给守护进程。默认取走并清空；--wait N（≤ 280）= 空则阻塞到有消息；
+ *                                            --keep 只看不清；-f 持续跟随（每条一行，给 Monitor 用）。后台跑 `gd inbox --wait 280` 或 Monitor `gd inbox -f` 就能被唤醒
  *
  * 输出：一行一个结果（tsv / 文本），stderr 末行是耗时；失败退出码 1 并带页面日志最后 20 行。
  *
@@ -175,7 +178,7 @@ const BASE = (process.env.GD_BASE || 'http://localhost:8765/').replace(/\/?$/, '
 const IDLE = +(process.env.GD_IDLE || 600) * 1000, SLOW = +(process.env.GD_SLOW || 8) * 1000;
 const INDEX_COLS = ['seq', 'ts', 'tag', 'pose', 'url', 'files', 'note', 'verdict', 'ms'];
 const QUALITY = 82;
-const VALUED = new Set(['seed', 'rd', 'size', 'url', 'tag', 'note', 'vs', 'at', 'frames']);
+const VALUED = new Set(['seed', 'rd', 'size', 'url', 'tag', 'note', 'vs', 'at', 'frames', 'wait']);
 
 function parseArgs(argv) {
   const pos = [], o = {};
@@ -222,6 +225,7 @@ async function daemon(opts) {
   const { sessionId: sid } = await cdp.session().Target.attachToTarget({ targetId, flatten: true });
   const page = cdp.session(sid);
   await page.Runtime.enable(); await page.Page.enable(); await page.Log.enable();
+  await page.Runtime.addBinding({ name: 'gdSend' });   // 页面 → Agent 的单向通道：window.gdSend(jsonString)，导航后仍在
   await page.Emulation.setDeviceMetricsOverride({ width: W, height: H, deviceScaleFactor: 1, mobile: false });
 
   // 页面日志：环形 500 行；logSeen = 上次 gd log 读到哪
@@ -234,6 +238,20 @@ async function daemon(opts) {
     else if (m.method === 'Log.entryAdded' && m.params.entry.level !== 'verbose') pushLog(`${m.params.entry.level}: ${m.params.entry.text} ${m.params.entry.url || ''}`);
   });
   const tail = n => logs.slice(-n);
+
+  // 收件箱（页面 → Agent）：binding 调用进队列；inbox 命令取走。listening = 有人在等 / 最近 3 s 内有人取过，页面用它提示「Agent 在听」
+  const inbox = []; let inSeq = 0, lastPollAt = 0; const waiters = new Set();
+  const listening = () => (waiters.size || Date.now() - lastPollAt < 3000 ? 1 : 0);
+  const fmtMsg = m => { const { seq, ts, kind, ...rest } = m; return `#${seq}\t${new Date(ts).toTimeString().slice(0, 8)}\t${kind}\t${JSON.stringify(rest)}`; };
+  cdp.on(m => {
+    if (m.sessionId !== sid || m.method !== 'Runtime.bindingCalled' || m.params.name !== 'gdSend') return;
+    let d; try { d = JSON.parse(m.params.payload); } catch { d = { kind: 'raw', text: String(m.params.payload).slice(0, 2000) }; }
+    const msg = { seq: ++inSeq, ts: Date.now(), ...d, kind: String(d.kind ?? 'msg') };
+    inbox.push(msg); if (inbox.length > 200) inbox.shift(); st.last = Date.now();
+    pushLog(`inbox #${msg.seq} ${msg.kind}`);
+    for (const w of [...waiters]) w();
+    page.Runtime.evaluate({ expression: `window.gdAck?.(${msg.seq}, ${listening()}, ${inbox.length}, ${JSON.stringify(msg.kind)})` }).catch(() => {});
+  });
 
   // ── 页面求值 ──
   const evalJS = async (expr, ms = 60000) => {
@@ -422,7 +440,8 @@ async function daemon(opts) {
   const gitChanged = () => { try { return execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean).map(l => l.slice(3)); } catch { return []; } };
   const globRe = g => new RegExp('^' + g.trim().replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
   const check = async names => {
-    const rl = await autoReload(), info = await pageInfo(), all = readTsv(CHECKS).rows.filter(r => r.host.split(',').includes(info.host));
+    const rl = await autoReload(); await evalJS('window.gdQuiet = true').catch(() => {});   // 检查里点的复制按钮不进收件箱
+    const info = await pageInfo(), all = readTsv(CHECKS).rows.filter(r => r.host.split(',').includes(info.host));
     let sel;
     if (names.includes('all')) sel = all;
     else if (names.length) { sel = all.filter(r => names.includes(r.name)); const miss = names.filter(n => !all.some(r => r.name === n)); if (miss.length) throw new Error(`当前页面（${info.host}）没有检查：${miss.join(' ')}`); }
@@ -451,7 +470,7 @@ async function daemon(opts) {
     },
     async ps() {
       const idle = Math.round((Date.now() - st.last) / 1000);
-      return [`daemon\t${st.pid}`, `browser\tpgid ${pgid}\talive ${isAlive(pgid)}\tport ${port}\t${st.ss ? 'swiftshader' : 'prime-run'}`, `url\t${st.url}`, `idle\t${idle}s / ${IDLE / 1000}s`, `profiles\t${pidsMatching(PROFILE_PREFIX).length} 个进程匹配 ${PROFILE_PREFIX}`];
+      return [`daemon\t${st.pid}`, `browser\tpgid ${pgid}\talive ${isAlive(pgid)}\tport ${port}\t${st.ss ? 'swiftshader' : 'prime-run'}`, `url\t${st.url}`, `idle\t${idle}s / ${IDLE / 1000}s`, `inbox\t待取 ${inbox.length}\t在听 ${listening()}`, `profiles\t${pidsMatching(PROFILE_PREFIX).length} 个进程匹配 ${PROFILE_PREFIX}`];
     },
     async down() { setTimeout(() => down('gd down'), 50); return ['down']; },
     async go(o) {
@@ -482,7 +501,7 @@ async function daemon(opts) {
       return out;
     },
     async eval(o) { const v = await evalJS(`(async () => (${o.js}))()`); return [typeof v === 'string' ? v : JSON.stringify(v, null, 1)]; },
-    async check(o) { return check(o.names); },
+    async check(o) { try { return await check(o.names); } finally { await evalJS('window.gdQuiet = false').catch(() => {}); } },
     async perf(o) {
       const n = +(o.frames || 120);
       const r = await evalJS(`(async () => { const d = []; let t = performance.now(); for (let i = 0; i < ${n}; i++) { await new Promise(r => requestAnimationFrame(r)); const u = performance.now(); d.push(u - t); t = u; }
@@ -491,6 +510,15 @@ async function daemon(opts) {
       const pf = join(SHOTS, 'perf.tsv'); if (!existsSync(pf)) writeFileSync(pf, 'ts\turl\tframes\tmed_ms\tp95_ms\tstats\n');
       appendFileSync(pf, line + '\n');
       return [`med ${r.med.toFixed(2)}ms\tp95 ${r.p95.toFixed(2)}ms`, JSON.stringify(r.stats)];
+    },
+    async inbox(o, ctl) {
+      lastPollAt = Date.now();
+      const ms = Math.min(280, Math.max(0, +o.wait || 0)) * 1000;
+      if (!inbox.length && ms) await new Promise(res => { const w = () => { clearTimeout(t); waiters.delete(w); res(); }, t = setTimeout(w, ms); waiters.add(w); ctl.onGone = w; });
+      if (ctl.gone) return [];   // 死客户端：消息留在收件箱
+      lastPollAt = Date.now();
+      const out = o.keep ? inbox.slice() : inbox.splice(0);
+      return out.map(fmtMsg);
     },
     async log() { const from = Math.max(0, logSeen - logBase); const r = logs.slice(from); logSeen = logBase + logs.length; return r; },
   };
@@ -503,7 +531,9 @@ async function daemon(opts) {
       let reply;
       try {
         if (!CMD[name]) throw new Error(`未知命令 ${name}`);
-        const r = await CMD[name](body ? JSON.parse(body) : {});
+        const ctl = { gone: false, onGone: null };   // 客户端断开（Ctrl-C / 超时杀掉 / Monitor 停了）：inbox 不能把消息交给死客户端
+        res.on('close', () => { if (!res.writableEnded) { ctl.gone = true; ctl.onGone?.(); } });
+        const r = await CMD[name](body ? JSON.parse(body) : {}, ctl);
         reply = Array.isArray(r) ? { ok: true, out: r } : { ok: !r.fail, out: r.out, fail: r.fail };
       } catch (e) {
         reply = { ok: false, err: e.message, log: tail(20) };
@@ -560,6 +590,7 @@ async function main() {
     case 'eval': body = { js: pos.slice(1).join(' ') }; break;
     case 'check': body = { names: pos.slice(1) }; break;
     case 'perf': body = { frames: o.frames }; break;
+    case 'inbox': if (o.f) { if (!await alive()) process.exit(1); for (;;) { const r = await req('inbox', { wait: 25 }, 40000); for (const l of r.out ?? []) console.log(l); } } body = { wait: o.wait, keep: o.keep }; break;
   }
   if (cmd !== 'up' && cmd !== 'down' && cmd !== 'ps' && !await alive()) await ensureUp(o).then(() => req('up', {}));   // 没在跑就顺手 up
   const r = await req(cmd, body, 300000);

@@ -66,7 +66,7 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
 | 树 | `tree.dens`（每群系密度表，`pickLib` 编辑）、`tree.mix`（树种权重）、`tree.h`（树高区间）、`tree.crown`（树冠半径）、`tree.big`（大树 / 巨型云杉概率） | gp：`world.js:314` 的 `dens` 表；liq：`decorate.js:142` 的 `[count, extraChance, extraCount, [[tree, chance]…], default]` 表。适配器把这两张表映射到同一组参数 |
 | 地形 | 山高（gp `MOUNT_H`、liq 峰顶 < 250）、海岸 `BEACH_H / NO_BEACH_P / BEACH_DEPTH` | [承] gen.md §4 |
 
-- 每个生成器在 `meta.knobs` 里声明自己支持哪些参数和区间，面板只显示它支持的。
+- 每个生成器在 `meta.knobs` 里声明自己支持哪些参数和区间，面板只显示它支持的。**[已实现 11-09，s13 §7]** `knobs` 是扁平表 `[{ k: 'cave.rate', def, min, max, note }]`，`onkwarg({ seed, kw })` 经 `w/params.js` 校验；目前有 `terrain.* cave.* ore.mul tree.dens plant.dens river.width`，湖泊和树种 / 树高等细项仍待做。
 - 这些参数随存档保存（`Pusc.json` 的 `c_.Gen`），因为它们和种子一起决定「生成器输出」，也就是 diff 的基准（s06 §4）。改参数等于换基准，所以已经存过的区块要在改之前先把当前内容固化成全量记录。
 
 ## 3. 跨块装饰 [定 11-08：outside 列表 + main 合并]

@@ -3,6 +3,7 @@
    种子换算照 goodGP game.js:137（纯整数串 → parseInt，否则 hashStr）。 */
 import { serve } from '../../w/slicer.js';
 import { loadGP, newWorld } from '../../vendor/gp/load.js';
+import { resolveParams } from '../../w/params.js';
 
 const G = await loadGP();
 // goodGP 群系是中文名；地图色取 MC 群系图配色（goodLiqPG tools/preview_world.mjs BIOME_MAP_COL 同名项）
@@ -10,13 +11,15 @@ const BIOME_COL = [0x000070, 0xfade55, 0x8db360, 0x056621, 0x307444, 0x0b6a5f, 0
 export const meta = {
   id: 'gp', ver: 1, sea: G.SEA, h: G.HEIGHT,
   names: G.BLOCKS.map(b => b?.key ?? ''), biomes: G.BIOMES.slice(), colors: { biomes: BIOME_COL },
+  knobs: G.GEN_PARAMS,   // s02 §2.1：扁平参数表，kw 由 w/params.js 校验
 };
 
 let W = null;
-export function onkwarg({ seed }) {
+export function onkwarg({ seed, kw }) {
   const s = String(seed ?? '').trim(); let n = parseInt(s, 10);
   if (isNaN(n) || String(n) !== s) n = G.hashStr(s);
   W = newWorld(G, n);
+  W.setParams(resolveParams(meta.knobs, kw));
   return { meta };
 }
 

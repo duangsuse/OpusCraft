@@ -265,6 +265,7 @@ export class Decorator {
       rng.setSeed(mix(mix(mix(this.seed, cx), cz), b));
       let count = cfg[0];
       if (rng.nextFloat() < cfg[1]) count += cfg[2];
+      count = Math.round(count * this.gen.P['tree.dens']);
       for (let n = 0; n < count; n++) {
         const x = rng.nextInt(16), z = rng.nextInt(16);
         const c = z * 16 + x;

@@ -21,7 +21,7 @@ uniform float uZoom;                // 像素 / 格
 uniform ivec3 uF, uR, uD;           // 视线前向、屏幕右、屏幕下（单位轴向量）
 uniform int uStart, uEnd;           // 视线轴上起止坐标（含），沿 uF 步进
 uniform int uShade;                 // 0 方块色 1 群系色 2 高度
-uniform int uAir, uGrid, uSel;      // uSel：0 无 1 选区 2 拉框预览
+uniform int uAir, uGrid, uSel;      // uAir：0 无 1 数字 2 水体风格（灰渐变）；uSel：0 无 1 选区 2 拉框预览
 uniform ivec3 uSelMin, uSelMax;
 uniform ivec4 uClip;                // 端点快放：轴、符号、值、开关 —— 越过的部分压暗并画切线
 uniform ivec4 uInv;                 // 反色标记格 (x,y,z,开关)：选区近端格
@@ -165,7 +165,11 @@ void main() {
     bool edge = (min(e0.x, e1.x) < 1.25 && ab.y >= lo.y - m.y && ab.y <= hi.y + m.y) || (min(e0.y, e1.y) < 1.25 && ab.x >= lo.x - m.x && ab.x <= hi.x + m.x);
     if (edge && (uSel == 1 || mod(floor((px.x + px.y) / 5.0), 2.0) == 0.0)) col = lc;
   }
-  if (uAir != 0 && uZoom >= 8.0 && known && (hit || wd > 0) && dist < 10) {   // 空气距离：3×5 位图数字，格 < 8 px 不画
+  if (uAir == 2 && known && (hit || wd > 0)) {   // 空气距离·水体风格：和水深越深越暗同一思路，距离 → 灰度渐变（近亮远暗），任何缩放都能看；底下的明暗留一点点
+    float g = mix(0.92, 0.10, 1.0 - exp(-float(dist) / 14.0));
+    col = mix(col, vec3(g) * (0.8 + 0.2 * dot(col, vec3(0.3, 0.59, 0.11))), 0.92);
+  }
+  if (uAir == 1 && uZoom >= 8.0 && known && (hit || wd > 0) && dist < 10) {   // 空气距离·数字：3×5 位图，格 < 8 px 不画
     float gp = max(1.0, floor(uZoom / 6.0));
     vec2 q = (f * uZoom - (uZoom - vec2(3.0, 5.0) * gp) * 0.5) / gp;
     if (q.x >= 0.0 && q.y >= 0.0 && q.x < 3.0 && q.y < 5.0) {
@@ -248,7 +252,7 @@ export class Renderer {
     gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, this.tSlot2);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, sx, sz, 1, 1, gl.RGBA_INTEGER, gl.SHORT, s.subarray(i, i + 4));
   }
-  /* p: { vp:[x,y], res:[w,h], center:[x,y,z], zoom, F,R,D:[3], start, end, shade, air, grid, clip:[4], mark:[4],
+  /* p: { vp:[x,y], res:[w,h], center:[x,y,z], zoom, F,R,D:[3], start, end, shade, air(0 无 1 数字 2 水体风格), grid, clip:[4], mark:[4],
           win:[cx0,cz0], wa, win2, wa2, sea, sel: 0|1|2, selMin:[3], selMax:[3] } */
   draw(p) {
     const gl = this.gl, u = this.u, vp = p.vp ?? [0, 0];
@@ -261,7 +265,7 @@ export class Renderer {
     gl.uniform3f(u.uCenter, ...p.center); gl.uniform1f(u.uZoom, p.zoom);
     gl.uniform3i(u.uF, ...p.F); gl.uniform3i(u.uR, ...p.R); gl.uniform3i(u.uD, ...p.D);
     gl.uniform1i(u.uStart, p.start); gl.uniform1i(u.uEnd, p.end); gl.uniform1i(u.uShade, p.shade);
-    gl.uniform1i(u.uAir, p.air ? 1 : 0); gl.uniform1i(u.uGrid, p.grid ? 1 : 0);
+    gl.uniform1i(u.uAir, p.air | 0); gl.uniform1i(u.uGrid, p.grid ? 1 : 0);
     gl.uniform4i(u.uClip, ...p.clip); gl.uniform4i(u.uMark, ...p.mark); gl.uniform4i(u.uInv, ...(p.inv ?? [0, 0, 0, 0]));
     gl.uniform1i(u.uSel, p.sel ?? 0); gl.uniform3i(u.uSelMin, ...(p.selMin ?? [0, 0, 0])); gl.uniform3i(u.uSelMax, ...(p.selMax ?? [0, 0, 0]));
     gl.drawArrays(gl.TRIANGLES, 0, 3);
