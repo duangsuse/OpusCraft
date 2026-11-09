@@ -167,7 +167,7 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 - **快放**：悬停 gizmo 空白处或视线轴端点 = 沿视线轴 `slice → slice + N` 循环（只改 uniform，滑块跟着动）；悬停**其它轴**端点 = 沿该轴从屏幕中心推进一个切面，越过的部分压暗、切面画黄线，左栏浮出小图（V-11）。小图用同一个 GL 上下文先画进主画布左下角再 `drawImage` 拷走，之后主图覆盖；小图浮层只改 opacity（改布局会让浏览器补发鼠标事件、打断悬停）。
 - **选区（V-10）**：着色器 `uSel / uSelMin / uSelMax` 画投影框（拉框预览为黄虚线）；拖框边：指针在边 6 px 内按下即拖该轴的 min / max（光标变 ↔ / ↕），y 夹在 0…h−1。
 - **空气距离**：着色器与 `store.march` 同一规则（实体 = 分类 1，流体也算碰到；植物当空气），`viz.airDist(a, b)` 的 `(a, b)` 是屏幕平面坐标（俯视 = x, z；侧视 = 水平坐标, y）。
-- `window.viz`：`ready stats c4 airDist probe regen set errors sel pin hover click jump gameUrl copied state chunk`；`set` 支持 `g seed view x y z zoom mode slice fill n air shade grid sel origin pin(=sel) seld`，未知键抛错。`viz.click(px, py, btn)` 无真实输入时模拟左 / 右键（左键 = 选区设为整条）（CSS 像素，地图左上为原点）；`viz.jump(text)` = 粘贴框的解析。URL 另有 `origin origins seld`（`pin=` 只读兼容）；`viz.origins() / addOrigin / importOrigins` 管原点列表。
+- `window.viz`：`ready stats c4 airDist probe regen set errors sel pin hover click jump gameUrl copied state chunk layers layerAt`；`set` 支持 `g seed view x y z zoom mode slice fill air shade grid sel origin pin(=sel) seld rate layer lop`，未知键抛错。`viz.click(px, py, btn)` 无真实输入时模拟左 / 右键（左键 = 选区设为整条）（CSS 像素，地图左上为原点）；`viz.jump(text)` = 粘贴框的解析。URL 另有 `origin origins seld`（`pin=` 只读兼容）；`viz.origins() / addOrigin / importOrigins` 管原点列表。
 
 | 生成器 | ms/块（worker 内） | 墙钟 ms/块（8 worker，默认缩放 29² + 外圈 33²） | 最小缩放 48² + 80² | C4 |
 |---|---|---|---|---|
@@ -209,20 +209,20 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 - **没有**湖泊（s02 §2.1 的 `lake.*` 仍待新写）；`plant.dens` liq 没有。
 - 页面：`S.kw` 进 URL `kw=`，`viz.set('kw', {...} | 'a:1,b:2' | null)` / `viz.set('c_.Gen.<路径>', v)`（`gd set c_.Gen.cave.rate=0.5` 即可）改参数并重启池（热重置，不重建 worker，窗口重算 0.6–1.2 ms/块 × 窗口）。`viz.params()`、`viz.tune(change, opts)`、`viz.stats({sel,…})` 见 §3。
 
-**区域统计口径**（`viz/stats.js`，粗，供调参用）：地面 = 每列从最高实体往下找第一格非树叶 / 树干的实体（跳过冠下空气）；`cave.airBelowGround` = 地面以下的空气格（按 16 格一档给 y 分布）；`water.lake*` = 水面（地表实体 y + 水深）高于海平面的列，也就是高地水体；`trees.trunkBases` = 树干柱最下一格个数（多干树种会多算）。只有 2D 外圈列的部分没有体素，只进群系 / 地面 / 水的统计（`columns.only2d` 写明）。大选区会慢（盒 128×256×128 ≈ 20–40 ms）。
+**区域统计口径**（`viz/stats.js`，粗，供调参用）：地面 = 每列从最高实体往下找第一格非树叶 / 树干的实体（跳过冠下空气）；`cave.airBelowGround` = 地面以下的空气格（按 16 格一档给 y 分布）；`water.lake*` = 水面（地表实体 y + 水深）高于海平面的列，也就是高地水体；`trees` = 每个树种的树干方块按 26 邻域连成块，一块一棵树（2×2 粗干、斜枝都算一棵；树干紧贴的两棵会并成一棵，很少见），给 `count / per1kCols / leafCells` 和 `bySpecies.<种>.{count, per1kCols, meanHeight, leafCells}`（口径版本 `STATS_VER` = 2；旧的 `trunkBases` 已去掉）。只有 2D 外圈列的部分没有体素，只进群系 / 地面 / 水的统计（`columns.only2d` 写明）。大选区会慢（盒 128×256×128 ≈ 20–40 ms）。
 
-**空气距离 select**：`#airsel` = 无 / 数字 / 水体风格（灰渐变），URL `air=off|num|gray`（旧 `air=1` = 数字），`viz.set('air', 'gray')`。数字照旧（格 ≥ 8 px，< 10）；水体风格不受缩放限制：`g = mix(0.92, 0.10, 1 − exp(−d/14))`，与底下明暗稍混（近亮远暗，思路同「水越深越暗」）。
+**空气距离（已改为开关，见 §10；以下是 select 版的旧记录）**：`#airsel` = 无 / 数字 / 水体风格（灰渐变），URL `air=off|num|gray`（旧 `air=1` = 数字），`viz.set('air', 'gray')`。数字照旧（格 ≥ 8 px，< 10）；水体风格不受缩放限制：`g = mix(0.92, 0.10, 1 − exp(−d/14))`，与底下明暗稍混（近亮远暗，思路同「水越深越暗」）。
 
 **检查**：`viz-kw`（未知键抛错、URL 往返、`ore.mul=3` 后矿数翻倍以上且 `vs.delta.ores` 存在、复原后与基线相等、无参 `stats()` 仍是状态、覆盖 = 全部列）、`viz-air`（三态的状态 / select / URL 一致）。old / gp / liq 下 `errors c4 viz-paste viz-kw viz-air` 全过。
 
-**还没做**：`viz.stats` 的「只重算选区」——现在改参数重算的是整个窗口（够快）；人那边没有参数面板（V3 的 gg.pane），人只能通过 URL / 粘贴拿到 Agent 调好的 `kw`；`stats` 的 trees 口径不分树种。
+**还没做**：`viz.stats` 的「只重算选区」——现在改参数重算的是整个窗口（够快）；人那边没有参数面板（V3 的 gg.pane），人只能通过 URL / 粘贴拿到 Agent 调好的 `kw`。（树已按种统计，见 §9。）
 
 ## 8. 快捷键与 Agent 通道 [11-09]
 
 | 键 | 作用 |
 |---|---|
 | `E` | 循环 `#modes`（地表 ↔ 切片；V2 的层叠启用后自动入环），toast 提示当前模式 |
-| `R` | 循环空气距离：无 → 数字 → 水体风格 |
+| `R` | 空气距离开 / 关（见 §10） |
 | `C` | 原点菜单「＋添加」：选区最小角 / 无选区时视口中心；同坐标已有则只提示，不重复添加 |
 | `⏎` | ↗ 进游戏（`old` 以外 toast「M1 起可用」）；`preventDefault`，焦点在某个按钮上时也不会去触发那个按钮 |
 | `Ctrl+⏎` | 一键提交给 Agent（= 「→ Agent」按钮） |
@@ -232,3 +232,49 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 **Agent 通道**（s12 §10）：任何 ⎘ 复制（点 / sample / 坐标 / URL / gd / 导出列表）除了写剪贴板，还会 `gdSend` 一条 `copy:<kind>` 给挂在页面上的 Agent；「→ Agent」（顶栏、⑤ 选区行、原点菜单、Ctrl+⏎）发 `submit` = 选区 + 点列表 + 选中的点 + 选区统计。没有 gd 挂着（普通浏览器）时按钮隐藏，复制行为不变。检查 `viz-keys`、`viz-agent`。
 
 **选区深度规则 [11-09]**：左键 / 右键选区的深度轴按视角分两种——**俯视（−Y）一律选到基岩层**（左键：命中格 → y 0；右键两下：两角中较高者 → y 0）；**其他视角按 `seld`**（左键：从命中格沿视线往里数 `seld` 层，不出窗口；右键：两角深度中点 ± `seld`/2）。快放层数 = 当前选区的深度，所以俯视选区快放会一路播到基岩。检查 `viz-seldepth`。
+
+## 9. 图层与树种 [11-09，V2 的一部分]
+
+**图层**（`viz/layers.js`，② 视图里「图层 (L)」）：叠在地图上的**单选**叠加层，chip 选，`L` 循环，滑条调不透明度（默认 75%），URL `layer=none|tree|f:<字段>`、`lop=`。只在俯视 / 仰视画（逐列的量），侧视时图例注明「只在俯视 / 仰视画」。悬停时 ③ 多一行「图层 …」。`viz.layers()` 列出，`viz.layerAt(x, z)` 取某列的值，`viz.set('layer', 'tree')`。PNG 导出带叠加层。
+
+| 图层 | 数据 | 画法 |
+|---|---|---|
+| `tree` 树种 | Store 的 2D 列里「地表实体」是树叶 / 树干的列（3D 窗口与外圈都有）；种 = 方块名 `<种>_leaves / _log / _wood / _stem` 的前缀（`species.js`，三个生成器通用） | 每种一个醒目色（oak 绿、spruce 青、birch 黄、jungle 荧光绿、acacia 橙、dark_oak 紫、cherry 粉），树干比树叶深；**非树的列压暗**，树才醒目 |
+| `f:<k>` 场热力图 | 生成器 `sample()` 返回的每个数值字段（`biome` 除外；old：h temp hum mountain；gp：+ humid cont mount river；liq：hEst temp humid cont ero weird pv）。slicer 新增**引擎默认动词 `field`**（`{x0, z0, n, step}` → 每字段一个 Float32Array），不用生成器改一行 | 64 格一块、每 4 格取一点（16×16），只取视野内 ±1 块、最近优先、最多 10 个在途；每块一张 16×16 色阶图放大（不平滑，所以是 4 格的色块）；色阶 = 已载入数据的 2%…98% 分位（范围变了 > 3% 才重染），蓝 → 青 → 绿 → 黄 → 红 |
+
+换生成器 / 种子 / 参数（`kw`）时图层缓存全部重置（`LY.reset`），改参数后热力图自然跟着变——**调参时可以直接看「这个旋钮动了哪个场」**。以后加图层 = `list()` 里多一项 + `colorChunk / colorTile` 里多一个分支（species.js 的「名字表 → 类别表 → 着色」就是预备好的套路）。
+
+**树的统计**（`stats.trees`）：见 §7 口径。`viz.stats({sel})` 现在回 `trees.bySpecies`，`vs.delta` 也会带出每个树种的变化（`tune({'tree.dens': 1.5})` 后能看到 oak / birch 各自多了多少）。
+
+**检查**：`viz-layers`（图层列表、树种图例、场的值与色条、侧视不抛错、未知图层抛错）、`viz-trees`（种合计一致、平均高 ≥ 1）、`viz-seldepth`。old / gp / liq 下 `gd check all --matrix all` 共 33 项全过，宿主 B `check all` 5/5。
+
+## 10. 左栏与 Numpad 操控 [11-09 二]
+
+- **空气距离 = 复选框**（「区块网格」下方，`R` 切换，URL `air=1`；旧 `air=num|gray|1` 都读作开）。开 = 水体风格灰渐变（近亮远暗，任何缩放都能看）；**格 > 22 px 时在灰渐变上再叠黑色数字**（0 显示为短横，≥ 10 不写）。着色器 `uAir` 只剩 0 / 1。
+- **「深度 · 快放」一行**：`[选区深度] 格 · [快放速度] 层/秒`，速度框上滚轮可调。
+- **gizmo 悬停 = Numpad 帮助**（浮在 gizmo 上方）+ 端点高亮；点端点切视角照旧。**悬停其它轴端点 = 沿该轴快放切面**（扫描线 + 左栏小图画剖面，移开回原状；这条先取消又加回了）；悬停视线轴端点 / 空白处不快放（沿视线轴快放由 Numpad 9 按住）。快放带来源标记 `play.src`（`hover` / `key`），松开 9 只停 `key` 的，移开 gizmo 只停 `hover` 的，互不打断。
+- **Numpad 操控**（Digit 行同号也生效，Ctrl / Alt / Meta 不触发）：
+
+| 键 | 作用 |
+|---|---|
+| `7 / 1 / 3` | 俯视 / 南 / 东（Ctrl 或 Alt = 仰 / 北 / 西），同前 |
+| `4 / 6 / 8 / 2` | 沿屏幕 左 / 右 / 上 / 下 **翻整整一页**（位移 = 视口宽 / 高 ÷ 缩放，前后两页无重叠；侧视的 y 夹在 0…H−1；按住连翻） |
+| `5` | 图层暂时切成「无」，再按一次复原（记住切走前的图层） |
+| `9` | 按下 = 沿视线轴快放（层数 = 选区深度，速度见左栏）；松开 / 窗口失焦 = 回到原切片 |
+
+检查：`viz-air`（复选框 / 状态 / URL / 旧值兼容）、`viz-keys`（R 开关）、`viz-numpad`（翻页位移精确、侧视、5、9、悬停其它轴端点快放 / 视线轴不快放 / 9 与悬停互不打断、giz 帮助显隐）。
+
+**修订 [11-09 四]**
+- **帮助只在俯视、非全屏时弹**（`helpOn()`：`view === 'top'` 且无 `fullscreenElement`、非 zen 退化全屏）；悬停中换视角也会跟着显隐。
+- **快放停下 = 停在那一层**（原先移开 / 松开都回原状）：沿视线轴的快放（Numpad 9）松开时 `setSlice` 到当前层（toast「切片 Y → v」）；悬停其它轴端点的快放（扫描线 / 左栏小图剖面）移开时**固定在当时的层**（`play.frozen`：主视图的扫描线和小图剖面保持，gizmo 上标「固定」，toast 提示 Esc 取消），再悬停另一个端点会替换，`Esc` 取消（优先于清选区），换到以它为视线轴的视角时自动清掉。窗口失焦只停实时快放，不动已固定的。
+- **gizmo 高亮整根轴**：当前视角的端点白实线环，**同一根轴的另一端**（Y ↔ −Y 等）虚线环。
+- **全屏时小图可用**：真全屏只显示 `#map` 的子树，原来 `#minid`（小图）和 `#ctx`（原点菜单）在 `#map` 外所以消失；现在挪进 `#map`，全屏（和 zen 退化）时小图挂地图左上角，进出全屏后 `relayout` 里按 `showMini` 重新换挂位。真全屏需要用户手势，gd 里只测了 zen 退化路径（同一段挂位代码）。
+- `viz-numpad` 相应扩充（9 松开切片真的停在 < 255 的层、悬停移开小图保持 + Esc 取消、帮助在俯视 / 全屏 / 非俯视下的显隐、小图与原点菜单在 `#map` 内）。
+- **再修订**：悬停 gizmo **照常快放**（帮助浮层和快放同时出现、互不冲突）：悬停视线轴端点 / 空白 = 沿视线轴快放，悬停其它轴端点 = 沿该轴快放切面；Numpad 9 按住 = 同一件事的键盘版。目标在 gizmo 内换来换去时直接替换（途中不提交），**移出 gizmo 才算「停下」**：视线轴 → 切片设到当前层，其它轴 → 剖面固定。（上一版把视线轴 / 空白的悬停快放误取消了。）
+
+**修订 [11-09 五]**
+- **gizmo 右键 = 切换方向**：右键视线轴的端点或空白 → 当前视角翻到反向（俯视 ↔ 仰视、南 ↔ 北、东 ↔ 西，Y ↔ −Y）；右键其它轴的端点 → 去那根轴的另一端（+X → −X）。
+- **悬停快放的扫描方向按世界坐标**：悬停 +X 端点 = 向 +X 扫，俯视里就是**向右**；+Z = **向下**；−端点反向，其它视角同理（侧视里 +Y 向上）。扫描线从选区在该轴上**背向**悬停端点的那条边起（没有选区 = 视口中心），每层一格，压暗的是已扫过的一侧（扫描方向的背后）。原先是从朝向端点的一侧往里扫，方向正好反了。沿视线轴的快放不变（总是往深处）。
+- **Shift+滚轮取反**：滚轮向上 = 往深处（切片沿视线前进），向下 = 回到外层；Ctrl 仍是一次 8 层。
+- 检查：`viz-numpad` 加了右键翻向、Shift+滚轮方向、四个端点的扫描方向。
+

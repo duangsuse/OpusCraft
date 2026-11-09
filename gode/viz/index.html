@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- gode/viz/index.html —— pgviz：地形查看与调参（s13，M0）。直接起 s02 的生成器 Worker（defl/g/<g>.js）池，R16UI 3D 纹理轴向步进出图。
-     URL：?g=old|gp|liq|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&rate=12&minip=1&air=off|num|gray&shade=block|biome|height&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
+     URL：?g=old|gp|liq|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&rate=12&minip=1&air=1&layer=none|tree|f:字段&lop=0.75&shade=block|biome|height&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
      Agent：window.viz = { ready, stats, c4, airDist, probe, regen, set, errors, sel, pin, click, jump, … }（app.js） -->
 <html lang="zh">
 <head>
@@ -27,6 +27,9 @@
   #top { grid-area: top; display: flex; gap: 6px; align-items: center; padding: 0 8px; background: var(--pn); border-bottom: 1px solid var(--ln); white-space: nowrap; overflow-x: auto; }
   #top .sep { width: 1px; height: 20px; background: var(--ln); margin: 0 4px; }
   #seed { width: 130px; } #gx, #gz { width: 78px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; } .chip { padding: 1px 7px; border-radius: 10px; font-size: 12px; } .chip.on { background: #2a4a78; border-color: var(--ac); }
+  #lleg { font-size: 12px; } #lleg .sw { display: inline-flex; align-items: center; gap: 3px; margin-right: 8px; } #lleg .sw i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  #lleg .bar { height: 8px; border-radius: 3px; margin: 3px 0 1px; } #lleg .lr { display: flex; justify-content: space-between; color: var(--dim); } #lleg .dim { color: var(--dim); }
   .seg { display: inline-flex; } .seg button { border-radius: 0; margin-left: -1px; } .seg button:first-child { border-radius: 4px 0 0 4px; } .seg button:last-child { border-radius: 0 4px 4px 0; }
   .seg button.on { background: #2a4a78; border-color: var(--ac); }
   #side { scrollbar-color: #3a404c transparent; scrollbar-width: thin; grid-area: side; background: var(--pn); border-right: 1px solid var(--ln); overflow-y: auto; overflow-x: hidden; }
@@ -37,12 +40,14 @@
   .kv b { color: var(--fg); font-weight: 600; }
   .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   #map { grid-area: map; position: relative; overflow: hidden; cursor: crosshair; }
-  #cv, #fade, #rul { position: absolute; inset: 0; width: 100%; height: 100%; } #fade, #rul { pointer-events: none; }
+  #cv, #lay, #fade, #rul { position: absolute; inset: 0; width: 100%; height: 100%; } #lay, #fade, #rul { pointer-events: none; }
   #fade { opacity: 0; transition: opacity 150ms ease-out; }
   #toast { position: absolute; right: 140px; bottom: 16px; background: #000c; color: #ffd84a; padding: 3px 9px; border-radius: 4px; font: 12px ui-monospace, monospace; opacity: 0; transition: opacity 200ms; pointer-events: none; }
   #read { position: absolute; left: 8px; bottom: 8px; background: #000a; padding: 3px 8px; border-radius: 4px; font: 12px ui-monospace, monospace; font-variant-numeric: tabular-nums; pointer-events: none; }
   #giz { position: absolute; right: 10px; bottom: 10px; width: 120px; height: 120px; background: #000a; border-radius: 8px; cursor: pointer; }
   #giz.play { outline: 1px solid #fd5; }
+  #gzhelp { display: none; position: absolute; right: 10px; bottom: 138px; z-index: 5; background: #000d; border: 1px solid var(--ln); border-radius: 6px; padding: 6px 10px; font-size: 12px; line-height: 1.6; white-space: pre; pointer-events: none; }
+  #gzhelp b { color: var(--ac); } #gzhelp span { display: inline-block; min-width: 84px; color: #fd5; font-family: ui-monospace, monospace; }
   #tools { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
   #tools button { width: 30px; height: 30px; padding: 0; background: #000a; }
   #mini { display: block; background: #000; border: 1px solid var(--ln); border-radius: 4px; }
@@ -52,7 +57,7 @@
   #minid.side { left: 0; top: var(--mtop, 38px); width: var(--sw, 300px); border-bottom: 1px solid var(--ac); } #minid.side #mini { width: 100%; height: var(--mh, 178px); }
   #minid.inmap { left: calc(var(--sw, 300px) + 8px); top: 46px; border: 1px solid var(--ac); border-radius: 6px; }
   #minid.inmap #mini { width: var(--mw, 300px); height: var(--mh2, 200px); max-width: calc(100vw - var(--sw, 300px) - 90px); max-height: calc(100vh - 230px); }
-  .app.nosd #minid.inmap { left: 8px; } .app.zen #minid.inmap { left: 8px; top: 8px; }
+  .app.nosd #minid.inmap, #map:fullscreen #minid.inmap { left: 8px; } #map:fullscreen #minid.inmap { top: 8px; } .app.zen #minid.inmap { left: 8px; top: 8px; }
   #minid.on { opacity: 1; } #minid.on #mrz { pointer-events: auto; }
   #mrz { position: absolute; pointer-events: none; } #minid.side #mrz { left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; } #minid.inmap #mrz { right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; background: linear-gradient(135deg, transparent 50%, #5aa0ffaa 50%); }
   #minid.side #mrz:hover, #mrz.on { background-color: #5aa0ff66; }
@@ -69,7 +74,6 @@
 <body>
 <div class="app" id="app">
   <div id="rsz" title="拖动改左栏宽度；< 140 px 自动隐藏"></div>
-  <div id="ctx"></div>
   <div id="top">
     <button id="sdbtn" title="展开左栏">⫷</button>
     <select id="gsel" title="生成器（s02 §4）"><option value="old">old</option><option value="gp">gp</option><option value="liq">liq</option></select>
@@ -81,7 +85,6 @@
     <span class="sep"></span>
     <button id="game" title="快捷键 ⏎">↗ 进游戏 (⏎)</button> <button id="sub" style="display:none" title="把选区 / 点列表 / 选中的点 + 选区统计一次发给挂在这个页面上的 Agent（Ctrl+⏎）；任何 ⎘ 复制也会自动通知它">→ Agent</button>
   </div>
-  <div id="minid" class="side"><div class="mh">↔ 小图：快放 / 原点预览</div><canvas id="mini"></canvas><div class="kv" id="minik"></div><div id="mrz" title="拖动改小图大小（俯视在左栏顶部只改高度；其他视角在地图左上角，宽高都能改）。快放 / 悬停会随鼠标离开消失，打开原点菜单（⌖ 右键）时它保持显示，可在那时拖"></div></div>
   <div id="side">
     <details><summary>① 世界 <span class="kv" id="wsum" style="font-weight:400"></span></summary><div class="sec">
       <div class="full kv" id="w1"></div>
@@ -92,11 +95,12 @@
       <label>视角 (V)</label><select id="vsel"><option value="top">俯视 −Y（7）</option><option value="south">南侧视 →北（1）</option><option value="north">北侧视 →南（Ctrl 1）</option><option value="east">东侧视 →西（3）</option><option value="west">西侧视 →东（Ctrl 3）</option><option value="bottom">仰视 +Y（Ctrl 7）</option></select>
       <label>着色 (T)</label><select id="shsel"><option value="block">方块色</option><option value="biome">群系色</option><option value="height">高度</option></select>
       <label id="sllab" title="Shift+滚轮在地图上调；拉到最外层 = 地表">切片 Y</label><div class="row" style="flex-wrap:nowrap"><input id="slr" type="range" min="0" max="255"><span class="num" id="slv" style="width:38px;text-align:right"></span></div>
-      <label title="快捷键 R 循环。沿视线从切面到第一个实体要穿过的空气格数。数字：格 ≥ 8 px 时每格写数字（&lt; 10）；水体风格：灰色渐变（近亮远暗），任何缩放都能看。URL air=num|gray">空气距离 (R)</label><select id="airsel"><option value="off">无</option><option value="num">数字</option><option value="gray">水体风格（灰渐变）</option></select>
+      <label title="快捷键 L 循环。叠在地图上的单选图层，只在俯视 / 仰视画：树种 = 树冠 / 树干按种着色；其余是生成器 sample 的各个场（热力图，色阶取已载入数据的 2%…98% 分位）。URL layer=none|tree|f:字段 lop=不透明度">图层 (L)</label><div><div class="chips" id="lchips"></div><div class="row" style="margin-top:3px"><input id="lopr" type="range" min="0.1" max="1" step="0.05" style="flex:1" title="图层不透明度"><span class="num" id="lopv" style="width:38px;text-align:right"></span></div></div>
+      <label></label><div id="lleg"></div>
       <label></label><label style="color:var(--fg)"><input type="checkbox" id="gridc"> 区块网格（G）</label>
-      <label></label><label style="color:var(--fg)" title="小图常驻显示（否则只在悬停 gizmo / 原点菜单时出现）；URL minip=1"><input type="checkbox" id="minipc"> 小图持久化</label>
-      <label title="选区沿视线轴的深度（格）；非俯视的左 / 右键选区用它（俯视一律选到基岩层）">选区深度</label><input id="seld" type="number" min="1" max="256" style="width:70px">
-      <label title="悬停 gizmo 快放：沿视线往深处播放，层数 = 当前选区的深度（没有选区则用选区深度）；在这一行上滚轮调速度">快放速度</label><div class="row" id="nrow"><input id="rate" type="number" min="1" max="60" style="width:56px" title="层 / 秒 1…60">层 / 秒</div>
+      <label></label><label style="color:var(--fg)" title="快捷键 R。沿视线从切面到第一个实体要穿过的空气格数：灰色渐变（近亮远暗，水体风格），任何缩放都能看；格 > 22 px 时再叠黑色数字（&lt; 10）。URL air=1"><input type="checkbox" id="airc"> 空气距离（R）</label>
+      <label></label><label style="color:var(--fg)" title="小图常驻显示（否则只在 Numpad 9 快放 / 原点菜单时出现）；URL minip=1"><input type="checkbox" id="minipc"> 小图持久化</label>
+      <label title="选区深度：沿视线轴的格数（非俯视的左 / 右键选区用它，俯视一律选到基岩）。快放速度：Numpad 9 按住快放，层 / 秒 1…60，层数 = 当前选区深度（没有选区用选区深度）；在速度框上滚轮可调">深度 · 快放</label><div class="row" style="flex-wrap:nowrap"><input id="seld" type="number" min="1" max="256" style="width:56px" title="选区深度（格）">格 ·<span id="nrow"><input id="rate" type="number" min="1" max="60" style="width:50px" title="快放速度：层 / 秒 1…60">层/秒</span></div>
       <label>缩放</label><span class="num kv" id="zv"></span>
     </div></details>
     <details open><summary>③ 方块</summary><div class="sec">
@@ -110,11 +114,22 @@
     </div></details>
   </div>
   <div id="map">
-    <canvas id="cv"></canvas><canvas id="fade"></canvas><canvas id="rul"></canvas>
+  <div id="ctx"></div>
+  <div id="minid" class="side"><div class="mh">↔ 小图：快放 / 原点预览</div><canvas id="mini"></canvas><div class="kv" id="minik"></div><div id="mrz" title="拖动改小图大小（俯视在左栏顶部只改高度；其他视角在地图左上角，宽高都能改）。快放 / 悬停会随鼠标离开消失，打开原点菜单（⌖ 右键）时它保持显示，可在那时拖"></div></div>
+    <!-- #ctx / #minid 放在 #map 里：真全屏只显示 #map 子树，放外面全屏时小图和原点菜单就没了 -->
+    <canvas id="cv"></canvas><canvas id="lay"></canvas><canvas id="fade"></canvas><canvas id="rul"></canvas>
     <div id="tools"><button id="zin" title="放大">＋</button><button id="zout" title="缩小">－</button><button id="home" title="左键：回原点；右键：原点菜单">⌖</button><button id="png" title="导出 PNG">⬇</button><button id="full" title="全屏">⤢</button></div>
     <div id="toast"></div>
     <div id="read">—</div>
-    <canvas id="giz" width="240" height="240" title="点端点切视角；悬停 = 沿视线轴快放 +N 层；悬停其它轴端点 = 沿该轴快放切面（左栏 ④ 画那个方向的剖面）"></canvas>
+    <div id="gzhelp"><b>Numpad 操控</b>
+<span>7 / 1 / 3</span>俯视 / 南 / 东（Ctrl 或 Alt = 仰 / 北 / 西）
+<span>4 6 8 2</span>左 / 右 / 上 / 下 翻整页（无重叠）
+<span>5</span>图层暂时关 / 复原
+<span>9</span>按住 = 沿视线快放，松开停在那一层
+<span>悬停 gizmo</span>快放（+X 向右扫、+Z 向下扫），移开停在那层
+<span>右键 gizmo</span>翻转方向（Y ↔ −Y，以此类推）
+<span>+ −</span>缩放　　点端点 = 切视角</div>
+    <canvas id="giz" width="240" height="240" title="点端点切视角；悬停 = 快放（视线轴 / 空白沿视线，其它轴端点沿该轴，左栏小图画剖面），同时显示 Numpad 操控"></canvas>
   </div>
   <div id="st"><span id="s1">…</span><span id="s2"></span><span id="s2b"></span><span id="s3"></span><span id="s4"></span><span id="s5"></span></div>
 </div>

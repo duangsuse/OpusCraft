@@ -20,9 +20,12 @@
  *   gd hash <x0,y0,z0,x1,y1,z1|LAST>         区域体素哈希
  *   gd set c_.Path=v …                       值按 JSON 解析，失败当字符串
  *   gd eval '<js>'                           页面里执行（可 await），按值返回
- *   gd check [name…|all]                     跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条
+ *   gd check [name…|all] [--matrix old,gp,liq|all]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
+ *                                            --matrix = pgviz 检查在每个生成器下各跑一遍（行名带 @g，跑完回原页面）
  *   gd perf [--frames 120]                   低频：帧时间中位数 / p95 + 渲染器 stats()，追加到 gode/shots/perf.tsv
  *   gd log [-f]                              页面 console / 异常（自上次调用以来）；-f 持续跟随
+ *   gd baseline [show|run|accept]            生成器默认输出基线（给人用）：accept = 接受当前输出为新基线；run = 现在量并打印偏差。
+ *                                            gd down 时若生成器文件动过会自动量一遍，有偏差只写 shots/drift.md + 弹桌面通知，不进任何命令输出
  *   gd inbox [--wait N] [--keep] [-f]        收件箱：用户在页面里点「→ Agent」或任何「⎘ 复制」按钮时，页面经 CDP binding（window.gdSend）把
  *                                            { kind, text/选区/点列表/统计, ctx } 递给守护进程。默认取走并清空；--wait N（≤ 280）= 空则阻塞到有消息；
  *                                            --keep 只看不清；-f 持续跟随（每条一行，给 Monitor 用）。后台跑 `gd inbox --wait 280` 或 Monitor `gd inbox -f` 就能被唤醒
@@ -46,6 +49,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createServer as netServer } from 'node:net';
 import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
 
 //// Lib ///////////////////////////////////////////////////////////////
 // 与具体业务无关的通用件：不得引用下方 App 段的任何变量。
@@ -63,6 +67,10 @@ function readTsv(file) {
   const h = header.split('\t');
   return { header: h, rows: lines.filter(Boolean).map(l => Object.fromEntries(l.split('\t').map((v, i) => [h[i] ?? i, v]))) };
 }
+/** 嵌套对象里的数值叶子 → 点号键（数组、字符串不要） */
+const flatNums = (o, pre = '', out = {}) => { for (const k in o ?? {}) { const v = o[k], p = pre ? pre + '.' + k : k; if (typeof v === 'number' && Number.isFinite(v)) out[p] = v; else if (v && typeof v === 'object' && !Array.isArray(v)) flatNums(v, p, out); } return out; };
+/** 桌面通知（notify-send，没有就算了）：只给人看，不经过 CLI 输出 */
+const notify = (title, body) => { try { spawn('notify-send', ['-u', 'critical', '-a', 'gd', title, body], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); } catch {} };
 const tsvCell = v => String(v ?? '').replace(/[\t\r\n]+/g, ' ');
 
 function freePort() {
@@ -176,9 +184,10 @@ const SHOTS = join(GODE, 'shots'), INDEX = join(SHOTS, 'index.tsv'), CJSON = joi
 const DIR = join(tmpdir(), 'gode-gd'), SOCK = join(DIR, 'sock'), STATE = join(DIR, 'state.json'), DLOG = join(DIR, 'daemon.log');
 const BASE = (process.env.GD_BASE || 'http://localhost:8765/').replace(/\/?$/, '/');
 const IDLE = +(process.env.GD_IDLE || 600) * 1000, SLOW = +(process.env.GD_SLOW || 8) * 1000;
+const BASELINE = join(TOOLS, 'baseline.tsv'), DRIFT_MD = join(SHOTS, 'drift.md'), DRIFT_JSON = join(SHOTS, 'drift.json');
 const INDEX_COLS = ['seq', 'ts', 'tag', 'pose', 'url', 'files', 'note', 'verdict', 'ms'];
 const QUALITY = 82;
-const VALUED = new Set(['seed', 'rd', 'size', 'url', 'tag', 'note', 'vs', 'at', 'frames', 'wait']);
+const VALUED = new Set(['seed', 'rd', 'size', 'url', 'tag', 'note', 'vs', 'at', 'frames', 'wait', 'matrix']);
 
 function parseArgs(argv) {
   const pos = [], o = {};
@@ -215,7 +224,7 @@ async function daemon(opts) {
   process.on('uncaughtException', e => { log('uncaught', e.stack); down('uncaught', 1); });
   process.on('unhandledRejection', e => { log('rejection', e?.stack || e); });
   child.on('exit', c => down(`浏览器退出 ${c}`, 1));
-  setInterval(() => { if (Date.now() - st.last > IDLE) down(`空闲 ${IDLE / 1000}s`); }, 15000).unref();
+  setInterval(() => { if (Date.now() - st.last > IDLE) driftThenDown(`空闲 ${IDLE / 1000}s`); }, 15000).unref();
 
   const ws = new WebSocket(wsUrl);
   await new Promise((res, rej) => { ws.addEventListener('open', res, { once: true }); ws.addEventListener('error', rej, { once: true }); });
@@ -439,7 +448,18 @@ async function daemon(opts) {
   // ── 检查（checks.tsv）──
   const gitChanged = () => { try { return execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean).map(l => l.slice(3)); } catch { return []; } };
   const globRe = g => new RegExp('^' + g.trim().replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
-  const check = async names => {
+  const MATRIX_GENS = ['old', 'gp', 'liq'];
+  const check = async (names, matrix) => {
+    if (matrix) {   // --matrix old,gp,liq（all = 三个）：pgviz 检查在每个生成器下各跑一遍，行名带 @g；跑完回到原页面
+      const gs = matrix === true || matrix === 'all' ? MATRIX_GENS : String(matrix).split(',').filter(Boolean), back = st.url, out = [], fails = [];
+      for (const g of gs) {
+        await navigate(resolveUrl(`gode/viz/?g=${g}`));
+        const r = await check(names); fails.push(r.fail);
+        out.push(`# ── g=${g} ──`, ...r.out.filter(l => !l.startsWith('# 代码')).map(l => l.replace(/^([^\t#]+)/, `$1@${g}`)));
+      }
+      if (back && back !== st.url) await navigate(back);
+      return { out, fail: fails.reduce((a, b) => a + b, 0) };
+    }
     const rl = await autoReload(); await evalJS('window.gdQuiet = true').catch(() => {});   // 检查里点的复制按钮不进收件箱
     const info = await pageInfo(), all = readTsv(CHECKS).rows.filter(r => r.host.split(',').includes(info.host));
     let sel;
@@ -461,6 +481,104 @@ async function daemon(opts) {
     return { out, fail };
   };
 
+  // ── 生成器基线（s12 §11）：人类可读的「默认输出长什么样」。偏差只写进 shots 并在 gd down 时弹桌面通知给人，不进任何 Agent 看得到的命令输出 ──
+  const BASE_SEED = '20240607', BASE_GENS = ['old', 'gp', 'liq'];
+  const BASE_REGIONS = [['原点', [-48, 0, -48, 47, 255, 47]], ['东北', [752, 0, -648, 847, 255, -553]], ['西南', [-1552, 0, 1152, -1457, 255, 1247]]];
+  const BASE_FILES = ['gode/w', 'gode/defl/g', 'gode/vendor', 'goodGP/js', 'goodLiqPG/src/world', 'gode/viz/stats.js', 'gode/viz/species.js'];   // 这些文件没动过，就不必再量
+  const statsVer = () => +(/STATS_VER = (\d+)/.exec(readFileSync(join(GODE, 'viz', 'stats.js'), 'utf8'))?.[1] ?? 0);
+  const baseStamp = () => {
+    const h = createHash('sha1'), walk = p => {
+      let s; try { s = statSync(p); } catch { return; }
+      if (s.isDirectory()) { if (basename(p) !== 'node_modules') for (const n of readdirSync(p).sort()) walk(join(p, n)); }
+      else if (/\.(js|mjs|json)$/.test(p)) h.update(`${relative(ROOT, p)}\0${Math.floor(s.mtimeMs)}\0${s.size}\n`);
+    };
+    for (const f of BASE_FILES) walk(join(ROOT, f));
+    return h.digest('hex').slice(0, 12);
+  };
+  const LABEL = [[/^ground\.h\./, '地表高 '], [/^ground\.top\./, '地表方块 '], [/^blocks\./, '方块 '], [/^ores\./, '矿 '], [/^biomes\./, '群系 '], [/^water\./, '水 '], [/^cave\./, '洞穴 '],
+    [/^trees\.bySpecies\./, '树种 '], [/^trees\./, '树 '], [/^noise\./, '噪声场 '], [/^air\./, '空气 ']];
+  const WORD = { count: '棵数', per1kCols: '每千列', leafCells: '树叶格', meanHeight: '平均高', perColumn: '每列', airBelowGround: '地下空气格', lakeCols: '湖列数', lakeShare: '湖占比', share: '占比', cols: '列数', meanDepth: '平均水深', mean: '均值', min: '最小', max: '最大', cells: '格数', byY16: '按 y/16' };
+  const labelOf = k => { for (const [re, t] of LABEL) if (re.test(k)) return t + k.replace(re, '').split('.').map(w => WORD[w] ?? w).join(' '); return k.split('.').map(w => WORD[w] ?? w).join(' '); };
+  // 在页面里量：每个生成器 × 每个区域的 viz.stats（默认参数、固定种子）→ [{ g, region, key, value }]
+  const measure = async () => {
+    const rows = [], skip = /^(ms|columns|kw)(\.|$)/;
+    for (const g of BASE_GENS) {
+      await navigate(resolveUrl(`gode/viz/?g=${g}&seed=${BASE_SEED}`));
+      for (const [region, box] of BASE_REGIONS) {
+        const r = await evalJS(`viz.stats({ sel: ${JSON.stringify(box)}, go: true, fresh: true })`, 120000);
+        if (r.columns?.missingChunks) throw new Error(`${g} ${region}：还有 ${r.columns.missingChunks} 个区块没到`);
+        for (const [key, value] of Object.entries(flatNums(r))) if (!skip.test(key)) rows.push({ g, region, key, value });
+      }
+    }
+    return rows;
+  };
+  const writeBaseline = rows => writeFileSync(BASELINE, [`# gode 生成器默认输出基线：默认参数、种子 ${BASE_SEED}、每个生成器 ${BASE_REGIONS.length} 个 96×96 区域的统计（viz.stats）。人可读、可 git diff。`,
+    `# 建立于 ${new Date().toISOString()}；统计口径版本 statsver=${statsVer()}。有意改了生成器之后运行 gd baseline accept 接受新基线（别让 Agent 去「修」偏差）。`,
+    `# statsver\t${statsVer()}`, 'gen\tregion\tkey\tvalue', ...rows.map(r => `${r.g}\t${r.region}\t${r.key}\t${r.value}`)].join('\n') + '\n');
+  const readBaseline = () => {
+    if (!existsSync(BASELINE)) return null;
+    const txt = readFileSync(BASELINE, 'utf8'), ver = +(/^# statsver\t(\d+)/m.exec(txt)?.[1] ?? 0), made = /建立于 (\S+?)；/.exec(txt)?.[1];
+    return { ver, made, rows: readTsv(BASELINE).rows.map(r => ({ g: r.gen, region: r.region, key: r.key, value: +r.value })) };
+  };
+  const pct = (a, b) => a === 0 ? (b === 0 ? 0 : Infinity) : (b - a) / Math.abs(a);
+  const fmtPct = p => !Number.isFinite(p) ? '新出现' : (p >= 0 ? '+' : '') + (p * 100).toFixed(1) + '%';
+  const compare = (base, now) => {
+    const m = new Map(base.rows.map(r => [`${r.g}|${r.region}|${r.key}`, r.value])), seen = new Set(), ch = [];
+    for (const r of now) { const k = `${r.g}|${r.region}|${r.key}`; seen.add(k); const a = m.get(k) ?? 0; if (Math.abs(r.value - a) > 1e-9) ch.push({ ...r, a, p: pct(a, r.value), added: !m.has(k) }); }
+    for (const [k, a] of m) if (!seen.has(k) && a !== 0) { const [g, region, ...key] = k.split('|'); ch.push({ g, region, key: key.join('|'), a, value: 0, p: -1, removed: true }); }
+    return ch;
+  };
+  const driftReport = (ch, base) => {
+    const L = [`# 生成器默认输出与基线的偏差`, '', `时间 ${new Date().toLocaleString()} · 基线 gode/tools/baseline.tsv（${base.made ?? '?'}） · 种子 ${BASE_SEED}、默认参数`, '',
+      '这是给人看的提醒，不是测试失败。**有意改了生成器** → 在终端运行 `gd baseline accept` 接受新基线；**不是有意的** → 看下面哪些量动了，再决定是否回退。', ''];
+    for (const g of BASE_GENS) {
+      const cs = ch.filter(c => c.g === g); L.push(`## ${g}：${cs.length ? cs.length + ' 项变化' : '没有变化'}`, '');
+      for (const [region] of BASE_REGIONS) {
+        const rc = cs.filter(c => c.region === region).sort((x, y) => Math.abs(Number.isFinite(y.p) ? y.p : 9) - Math.abs(Number.isFinite(x.p) ? x.p : 9));
+        if (!rc.length) continue;
+        L.push(`**${region}**（${rc.length} 项${rc.length > 30 ? '，只列相对变化最大的 30 项' : ''}）`, '');
+        for (const c of rc.slice(0, 30)) L.push(`- ${labelOf(c.key)}：${+c.a.toFixed(4)} → ${+c.value.toFixed(4)}（${c.removed ? '消失' : fmtPct(c.p)}）`);
+        L.push('');
+      }
+    }
+    return L.join('\n');
+  };
+  const measureAndCompare = async ({ accept }) => {
+    const t0 = Date.now(), rows = await measure(), base = readBaseline(), stamp = baseStamp(), sv = statsVer();
+    const st0 = { stamp, ts: new Date().toISOString(), ver: sv };
+    if (accept || !base) {
+      writeBaseline(rows); rmSync(DRIFT_MD, { force: true }); writeFileSync(DRIFT_JSON, JSON.stringify({ ...st0, result: 'ok', note: accept ? '已接受' : '首次建立' }) + '\n');
+      return { kind: base ? 'accepted' : 'created', rows: rows.length, ms: Date.now() - t0 };
+    }
+    if (base.ver !== sv) {   // 统计口径变了：新旧不可比，不当成偏差，只提醒人重建
+      writeFileSync(DRIFT_MD, `# 基线口径过期\n\n统计口径版本 ${base.ver} → ${sv}，新旧数字不可比，没有比较。确认生成器没动后运行 \`gd baseline accept\` 重建基线。\n`);
+      writeFileSync(DRIFT_JSON, JSON.stringify({ ...st0, result: 'stale' }) + '\n');
+      return { kind: 'stale', ms: Date.now() - t0 };
+    }
+    const ch = compare(base, rows), by = BASE_GENS.map(g => `${g} ${ch.filter(c => c.g === g).length}`).join(' · ');
+    writeFileSync(DRIFT_JSON, JSON.stringify({ ...st0, result: ch.length ? 'drift' : 'ok', changes: ch.length }) + '\n');
+    if (ch.length) {
+      writeFileSync(DRIFT_MD, driftReport(ch, base));
+      appendIndex({ seq: nextSeq(), ts: st0.ts, tag: 'drift', pose: 'baseline', url: '', files: '', note: `生成器默认输出与基线有偏差（${by}）；详见 shots/drift.md，有意的改动用 gd baseline accept 接受`, verdict: 'drift', ms: Date.now() - t0 });
+    } else rmSync(DRIFT_MD, { force: true });
+    return { kind: ch.length ? 'drift' : 'ok', ch, by, ms: Date.now() - t0 };
+  };
+  let downing = false;
+  // gd down / 空闲自退时：生成器相关文件自上次测量以来动过，就在关浏览器前量一遍；有偏差只弹桌面通知（不进任何命令输出）
+  const driftThenDown = async why => {
+    if (downing) return; downing = true;
+    try {
+      if (st.url && existsSync(join(GODE, 'viz')) && readJson(DRIFT_JSON, {}).stamp !== baseStamp()) {
+        const r = await Promise.race([measureAndCompare({}), sleep(150000).then(() => { throw new Error('超时 150s'); })]);
+        log('基线', r.kind, r.by ?? '', r.ms + 'ms');
+        if (r.kind === 'drift') notify('gd：生成器默认输出与基线有偏差', `${r.by} 项变化\n详见 gode/shots/drift.md（画廊里也有一行）\n有意的改动：gd baseline accept`);
+        else if (r.kind === 'created') notify('gd：已建立生成器基线', 'gode/tools/baseline.tsv；之后生成器默认输出变了会在 gd down 时提醒你');
+        else if (r.kind === 'stale') notify('gd：生成器基线口径过期', '统计口径变了，新旧不可比。确认生成器没动后：gd baseline accept');
+      }
+    } catch (e) { log('基线测量失败', e.message); }
+    down(why);
+  };
+
   // ── 命令表 ──
   const CMD = {
     async ping() { return ['pong']; },
@@ -472,7 +590,17 @@ async function daemon(opts) {
       const idle = Math.round((Date.now() - st.last) / 1000);
       return [`daemon\t${st.pid}`, `browser\tpgid ${pgid}\talive ${isAlive(pgid)}\tport ${port}\t${st.ss ? 'swiftshader' : 'prime-run'}`, `url\t${st.url}`, `idle\t${idle}s / ${IDLE / 1000}s`, `inbox\t待取 ${inbox.length}\t在听 ${listening()}`, `profiles\t${pidsMatching(PROFILE_PREFIX).length} 个进程匹配 ${PROFILE_PREFIX}`];
     },
-    async down() { setTimeout(() => down('gd down'), 50); return ['down']; },
+    async down() { setTimeout(() => driftThenDown('gd down'), 50); return ['down']; },
+    // 给人用：run = 现在量一遍并打印偏差；accept = 接受当前输出为新基线；show（默认）= 基线与上次结果
+    async baseline(o) {
+      const sub = o.sub || 'show';
+      if (sub === 'show') { const b = readBaseline(), d = readJson(DRIFT_JSON, null); return [b ? `基线 ${b.made ?? '?'}  statsver ${b.ver}  ${b.rows.length} 项` : '还没有基线（gd baseline accept 建立）', d ? `上次测量 ${d.ts}  ${d.result}${d.changes ? ' ' + d.changes + ' 项' : ''}` : '还没测量过']; }
+      if (sub !== 'run' && sub !== 'accept') throw new Error('gd baseline [show|run|accept]');
+      const r = await measureAndCompare({ accept: sub === 'accept' }), t = `${(r.ms / 1000).toFixed(1)}s`;
+      if (r.kind === 'accepted' || r.kind === 'created') return [`基线已${r.kind === 'created' ? '建立' : '更新'}：${BASELINE}（${r.rows} 项，${t}）`];
+      if (r.kind === 'stale') return ['统计口径变了，新旧不可比；gd baseline accept 重建'];
+      return r.ch.length ? [`有偏差：${r.by}（${t}）`, '详见 gode/shots/drift.md'] : [`与基线一致（${t}）`];
+    },
     async go(o) {
       const url = resolveUrl(o.q);
       if (url === st.url) return ['# 与当前 URL 相同，跳过', url];
@@ -501,7 +629,7 @@ async function daemon(opts) {
       return out;
     },
     async eval(o) { const v = await evalJS(`(async () => (${o.js}))()`); return [typeof v === 'string' ? v : JSON.stringify(v, null, 1)]; },
-    async check(o) { try { return await check(o.names); } finally { await evalJS('window.gdQuiet = false').catch(() => {}); } },
+    async check(o) { try { return await check(o.names, o.matrix); } finally { await evalJS('window.gdQuiet = false').catch(() => {}); } },
     async perf(o) {
       const n = +(o.frames || 120);
       const r = await evalJS(`(async () => { const d = []; let t = performance.now(); for (let i = 0; i < ${n}; i++) { await new Promise(r => requestAnimationFrame(r)); const u = performance.now(); d.push(u - t); t = u; }
@@ -588,8 +716,9 @@ async function main() {
     case 'hash': body = { b: pos[1] || 'LAST' }; break;
     case 'set': body = { kv: pos.slice(1) }; break;
     case 'eval': body = { js: pos.slice(1).join(' ') }; break;
-    case 'check': body = { names: pos.slice(1) }; break;
+    case 'check': body = { names: pos.slice(1), matrix: o.matrix }; break;
     case 'perf': body = { frames: o.frames }; break;
+    case 'baseline': body = { sub: pos[1] }; break;
     case 'inbox': if (o.f) { if (!await alive()) process.exit(1); for (;;) { const r = await req('inbox', { wait: 25 }, 40000); for (const l of r.out ?? []) console.log(l); } } body = { wait: o.wait, keep: o.keep }; break;
   }
   if (cmd !== 'up' && cmd !== 'down' && cmd !== 'ps' && !await alive()) await ensureUp(o).then(() => req('up', {}));   // 没在跑就顺手 up

@@ -64,3 +64,5 @@
 | 3 | BBat 多图层 + 依存骨骼树 → 动画实体 | s08 §5 |
 | 4 | clawd、LS、零点同步写回、钻石箱 | s08 |
 - [11-09 追加] pgviz：快放 N 框去掉（层数 = 选区深度，速度单框挪到「选区深度」下）；左 / 右键选区只有俯视到基岩，其余视角按 seld（检查 `viz-seldepth`）。
+- [11-09 追加] pgviz V2 一部分：图层 chip（树种 + 各 sample 场热力图，`L` 键）、树按种统计；slicer 引擎默认动词 `field`；`gd check --matrix`；生成器基线 `gd baseline`（偏差只写 shots + `gd down` 时桌面通知，不进 Agent 的输出），见 s13 §9、s12 §11。genhash 在宿主 B 连跑 39 次（含 check all 之后、reload 之后）全稳定。
+- [11-09 追加（三）] pgviz：空气距离改复选框（灰渐变，> 22 px 叠黑数字）、深度 / 快放一行、giz 悬停 = Numpad 帮助；Numpad 4 6 8 2 翻页、5 图层暂时关、9 按住快放，见 s13 §10。

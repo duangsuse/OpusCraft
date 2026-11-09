@@ -41,7 +41,7 @@ gd xz <file.xz|-> [--at @x,z^y] [--frame] [--shot]   追加文本体素（s06 §
 gd mark / gd revert                                  世界改动打点 / 回滚到打点（试错不累积）
 gd set c_.Path=v …                                   走 gm.pane.set（与 &json= 同路由）
 gd eval '<js>'                                       页面里执行，按值返回
-gd check [name…]                                     跑 checks.tsv（§6）
+gd check [name…] [--matrix old,gp,liq|all]           跑 checks.tsv（§6）；--matrix = pgviz 检查在每个生成器下各跑一遍
 gd perf [--frames 120]                               低频：帧时间中位数 + 渲染器 stats()，不进默认 loop
 gd log [-f]                                          页面 console / 异常（自上次调用以来）
 ```
@@ -191,3 +191,16 @@ gd 的浏览器是有头的，用户可以直接在 Agent 打开的页面里操�
 - **健壮性**：客户端被杀（Ctrl-C / 超时 / Monitor 停了）时，等待中的请求不取走消息（`res.on('close')`）；`gd ps` 显示「待取 / 在听」；`gd check` 期间页面置 `window.gdQuiet`，检查里点的按钮不进收件箱。
 - **kind**：`copy:point | sample | sel | url | gd | origins`（任何 ⎘ 复制都会通知，带 `text`）、`submit`（「→ Agent」按钮 / Ctrl+⏎ / `viz.submit()`）：`{ sel, selAt, hit, origins, originsText, sample, stats }`，其中 `stats` 就是 `viz.stats({sel})` 的整份结果（Agent 一收到就有数字，见 s13 §7）。
 - 页面入口：顶栏「→ Agent」、⑤ 选区行、原点菜单；`viz.submit({dry:true})` 只返回要发的内容。检查 `viz-agent`（binding、按钮、提交内容，dry）。
+
+## 11. 生成器基线与 `--matrix` [11-09]
+
+**`gd check --matrix all`**：pgviz 的检查默认只在当前页面的生成器下跑；`--matrix old,gp,liq`（`all` = 三个）逐个 `gd go gode/viz/?g=…` 各跑一遍，行名带 `@g`，跑完回原页面。
+
+**基线（人类可读，只提醒人）**。生成器默认输出不该「悄悄变」，但创作者本来就会改生成器，所以**不用哈希指纹**（一改就红，还会让 Agent 去把有意的改动「修」回去），而是：
+
+- `gode/tools/baseline.tsv`：`gen region key value`，默认参数、种子 20240607、每个生成器 3 个 96×96 区域（原点 / 东北 / 西南）的 `viz.stats`（地表高、方块计数、矿、群系、水、洞、树按种、噪声场……，约 900 项）。可读、可 `git diff`、可手改。
+- **偏差的流向**：`gd down`（含空闲 10 min 自退）时，若 `gode/w、defl/g、vendor、goodGP/js、goodLiqPG/src/world、viz/stats.js、viz/species.js` 自上次测量以来动过（mtime 摘要，记在 `shots/drift.json`），守护进程在**回复完 `down` 之后**留在后台量一遍（约 10–25 s，浏览器窗口多留一会儿）；有偏差 → 写 `shots/drift.md`（按生成器 / 区域列「量：旧 → 新（+x%）」，相对变化大的在前）+ `shots/index.tsv` 一行 `tag=drift`（画廊里置顶、橙色、链到 drift.md）+ **桌面通知**（`notify-send -u critical`）。**不进任何命令输出**：`gd down` 只回 `down`，`gd check`、`gd ps` 都不提。
+- 人的动作：有意的改动 → `gd baseline accept`（重新量并写入基线，清掉 drift.md）；不是有意的 → 看 drift.md 决定。`gd baseline run` 现在就量并打印是否有偏差；`gd baseline` 看基线日期与上次结果。**这些是给人用的，Agent 不要自作主张去 accept 或「修」偏差。**
+- 没有基线时第一次 `gd down` 自动建立并通知一次。统计口径变了（`stats.js` 的 `STATS_VER`）→ 新旧不可比，不当偏差，只通知「口径过期」让人重建。
+- 实测：全部 3 个生成器连量两遍逐项相同（确定性）；默认等价性在加 `meta.knobs` 当时已对拍过（旧工作树 vs 新，哈希相同），基线从那之后的状态建立。
+

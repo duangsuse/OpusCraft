@@ -48,6 +48,7 @@ function guess(n) {
   return ((h >>> 8) & 0x7f7f7f) + 0x303030;    // 未知名字：稳定的中等亮度色
 }
 
+export const blockColor = (n) => guess(n);
 export function cls(n) { return !n || n === 'air' || n === 'cave_air' || n === 'void_air' ? 0 : FLUID.test(n) ? 2 : PLANT.test(n) ? 3 : 1; }
 
 // 4096 项 RGBA8：rgb = 方块色，a = 分类 × 64

@@ -8,6 +8,7 @@ import { Store, key } from './store.js';
 import { Pool } from './pool.js';
 import { blockLUT, biomeLUT } from './palette.js';
 import { regionStats, diffStats } from './stats.js';
+import { Layers } from './layers.js';
 import { resolveParams, diffFromDefault, parseKw, fmtKw, flatten } from '../w/params.js';
 
 const $ = (id) => document.getElementById(id);
@@ -37,14 +38,14 @@ const dedupeOrigins = (a) => { const seen = new Set(); return a.filter(o => { co
 const parseOrigins = (t) => dedupeOrigins(parseOriginsRaw(t));
 const parseOriginsRaw = (t) => String(t || '').split(';').map(x => x.split(':')).filter(a => a.length >= 2).map(a => { const p = a[a.length - 1].split(',').map(Number); return p.length === 2 && p.every(Number.isFinite) ? { n: cleanName(a.slice(0, -1).join(':')), x: Math.round(p[0]), z: Math.round(p[1]) } : null; }).filter(Boolean);
 let lsOrigins = []; try { const raw = localStorage.getItem('pgviz.origins'); lsOrigins = parseOrigins(raw); const clean = lsOrigins.map(o => `${o.n}:${o.x},${o.z}`).join(';'); if (raw !== null && raw !== clean) localStorage.setItem('pgviz.origins', clean); } catch {}   // 启动时顺手清掉 localStorage 里的重复项
-const AIR_MODES = { off: 0, num: 1, gray: 2 };   // 空气距离：无 / 数字 / 水体风格（灰渐变）
-function parseAir(v) { return v === true || v === '1' || v === 1 ? 'num' : v in AIR_MODES ? v : 'off'; }
+// 空气距离：开关。开 = 水体风格灰渐变（近亮远暗）；格 > 22 px 时再叠黑色数字。旧 URL 的 air=num|gray|1 都读作开
+function parseAir(v) { return v === true || v === 1 || ['1', 'true', 'num', 'gray'].includes(v); }
 const S = {
   kw: parseKw(q.get('kw')),   // 生成器参数覆盖（点号键 → 数；s02 §2.1），只存偏离默认的
   g: q.get('g') || 'gp', seed: q.get('seed') ?? '20240607', view: VIEWS[q.get('view')] ? q.get('view') : 'top',
   x: num('x', 0), y: num('y', null), z: num('z', 0), zoom: num('zoom', 2),
   slice: q.get('mode') === 'surface' ? null : num('slice', null),    // null = 地表（从最外层开始）
-  fill: clamp(num('fill', 0.9), 0.2, 1), air: parseAir(q.get('air')),
+  fill: clamp(num('fill', 0.9), 0.2, 1), air: parseAir(q.get('air')), layer: /^(none|tree|f:[\w.-]+)$/.test(q.get('layer') ?? '') ? q.get('layer') : 'none', lop: clamp(num('lop', 0.75), 0.1, 1),
   shade: ['block', 'biome', 'height'].includes(q.get('shade')) ? q.get('shade') : 'block', grid: q.get('grid') === '1', sel: parseSel(q.get('sel')) ?? parsePin(q.get('pin')),   // 旧 pin= 3 / 6 元 → sel
   origin: parsePair(q.get('origin')) ?? [0, 0], origins: q.has('origins') ? parseOrigins(q.get('origins')) : lsOrigins,
   hit: parsePair3(q.get('hit')), rate: clamp(num('rate', 12), 1, 60), minip: q.get('minip') === '1', seld: clamp(num('seld', 16), 1, 256),
@@ -58,13 +59,14 @@ addEventListener('error', (e) => errs.push('uncaught: ' + (e.message || e.error)
 addEventListener('unhandledrejection', (e) => errs.push('rejection: ' + (e.reason?.message ?? e.reason)));
 
 // ---- 运行时对象 ----
-const cv = $('cv'), R = new Renderer(cv);
+const cv = $('cv'), R = new Renderer(cv), LY = new Layers($('lay'));
 let pool = null, poolUrl = '', meta = null, store = null, H = 256;
 const busy = new Set();                // 在途：'g' + key（整块）/ 'c' + key（列）
 let n3 = [], n2 = [], wc = null;       // 待生成（最近优先）、窗口中心区块
 const dirty3 = new Set(), dirty2 = new Set();
 const st = { t0: 0, t1: 0, got: 0, wms: 0, clip: 0, cols: 0, pn: 0 };   // got / wms 累计；t0 t1 pn = 当前这一轮加载（墙钟）
 let waiters = [], fadeEnd = 0, booting = null, frameReq = 0, gizHover = null, play = null;
+const live = () => !!play && !play.frozen;   // 快放中（frozen = 其它轴的扫描线 / 剖面已停在某层，Esc 取消）
 let hov = null;                        // 最近一次地图悬停：{ px, py, c, r, p }
 let selA = null, edge = null, copied = '', pinV = null, pinK = '';   // pinV / pinK：③ 近端格的 sample 缓存
 
@@ -81,7 +83,8 @@ async function boot() {
   meta = await pool.init({ seed: S.seed, g: S.g, kw: S.kw });
   H = meta.h ?? 256;
   if (S.y === null) S.y = meta.sea ?? 64;   // 侧视的屏幕中心高度：默认海平面（liq 127）
-  store = new Store(meta);
+  store = new Store(meta); LY.reset(meta);
+  pool.call('sample', { x: 0, z: 0 }).then((s) => { LY.setFields(Object.keys(s ?? {}).filter(k => typeof s[k] === 'number' && k !== 'biome')); syncUI(); frame(); }).catch(() => {});
   S.zoom = clampZoom(S.zoom);
   R.alloc(Math.min(MAX3, Math.ceil(wantSizes()[0] / 8) * 8), H); R.clear2(); lutRGB = blockLUT(meta.names ?? []); pcache.clear(); pPend.clear(); R.palette(lutRGB, biomeLUT(meta));
   Object.assign(st, { t0: performance.now(), t1: 0, got: 0, wms: 0, clip: 0, cols: 0, pn: 0 });
@@ -144,13 +147,13 @@ function got3(m, g) {
   busy.delete('g' + k);
   if (g !== pool.gen || !store.inWin(m.cx, m.cz)) return done();
   st.got++; st.pn++; st.wms += m.ms; st.clip += m.clip ?? 0;
-  for (const r of store.put(m)) { dirty3.add(r); dirty2.add(key(r.cx, r.cz)); }
+  for (const r of store.put(m)) { dirty3.add(r); dirty2.add(key(r.cx, r.cz)); LY.dropChunk(r.cx, r.cz); }
   done();
 }
 function got2(m, g) {
   const k = key(m.cx, m.cz);
   busy.delete('c' + k);
-  if (g === pool.gen && store.inWin2(m.cx, m.cz) && store.putCol(m)) { st.cols++; st.pn++; dirty2.add(k); }
+  if (g === pool.gen && store.inWin2(m.cx, m.cz) && store.putCol(m)) { st.cols++; st.pn++; dirty2.add(k); LY.dropChunk(m.cx, m.cz); }
   done();
 }
 const idle = () => store && !n3.length && !n2.length && !busy.size;
@@ -164,7 +167,7 @@ function range() {
   const outer = dir < 0 ? hi : lo, end = dir < 0 ? lo : hi;
   let start = S.slice === null ? outer : clamp(S.slice, lo, hi);
   const base = start;
-  if (play && play.axis === a) start = clamp(start + dir * play.off, lo, hi);
+  if (live() && play.axis === a) start = clamp(start + dir * play.off, lo, hi);
   return { a, dir, start, base, end, lo, hi, outer };
 }
 const center3 = () => [S.x, S.y, S.z];
@@ -189,18 +192,38 @@ function draw() {
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const mp = !previewing && miniPlay(); if (mp) mini(mp);
   const v = VIEWS[S.view], rg = range();
-  const clip = play && play.axis !== rg.a ? [play.axis, play.sign, clipVal(), 1] : [0, 0, 0, 0];
+  const clip = play && play.axis !== rg.a ? [play.axis, -play.sign, clipVal(), 1] : [0, 0, 0, 0];   // 压暗的是「已扫过」的那一侧（扫描方向的背后），所以符号取反
   const mk = hov?.r?.hit ?? hov?.r?.water;
-  const e = R.draw(viewParams(v, { res: [w, h], center: center3(), zoom: S.zoom * k, start: rg.start, end: rg.end, air: AIR_MODES[S.air], grid: S.grid, clip, mark: mk ? [...mk, 1] : [0, 0, 0, 0] }));
+  const e = R.draw(viewParams(v, { res: [w, h], center: center3(), zoom: S.zoom * k, start: rg.start, end: rg.end, air: S.air ? 1 : 0, grid: S.grid, clip, mark: mk ? [...mk, 1] : [0, 0, 0, 0] }));
   if (e) errs.push(e);
+  layerDraw(rg);
   ruler(); sliceUI(rg); tlUI();
   if (dirty3.size || dirty2.size) frame();
   status();
   if (idle() && !dirty3.size && !dirty2.size && waiters.length) { const ws = waiters; waiters = []; ws.forEach(f => f()); }
 }
+// 图层叠加（layers.js）：只在俯视 / 仰视画；世界 x / z → 屏幕 px 复用 toScreen（含仰视的翻转）
+function layerDraw(rg) {
+  LY.id = S.layer; LY.op = S.lop;
+  const a = planeAt(0, 0), b = planeAt(cv.clientWidth, cv.clientHeight);
+  LY.draw({ store, pool, W: cv.clientWidth, H: cv.clientHeight, sx: (x) => toScreen(0, x, true), sz: (z) => toScreen(2, z, false), zoom: S.zoom,
+    rect: [Math.floor(Math.min(a[0], b[0])), Math.floor(Math.min(a[2], b[2])), Math.ceil(Math.max(a[0], b[0])), Math.ceil(Math.max(a[2], b[2]))], on: rg.a === 1, onGot: () => { frame(); layerUI(); } });
+}
+const layerOn = () => S.layer !== 'none' && axisOf(VIEWS[S.view].F) === 1;
+function layerUI() {   // ② 图层：chip 单选 + 不透明度 + 图例
+  LY.id = S.layer; const box = $('lchips'), ls = LY.list(), sig = ls.map(l => l.id).join(',') + '|' + S.layer;
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig; box.innerHTML = '';
+    for (const l of ls) { const b = document.createElement('button'); b.textContent = l.name; b.dataset.l = l.id; b.className = 'chip' + (l.id === S.layer ? ' on' : ''); b.title = l.id === 'none' ? '不叠加' : l.kind === 'cat' ? '按树种给树冠 / 树干着色' : `生成器 sample 的字段「${l.name}」热力图`; box.appendChild(b); }
+  }
+  $('lopr').value = S.lop; $('lopv').textContent = Math.round(S.lop * 100) + '%';
+  $('lleg').innerHTML = (S.layer !== 'none' && axisOf(VIEWS[S.view].F) !== 1 ? '<span class="dim">（只在俯视 / 仰视画）</span>' : '') + LY.legend(store);
+}
+function setLayer(id) { if (id !== 'none' && !LY.valid(id) && LY.fields.length) throw new Error('layer ∈ ' + LY.list().map(l => l.id).join(' ')); S.layer = id; changed(); }
 // 有选区时，小图 / 扫描线都「关于选区」：剖面过选区中心；扫描线从选区在悬停轴上的近端（朝向悬停端点的那一侧）起，向里走 N 层（不限于选区范围，超出继续走满 N 层）；没有选区时用视口中心
 const focusPt = () => S.sel ? [(S.sel[0] + S.sel[3] + 1) / 2, (S.sel[1] + S.sel[4] + 1) / 2, (S.sel[2] + S.sel[5] + 1) / 2] : center3();
-const clipVal = (pl = play) => (S.sel ? (pl.sign > 0 ? S.sel[pl.axis + 3] : S.sel[pl.axis]) : Math.round(center3()[pl.axis])) - pl.sign * pl.off;
+// 扫描线位置：悬停 +X 端点 = 向 +X 扫（俯视：X+ 向右、Z+ 向下，−端点反向，其它视角同理）；从选区在该轴上背向悬停端点的那条边起（没有选区 = 视口中心），每层走一格
+const clipVal = (pl = play) => (S.sel ? (pl.sign > 0 ? S.sel[pl.axis] : S.sel[pl.axis + 3]) : Math.round(center3()[pl.axis])) + pl.sign * pl.off;
 // 小图用的「播放态」：快放中 = play；小图常驻（minip）且没在快放 = 沿主视线轴的静态剖面（无扫描线）
 const miniPlay = () => play ?? (S.minip && store ? { axis: axisOf(VIEWS[S.view].F), sign: -VIEWS[S.view].F[axisOf(VIEWS[S.view].F)], off: 0 } : null);
 
@@ -275,10 +298,10 @@ function world() {
 // ---- UI 同步 ----
 function syncUI() {
   $('seed').value = S.seed; $('gsel').value = /^(old|gp|liq)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade;
-  $('rate').value = S.rate; $('minipc').checked = S.minip; $('airsel').value = S.air; $('gridc').checked = S.grid;
-  $('seld').value = S.seld;
+  $('rate').value = S.rate; $('minipc').checked = S.minip; $('airc').checked = S.air; $('gridc').checked = S.grid;
+  $('seld').value = S.seld; layerUI();
   $('fillr').value = S.fill; $('fillv').textContent = Math.round(S.fill * 100) + '%';
-  $('zv').textContent = `${+S.zoom.toFixed(3)} px/格` + (S.air === 'num' && S.zoom < 8 ? '（< 8，不画数字；水体风格不受限）' : '');
+  $('zv').textContent = `${+S.zoom.toFixed(3)} px/格` + (S.air && S.zoom <= 22 ? '（> 22 才叠数字）' : '');
   const ok = S.g === 'old', gb = $('game');
   gb.classList.toggle('off', !ok); gb.style.opacity = ok ? '' : 0.4;
   gb.title = ok ? '在宿主 B 打开同种子世界，落在选区中心 / 悬停点 / 视图中心（创造飞行，一次性世界、不写存档）' : 'M1 起可用（宿主 B 只有 old 地形）';
@@ -291,12 +314,12 @@ function sliceUI(rg) {
   for (const b of $('modes').children) b.classList.toggle('on', b.dataset.m === mode());
   const s = $('slr'); s.min = rg.lo; s.max = rg.hi; s.value = rg.start;
   $('sllab').textContent = '切片 ' + AXN[rg.a];
-  $('slv').textContent = rg.start + (play && play.axis === rg.a ? '▸' : '');
+  $('slv').textContent = rg.start + (live() && play.axis === rg.a ? '▸' : '');
 }
 function urlParams(o = {}) {
   const p = new URLSearchParams({ g: S.g, seed: S.seed, view: S.view, x: Math.round(S.x), z: Math.round(S.z), y: Math.round(S.y ?? 64), zoom: +S.zoom.toFixed(3) });
   if (S.slice !== null) p.set('slice', S.slice);
-  if (S.fill !== 0.9) p.set('fill', S.fill); if (S.rate !== 12) p.set('rate', S.rate); if (S.minip) p.set('minip', 1); if (S.air !== 'off') p.set('air', S.air);
+  if (S.fill !== 0.9) p.set('fill', S.fill); if (S.rate !== 12) p.set('rate', S.rate); if (S.minip) p.set('minip', 1); if (S.air) p.set('air', 1); if (S.layer !== 'none') p.set('layer', S.layer); if (S.lop !== 0.75) p.set('lop', S.lop);
   if (Object.keys(S.kw).length) p.set('kw', fmtKw(S.kw));
   if (S.shade !== 'block') p.set('shade', S.shade); if (S.grid) p.set('grid', 1); if (S.sel) p.set('sel', S.sel.join(','));
   if (hasOrigin()) p.set('origin', S.origin.join(',')); if (S.hit && S.sel && inBox(S.hit, S.sel)) p.set('hit', S.hit.join(','));
@@ -313,6 +336,7 @@ function changed() { syncUI(); recenter(); frame(); }
 // ---- 视角切换（150 ms 淡出旧图） ----
 function setView(v) {
   if (!VIEWS[v] || v === S.view) return;
+  if (play?.frozen && play.axis === axisOf(VIEWS[v].F)) stopPlay();   // 固定的剖面轴成了视线轴：没意义了
   const f = $('fade'); f.width = cv.width; f.height = cv.height;
   f.getContext('2d').drawImage(cv, 0, 0); f.style.transition = 'none'; f.style.opacity = 1;
   requestAnimationFrame(() => { f.style.transition = ''; f.style.opacity = 0; });
@@ -364,7 +388,7 @@ function blockInfo(p, r, d2, smp) {
 }
 function hoverPanel() {   // 悬停：只放不需要采样的实时字段
   if (!hov || !store) return;
-  $('hkv').innerHTML = blockInfo(hov.p, hov.r, hov.d2);
+  $('hkv').innerHTML = blockInfo(hov.p, hov.r, hov.d2) + (layerOn() ? `\n图层    ${S.layer === 'tree' ? '树种' : S.layer.slice(2)}  ${LY.valueAt(store, hov.p[0], hov.p[2])}` : '');
 }
 function pinPanel() {   // ③ 已选中 = 当前选区的近端格 + 选区范围
   if (!store) return;
@@ -507,7 +531,7 @@ cv.addEventListener('wheel', (e) => {
   e.preventDefault();
   const [px, py] = local(e);
   if (e.shiftKey) {   // Shift+滚轮：切片沿视线方向进 / 退（Ctrl 一次 8 层）
-    const d = Math.sign(e.deltaY || e.deltaX), rg = range();
+    const d = -Math.sign(e.deltaY || e.deltaX), rg = range();   // 滚轮向上 = 往深处（方向已取反）
     if (d) setSlice((S.slice ?? rg.outer) + d * rg.dir * (e.ctrlKey ? 8 : 1));
   } else {
     const before = planeAt(px, py);
@@ -603,7 +627,7 @@ function paintPreview(o) {
   return miss;
 }
 function previewOrigin(o) {
-  if (!store || play) return;
+  if (!store || live()) return;
   lastPrev = o; previewing = true; const tok = ++pTok, p0 = pool, g0 = pool.gen;
   $('minik').textContent = `原点预览 ${o.n} @${o.x},${o.z}（俯视）`; showMini();
   const miss = paintPreview(o);
@@ -618,12 +642,12 @@ function previewOrigin(o) {
 }
 // 小图浮层：俯视（且左栏可见）挂左栏顶部、贴在 ① 标题行下方；其他视角 / 左栏隐藏挂地图左上角。幂等：只设类和一个固定的 top
 function showMini() {
-  const m = $('minid'), ap = $('app'), side = S.view === 'top' && !ap.classList.contains('nosd') && !ap.classList.contains('zen');
+  const m = $('minid'), ap = $('app'), side = S.view === 'top' && !ap.classList.contains('nosd') && !ap.classList.contains('zen') && !document.fullscreenElement;
   m.classList.toggle('side', side); m.classList.toggle('inmap', !side);
   if (side) m.style.setProperty('--mtop', Math.max(38, Math.round($('wsum').closest('summary').getBoundingClientRect().bottom)) + 'px');
   m.classList.add('on');
 }
-function endPreview() { if (!previewing) return; previewing = false; pTok++; if (!S.minip) $('minid').classList.remove('on'); else { showMini(); frame(); } }
+function endPreview() { if (!previewing) return; previewing = false; pTok++; if (!S.minip && !play) $('minid').classList.remove('on'); else { showMini(); frame(); } }
 // 小图大小可拖（侧栏模式只改高，地图模式宽高），存 localStorage
 let msz = { mh: 120, mw: 300, mh2: 200 }; try { Object.assign(msz, JSON.parse(localStorage.getItem('pgviz.mini') || '{}')); } catch {}
 const applyMsz = () => { const st = document.documentElement.style; st.setProperty('--mh', clamp(msz.mh, 60, 600) + 'px'); st.setProperty('--mw', clamp(msz.mw, 120, 900) + 'px'); st.setProperty('--mh2', clamp(msz.mh2, 60, 700) + 'px'); };
@@ -640,9 +664,9 @@ $('home').addEventListener('contextmenu', (e) => {
 });
 addEventListener('pointerdown', (e) => { if (!e.target.closest?.('#ctx, #mrz')) hideCtx(); }, true);
 function setOrigin(o) { S.origin = o.map(Math.round); changed(); world(); }
-$('png').onclick = () => { draw(); const a = document.createElement('a'); a.download = `pgviz-${S.g}-${S.seed}-${S.view}.png`; a.href = cv.toDataURL('image/png'); a.click(); };
+$('png').onclick = () => { draw(); const a = document.createElement('a'); a.download = `pgviz-${S.g}-${S.seed}-${S.view}.png`; const o = document.createElement('canvas'); o.width = cv.width; o.height = cv.height; const g = o.getContext('2d'); g.drawImage(cv, 0, 0); if (layerOn()) g.drawImage($('lay'), 0, 0, o.width, o.height); a.href = o.toDataURL('image/png'); a.click(); };
 let zen = false;   // 全屏退化模式：Fullscreen API 失败时隐藏顶栏 / 左栏 / 状态行
-const relayout = () => setTimeout(() => { S.zoom = clampZoom(S.zoom); recenter(); frame(); });
+const relayout = () => setTimeout(() => { S.zoom = clampZoom(S.zoom); recenter(); if ($('minid').classList.contains('on')) showMini(); frame(); });   // 进 / 出全屏后小图换挂位（左栏顶部 ↔ 地图左上角）
 async function toggleFull() {
   if (document.fullscreenElement) return document.exitFullscreen();
   if (zen) { zen = false; $('app').classList.remove('zen'); return relayout(); }
@@ -666,11 +690,12 @@ function gizmo() {
     gx.beginPath(); gx.arc(x, y, 10, 0, 7);
     gx.fillStyle = pos ? c : '#0008'; gx.fill(); gx.lineWidth = 2; gx.strokeStyle = pos ? c : c + '99'; gx.stroke();
     if (ax === cur) { gx.lineWidth = 2; gx.strokeStyle = '#fff'; gx.beginPath(); gx.arc(x, y, 13, 0, 7); gx.stroke(); }
+    else if (ax[1] === cur[1]) { gx.lineWidth = 1.5; gx.strokeStyle = '#fffa'; gx.setLineDash([3, 2]); gx.beginPath(); gx.arc(x, y, 13, 0, 7); gx.stroke(); gx.setLineDash([]); }   // 同一根轴的另一端：虚线环
     if (gizHover === ax) { gx.fillStyle = '#fff3'; gx.beginPath(); gx.arc(x, y, 10, 0, 7); gx.fill(); }
     gx.fillStyle = pos ? '#000' : c; gx.font = 'bold 9px ui-monospace, monospace'; gx.textAlign = 'center'; gx.textBaseline = 'middle';
     gx.fillText(pos ? ax[1] : '-' + ax[1], x, y + 0.5);
   }
-  if (play) { gx.fillStyle = '#fd5'; gx.font = '10px ui-monospace, monospace'; gx.textAlign = 'left'; gx.fillText(`${AXN[play.axis]} +${play.off}/${playN(play.axis)}`, 4, 112); }
+  if (play) { gx.fillStyle = '#fd5'; gx.font = '10px ui-monospace, monospace'; gx.textAlign = 'left'; gx.fillText(`${AXN[play.axis]} +${play.off}/${playN(play.axis)}${play.frozen ? ' 固定' : ''}`, 4, 112); }
 }
 function gizHit(e) {
   const b = giz.getBoundingClientRect(), x = (e.clientX - b.left) * 120 / b.width, y = (e.clientY - b.top) * 120 / b.height;
@@ -679,40 +704,71 @@ function gizHit(e) {
   return best;
 }
 const playN = (ax) => Math.max(1, S.sel ? S.sel[ax + 3] - S.sel[ax] + 1 : S.seld);   // 快放层数 = 当前选区沿该轴的深度；没有选区时用 seld
-function startPlay(ax) {
+function startPlay(ax, src = 'hover') {   // src：hover = 悬停 gizmo 其它轴端点（沿该轴快放切面）；key = Numpad 9（沿视线轴）
   const v = VIEWS[S.view], a = axisOf(v.F);
   const axis = ax ? AXN.indexOf(ax[1]) : a;
   const sign = ax ? (ax[0] === '+' ? 1 : -1) : -v.F[a];
-  if (play && play.axis === axis && play.sign === sign) return;
+  if (live() && play.axis === axis && play.sign === sign) return;
   if (play) cancelAnimationFrame(play.raf);
-  play = { axis, sign, off: 0, t0: performance.now() };
+  play = { axis, sign, off: 0, t0: performance.now(), src };
   giz.classList.add('play'); showMini();
   const tick = () => {
-    if (!play) return;
+    if (!play || play.frozen) return;
     const off = Math.floor((performance.now() - play.t0) / 1000 * S.rate) % (playN(play.axis) + 1);
     if (off !== play.off) { play.off = off; draw(); gizmo(); }
     play.raf = requestAnimationFrame(tick);
   };
   play.raf = requestAnimationFrame(tick); draw(); gizmo();
 }
-function stopPlay() { if (!play) return; cancelAnimationFrame(play.raf); play = null; giz.classList.remove('play'); if (!S.minip) $('minid').classList.remove('on'); draw(); gizmo(); }
-giz.addEventListener('pointermove', (e) => {
+// how：'commit' = 沿视线轴的快放停下时把切片设在此层；'freeze' = 其它轴的扫描线 / 剖面停在此层（Esc 取消）；缺省 = 回原状（已固定的也清掉）
+function stopPlay(how) {
+  if (!play) return;
+  cancelAnimationFrame(play.raf);
+  const rg = range(), was = play;
+  if (how === 'commit' && !was.frozen && was.axis === rg.a) { const v = rg.start; play = null; setSlice(v); toast(`切片 ${AXN[rg.a]} → ${v}`); }
+  else if (how === 'freeze' && !was.frozen && was.axis !== rg.a) { play.frozen = true; toast(`${AXN[was.axis]} 剖面停在 ${clipVal(was)}（Esc 取消）`); }
+  else play = null;
+  giz.classList.remove('play'); if (!play && !S.minip && !previewing) $('minid').classList.remove('on'); draw(); gizmo();
+}
+giz.addEventListener('pointermove', (e) => {   // 悬停：高亮端点 + Numpad 帮助（俯视），同时快放（和帮助不冲突）：其它轴端点 = 沿该轴快放切面（小图画剖面），视线轴端点 / 空白 = 沿视线轴快放
   const ax = gizHit(e), a = axisOf(VIEWS[S.view].F);
   gizHover = ax;
-  startPlay(ax && AXN.indexOf(ax[1]) !== a ? ax : null);   // 视线轴（含反向端点）与空白处 = 沿视线轴快放
+  startPlay(ax && AXN.indexOf(ax[1]) !== a ? ax : null);   // 目标换了就直接替换（途中不提交），只有移出 gizmo 才算「停下」
+  $('gzhelp').style.display = helpOn() ? 'block' : 'none';
   gizmo();
 });
-giz.addEventListener('pointerleave', () => { gizHover = null; stopPlay(); });
+const helpOn = () => S.view === 'top' && !document.fullscreenElement && !$('app').classList.contains('zen');   // Numpad 帮助：只在俯视、非全屏时弹
+giz.addEventListener('pointerenter', () => { $('gzhelp').style.display = helpOn() ? 'block' : 'none'; });
+giz.addEventListener('pointerleave', () => { gizHover = null; $('gzhelp').style.display = 'none'; if (live() && play.src === 'hover') stopPlay(play.axis === range().a ? 'commit' : 'freeze'); gizmo(); });   // 停下 = 停在那层：视线轴设切片、其它轴固定剖面
+// 右键 = 切换方向（+Y ↔ −Y，俯视 ↔ 仰视，以此类推）：右键视线轴的端点或空白 = 当前视角翻到反向；右键其它轴的端点 = 去那根轴的另一端（+X → −X）
+giz.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const cur = VIEWS[S.view].ax, hit = gizHit(e), ax = hit && hit[1] !== cur[1] ? hit : cur, to = (ax[0] === '+' ? '-' : '+') + ax[1];   // 视线轴的端点 / 空白 = 翻转当前视角；其它轴的端点 = 去它的另一端
+  stopPlay(); setView(AX_VIEW[to]); toast('视角：' + VIEWS[AX_VIEW[to]].name);
+});
 giz.addEventListener('click', (e) => {
   const ax = gizHit(e);
   if (ax) { stopPlay(); setView(AX_VIEW[ax]); return; }
   // 空白处：正在沿视线轴快放 → 把切片设为快放终点（当前切片 + N 层，按悬停方向，夹到范围），下次悬停从更深处继续
-  if (play && play.axis === range().a) { const rg = range(), v = clamp(rg.base + rg.dir * playN(rg.a), rg.lo, rg.hi); stopPlay(); setSlice(v); toast(`切片 ${AXN[rg.a]} → ${v}`); }
+  if (live() && play.axis === range().a) { const rg = range(), v = clamp(rg.base + rg.dir * playN(rg.a), rg.lo, rg.hi); stopPlay(); setSlice(v); toast(`切片 ${AXN[rg.a]} → ${v}`); }
 });
 let toastT = 0;
 function toast(t, ms = 1400) { const el = $('toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => (el.style.opacity = 0), ms); }
 
 // ---- 键盘：7 / 1 / 3，Ctrl（或 Alt：浏览器常吃掉 Ctrl+数字）反向；G 网格；Esc 选区 ----
+// 4 6 8 2：沿屏幕方向翻整整一页（视口大小，前后两页无重叠）
+function pageBy(sr, sd) {
+  const v = VIEWS[S.view], dx = sr * cv.clientWidth / S.zoom, dy = sd * cv.clientHeight / S.zoom;
+  S.x += v.R[0] * dx + v.D[0] * dy; S.y += v.R[1] * dx + v.D[1] * dy; S.z += v.R[2] * dx + v.D[2] * dy;
+  if (v.R[1] || v.D[1]) S.y = clamp(S.y, 0, H - 1);
+  changed();
+}
+// 5：图层暂时切成「无」，再按一次复原
+let layerStash = null;
+function layerPeek() {
+  if (S.layer !== 'none') { layerStash = S.layer; S.layer = 'none'; changed(); toast('图层：暂时关（5 复原）'); }
+  else if (layerStash) { S.layer = layerStash; layerStash = null; changed(); toast('图层：已复原'); }
+}
 const VORDER = ['top', 'south', 'east', 'north', 'west', 'bottom'], SHADES = ['block', 'biome', 'height'];
 addEventListener('keydown', (e) => {
   if (e.target.matches?.('input, select, textarea')) return;
@@ -721,22 +777,31 @@ addEventListener('keydown', (e) => {
     if (e.ctrlKey) submitClick(); else if (S.g === 'old') $('game').click(); else toast('进游戏：M1 起可用（目前只有 old 地形）');
     return;
   }
-  if (e.key === 'Escape') { if (selA) selA = null; else S.sel = null; changed(); return; }
+  if (e.key === 'Escape') { if (play?.frozen) { stopPlay(); toast('剖面已取消'); return; } if (selA) selA = null; else S.sel = null; changed(); return; }
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     if (e.code === 'KeyT') { S.shade = SHADES[(SHADES.indexOf(S.shade) + 1) % 3]; changed(); return; }
     if (e.code === 'KeyV') { setView(VORDER[(VORDER.indexOf(S.view) + (e.shiftKey ? 5 : 1)) % 6]); return; }
     if (e.code === 'KeyF') { e.preventDefault(); toggleFull(); return; }
-    if (e.repeat) { if (['KeyE', 'KeyR', 'KeyC'].includes(e.code)) return; }
+    if (e.repeat) { if (['KeyE', 'KeyR', 'KeyC', 'KeyL'].includes(e.code)) return; }
+    else if (e.code === 'KeyL') { const ls = LY.list(), i = ls.findIndex(l => l.id === S.layer); setLayer(ls[(i + 1) % ls.length].id); toast('图层：' + ls[(i + 1) % ls.length].name + (S.layer !== 'none' && axisOf(VIEWS[S.view].F) !== 1 ? '（只在俯视 / 仰视画）' : '')); return; }
     else if (e.code === 'KeyE') { const bs = [...$('modes').children].filter(b => !b.disabled), i = bs.findIndex(b => b.dataset.m === mode()); bs[(i + 1) % bs.length].click(); toast('模式：' + bs[(i + 1) % bs.length].textContent); return; }   // 地表 ↔ 切片（层叠 V2 起加入循环）
-    else if (e.code === 'KeyR') { const ks = Object.keys(AIR_MODES); S.air = ks[(ks.indexOf(S.air) + 1) % ks.length]; changed(); toast('空气距离：' + $('airsel').selectedOptions[0].textContent); return; }
+    else if (e.code === 'KeyR') { S.air = !S.air; changed(); toast('空气距离：' + (S.air ? '开' : '关')); return; }
     else if (e.code === 'KeyC') { const n = S.origins.length, i = addOrigin(), o = S.origins[i]; toast((S.origins.length > n ? '已添加原点 ' : '已有原点 ') + `${o.n} @${o.x},${o.z}`); return; }
   }
   const d = e.code.replace(/^(Digit|Numpad)/, ''), rev = e.ctrlKey || e.altKey;
   const v = { 7: rev ? 'bottom' : 'top', 1: rev ? 'north' : 'south', 3: rev ? 'west' : 'east' }[d];
   if (v) { e.preventDefault(); setView(v); return; }
+  if (!e.ctrlKey && !e.altKey && !e.metaKey && store) {   // Numpad 操控（giz 悬停有帮助）：4 6 8 2 翻页、5 图层暂时关 / 恢复、9 按住快放
+    const pg = { 4: [-1, 0], 6: [1, 0], 8: [0, -1], 2: [0, 1] }[d];
+    if (pg) { e.preventDefault(); pageBy(pg[0], pg[1]); return; }
+    if (d === '5' && !e.repeat) { e.preventDefault(); layerPeek(); return; }
+    if (d === '9') { e.preventDefault(); if (!e.repeat) startPlay(null, 'key'); return; }
+  }
   if (e.key === 'g' || e.key === 'G') { S.grid = !S.grid; changed(); }
   else if (e.key === '+' || e.key === '=') zoomBy(2); else if (e.key === '-') zoomBy(0.5);
 });
+addEventListener('keyup', (e) => { if (/^(Digit|Numpad)9$/.test(e.code) && live() && play.src === 'key') stopPlay('commit'); });   // 9 松开：快放停在当前层（切片设到那一层）
+addEventListener('blur', () => { if (live()) stopPlay(); });
 
 // ---- ↗ 进游戏（V-9）：宿主 B ?seed=&p1=@x,z^y —— 选区中心 > 悬停点 > 视图中心；y = 该列地表 + 1 ----
 function gameUrl() {
@@ -813,7 +878,9 @@ for (const [id, k, lo, hi] of [['seld', 'seld', 1, 256]]) $(id).onchange = () =>
 $('rate').onchange = () => { S.rate = clamp(Math.round(+$('rate').value) || 12, 1, 60); changed(); };
 $('nrow').addEventListener('wheel', (e) => { e.preventDefault(); S.rate = clamp(S.rate + (e.deltaY < 0 ? 1 : -1), 1, 60); changed(); }, { passive: false });
 $('minipc').onchange = () => { S.minip = $('minipc').checked; changed(); };
-$('airsel').onchange = () => { S.air = parseAir($('airsel').value); changed(); };
+$('airc').onchange = () => { S.air = $('airc').checked; changed(); };
+$('lchips').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setLayer(b.dataset.l); });
+$('lopr').oninput = () => { S.lop = clamp(+$('lopr').value, 0.1, 1); changed(); };
 $('gridc').onchange = () => { S.grid = $('gridc').checked; changed(); };
 setInterval(() => { if (store && (busy.size || dirty3.size)) world(); }, 1000);
 
@@ -845,7 +912,7 @@ async function regionCall(o) {
 }
 
 // ---- window.viz：给 Agent / gd ----
-const KEYS = { g: String, seed: String, view: String, x: Number, y: Number, z: Number, zoom: Number, mode: String, n: Number, rate: Number, minip: Boolean, air: parseAir, shade: String, grid: Boolean, fill: Number,
+const KEYS = { layer: String, lop: Number, g: String, seed: String, view: String, x: Number, y: Number, z: Number, zoom: Number, mode: String, n: Number, rate: Number, minip: Boolean, air: parseAir, shade: String, grid: Boolean, fill: Number,
   slice: (v) => v === null || v === '' ? null : Number(v), sel: (v) => v === null || v === '' ? null : Array.isArray(v) ? normSel(v.map(Number)) : parseSel(v),
   origin: (v) => v === null || v === '' ? [0, 0] : Array.isArray(v) ? v.map(Number).map(Math.round) : parsePair(v) ?? [0, 0], pin: (v) => v === null || v === '' ? null : Array.isArray(v) ? parsePin(v.join(',')) : parsePin(v), seld: Number };   // pin = sel 的别名
 window.viz = {
@@ -879,6 +946,8 @@ window.viz = {
       ...(meta.y0 !== undefined && { yNative: y + meta.y0 }), sample: await pool.call('sample', { x, z }).catch(e => ({ err: e.message })) };
   },
   regen() { restart(); return this.ready(); },
+  // 图层：列表 / 某列的值（树种名或场值，场值取最近的采样点，块没到返回 null）
+  layers: () => LY.list(), layerAt: (x, z) => LY.valueAt(store, Math.floor(x), Math.floor(z)),
   // 生成器参数（s02 §2.1）：schema + 当前值。set('kw', {...}) / set('c_.Gen.cave.rate', 0.5) 改参数并重算窗口（未知键抛错）
   params() {
     const eff = resolveParams(meta?.knobs, S.kw, false);
@@ -892,6 +961,7 @@ window.viz = {
     v = KEYS[k](v);
     if (k === 'view') { if (!VIEWS[v]) throw new Error('view ∈ ' + Object.keys(VIEWS)); setView(v); return; }
     if (k === 'mode') { if (!['surface', 'slice'].includes(v)) throw new Error('mode ∈ surface slice（stack 是 V2）'); [...$('modes').children].find(b => b.dataset.m === v).click(); return; }
+    if (k === 'layer') { setLayer(v === null || v === '' ? 'none' : v); return; } if (k === 'lop') v = clamp(v, 0.1, 1);
     if (k === 'zoom') v = clampZoom(v); if (k === 'fill') v = clamp(v, 0.2, 1);
     if (k === 'seld') v = clamp(Math.round(v), 1, 256); if (k === 'rate') v = clamp(Math.round(v), 1, 60);
     if (k === 'pin') k = 'sel'; if (k === 'sel') { selA = null; S.hit = null; }

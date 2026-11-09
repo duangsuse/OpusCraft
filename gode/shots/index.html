@@ -17,7 +17,8 @@
   .card.new { border-color: var(--acc); }
   .card img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: contain; background: #000; }
   .meta { padding: 5px 8px; display: flex; gap: 8px; flex-wrap: wrap; color: var(--dim); }
-  .meta .tag { color: var(--fg); } .ok { color: var(--ok); } .FAIL { color: var(--bad); }
+  .meta .tag { color: var(--fg); } .ok { color: var(--ok); } .FAIL { color: var(--bad); } .drift { color: #f90; font-weight: 600; }
+  .row.d { border-left: 3px solid #f90; color: var(--fg); } .row a { color: var(--ac, #5aa0ff); }
   .row { grid-column: 1 / -1; background: var(--card); padding: 4px 8px; border-radius: 3px; color: var(--dim); }
   #big { position: fixed; inset: 0; z-index: 5; background: #000e; display: none; flex-direction: column; }
   #big.on { display: flex; }
@@ -47,11 +48,11 @@ async function poll() {
   } catch { $('st').textContent = '还没有 index.tsv'; }
 }
 function render() {
-  const tag = $('tag').value, show = rows.filter(r => (!tag || r.tag === tag) && (r.files || $('checks').checked)).reverse(), max = Math.max(0, ...rows.map(r => +r.seq));
+  const tag = $('tag').value, show = rows.filter(r => (!tag || r.tag === tag) && (r.files || r.tag === 'drift' || $('checks').checked)).reverse(), max = Math.max(0, ...rows.map(r => +r.seq));
   $('n').textContent = `${rows.length} 条`;
   $('grid').innerHTML = show.slice(0, 300).map(r => r.files
     ? `<div class="card${+r.seq > seen && seen ? ' new' : ''}" data-seq="${r.seq}"><img loading="lazy" src="${esc(r.files)}"><div class="meta"><span>#${r.seq}</span><span class="tag">${esc(r.tag)}</span><span>${esc(r.pose)}</span><span>${esc(r.ms)}ms</span><span class="${esc(r.verdict)}">${esc(r.verdict)}</span><span>${esc(r.note)}</span><span>${esc(r.ts?.slice(11, 19))}</span></div></div>`
-    : `<div class="row">#${r.seq} ${esc(r.tag)} ${esc(r.pose)} <span class="${esc(r.verdict)}">${esc(r.verdict)}</span> ${esc(r.ms)}ms ${esc(r.note)}</div>`).join('');
+    : `<div class="row${r.tag === 'drift' ? ' d' : ''}">#${r.seq} ${esc(r.tag)} ${esc(r.pose)} <span class="${esc(r.verdict)}">${esc(r.verdict)}</span> ${esc(r.ms)}ms ${esc(r.note)}${r.tag === 'drift' ? ' · <a href="drift.md" target="_blank">详情 drift.md</a>' : ''}</div>`).join('');
   seen = max;
 }
 const sameTag = r => rows.filter(x => x.files && x.tag === r.tag && x.pose === r.pose);

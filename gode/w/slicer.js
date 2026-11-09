@@ -53,6 +53,15 @@ export function colReduce(blocks, biomes, cls, out = new Int16Array(1024)) {
 // 引擎默认动词：生成器没导出时用
 const ENGINE = {
   sample: () => null,
+  // 场采样（pgviz 热力图，s13 V2）：x0,z0 起每 step 格取一点，n×n；返回每个数值字段一个 Float32Array（行主序 z 行 x 列），biome 不算
+  async field({ x0, z0, n, step }) {
+    const data = {};
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const s = await mod.sample?.({ x: x0 + i * step, z: z0 + j * step });
+      for (const k in s ?? {}) if (typeof s[k] === 'number' && k !== 'biome') (data[k] ??= new Float32Array(n * n))[j * n + i] = s[k];
+    }
+    return { x0, z0, n, step, data };
+  },
   // 默认实现 = 整块生成再归约（只回 2 KB）；生成器可导出更便宜的 col（只算列噪声）覆盖它
   async col({ cx, cz, cls }) {
     let out = chunkOut();
