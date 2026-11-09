@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- gode/index.html —— gode 宿主（s10 M1-1）：slicer 池（生成 + 光照 + 网格）+ main 权威世界 + rgl。
+     URL：?g=mini|gp|liq|old|v7|valleys&seed=&rd=&kw=&hour=&tspeed=&pos=x,y,z[,yaw,pitch]&fly=1&noclip=1（boot.js 头注释）
+     键：WASD 走、Space 跳（双击 = 飞行开关，飞行中 Space 升 / Alt 降）、Shift 疾跑、Alt 潜行、V noclip、F3 调试文字；点画面锁定鼠标，Esc 释放。 -->
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gode</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #f3, #boot { position: fixed; left: 8px; top: 6px; margin: 0; color: #fff; font: 12px/1.35 ui-monospace, monospace; text-shadow: 1px 1px 0 #000; white-space: pre; pointer-events: none; }
+  #boot { top: 45%; left: 0; right: 0; text-align: center; font-size: 16px; }
+  #cross { position: fixed; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; pointer-events: none; mix-blend-mode: difference; }
+  #cross::before, #cross::after { content: ''; position: absolute; background: #fff; }
+  #cross::before { left: 7px; top: 0; width: 2px; height: 16px; } #cross::after { top: 7px; left: 0; height: 2px; width: 16px; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="cross"></div>
+<pre id="f3"></pre>
+<div id="boot">gode …</div>
+<script type="module" src="main/boot.js"></script>
+</body>
+</html>

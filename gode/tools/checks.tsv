@@ -3,6 +3,8 @@
 name	host	files	js	note
 errors	b,viz,gode	**	(async () => { const t = window.gm?.test ?? window.viz; if (t.checks?.errors) return t.checks.errors(); await (typeof t.ready === 'function' ? t.ready() : t.ready); const e = t.errors?.() ?? []; return { ok: !e.length, msg: e.slice(0, 5).join(' | ') || '无报错' }; })()	加载 + settle 后无 console.error / 异常 / GL 错误
 genhash	b	gen.js,index.html,gode/defl/g/**,gode/w/**	gm.test.checks.genhash()	同种子重开，内圈 5×5 区块哈希相等（M1-3）
+genhash-g	gode	gode/w/**,gode/main/**,gode/defl/g/**	gm.test.checks.genhash()	同种子热重置（区块到达顺序重新来过），内圈 5×5 区块哈希相等（M1-3；outside 合并与顺序无关）
+phys	gode	gode/main/phys.js	gm.test.checks.phys()	落地、跳高 ≈ v²/2g、走 ≈ 4.5 格 / s、双击空格飞行（M1-1）
 seam	b	gls.js,index.html	gm.test.checks.seam()	区块边界地下通道 + 火把：方块光跨边界逐格减 1（M1-8）
 xz-roundtrip	b	gode/tools/xz.js,gode/tools/xz/**,gode/tools/gmtest-b.js	gm.test.checks.xzRoundtrip(GD.xz)	M0：放置后逐格等于文本光栅、放两次哈希相等；识别器往返到 M4-2
 r-switch	b	rgl/**,index.html	gm.test.checks.rSwitch()	gl → 宿主 three → gl：无报错、goodGL 恢复

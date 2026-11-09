@@ -4,12 +4,14 @@
      worker → main  { ready: {meta} }           { gen: {cx, cz, blocks, biomes, heights, outside, ms}, id }  { err: {msg, stack}, id }
    分派：for (k in msg) → 生成器模块导出的同名函数；没导出的查引擎默认动词（ENGINE），都没有就忽略（广播事件无 id 不应答）。
    gen 的 out 由运行时分配（规范 YZX u16，s02 §1）；生成器用自己的布局时声明 meta.layout，并把 out.blocks（及 out.meta）
-   换成原生数组，由 xlate 转换。V1 有 onkwarg / gen / sample / col（列级地表，引擎默认实现）；light / mesh / map 留给 M1。 */
+   换成原生数组，由 xlate 转换。V1 有 onkwarg / gen / sample / col（列级地表，引擎默认实现）；M1 加 gen 的 light（初始光照，gen 请求带 light:true 才算）与 mesh 动词；map 留给 M4。 */
 
 export const H = 256, VOL = 65536;
 const isWorker = typeof self !== 'undefined' && typeof self.postMessage === 'function' && typeof window === 'undefined';
 
 let mod = null, meta = null;          // 生成器模块命名空间、它的 meta（onkwarg 之后定）
+let mb = null;                        // meshSection 的三个 MeshBuilder（不透明 / 半透明 / 植物），每个 worker 一套
+let gtab = null, glMod = null, lightMod = null;   // 名字 → goodGL id / 光照属性表（glid.js）与 initLight（light.js）：gen 请求 light 时才加载
 const queue = [];                     // serve() 完成前收到的消息
 
 // 规范区块缓冲（gen 的 out）
@@ -84,7 +86,7 @@ const ENGINE = {
 async function run(k, arg) {
   if (k === 'onkwarg') {
     const r = (await mod.onkwarg?.(arg)) ?? {};
-    meta = r.meta ?? mod.meta;
+    meta = r.meta ?? mod.meta; gtab = null;   // 换生成器 / 热重置：光照属性表按新的 meta.names 重建
     return ['ready', { meta }];
   }
   if (k === 'gen') {
@@ -95,7 +97,22 @@ async function run(k, arg) {
     const outside = r.outside instanceof Int32Array ? r.outside : Int32Array.from(r.outside ?? []);
     const v = { cx: arg.cx, cz: arg.cz, blocks: out.blocks, biomes: out.biomes, heights: out.heights, outside, ms: performance.now() - t0 };
     if (r.clip) v.clip = r.clip;   // liq：被 y 裁剪的格数（s02 §5）
-    return ['gen', v, [out.blocks.buffer, out.biomes.buffer, out.heights.buffer, outside.buffer]];
+    const tr = [out.blocks.buffer, out.biomes.buffer, out.heights.buffer, outside.buffer];
+    if (arg.light) {   // 初始光照（s01 §4）：块内 BFS，边界外不看；ms 不含光照，另报 lms
+      const t1 = performance.now();
+      glMod ??= await import('./glid.js'); lightMod ??= (await import('./light.js')).initLight;
+      gtab ??= glMod.glTable(meta?.names ?? []);
+      v.light = lightMod(out.blocks, gtab); v.lms = performance.now() - t1; tr.push(v.light.buffer);
+    }
+    return ['gen', v, tr];
+  }
+  if (k === 'mesh') {   // 网格（M1-3，原 vendor/gl/pool.js 的 mesh）：main 拼好的 18³ padded（goodGL id）→ goodGL 顶点缓冲
+    const { SH } = await import('../../vendor/gl/shared.js');
+    mb ??= [new SH.MeshBuilder(16384), new SH.MeshBuilder(4096), new SH.MeshBuilder(4096)];
+    const t0 = performance.now();
+    const r = SH.meshSection(arg.pb, arg.pm, arg.pl, arg.tg, arg.tf, arg.wx, arg.wy, arg.wz, mb[0], mb[1], mb[2], arg.cls);
+    r.ms = performance.now() - t0;
+    return ['mesh', r, [r.opaque, r.trans, r.plant].filter(Boolean)];
   }
   const f = mod[k] ?? ENGINE[k];
   if (typeof f !== 'function') return null;

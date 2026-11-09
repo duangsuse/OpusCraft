@@ -111,7 +111,10 @@ const key = (cx, cz) => cx + ',' + cz;
 // 宿主 A 没有群系：整块用平原的草 / 叶色（MC 平原 0x91bd59 / 0x77ab2f）。tint 数组是 256 列 × RGB，goodGL 的 meshSection 按列取
 export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x59], foliage = [0x77, 0xab, 0x2f] } = {}) {
   const H = source.height, NS = H >> 4;
-  const pool = new WorkerPool(seed);
+  const pool = source.meshPool || new WorkerPool(seed);   // gode：网格走 slicer 池（source.meshPool = { submit(msg, transfer, cb), local, mode, pumpLocal }）
+  // 区块布局钩子：source 自己提供就用它的（gode：YZX u16，source.padded / secHash / secHas），缺省 = 宿主 A / B 的 (lx*16+lz)*H+y
+  const secHas = source.secHas || ((ch, s) => sectionHasBlocks(ch.blocks, H, s)), secHash = source.secHash || ((ch, s) => sectionHash(ch, H, s)),
+    pad = source.padded || ((cx, cz, s) => padded(source, lut, H, cx, cz, s));
   const tG = new Uint8Array(768), tF = new Uint8Array(768);
   for (let c = 0; c < 256; c++) for (let k = 0; k < 3; k++) { tG[c * 3 + k] = grass[k]; tF[c * 3 + k] = foliage[k]; }   // render.md §3 的 tint 行：宿主 A = 常量
   const CLS = flagTable();                    // meshSection 的 CLS：草 = 不接收锐阴影（blockclass.js）
@@ -135,16 +138,16 @@ export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x5
     }
     const fresh = !recs.has(key(cx, cz)), r = rec(cx, cz), ch = source.getChunk(cx, cz);
     if (!ch) return;
-    for (let s = 0; s < NS; s++) r.secCount[s] = sectionHasBlocks(ch.blocks, H, s) ? 1 : 0;
-    if (fresh || !r.hash) { r.hash = new Int32Array(NS); for (let s = 0; s < NS; s++) r.hash[s] = sectionHash(ch, H, s); markAll(r); markNeighbors(cx, cz, NB8); return; }
+    for (let s = 0; s < NS; s++) r.secCount[s] = secHas(ch, s) ? 1 : 0;
+    if (fresh || !r.hash) { r.hash = new Int32Array(NS); for (let s = 0; s < NS; s++) r.hash[s] = secHash(ch, s); markAll(r); markNeighbors(cx, cz, NB8); return; }
     // 重建（编辑 / 光照传到这里 / 宿主无意义的重复重建）：只有内容（方块 / meta / 天光 / 方块光）真变了的段才重新网格化，连同上下相邻的段（padded 带 ±1 层，AO / 面剔除会看到）；邻区块同理（4 邻）
     const dirty = new Uint8Array(NS); let any = false;
-    for (let s = 0; s < NS; s++) { const h = sectionHash(ch, H, s); if (h !== r.hash[s]) { r.hash[s] = h; any = true; for (let k = Math.max(0, s - 1); k <= Math.min(NS - 1, s + 1); k++) dirty[k] = 1; } }
+    for (let s = 0; s < NS; s++) { const h = secHash(ch, s); if (h !== r.hash[s]) { r.hash[s] = h; any = true; for (let k = Math.max(0, s - 1); k <= Math.min(NS - 1, s + 1); k++) dirty[k] = 1; } }
     if (!any) return;
     markSecs(r, dirty); for (const [dx, dz] of NB4) { const n = recs.get(key(cx + dx, cz + dz)); if (n) markSecs(n, dirty); }
   });
   // 接管已经存在的区块（渲染器中途创建 / 热切换）
-  source.forEachChunk((cx, cz) => { const ch = source.getChunk(cx, cz); if (!ch) return; const r = rec(cx, cz); for (let s = 0; s < NS; s++) r.secCount[s] = sectionHasBlocks(ch.blocks, H, s) ? 1 : 0; markAll(r); });
+  source.forEachChunk((cx, cz) => { const ch = source.getChunk(cx, cz); if (!ch) return; const r = rec(cx, cz); for (let s = 0; s < NS; s++) r.secCount[s] = secHas(ch, s) ? 1 : 0; markAll(r); });
 
   const ready = (r) => { for (const [dx, dz] of NB8) if (!recs.has(key(r.cx + dx, r.cz + dz))) return false; return true; };
 
@@ -172,7 +175,7 @@ export function createWorld(R, source, lut, { seed = 1, grass = [0x91, 0xbd, 0x5
         const sec = r.sections[s]; if (!sec.dirty || sec.pending) continue;
         sec.dirty = false;
         if (!r.secCount[s]) { R.uploadSection(r, s, { opaque: null, on: 0, trans: null, tn: 0, plant: null, pn: 0 }); sec.meshed = false; continue; }
-        const { pb, pm, pl } = padded(source, lut, H, r.cx, r.cz, s);
+        const { pb, pm, pl } = pad(r.cx, r.cz, s);
         sec.pending = true; const ver = ++sec.ver, t0 = performance.now(); inflight++;
         pool.submit({ type: 'mesh', pb, pm, pl, tg: tG, tf: tF, cls: CLS, wx: r.cx * 16, wy: s * 16, wz: r.cz * 16 }, [pb.buffer, pm.buffer, pl.buffer], (res) => {
           inflight--; sec.pending = false; meshMs += performance.now() - t0; meshN++;

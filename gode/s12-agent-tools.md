@@ -165,6 +165,7 @@ gd down                                 # 收尾（忘了也会 10 min 自退）
 |---|---|
 | `tools/gd.js` | 守护进程 + CLI，§2 全部命令；`node gode/tools/gd.js help` 即 `--help` |
 | `tools/gmtest-b.js` | 宿主 B 的 `gm.test`（A-5）：`freeze settle pose frame xz mark revert hash probe stats errors set find` + `checks.*` |
+| `tools/gmtest-g.js` | **gode 版**（M1 首刀 11-09）：`host: 'gode'`，同名同参；`boot.js` 启动后自动 import，无需 `&test=1`。没有 mob / tick，`freeze` 只钉时钟与 rgl 相位并冻结控制器；`find` 搜索规则未做（返回 null）；`checks.genhash / phys`（checks.tsv 里 `genhash-g`、`phys`） |
 | `tools/xz.js` | XZ1 解析 + 光栅化（页面与 node 共用） |
 | `tools/xz/*.xz` | `xz-roundtrip` 的样例 |
 | `tools/checks.tsv` | 列 `name host files js note`；`host` = `b / viz / gode`，只跑适用于当前页面的行 |

@@ -165,8 +165,8 @@ const LEAN_T = 0.45, LEAN_F = 0.55;   // 墙上火把 / 贴墙火苗的倾斜量
 const CT = 512, CS = 2048;   // 全部用户火焰的火苗 / 火星总数上限
 
 export function createFireFx(THREE, scene, { source, bt, camera, getF, opacity = () => 1, radius = 40 }) {
-  const H = source.height, cls = new Uint8Array(256);     // 1 火把 / 2 岩浆 / 3 火焰
-  for (let id = 1; id < 256; id++) { const k = bt.kind[id], e = bt.emissive ? bt.emissive[id] : 0; cls[id] = k === 3 ? 1 : k === 4 && e > 0 ? 2 : k === 2 && e >= 8 ? 3 : 0; }
+  const H = source.height, N = bt.kind.length, cls = new Uint8Array(N), Y = source.layout === 'yzx16';     // 1 火把 / 2 岩浆 / 3 火焰；Y = gode 的 YZX u16（type = v & 0xfff，meta = v >> 12）
+  for (let id = 1; id < N; id++) { const k = bt.kind[id], e = bt.emissive ? bt.emissive[id] : 0; cls[id] = k === 3 ? 1 : k === 4 && e > 0 ? 2 : k === 2 && e >= 8 ? 3 : 0; }
   const cache = new Map(), key = (cx, cz) => cx + ',' + cz;
   source.onChunkChanged((cx, cz) => cache.delete(key(cx, cz)));
   if (source.onBlockChanged) source.onBlockChanged((x, y, z) => { for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) cache.delete(key((x >> 4) + dx, (z >> 4) + dz)); });   // 贴面取决于邻格：邻区块（块边上的火）一并失效
@@ -177,7 +177,7 @@ export function createFireFx(THREE, scene, { source, bt, camera, getF, opacity =
   const TDIR = [[1, 0], [-1, 0], [0, 1], [0, -1]];   // meta 1..4 = 朝墙方向（同 HDIRS / torchAttached）
   // 火方块的贴面：六个邻格里实心的（火把 / 火的「墙」）。位 f = 0 +x / 1 −x / 2 +y / 3 −y / 4 +z / 5 −z；没有任何邻居时（悬空）退回格心三簇
   const NB = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
-  const blockAt = (x, y, z) => { if (y < 0 || y >= H) return 0; const b = source.getBlocks ? source.getBlocks(x >> 4, z >> 4) : (source.getChunk(x >> 4, z >> 4) || {}).blocks; return b ? b[(((x & 15) * 16) + (z & 15)) * H + y] : 0; };
+  const blockAt = (x, y, z) => { if (y < 0 || y >= H) return 0; const b = source.getBlocks ? source.getBlocks(x >> 4, z >> 4) : (source.getChunk(x >> 4, z >> 4) || {}).blocks; return b ? (Y ? b[(y << 8) | ((z & 15) << 4) | (x & 15)] & 0xfff : b[(((x & 15) * 16) + (z & 15)) * H + y]) : 0; };
   const attachMask = (x, y, z) => { let m = 0; for (let f = 0; f < 6; f++) { const d = NB[f]; if (bt.solid[blockAt(x + d[0], y + d[1], z + d[2])]) m |= 1 << f; } return m; };
   function scan(cx, cz) {
     const b = source.getBlocks ? source.getBlocks(cx, cz) : (source.getChunk(cx, cz) || {}).blocks;
@@ -185,13 +185,13 @@ export function createFireFx(THREE, scene, { source, bt, camera, getF, opacity =
     const meta = source.getChunk ? (source.getChunk(cx, cz) || {}).meta : null;
     const out = [], lava = [];
     for (let lx = 0; lx < 16; lx++) for (let lz = 0; lz < 16; lz++) {
-      const base = (lx * 16 + lz) * H;
+      const base = (lx * 16 + lz) * H, col = (lz << 4) | lx, at = Y ? y => b[(y << 8) | col] & 0xfff : y => b[base + y];
       for (let y = 0; y < H; y++) {
-        const c = cls[b[base + y]]; if (!c) continue;
+        const c = cls[at(y)]; if (!c) continue;
         const x = cx * 16 + lx, z = cz * 16 + lz;
-        if (c === 2) { if (y + 1 >= H || b[base + y + 1] === 0) lava.push(x + 0.5, y + 0.1, z + 0.5, 2); }
+        if (c === 2) { if (y + 1 >= H || at(y + 1) === 0) lava.push(x + 0.5, y + 0.1, z + 0.5, 2); }
         else if (c === 1) {
-          const m = meta ? meta[base + y] : 0, d = m >= 1 && m <= 4 ? TDIR[m - 1] : null;
+          const m = Y ? b[(y << 8) | col] >> 12 : meta ? meta[base + y] : 0, d = m >= 1 && m <= 4 ? TDIR[m - 1] : null;
           out.push(x + 0.5 + (d ? d[0] * 0.125 : 0), y + (d ? 0.7875 : 0.6), z + 0.5 + (d ? d[1] * 0.125 : 0), 1 + (d ? (m << 3) : 0));   // 墙上的火把：meta 带进类字节的高位 → 火苗离墙倾斜
         } else out.push(x + 0.5, y + 0.1, z + 0.5, 3 + (attachMask(x, y, z) << 3));
       }

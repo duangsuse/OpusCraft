@@ -36,6 +36,7 @@
 | s11 | `s11-borrow.md` | 借鉴 goodPG：顶点格式、layerProps、存档健壮性、Durable Object 联机协议 | 初稿，已定 |
 | s12 | `s12-agent-tools.md` | Agent 工具：`gd` 守护进程、实时截图目录、`gm.test` 钩子、机位导入、检查清单 | 初稿，已定 |
 | s13 | `s13-pgviz.md` | pgviz 地形查看 / 调参（M0）：直接用生成器 Worker，参考 seed map 与 mcweb 的 UI | 初稿 |
+| s14 | `s14-dataflow.md` | 四类状态、宿主 B 数据流现状与耦合点、子系统归属表、一条写路径 / Δ 总线、状态注册表、存档与数据流检查 | 初稿，Q-1…Q-5 待确认 |
 
 ## 2. 现状速查（读码，11-08）
 

@@ -69,7 +69,7 @@ export function createRenderer(ctx) {
   };
   const SRC = ctx.source || voxelCraftSource(ctx), ENV = ctx.env || voxelCraftEnv(ctx), BT = ctx.blockTable || voxelCraftBlocks(ctx);   // 宿主 B 自带三个适配器（rgl/host-b.js）
   // 岸线 / 水面高度场（water/surfacefield.js）：环形 RG8UI，按世界格取模；N = 512 够 rd ≤ 14。区块事件驱动（'blocks' 重写该区块 16×16、'gone' 清掉）
-  const field = new SurfaceField({ N: 512, H: SRC.height, waterId: BT.waterId, solid: Uint8Array.from(BT.kind, k => k === 1 ? 1 : 0) });
+  const field = new SurfaceField({ N: 512, H: SRC.height, waterId: BT.waterId, solid: Uint8Array.from(BT.kind, k => k === 1 ? 1 : 0), yzx: SRC.layout === 'yzx16' });
   const fieldTex = (() => { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8UI, field.N, field.N, 0, gl.RG_INTEGER, gl.UNSIGNED_BYTE, field.data);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.bindTexture(gl.TEXTURE_2D, null); return t; })();
   SRC.onChunkChanged((cx, cz, what) => { if (what === 'gone') field.clearChunk(cx, cz); else if (what === 'blocks') { const ch = SRC.getChunk(cx, cz); if (ch) field.setChunk(cx, cz, ch.blocks); } });
@@ -258,7 +258,7 @@ export function createRenderer(ctx) {
     water: (x, y, z) => WATER != null && ctx.getBlock(x, y, z) === WATER,
     light: (x, y, z, out) => {   // 该格的天空光 / 方块光 → entityLight（entScene 两种模式各自正确）；区块没建 = 满天光
       const ch = SRC.getChunk(x >> 4, z >> 4); let sky = 15, blk = 0;
-      if (ch && y >= 0 && y < HH) { const k = ((x & 15) * 16 + (z & 15)) * HH + y; sky = ch.sky[k]; blk = ch.blk[k]; } else if (y < 0) sky = 0;
+      if (ch && y >= 0 && y < HH) { if (ch.light) { const l = ch.light[(y << 8) | ((z & 15) << 4) | (x & 15)]; sky = l >> 4; blk = l & 15; } else { const k = ((x & 15) * 16 + (z & 15)) * HH + y; sky = ch.sky[k]; blk = ch.blk[k]; } } else if (y < 0) sky = 0;
       return entityLight(sky, blk, out);
     },
   } });
