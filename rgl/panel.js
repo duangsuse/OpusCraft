@@ -3,8 +3,9 @@
 //   root = 顶层 Pane：meta.root 相同的行进同一个 Pane，各 Pane 并排（各自标题条、折叠、重置）；F4 一起开关。缺省 root = 'v3'。
 export function createPanel(P, { title = 'rgl', roots = { v2: 'v2 · goodGL', v3: 'v3 · remix' }, defaults = {} } = {}) {
   const panes = new Map(); let hidden = true, wrap = null;
+  // tweakpane 在 vendor/npm/（本地化，见该目录 README）；用相对 import.meta.url 的路径而不是 importmap，别的页面也能用本文件
   const paneReady = typeof document === 'undefined' ? Promise.resolve(null)
-    : import('https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.js').then(({ Pane }) => {
+    : import(new URL('../vendor/npm/tweakpane.js', import.meta.url).href).then(({ Pane }) => {
       wrap = document.createElement('div');
       Object.assign(wrap.style, { position: 'fixed', top: '8px', right: '8px', zIndex: 1000, display: hidden ? 'none' : 'flex', gap: '8px', alignItems: 'flex-start' });
       wrap.addEventListener('keydown', e => { if (e.code !== 'F4') e.stopPropagation(); });        // 面板里的键盘输入不传给游戏（F4 例外）

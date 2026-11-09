@@ -1004,7 +1004,7 @@ function gameUrl() {
   if (S.sel) { x = Math.floor((S.sel[0] + S.sel[3]) / 2); z = Math.floor((S.sel[2] + S.sel[5]) / 2); }
   else if (hov) [x, , z] = hov.p; else { x = Math.floor(S.x); z = Math.floor(S.z); }
   const c = store?.col(x, z), y = c && c.y >= 0 ? `^${Math.max(c.y + c.wd, c.y) + 1}` : '';
-  return new URL(`../../index.html?seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}${y}`, location.href).href;
+  return new URL(`../../index.html?test=1&seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}${y}`, location.href).href;
 }
 $('game').onclick = () => { if (S.g === 'mini') window.open(gameUrl(), '_blank'); };
 
