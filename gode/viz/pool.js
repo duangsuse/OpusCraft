@@ -39,8 +39,8 @@ export class Pool {
     w.postMessage({ [verb]: arg, id });
     return true;
   }
-  call(verb, arg) {
-    const w = this.ws.reduce((a, b) => (b.busy < a.busy ? b : a));
+  call(verb, arg, wi) {   // wi = 指定 worker（并行扫描用）；缺省 = 最闲的
+    const w = wi !== undefined ? this.ws[wi % this.ws.length] : this.ws.reduce((a, b) => (b.busy < a.busy ? b : a));
     const id = ++this.seq;
     return new Promise((res, rej) => { this.wait.set(id, { verb, res, rej }); w.postMessage({ [verb]: arg, id }); });
   }

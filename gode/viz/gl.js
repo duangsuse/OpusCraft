@@ -12,7 +12,7 @@ void main() { vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); gl_Positio
 const FS = `#version 300 es
 precision highp float; precision highp int;
 precision highp usampler3D; precision highp isampler2D;
-uniform usampler3D uVox; uniform isampler2D uSlot; uniform isampler2D uCol; uniform isampler2D uSlot2; uniform sampler2D uLut; uniform sampler2D uBio;
+uniform usampler3D uVox; uniform isampler2D uSlot; uniform isampler2D uCol; uniform isampler2D uSlot2; uniform sampler2D uLut; uniform sampler2D uBio; uniform sampler2D uBsel;
 uniform int uW, uWa, uC, uWa2, uH, uSea;
 uniform ivec2 uWin, uWin2;          // 3D / 2D 窗口最小区块
 uniform vec2 uRes, uVp;             // 视口像素大小、左下角
@@ -20,7 +20,10 @@ uniform vec3 uCenter;               // 屏幕中心对应的世界点（视线�
 uniform float uZoom;                // 像素 / 格
 uniform ivec3 uF, uR, uD;           // 视线前向、屏幕右、屏幕下（单位轴向量）
 uniform int uStart, uEnd;           // 视线轴上起止坐标（含），沿 uF 步进
-uniform int uShade;                 // 0 方块色 1 群系色 2 高度
+uniform int uShade;                 // 0 方块色 1 群系色 2 洞窟（noclip 进地下：岩石剔除，只看洞窟空气围出来的墙面）
+uniform int uTerr;                  // 俯视的地表阴影：0 默认台阶式（西 / 北邻列更高 → 压暗）1 2.5D 地形（邻列高度算法线的山体阴影）2 平滑光照（四角环境光遮蔽双线性插值）
+uniform int uBMode;                 // 群系 finder：0 无 1 只显示（射线里剪枝）2 高亮 3 取消高亮（选中集 = uBsel，256×1 R8）
+uniform vec3 uLight, uSun;          // 光色乘子（时间 / 光色覆盖；默认白）、太阳方向（指向光源；默认左上）
 uniform int uAir, uGrid, uSel;      // uAir：0 无 1 开（灰渐变；格 > 22 px 叠黑色数字）；uSel：0 无 1 选区 2 拉框预览
 uniform ivec3 uSelMin, uSelMax;
 uniform ivec4 uClip;                // 端点快放：轴、符号、值、开关 —— 越过的部分压暗并画切线
@@ -49,16 +52,54 @@ bool col2(int x, int z, out ivec4 v) {
 }
 vec4 lut(int v) { return texelFetch(uLut, ivec2(v & 4095, 0), 0); }
 int clsOf(vec4 l) { return int(l.a * 255.0 + 0.5) / 64; }
+bool treeBlk(vec4 l) { return (int(l.a * 255.0 + 0.5) & 1) == 1; }   // LUT alpha 最低位 = 树类（叶 / 原木 / 藤 / 仙人掌）
+bool underRock(ivec3 c) {   // 往上数：先碰到的实体是岩石（非树类）= 头顶有顶 = 地下；树冠下的空气先碰到树叶 → 不算
+  for (int k = 1; k <= 48; k++) {
+    int v = vox(ivec3(c.x, c.y + k, c.z));
+    if (v < 0) return false;
+    if (v > 0) { vec4 l = lut(v); if (clsOf(l) == 1) return !treeBlk(l); }
+  }
+  return false;
+}
+vec3 caveRamp(float y) {   // 洞底高度色：深处冷（紫蓝）→ 浅处暖（黄），跨度 0 … 海平面 + 24
+  float t = clamp(y / float(uSea + 24), 0.0, 1.0);
+  vec3 a = vec3(0.35, 0.20, 0.65), b = vec3(0.15, 0.45, 0.85), c = vec3(0.20, 0.75, 0.60), d = vec3(0.95, 0.85, 0.35);
+  return t < 0.33 ? mix(a, b, t / 0.33) : t < 0.66 ? mix(b, c, (t - 0.33) / 0.33) : mix(c, d, (t - 0.66) / 0.34);
+}
 bool solidAt(ivec3 c) { int v = vox(c); return v > 0 && clsOf(lut(v)) == 1; }
+vec3 caveFloor(ivec3 c, int v) {   // 俯视洞窟：玩家站在洞底看到的样子——高度分色 + 每 4 格一档明暗 + 头顶净空（矮洞暗）+ 贴墙 / 落差压暗；岩浆、水保持本色
+  int hr = 0;
+  for (int k = 1; k <= 24; k++) { int u = vox(ivec3(c.x, c.y + k, c.z)); if (u < 0 || (u > 0 && clsOf(lut(u)) == 1)) break; hr++; }
+  vec3 bc = lut(v).rgb; float mx = max(bc.r, max(bc.g, bc.b)), sat = (mx - min(bc.r, min(bc.g, bc.b))) / max(mx, 0.001);
+  vec3 b = mix(mix(caveRamp(float(c.y)), bc, 0.2), bc, smoothstep(0.35, 0.6, sat));
+  ivec3 up = c - uF;
+  int walls = int(solidAt(up + uR)) + int(solidAt(up - uR)) + int(solidAt(up + uD)) + int(solidAt(up - uD));
+  int drops = int(!solidAt(c + uR)) + int(!solidAt(c - uR)) + int(!solidAt(c + uD)) + int(!solidAt(c - uD));
+  float band = mod(float(c.y), 8.0) < 4.0 ? 1.0 : 0.86;
+  float head = 0.5 + 0.5 * clamp(float(hr) / 5.0, 0.0, 1.0);
+  return b * band * head * (1.0 - 0.12 * float(walls)) * (1.0 - 0.1 * float(drops));
+}
+bool bsel(int b) { return texelFetch(uBsel, ivec2(b & 255, 0), 0).r > 0.5; }
 vec3 bio(int b) { return texelFetch(uBio, ivec2(b & 255, 0), 0).rgb; }
 const vec3 WATER = vec3(0.247, 0.463, 0.894);
 
-vec3 heightRamp(float t) {   // t: 0 底 … sea … 1 顶
-  float s = float(uSea) / float(uH);
-  if (t < s) return mix(vec3(0.02, 0.05, 0.25), vec3(0.15, 0.45, 0.85), t / s);
-  float u = (t - s) / (1.0 - s);
-  vec3 a = vec3(0.20, 0.55, 0.20), b = vec3(0.85, 0.80, 0.35), c = vec3(0.55, 0.35, 0.20), d = vec3(0.97);
-  return u < 0.25 ? mix(a, b, u / 0.25) : u < 0.55 ? mix(b, c, (u - 0.25) / 0.3) : mix(c, d, clamp((u - 0.55) / 0.35, 0.0, 1.0));
+bool hgt(int x, int z, out float h) { ivec4 v; if (!col2(x, z, v)) return false; h = float(min(max(v.y, 0) + v.w, uStart)); return true; }   // 水面按水面高（湖面平）；切片面以下的列按切面压平
+float terrShade(int x, int z, vec2 fr) {   // uTerr 1：光从 uSun 来；平地 = 1。uTerr 2：MC 平滑光照式的四角 AO（本格每角被 3 个更高的邻格遮挡 0…3 级），在格内双线性插值
+  float a, b, c, d;
+  if (uTerr == 2) {
+    float h; if (!hgt(x, z, h)) return 1.0;
+    float ao[4];   // 角：(−x,−z) (+x,−z) (−x,+z) (+x,+z)
+    for (int k = 0; k < 4; k++) {
+      int sx = (k & 1) == 0 ? -1 : 1, sz = k < 2 ? -1 : 1; float p, q, r;
+      bool A = hgt(x + sx, z, p) && p > h, B = hgt(x, z + sz, q) && q > h, C = hgt(x + sx, z + sz, r) && r > h;
+      ao[k] = A && B ? 3.0 : float(int(A) + int(B) + int(C));
+    }
+    float v = mix(mix(ao[0], ao[1], fr.x), mix(ao[2], ao[3], fr.x), fr.y);
+    return 1.0 - 0.17 * v;
+  }
+  if (!hgt(x - 1, z, a) || !hgt(x + 1, z, b) || !hgt(x, z - 1, c) || !hgt(x, z + 1, d)) return 1.0;
+  vec3 n = normalize(vec3((a - b) * 0.75, 1.0, (c - d) * 0.75));
+  return clamp(dot(n, uSun) / uSun.y, 0.35, 1.4);
 }
 float topLight(int y) { return 0.82 + 0.18 * clamp(float(y - uSea + 32) / 96.0, 0.0, 1.0); }
 
@@ -73,12 +114,19 @@ void main() {
   ivec3 c0 = c;
   int n = (uEnd - uStart) * dir + 1;
   vec3 bg = vec3(0.075, 0.08, 0.095);
-  int hitV = 0, wd = 0, dist = 0, waterV = 0; bool known = false, hit = false;
+  int hitV = 0, wd = 0, dist = 0, waterV = 0; bool known = false, hit = false, cave = false;
   for (int i = 0; i < 1024; i++) {
     if (i >= n) break;
+    if (uBMode == 1) { ivec4 b0; if (col2(c.x, c.z, b0) && !bsel(b0.z)) { known = true; if (fa == 1) break; c[fa] += dir; if (wd == 0) dist++; continue; } }   // 只显示：未选中群系的列直接剪掉（当空气；俯视整条射线一步退出，侧视 / 切片沿线跳过）
     int v = vox(c);
     if (v < 0) { if (fa == 1 || known) break; c[fa] += dir; dist++; continue; }
     known = true;
+    if (uShade == 2) {   // 洞窟：岩石（含地表）剔除；地表以下、头顶有岩石的空气 = 洞窟空气；进过洞窟后碰到的第一个实体 = 墙面
+      bool open = v == 0 || clsOf(lut(v)) != 1;
+      if (open) { ivec4 g0; if (col2(c.x, c.z, g0) && c.y < g0.y && underRock(c)) { cave = true; dist++; } }
+      else if (cave) { hitV = v; hit = true; break; }
+      c[fa] += dir; continue;
+    }
     if (v != 0) {
       int k = clsOf(lut(v));
       if (k == 1) { hitV = v; hit = true; break; }
@@ -93,16 +141,18 @@ void main() {
     if (uF.y < 0 && col2(c0.x, c0.z, cv)) {          // 俯视：2D 列地表，光照规则同 3D（西 / 北邻列更高 → 压暗）
       shown = true;
       int y = cv.y, w = cv.w;
-      vec3 base = uShade == 1 ? bio(cv.z) : uShade == 2 ? heightRamp(float(max(y, 0) + w) / float(uH - 1)) : (y >= 0 ? lut(cv.x).rgb : WATER);
+      vec3 base = uShade == 1 ? bio(cv.z) : (y >= 0 ? lut(cv.x).rgb : WATER);
       float sh = 1.0; ivec4 nw, nn;
-      if (y >= 0 && col2(c0.x - 1, c0.z, nw) && col2(c0.x, c0.z - 1, nn)) {
+      if (uTerr != 0) sh = terrShade(c0.x, c0.z, fract(wp.xz));
+      else if (y >= 0 && col2(c0.x - 1, c0.z, nw) && col2(c0.x, c0.z - 1, nn)) {
         sh = 1.0 - 0.13 * float(int(nw.y > y) + int(nn.y > y));
         if (nw.y < y && nn.y < y) sh *= 1.06;
       }
-      if (uShade != 2) sh *= topLight(y);
+      sh *= topLight(y);
       col = base * sh;
       if (w > 0) col = y >= 0 ? mix(col, uShade == 0 ? WATER * 0.85 : vec3(0.15, 0.3, 0.7), min(1.0, 0.45 + float(w) * 0.04)) : WATER * 0.7;
       if (uStart < y + w) col *= 0.35;               // 切片面在地表以下：外圈只有地表，压暗示意「这里看不到切面」
+      if (uShade == 2) col = bg * 0.7;               // 洞窟模式：外圈没有洞窟数据，只留暗底
     } else if (fa != 1 && col2(c0.x, c0.z, cv)) {    // 侧视：2D 剖面轮廓（压暗）
       shown = true;
       int y = c0.y, sy = cv.y, w = cv.w;
@@ -117,24 +167,43 @@ void main() {
   else {
     vec3 base;
     if (uShade == 1) { ivec4 cv; base = col2(c.x, c.z, cv) ? bio(cv.z) : vec3(0.5); }
-    else if (uShade == 2) {
-      float t = fa == 1 ? float(c.y) / float(uH - 1) : 1.0 - clamp(float(abs(c[fa] - uStart)) / 160.0, 0.0, 1.0);
-      base = heightRamp(t);
-    } else base = hit ? lut(hitV).rgb : lut(waterV).rgb;
+    else base = hit ? lut(hitV).rgb : lut(waterV).rgb;
     float sh = 1.0;
     if (hit) {   // 光从屏幕左上、朝相机一侧来：那两个方向上更近一层有实体 → 压暗
-      int occ = int(solidAt(c - uF - uR)) + int(solidAt(c - uF - uD));
-      sh = 1.0 - 0.13 * float(occ);
-      if (!solidAt(c - uR) && !solidAt(c - uD)) sh *= 1.06;
-      if (fa == 1 && uShade != 2) sh *= topLight(c.y);
-      if (fa != 1) sh *= 1.0 - 0.45 * clamp(float(abs(c[fa] - uStart)) / 128.0, 0.0, 1.0);
+      if (uTerr != 0 && uShade != 2 && fa == 1 && uF.y < 0) sh = terrShade(c.x, c.z, fract(wp.xz));
+      else {
+        int occ = int(solidAt(c - uF - uR)) + int(solidAt(c - uF - uD));
+        sh = 1.0 - 0.13 * float(occ);
+        if (!solidAt(c - uR) && !solidAt(c - uD)) sh *= 1.06;
+      }
+      if (uShade != 2) { if (fa == 1) sh *= topLight(c.y); else sh *= 1.0 - 0.45 * clamp(float(abs(c[fa] - uStart)) / 128.0, 0.0, 1.0); }
     }
     col = base * sh;
+    if (uShade == 2 && fa == 1) col = caveFloor(c, hitV);
+    else if (uShade == 2) col = mix(vec3(0.02, 0.03, 0.06), col * (0.55 + 0.9 * exp(-float(dist) / 40.0)), 0.25 + 0.75 * exp(-float(dist) / 56.0));   // 洞窟空气的深度雾：越深越暗、偏蓝黑（手电筒式）
     if (wd > 0) {
       vec3 w = uShade == 0 ? lut(waterV).rgb * 0.85 : vec3(0.15, 0.3, 0.7);
       col = hit ? mix(col, w, min(1.0, 0.45 + float(wd) * 0.04)) : w * 0.7;
     }
   }
+  if (uBMode != 0 && (known ? (hit || wd > 0) : shown)) {   // 群系 finder
+    ivec2 xz = known ? c.xz : c0.xz; ivec4 bv;
+    if (col2(xz.x, xz.y, bv)) {
+      bool sel = bsel(bv.z); float lum = dot(col, vec3(0.3, 0.59, 0.11));
+      if (uBMode == 1) col = sel ? col : vec3(lum) * 0.32;   // 正常到不了（已剪枝）；只剩纯水体射线的兜底
+      else if (uBMode == 2) col = sel ? min(col * 1.12, vec3(1.0)) : mix(vec3(lum), col, 0.6) * 0.5;
+      else col = sel ? vec3(lum) * 0.3 : col;
+      if (uBMode != 3 && sel && fa == 1 && uZoom >= 1.5) {   // 选中群系朝外的边：格内 1.3 px 的亮线
+        vec2 f2 = fract(wp.xz); ivec4 nb; bool ed = false;
+        if (f2.x * uZoom < 1.3 && col2(xz.x - 1, xz.y, nb) && !bsel(nb.z)) ed = true;
+        if ((1.0 - f2.x) * uZoom < 1.3 && col2(xz.x + 1, xz.y, nb) && !bsel(nb.z)) ed = true;
+        if (f2.y * uZoom < 1.3 && col2(xz.x, xz.y - 1, nb) && !bsel(nb.z)) ed = true;
+        if ((1.0 - f2.y) * uZoom < 1.3 && col2(xz.x, xz.y + 1, nb) && !bsel(nb.z)) ed = true;
+        if (ed) col = vec3(1.0, 0.93, 0.45);
+      }
+    }
+  }
+  col *= uLight;
   if (uClip.w != 0) {   // 端点快放：越过切面的部分压暗，切面画亮线
     float d = (wp[uClip.x] - float(uClip.z)) * float(uClip.y);
     if (d > 0.0) col *= 0.35;
@@ -199,7 +268,7 @@ export class Renderer {
     const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
     for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), k = a.name.replace(/\[0\]$/, ''); this.u[k] = gl.getUniformLocation(p, a.name); }
     gl.uniform1iv(this.u.uFont, FONT);
-    ['uVox', 'uSlot', 'uCol', 'uSlot2', 'uLut', 'uBio'].forEach((k, i) => gl.uniform1i(this.u[k], i));
+    ['uVox', 'uSlot', 'uCol', 'uSlot2', 'uLut', 'uBio', 'uBsel'].forEach((k, i) => gl.uniform1i(this.u[k], i));
     this.vao = gl.createVertexArray();
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     this.max3d = gl.getParameter(gl.MAX_3D_TEXTURE_SIZE);
@@ -226,9 +295,13 @@ export class Renderer {
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, C2, C2, gl.RGBA_INTEGER, gl.SHORT, this.slots2); }
   palette(blockLut, biomeLut) {
     const gl = this.gl;
-    if (!this.tLut) { this.tLut = this.tex(4, gl.TEXTURE_2D); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 4096, 1); this.tBio = this.tex(5, gl.TEXTURE_2D); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 256, 1); }
+    if (!this.tLut) { this.tLut = this.tex(4, gl.TEXTURE_2D); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 4096, 1); this.tBio = this.tex(5, gl.TEXTURE_2D); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 256, 1); this.tBsel = this.tex(6, gl.TEXTURE_2D); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.R8, 256, 1); this.bmask(null); }
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, this.tLut); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 4096, 1, gl.RGBA, gl.UNSIGNED_BYTE, blockLut);
     gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, this.tBio); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.RGBA, gl.UNSIGNED_BYTE, biomeLut);
+  }
+  bmask(ids) {   // 群系 finder 的选中集（ids = 群系 id 数组 / null）
+    const gl = this.gl, a = new Uint8Array(256); for (const i of ids ?? []) a[i & 255] = 255;
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, this.tBsel); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.RED, gl.UNSIGNED_BYTE, a);
   }
   // 一块进 3D 环：体素 + 槽表
   upload(rec) {
@@ -264,7 +337,7 @@ export class Renderer {
     gl.uniform2f(u.uRes, p.res[0], p.res[1]); gl.uniform2f(u.uVp, vp[0], vp[1]);
     gl.uniform3f(u.uCenter, ...p.center); gl.uniform1f(u.uZoom, p.zoom);
     gl.uniform3i(u.uF, ...p.F); gl.uniform3i(u.uR, ...p.R); gl.uniform3i(u.uD, ...p.D);
-    gl.uniform1i(u.uStart, p.start); gl.uniform1i(u.uEnd, p.end); gl.uniform1i(u.uShade, p.shade);
+    gl.uniform1i(u.uStart, p.start); gl.uniform1i(u.uEnd, p.end); gl.uniform1i(u.uShade, p.shade); gl.uniform1i(u.uTerr, p.terr | 0); gl.uniform1i(u.uBMode, p.bmode | 0); gl.uniform3f(u.uLight, ...(p.light ?? [1, 1, 1])); gl.uniform3f(u.uSun, ...(p.sun ?? [-0.5, 0.67, -0.5]));
     gl.uniform1i(u.uAir, p.air | 0); gl.uniform1i(u.uGrid, p.grid ? 1 : 0);
     gl.uniform4i(u.uClip, ...p.clip); gl.uniform4i(u.uMark, ...p.mark); gl.uniform4i(u.uInv, ...(p.inv ?? [0, 0, 0, 0]));
     gl.uniform1i(u.uSel, p.sel ?? 0); gl.uniform3i(u.uSelMin, ...(p.selMin ?? [0, 0, 0])); gl.uniform3i(u.uSelMax, ...(p.selMax ?? [0, 0, 0]));

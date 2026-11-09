@@ -23,7 +23,7 @@ export class Layers {
     this.vals = new Map(); this.rng = new Map(); this.rver = 0; this.gen = (this.gen ?? 0) + 1;
   }
   setFields(keys) { this.fields = keys; }
-  list() { return [{ id: 'none', name: '无' }, { id: 'tree', name: '树种', kind: 'cat' }, ...this.fields.map(k => ({ id: 'f:' + k, name: k, kind: 'num' }))]; }
+  list() { return [{ id: 'none', name: '无' }, ...this.fields.map(k => ({ id: 'f:' + k, name: k, kind: 'num' })), { id: 'tree', name: '树种', kind: 'cat' }]; }
   valid(id) { return this.list().some(l => l.id === id); }
   dropChunk(cx, cz) { this.chunks.delete(cx + ',' + cz); }
 

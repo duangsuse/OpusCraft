@@ -11,6 +11,7 @@ export const key = (cx, cz) => cx + ',' + cz;
 export class Store {
   constructor(meta) {
     this.meta = meta; this.H = meta.h ?? 256;
+    this.rev = 0;                            // 块集 / heights 变动计数（surfTop 缓存用）
     this.map = new Map();                    // 3D：key → { cx, cz, blocks, biomes, heights, outside }
     this.cols = new Map();                   // 2D：key → Int16Array(1024)
     this.w3 = 0; this.win = [0, 0];          // 3D 窗口边长（区块）与最小区块
@@ -25,6 +26,7 @@ export class Store {
   inWin2(cx, cz) { const [x0, z0] = this.win2; return cx >= x0 && cz >= z0 && cx < x0 + this.w2 && cz < z0 + this.w2; }
   // 以区块 (ccx, ccz) 为中心定两个窗口；返回丢掉的 3D 块与 2D 列的 key
   center(ccx, ccz, w3, w2) {
+    this.rev++;
     this.w3 = w3; this.w2 = w2;
     this.win = [ccx - (w3 >> 1), ccz - (w3 >> 1)]; this.win2 = [ccx - (w2 >> 1), ccz - (w2 >> 1)];
     const drop3 = [], drop2 = [];
@@ -45,6 +47,7 @@ export class Store {
   }
   // 收一块；返回被改动的块（含自己），供重新上传（体素 + 列）
   put(g) {
+    this.rev++;
     const rec = { cx: g.cx, cz: g.cz, blocks: g.blocks, biomes: g.biomes, heights: g.heights, outside: g.outside, ms: g.ms, wrote: new Set() };
     for (let c = 0; c < 256; c++) if (top(rec.blocks, c, this.H) !== rec.heights[c]) this.c4pre++;
     this.map.set(key(rec.cx, rec.cz), rec);

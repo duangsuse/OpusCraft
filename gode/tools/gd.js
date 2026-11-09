@@ -20,7 +20,7 @@
  *   gd hash <x0,y0,z0,x1,y1,z1|LAST>         区域体素哈希
  *   gd set c_.Path=v …                       值按 JSON 解析，失败当字符串
  *   gd eval '<js>'                           页面里执行（可 await），按值返回
- *   gd check [name…|all] [--matrix mini,gp,liq,old,v7,valleys|all]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
+ *   gd check [name…|all] [--matrix mini,gp,liq,old|all（all 不含 v7 / valleys，要跑显式写）]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
  *                                            --matrix = pgviz 检查在每个生成器下各跑一遍（行名带 @g，跑完回原页面）
  *   gd perf [--frames 120]                   低频：帧时间中位数 / p95 + 渲染器 stats()，追加到 gode/shots/perf.tsv
  *   gd log [-f]                              页面 console / 异常（自上次调用以来）；-f 持续跟随
@@ -448,9 +448,9 @@ async function daemon(opts) {
   // ── 检查（checks.tsv）──
   const gitChanged = () => { try { return execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean).map(l => l.slice(3)); } catch { return []; } };
   const globRe = g => new RegExp('^' + g.trim().replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
-  const MATRIX_GENS = ['mini', 'gp', 'liq', 'old', 'v7', 'valleys'];
+  const MATRIX_GENS = ['mini', 'gp', 'liq', 'old'];   // v7 / valleys 不进自动矩阵（11-09 定：慢、且有 tools/luanti/parity.mjs 对拍）；要跑时显式 --matrix v7,valleys
   const check = async (names, matrix) => {
-    if (matrix) {   // --matrix mini,gp,liq,old,v7,valleys（all = 六个）：pgviz 检查在每个生成器下各跑一遍，行名带 @g；跑完回到原页面
+    if (matrix) {   // --matrix mini,gp,liq,old（all = 这四个；v7 / valleys 要显式写）：pgviz 检查在每个生成器下各跑一遍，行名带 @g；跑完回到原页面
       const gs = matrix === true || matrix === 'all' ? MATRIX_GENS : String(matrix).split(',').filter(Boolean), back = st.url, out = [], fails = [];
       for (const g of gs) {
         await navigate(resolveUrl(`gode/viz/?g=${g}`));

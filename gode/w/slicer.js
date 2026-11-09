@@ -62,6 +62,15 @@ const ENGINE = {
     }
     return { x0, z0, n, step, data };
   },
+  // 群系搜索（pgviz 群系 finder）：x0,z0 起每 step 格（取格中心 +step/2）采 n×n 个点，回 sample().biome 等于 want（id 或名字）的点 [x,z,x,z,…]
+  async bfind({ x0, z0, n, step, want }) {
+    const hits = [], h = step >> 1;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const x = x0 + i * step + h, z = z0 + j * step + h, b = (await mod.sample?.({ x, z }))?.biome;
+      if (b !== undefined && (b === want.id || b === want.name)) hits.push(x, z);
+    }
+    return { x0, z0, n, step, hits: Int32Array.from(hits) };
+  },
   // 默认实现 = 整块生成再归约（只回 2 KB）；生成器可导出更便宜的 col（只算列噪声）覆盖它
   async col({ cx, cz, cls }) {
     let out = chunkOut();

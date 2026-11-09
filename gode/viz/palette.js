@@ -49,6 +49,7 @@ function guess(n) {
 }
 
 export const blockColor = (n) => guess(n);
+const TREEB = /_(leaves|log|wood|stem)$|^(vine|cactus)$/;   // LUT alpha 最低位 = 树类（洞窟着色里区分树冠下的空气与洞窟）
 export function cls(n) { return !n || n === 'air' || n === 'cave_air' || n === 'void_air' ? 0 : FLUID.test(n) ? 2 : PLANT.test(n) ? 3 : 1; }
 
 // 4096 项 RGBA8：rgb = 方块色，a = 分类 × 64
@@ -57,7 +58,7 @@ export function blockLUT(names) {
   names.forEach((n, i) => {
     if (i >= 4096) return;
     const c = cls(n), rgb = c ? guess(n) : 0;
-    lut[i * 4] = rgb >> 16 & 255; lut[i * 4 + 1] = rgb >> 8 & 255; lut[i * 4 + 2] = rgb & 255; lut[i * 4 + 3] = c * 64;
+    lut[i * 4] = rgb >> 16 & 255; lut[i * 4 + 1] = rgb >> 8 & 255; lut[i * 4 + 2] = rgb & 255; lut[i * 4 + 3] = c * 64 + (TREEB.test(n) ? 1 : 0);
   });
   return lut;
 }
