@@ -277,7 +277,8 @@ export interface Env {
   eyeBlk?: num;                                                // 眼处方块光 0..1（rgl：洞穴火把暖雾）；没有就当 0
   eyeSky?: num;                                                // 眼处天空光 0..1（洞穴系数 → 曝光 / 雾）；没有就当 1  [goal-remix R5]
   eyeWaterTop?: num;                                          // 相机在水里时，眼上方水面的世界 y（水下焦散 / 光束的水深起点）；不在水里 = undefined  [goal-remix 步骤 9c]
-  weather?: { rain: num; thunder: num; wet: num };             // 宿主 A 没有（恒晴）；宿主 B = Weather 状态机  [goal-remix R5]
+  weather?: { rain: num; thunder: num; wet: num; flash?: num };   // 宿主 A 没有（恒晴）；宿主 B = Weather 状态机  [goal-remix R5]
+                                                //   thunder = 雷暴强度（持续，用来压暗）；flash = 闪电脉冲（落雷那一下 ~0.8，几百 ms 衰减到 0，用来提亮）  [11-09 修：曾把 thunder 当 flash]
   underwater?(flag: boolean, fog?: { near: num; far: num }): void;   // v2 通知宿主：相机在水中（宿主 B 自己决定要不要雾/遮罩）
                                                 //   fog = v2 面板的水下雾近/远建议值（宿主 A 适配器照写进共享 U）；每帧调用一次  [goalP3P4 实现补充]
   hide?(what: 'clouds' | 'stars' | 'sky' | 'weather', flag: boolean): void;   // 渲染器接管了这些元素，请宿主别画

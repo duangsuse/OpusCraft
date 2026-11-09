@@ -67,7 +67,7 @@ XZP.16x16x{H}/g{zdict}@{cx},{cz} X2V/{BBat(预制件名),生物组装体素池(�
 
 链接可以传入 ?r=渲染器&g=生成器&tex=资源包&start=旧存档的seed或新建 或&start=https链接导种 &mode=G键切换模式号 &p1=@x,z^y(,yaw,pitch,fov)或p1=@地名&tpause=5&json=面板深赋值&pts=name@x,z^y;home@..
 
-tpause=5,1.0x 效果就像暂停菜单透明了一次。包含 5~23 24点就是日出，日出方向是东(E) mat.t(0deg 顺时针, 或偏移 @1,0)也是东，@0,1 是向南边
+tpause=5,1.0x 效果就像暂停菜单透明了一次。包含 5~23 24点就是日出，日出方向是东(E) mat.t(0deg 顺时针, 或偏移 +@1,0)也是东，+@0,1 是向南边
 
 ==有趣的优化==
 
@@ -81,7 +81,7 @@ VoxelLibre 有手持火把光照，掉落物有厚度，goodLiqPG的方块破坏
 
 ==三大件==
 
-pkv/gm API × (gpane (Tweakpane分支) + Pass.js) 以glsl里${}getter注入为基础，提供了动态调优项目基建，同时是边做游戏，边准备MOD生态
+pkv(xzyb#matBIME)/gm API × (gpane (Tweakpane分支) + Pass.js) 以glsl里${}getter注入(Fps.引用/()=>/Fpv.值)为基础，提供了动态调优项目基建，同时是边做游戏，边准备MOD生态
 
 大量使用文件夹级预设、两个相关键并成vec2,+-1手调、键区间/默认值可热编辑落盘、[{pickLib}]先划选后改KV、checkbox开关后可看fps差异、前3下拉项目转 `<a>` 折叠时也可见，等等
 

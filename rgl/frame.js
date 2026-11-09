@@ -27,7 +27,7 @@ export function createFrameBuilder() {
   const reset = () => { st.idleMs = 0; st.prevFwd = null; st.flareK = null; st.taaI = 0; st.prevVP = null; st.prevEye = null; st.ambT = null; st.ambKey = null; st.snap = true; };
 
   /** in = { W, H, eye, fwd, up, fovDeg, rd, tick, dayCount, time, cloudTime, dt,
-   *         rain, flash, wet, underwater, S: {waving, clouds, gamma, volumetric, pbr, pom, taa, shadowQ, flare}, dbg } */
+   *         rain, storm, flash, wet, underwater, S: {waving, clouds, gamma, volumetric, pbr, pom, taa, shadowQ, flare}, dbg } */
   function build(inp) {
     const { W, H, eye, fwd, up, rd, tick, dt } = inp, S = inp.S;
     const env = environment(tick);
@@ -53,7 +53,7 @@ export function createFrameBuilder() {
     const camDelta = [eye[0] - prevEye[0], eye[1] - prevEye[1], eye[2] - prevEye[2]];
     const taaReset = !st.prevVP || Math.hypot(camDelta[0], camDelta[1], camDelta[2]) > 4;
     st.prevVP = viewProj; st.prevEye = eye.slice();
-    const rain = inp.rain || 0, flash = inp.flash || 0;
+    const rain = inp.rain || 0, flash = inp.flash || 0, storm = inp.storm || 0;   // remix: storm = 雷暴强度（压暗），flash = 闪电脉冲（goodGL W8.flash）；宿主 B 曾把 storm 当 flash 传，雷暴期间一直过曝
     const F = { w: W, h: H, camPos: eye, proj, view, viewProj: viewProjR, viewProjU: viewProj, invViewProj, taa, prevViewProj: prevVP, camDelta, taaReset, invViewProjSky: invViewProj, planes, near, far,
       time: inp.time, fancy: true,
       sunDir: env.sunDir, moonDir: env.moonDir, pathAxis: env.pathAxis, starRot: env.th, moonPhase: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875][(inp.dayCount || 0) % 8], cloudTime: inp.cloudTime,
@@ -72,7 +72,7 @@ export function createFrameBuilder() {
     const alt = 0.3 + Math.max(0, eye[1] - 64) * 0.001;
     const sunI = 16, moonI = 16 * 0.004; F.sunI = sunI; F.moonI = moonI; F.camAlt = alt;
     const Rg = Atmos.Rg, Ts = Atmos.trans([0, Rg + alt, 0], env.sunDir, rain), Tm = Atmos.trans([0, Rg + alt, 0], env.moonDir, rain);
-    const dim = 1 - 0.82 * rain;
+    const dim = (1 - 0.82 * rain) * (1 - 0.25 * storm);                                          // remix: 雷暴再压暗 25%（宿主 B Sky.skyBright 的 −0.25·storm）
     const sunCol = Ts.map(v => v * 3.7), moonCol = Tm.map((v, i) => v * [0.5, 0.66, 1.0][i] * 0.2);
     F.sunCol = sunCol; F.moonCol = moonCol;
     const useSun = sunH > -0.02;
@@ -96,7 +96,7 @@ export function createFrameBuilder() {
       if (rain > 0) { const l2 = a[0] * 0.3 + a[1] * 0.55 + a[2] * 0.15; a = a.map(v => v * (1 - rain * 0.55) + l2 * rain * 0.45); }
       st.ambT = a;
     }
-    F.ambCol = st.ambT.map(v => v + flash * 0.6);
+    F.ambCol = st.ambT.map(v => v * (1 - 0.25 * storm) + flash * 0.6);
     F.torchCol = [1.0, 0.52, 0.2];
     F.aurora = (1 - dayAmt) * (inp.auroraBiome ? 1.0 : 0.35);                                     // remix: 原版按眼处群系；R2 取常量 0.35（render.md §2 Env 缺 biomeAt）
     const sd = S.shadowQ >= 2 ? 150 : 100; F.shadowDist = sd;
@@ -109,6 +109,7 @@ export function createFrameBuilder() {
     const t = tick % 24000, morning = t > 22000 ? smooth01(22000, 23800, t) : t < 4500 ? 1 - smooth01(1500, 4500, t) : 0;
     F.mist = 0.12 + 0.45 * morning + 0.3 * (1 - dayAmt) + 0.5 * rain;
     F.fogDensity = 0.0016 + 0.004 * rain;
+    F.fogEdge = S.fogEdge != null ? S.fogEdge : 1;                                                // remix: 渲染距离边缘的雾化（掩盖区块弹出）强度，0 = 关；宿主「雾气浓度」驱动
     const dbg = inp.dbg;                                                                          // 原版 Game.dbg：fog / mist / vol / exp 覆写（去雾版用它）
     if (dbg) { if (dbg.mist !== undefined) F.mist = dbg.mist; if (dbg.fog !== undefined) F.fogDensity = dbg.fog; if (dbg.vol !== undefined) F.volumetric = dbg.vol; if (dbg.exp !== undefined) st.exposure = dbg.exp; }
     F.waterTop = inp.waterTop != null ? inp.waterTop : eye[1] + 1;                                // remix: 眼上方水面的世界 y（Env.eyeWaterTop）；没给就当离眼 1 格
@@ -131,6 +132,7 @@ export function createFrameBuilder() {
     F.waterDeepSat = dv('waterDeepSat', 1); F.waterD2 = dv('waterD2', 11);
     F.caveHaze = S.caveHaze != null ? S.caveHaze : 1; F.volCloud = S.volCloud != null ? S.volCloud : 1; F.lightDither = S.lightDither != null ? S.lightDither : 1; F.leafGlow = S.leafGlow != null ? S.leafGlow : 1; F.leafPbr = S.leafPbr != null ? S.leafPbr : 1;
     F.leafNormal = dv('leafNormal', 1); F.leafRough = dv('leafRough', 0.55); F.leafSpec = dv('leafSpec', 1); F.leafEnv = dv('leafEnv', 1); F.leafTrans = dv('leafTrans', 1); F.leafRim = dv('leafRim', 1); F.leafPom = dv('leafPom', 1);
+    F.grassHue = dv('grassHue', 1); F.grassWind = dv('grassWind', 1); F.grassGlow = dv('grassGlow', 1); F.grassRim = dv('grassRim', 1); F.grassSpec = dv('grassSpec', 1); F.grassEnv = dv('grassEnv', 1);
     const la = F.ambCol[0] * 0.3 + F.ambCol[1] * 0.55 + F.ambCol[2] * 0.15, ls = F.lightCol[0] * 0.3 + F.lightCol[1] * 0.55 + F.lightCol[2] * 0.15;
     const outdoor = Math.max(0.62, Math.min(1.75, 0.8 / Math.pow(la * 1.3 + ls * 0.22 + 0.004, 0.42)));
     const target = outdoor * (1 - st.caveFactor) + 2.6 * st.caveFactor;

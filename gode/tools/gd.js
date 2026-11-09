@@ -4,9 +4,9 @@
  * 零依赖，Node ≥ 22（内置 WebSocket / fetch）或 Bun。
  *
  * 用法  node gode/tools/gd.js <命令> [参数]        （下文 gd = 这一串）
- *   gd up [--ss] [--seed N] [--rd N] [--size 1280x720] [--url Q]   起守护进程 + 浏览器 + 宿主 B（已在跑则复用）
+ *   gd up [--ss] [--seed N] [--rd N] [--size 1280x720] [--url Q]   起守护进程 + 浏览器 + 宿主 B（已在跑则复用）；静态服务不通且 GD_BASE 指向本机时，先拉起 gode/tools/dev.js
  *   gd down                                  关浏览器、杀进程组、删 profile
- *   gd ps                                    守护进程 / 浏览器 pid、空闲时长、当前 URL、残留进程数
+ *   gd ps                                    守护进程 / 浏览器 pid、空闲时长、当前 URL、残留进程数；静态服务是 dev.js（pid、连着几个页面）/ 别的静态服务 / 不通
  *   gd go '<query>'                          'gode/viz/?g=gp' = 换页面；'?seed=1' = 换整个查询串；'&r=lite' = 合并参数；相同则跳过
  *   gd reload                                强制重载（gode/ rgl/ 宿主 B 的 js 有改动时 shot / check 前自动做）
  *   gd pose <名字|@x,z^y,yaw,pitch[,fov]|iso-ne>   名字查 defl/c_.json 的 c_.Bench.poses['<seed>@<g>']，
@@ -33,7 +33,8 @@
  * 输出：一行一个结果（tsv / 文本），stderr 末行是耗时；失败退出码 1 并带页面日志最后 20 行。
  *
  * 环境变量
- *   GD_BASE=http://localhost:8765/   静态服务根（gd 不自带服务器；用户的 http-server -p 8765 -c 1 常驻在仓库根）
+ *   GD_BASE=http://localhost:8765/   静态服务根。端口不通且指向本机时，gd up 自己拉起 gode/tools/dev.js（独立进程，日志 /tmp/gode-gd/dev.log，
+ *                                    gd down 不杀它，gd ps 里有它的 pid）；已经有别的静态服务（http-server -p 8765 -c 1）就照用，只是没有热更新 / 写回（s16 §13）
  *   GD_IDLE=600    空闲多少秒后守护进程自动 down
  *   GD_SLOW=8      单条命令超过这么多秒时打印卡在哪
  *   GD_HEADLESS=1  无头（仍用 prime-run 独显；--ss 则是 SwiftShader 无头）
@@ -184,6 +185,8 @@ const SHOTS = join(GODE, 'shots'), INDEX = join(SHOTS, 'index.tsv'), CJSON = joi
 const DIR = join(tmpdir(), 'gode-gd'), SOCK = join(DIR, 'sock'), STATE = join(DIR, 'state.json'), DLOG = join(DIR, 'daemon.log');
 const BASE = (process.env.GD_BASE || 'http://localhost:8765/').replace(/\/?$/, '/');
 const IDLE = +(process.env.GD_IDLE || 600) * 1000, SLOW = +(process.env.GD_SLOW || 8) * 1000;
+const DEV = join(TOOLS, 'dev.js'), DEVLOG = join(DIR, 'dev.log');
+const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(BASE).hostname);   // 只有本机的静态服务才由 gd 拉起
 const BASELINE = join(TOOLS, 'baseline.tsv'), DRIFT_MD = join(SHOTS, 'drift.md'), DRIFT_JSON = join(SHOTS, 'drift.json');
 const INDEX_COLS = ['seq', 'ts', 'tag', 'pose', 'url', 'files', 'note', 'verdict', 'ms'];
 const QUALITY = 82;
@@ -588,7 +591,7 @@ async function daemon(opts) {
     },
     async ps() {
       const idle = Math.round((Date.now() - st.last) / 1000);
-      return [`daemon\t${st.pid}`, `browser\tpgid ${pgid}\talive ${isAlive(pgid)}\tport ${port}\t${st.ss ? 'swiftshader' : 'prime-run'}`, `url\t${st.url}`, `idle\t${idle}s / ${IDLE / 1000}s`, `inbox\t待取 ${inbox.length}\t在听 ${listening()}`, `profiles\t${pidsMatching(PROFILE_PREFIX).length} 个进程匹配 ${PROFILE_PREFIX}`];
+      return [`daemon\t${st.pid}`, `browser\tpgid ${pgid}\talive ${isAlive(pgid)}\tport ${port}\t${st.ss ? 'swiftshader' : 'prime-run'}`, `url\t${st.url}`, `idle\t${idle}s / ${IDLE / 1000}s`, `inbox\t待取 ${inbox.length}\t在听 ${listening()}`, `profiles\t${pidsMatching(PROFILE_PREFIX).length} 个进程匹配 ${PROFILE_PREFIX}`, await devLine()];
     },
     async down() { setTimeout(() => driftThenDown('gd down'), 50); return ['down']; },
     // 给人用：run = 现在量一遍并打印偏差；accept = 接受当前输出为新基线；show（默认）= 基线与上次结果
@@ -684,10 +687,42 @@ const req = (name, body = {}, ms = 120000) => new Promise((resolve, reject) => {
 });
 const alive = async () => { const s = readJson(STATE, null); return !!(s && isAlive(s.pid) && await req('ping', {}, 2000).then(() => true, () => false)); };
 
+/** 静态服务的身份：{kind:'dev', pid, clients, uptime…}（/__dev/info 回 gode-dev）/ {kind:'static'}（别的静态服务，如 http-server）/ null（不通） */
+async function staticInfo() {
+  const t = AbortSignal.timeout;
+  try {
+    const r = await fetch(BASE + '__dev/info', { signal: t(2000) });
+    const j = r.ok ? await r.json().catch(() => null) : null;
+    if (j?.name === 'gode-dev') return { kind: 'dev', ...j };
+    return (await fetch(BASE + 'gode/', { method: 'HEAD', signal: t(2000) })).ok ? { kind: 'static' } : null;
+  } catch { return null; }
+}
+const devLine = async () => {
+  const s = await staticInfo();
+  return s?.kind === 'dev' ? `dev\tdev.js pid ${s.pid ?? '?（旧版，重启 dev.js 后有）'}\t${BASE}\t连着 ${s.clients} 个页面\t已跑 ${s.uptime}s` : s ? `dev\t别的静态服务（不是 dev.js：没有热更新 / 写回）\t${BASE}` : `dev\t不通\t${BASE}`;
+};
+/** 拉起 dev.js：独立进程（detached + unref，不是 gd 的子进程，gd down 不会停它），日志写 DEVLOG。等到 /__dev/info 答出 gode-dev 才算起来；起不来（端口被别的占了等）返回 null */
+async function startDev() {
+  const port = new URL(BASE).port || (new URL(BASE).protocol === 'https:' ? '443' : '80');
+  mkdirSync(DIR, { recursive: true });
+  const fd = openSync(DEVLOG, 'w'); let early = false;
+  const p = spawn(process.execPath, [DEV, '-p', port, '--root', ROOT], { detached: true, stdio: ['ignore', fd, fd] });
+  p.on('exit', () => { early = true; }); p.on('error', () => { early = true; }); p.unref();
+  for (let i = 0; i < 50 && !early; i++) { await sleep(100); const s = await staticInfo(); if (s?.kind === 'dev') return s; }
+  return null;
+}
+
 async function ensureUp(o) {
   if (await alive()) return false;
-  try { const r = await fetch(BASE + 'gode/', { method: 'HEAD' }); if (!r.ok) throw 0; }
-  catch { console.error(`静态服务 ${BASE} 不通。在仓库根启动：http-server -p 8765 -c 1（或设 GD_BASE）`); process.exit(1); }
+  let web = await staticInfo();
+  if (!web && LOCAL) {
+    console.error(`# 静态服务 ${BASE} 不通，拉起 gode/tools/dev.js …`);
+    web = await startDev();
+    if (!web) { console.error(`dev.js 没起来（端口被别的服务占了？）；看 ${DEVLOG}`); console.error(readFileSync(DEVLOG, 'utf8').split('\n').filter(Boolean).slice(-5).join('\n')); process.exit(1); }
+    console.error(`# dev.js 已起（pid ${web.pid}）。它不是 gd 的子进程，gd down 不会停它；要停：kill ${web.pid}`);
+  }
+  if (!web) { console.error(`静态服务 ${BASE} 不通（GD_BASE 不是本机，gd 不代起）。本机可以直接：node gode/tools/dev.js`); process.exit(1); }
+  if (web.kind === 'static') console.error('# 静态服务不是 dev.js（没有热更新 / 写回）。要换：停掉它，node gode/tools/dev.js（或停掉后让 gd up 拉起）');
   const n = sweepStale(); if (n) console.error(`# 清掉残留浏览器进程 ${n} 个`);
   const s = readJson(STATE, null); if (s && !isAlive(s.pid)) rmSync(STATE, { force: true });
   mkdirSync(DIR, { recursive: true });
@@ -707,7 +742,7 @@ async function main() {
   switch (cmd) {
     case 'up': await ensureUp(o); body = { url: o.url }; break;
     case 'down': if (!await alive()) { const n = sweepStale(); console.log(`没有在跑的守护进程${n ? `；清掉残留 ${n} 个` : ''}`); return; } break;
-    case 'ps': if (!await alive()) { console.log(`没有在跑的守护进程\t匹配 ${PROFILE_PREFIX} 的进程 ${pidsMatching(PROFILE_PREFIX).length} 个`); return; } break;
+    case 'ps': if (!await alive()) { console.log(`没有在跑的守护进程\t匹配 ${PROFILE_PREFIX} 的进程 ${pidsMatching(PROFILE_PREFIX).length} 个`); console.log(await devLine()); return; } break;
     case 'log': if (o.f) { if (!await alive()) process.exit(1); for (;;) { const r = await req('log'); for (const l of r.out) console.log(l); await sleep(1000); } } break;
     case 'go': body = { q: pos[1] || '' }; break;
     case 'pose': body = { p: pos[1] }; break;

@@ -74,7 +74,7 @@ setBlock → 清 tile（emit tileRemoved）→ 写 blocks/meta → 高度图
 | Mob / Ent / BIME | `Mobs`（`mobsim.js`）、`MOB_TYPES` | 实体 | main + `defl/mob.json / on.js` | 订阅 `tick`、Δ | M3-6/7 |
 | 粒子 | `Particles` :2731 | 派生（不存） | r 侧或 main `fx/`：订阅 `blk_break` 之类的事后事件 | 订阅事件 | **未排期** |
 | 音效 | `SND`（`res_vam.js`:575） | 派生 | 同上，订阅事件；**文档里全无** | 订阅事件 | **未排期** |
-| 天气 / 天空 / 时钟 | `Sky / Weather`（`gls.js`）、`c_.Time` | 规则（时钟）+ 派生 | main 时钟 ✅（`boot.js` 最小版）；渲染在 rgl | `c_Time / c_Weather` | M1-9 |
+| 天气 / 天空 / 时钟 | `Sky / Weather`（`gls.js`）、`$Time` | 规则（时钟）+ 派生 | main 时钟 ✅（`boot.js` 最小版）；渲染在 rgl | `c_Time / c_Weather` | M1-9 |
 | 资源（贴图 / 模型 / 包） | `Atlas / ResourcePack / MobSkin` | 规则与资源 | main 加载，`$links` 里的 `{js,zip}`（s06） | 产出 `atlasRebuilt` | M3 |
 | 参数 / 面板 | `gg.rndr / gg.sim`、`menu` | 规则 | main `gg.vars / c_ / gg.pane` | 产出 `set` | **M1-2** |
 | 存档 / 标题屏 / 屏保 | `Save` :3021、`Title`、`Screensaver` | 世界 + 实体 | w `io.js` + main 状态注册表（§5） | 订阅 Δ（pile） | M2 |
@@ -147,12 +147,59 @@ export const save = {
 
 `genhash-g`（M1 已有）验证的是**生成器 → 世界**这一段；上面几条补**世界 → 存档 → 世界**。
 
-## 7. 待确认
+## 7. 确认结果
 
-| # | 问题 | 倾向 |
+| # | 问题 | 结论 |
 |---|---|---|
-| Q-1 | §4 的 Δ 总线与「一条写路径」是否采用？是则 M1-8 里一起做 | 采用 |
-| Q-2 | 流体 / 火 / 随机 tick：M1–M3 留 main 的 20 Hz（s01 的现状），写成订阅 Δ 的独立模块，以后好下沉？（s11 §2 已讨论过整体下沉 `sim` worker 的代价，这里只是不堵死那条路） | 留 main，按 Δ 订阅写，接口不依赖 main |
-| Q-3 | 粒子、音效：归引擎的事后事件订阅者（渲染器可无），还是归渲染器模块？ | 引擎订阅者，lite / gl 都能用 |
-| Q-4 | 输入 / 触屏 / 帮助键：M3 前补一个「意图层」，让物理、交互、λ. 都只吃意图？ | 补，M1-9 的 F3 / F4 之前 |
-| Q-5 | §5 状态注册表是否取代 `Save.head` 式枚举？ | 取代 |
+| Q-1 | §4 的 Δ 总线与「一条写路径」是否采用？是则 M1-8 里一起做 | **[定 11-09]** 采用 |
+| Q-2 | 流体 / 火 / 随机 tick：M1–M3 留 main 的 20 Hz（s01 的现状），写成订阅 Δ 的独立模块，以后好下沉？（s11 §2 已讨论过整体下沉 `sim` worker 的代价，这里只是不堵死那条路） | **[定 11-09]** 留 main，按 Δ 订阅写，接口不依赖 main |
+| Q-3 | 粒子、音效：归引擎的事后事件订阅者（渲染器可无），还是归渲染器模块？ | **[定 11-09]**（§8）引擎订阅者，lite / gl 都能用 |
+| Q-4 | 输入 / 触屏 / 帮助键：M3 前补一个「意图层」，让物理、交互、λ. 都只吃意图？ | **[定 11-09]**（§8）补，M1-9 的 F3 / F4 之前 |
+| Q-5 | §5 状态注册表是否取代 `Save.head` 式枚举？ | **[定 11-09]** 取代 |
+
+## 8. TS 声明式数据流：`gode/flow/` [定 11-09，用户]
+
+> 用户 11-09：子系统先用 TS 写出声明式数据流，再开工程；粒度到 KubeJS / Luanti 模组 API 的程度；模块之间的连接点与数据类型要一眼能懂。
+
+**模块划分（用户定）**：音效（BGM / 持续状态 / SFX）· 粒子（挖方块 / firefly / flutter / fire）· 模拟（流体 / 火 / 光照 BFS）· 天气 · 标题屏 UI · HUD + 命令 · 输入 + 触屏 + 相机抖动。屏保不做。对应 `flow/audio fx sim weather title hud input feel.ts`（s16 起输入拆出 `feel`）、框架 `kernel.ts`；已有或后续里程碑的模块（game world p1 interact ents render save pane slicer）只在 `flow/host.ts` 写连接点。
+
+**连接点规则（用户定）**：跨模块的数据，信息量不超过它的口诀文本。例：相机 → 渲染器只同步 `Pose`，即 `&p1=@x,z^y,yaw,pitch,fov` 的 6 个数（IDEA L68）；渲染器要的其余信息自己经 gm 取（`Here` 4 Hz、`Clock` 每帧、`gm.world.at`）。rgl 现在读的 `env.flying`（锐阴影距离）不在 Pose 里，改成 p1 切飞行时写 `c_.Gl` 参数。
+
+每个模块文件的结构相同：
+
+| 段 | 内容 |
+|---|---|
+| `Out` | 本模块发出的事件与载荷（合进 `index.ts` 的 `Ev`） |
+| `Api` | 本模块提供的 gm 命名空间（合进 `Gm` = `window.gm` 的形状） |
+| 声明表 | `defl/` 下的表，行类型 + 宿主 B 的现值：`ACTS CAMS`（原 `KEYS`）、`SND SFX LOOPS BGM`、`BURSTS EMIT AMBIENT`、`FLUID HARDEN ABM`、`PRECIP`、`MOVES BIND`（原 `STATES / ELEMS`，s16）、`F3 CMDS` |
+| `c_*` | 面板参数的字面量默认值（s09 §1 最底层） |
+| `mod` | 位置、发出（带频率）、订阅、`depends`（经 gm 调用的命名空间）、读的 `defl/` 表、`c_` 主题、存档键；`core` / `off`（s16）。这是设计期规格，运行时登记处自己观察；`doc` 只是 Ref `mod.<id>.doc` 的初值 |
+
+检查方法：
+
+- `node ~/.bun/install/cache/typescript@5.9.3@@@1/bin/tsc -p gode/flow`：类型检查通过，就说明连接点对得上。共九条检查，见 `index.ts` 头注释：没人发的订阅、一个事件有多个发出者、`emit` 与 `Out` 不一致、同名事件载荷冲突、`depends` 写了不存在的命名空间、表里的事件没订阅，以及 s16 加的三条（MOVES 行、BIND 行、非核心模块要写 `off`）。除第五条外都已用故意弄断的副本验证会报错（s16 §10 的三条与 `depends` 也验过）。
+- `node gode/flow/graph.ts`：打印模块表与事件矩阵。没有模块订阅的事件标「（模组）」，目前有 `biome fire_burn fire_out grow hour cmd`。加参数 `mermaid` 打印流程图。
+
+本节对 §7 的影响：
+
+- **Q-3**：粒子、音效归引擎的事后事件订阅者。粒子的模拟与绘制在渲染器（`RenderFx`，lite 至少实现 `burst`）。
+- **Q-4**：意图层采用，即 `Intent`。触屏不再合成键盘事件。
+- **Q-1、Q-2、Q-5**：写进了 TS（`delta` 总线；sim 留 main，只订阅 `delta / tick`；`mod.save` 列状态注册表的键），用户 11-09 确认。
+
+新增问题（11-09 已拍板，TS 已按结论写）：
+
+| # | 问题 | 结论 [定 11-09] |
+|---|---|---|
+| Q-roll | 宿主 B 的受伤歪头、死亡侧倒是相机 roll，Pose 没有这一项 | 不加 roll，受伤改成 pitch 下压 |
+| Q-ortho | F4 5–9 正交相机没有 fov | **取消** [11-09，用户：CAMS 只留第一人称 / 环绕玩家 / 背后第三]；没有正交相机，`fov` 恒 > 0 |
+| Q-cmd | 命令行的键：宿主 B 的 T（早上）/ R（切天气）是 cheat 键 | `/` 与 Enter 开命令行；T、R 绑成命令 `/time 7`、`/weather next`（`ACTS` 第一列可以直接写命令） |
+| Q-wx | 宿主 B 的天气是随机计时器，联机两端会不同 | 全局天气 = `wxAt(t, seed)` 纯函数（s11 B-5），命令改天气只存覆盖段。天气换成 goodLiqPG 的 7 种后仍是确定性（s15 L-10） |
+
+**模块框架（s16，11-09 用户指出 `STATES` 过度拆解、`doc` 不该是元数据、`uses` 没牙之后）**：
+
+- 模块描述符字段：`uses → depends`（有牙：加载顺序 + 受限 gm 视图），`defl → tables`；新增 `core`（引擎核心不可停）和 `off`（默认模组停用后消费者看到什么）；`where` 去掉 `'dom'`（页面是 Ref 的视图，不是运行位置），加 `'worker'`。`doc` 只是运行时 Ref `mod.<id>.doc` 的初值。
+- `STATES`、`ELEMS` 取消，换成 kernel 的 `BIND` 表 + 页面 `html[data-*]`；`KEYS → ACTS`（虚拟键表，`Action` 开放）；`MOVES` 通用化为 `[Ref, 从, 动作, 到]`；`Screen` 开放。
+- `input` 拆出可停用的 `feel`（Pose 大小的 6 个差量 `Feel`）；新增 `kernel`（登记处、脚本加载、MOVES 执行、绑定器、`gm.mods / gm.tbl`）。
+- 状态型事件在持有者命名空间里各有一个同名的「最新值」Ref（`world.here`、`p1.stat`、`inv.hot`、`weather.clock`…），供页面绑定。
+
+画面反馈（云、阴影、反射、天气、粒子）带来的改动见 **s15**：新增 `flow/render.ts`（渲染器的连接点与 `c_` 参数主题，原先写在 `host.ts`），`Clock` 改带天气参数行，`Here` 加 `held`。

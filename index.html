@@ -521,19 +521,22 @@ class GrowBuf {
 // Fluid ticks are throttled: per game tick at most `fluidBudget` run, nearest to the player first
 // (so a flooding ocean never starves nearby updates or hitches the frame), and fluid cells below sea
 // level outside the camera frustum are parked and re-checked every `parkEvery` ticks.
-const c_SCHED = { fluidBudget: 320, parkEvery: 10, parkMargin: 2, underSeaFovOnly: true };
+const c_SCHED = { fluidBudget: 320, parkEvery: 10, parkMargin: 2, underSeaFovOnly: true, parkRounds: 64, parkMax: 4096 };
 const Scheduler = {
   tick: 0,
   buckets: new Map(), // tick -> array of {x,y,z,type}
-  pending: new Set(), // dedupe key posKey*8+type
-  fluidQ: [], parked: [], _fr: null, _m: null, _sp: null,
+  pending: new Map(), // dedupe key posKey*8+type -> queued entry; an earlier request supersedes a later one (entry.dead)
+  fluidQ: [], parked: [], catching: null, _fr: null, _m: null, _sp: null,
   add(x, y, z, delay, type = 0) {
     const t = this.tick + Math.max(1, delay | 0);
     const dk = posKey(x, y, z) * 8 + type;
-    if (this.pending.has(dk)) return;
-    this.pending.add(dk);
+    const old = this.pending.get(dk);
+    if (old) { if (old.t <= t) return; old.dead = true; }   // 更早的请求顶替更晚的（断供尾部要 1 tick 追排，不能被头部刚排的 5 tick 去重掉）
+    const e = { x, y, z, type, dk, t };
+    this.pending.set(dk, e);
+    if (this.catching && type === gg.TICK_FLUID && this.parkable(x, y, z)) { this.catching.push(e); return; }   // 停车区冲刷中：后续的格 tick 同轮继续跑
     let b = this.buckets.get(t); if (!b) { b = []; this.buckets.set(t, b); }
-    b.push({ x, y, z, type, dk });
+    b.push(e);
   },
   // Called once per game tick by the main loop. `handler(x,y,z,type)` executes the update.
   run(handler) {
@@ -541,7 +544,7 @@ const Scheduler = {
     const b = this.buckets.get(this.tick);
     if (b) {
       this.buckets.delete(this.tick);
-      for (const e of b) { if (e.type === gg.TICK_FLUID) { this.fluidQ.push(e); continue; } this.pending.delete(e.dk); handler(e.x, e.y, e.z, e.type); }
+      for (const e of b) { if (e.dead) continue; if (e.type === gg.TICK_FLUID) { this.fluidQ.push(e); continue; } this.pending.delete(e.dk); handler(e.x, e.y, e.z, e.type); }
     }
     this.runFluids(handler);
   },
@@ -553,9 +556,24 @@ const Scheduler = {
     this._sp.center.set(e.x + 0.5, e.y + 0.5, e.z + 0.5); this._sp.radius = c_SCHED.parkMargin;
     return this._fr.intersectsSphere(this._sp);
   },
+  parkable(x, y, z) { return !!this._fr && y < SEA_LEVEL && !this.inView({ x, y, z }); },
+  // Re-check parked cells. A parked chain (draining column, spreading sheet) is run to completion in this pass instead of one hop per `parkEvery` ticks:
+  // otherwise the parked tail lags the live head and a cut-off water column keeps falling forever. Out-of-view cells only, bounded by parkRounds / parkMax.
+  flushParked(handler) {
+    let cur = this.parked; this.parked = [];
+    const cam = gg.Game?.camera; if (cam) this.frustum(cam);
+    this.catching = [];
+    let n = 0;
+    for (let r = 0; cur.length && r < c_SCHED.parkRounds && n < c_SCHED.parkMax; r++) {
+      for (const e of cur) { this.pending.delete(e.dk); handler(e.x, e.y, e.z, e.type); n++; }
+      cur = this.catching; this.catching = [];
+    }
+    this.catching = null;
+    for (const e of cur) { this.pending.delete(e.dk); this.add(e.x, e.y, e.z, 1, e.type); }   // 超出轮数 / 上限的余量：回到正常调度
+  },
   runFluids(handler) {
     const cam = gg.Game?.camera, p = gg.player;
-    if (this.tick % c_SCHED.parkEvery === 0 && this.parked.length) { this.fluidQ.push(...this.parked); this.parked = []; }
+    if (this.tick % c_SCHED.parkEvery === 0 && this.parked.length) this.flushParked(handler);
     const q = this.fluidQ; if (!q.length) return;
     const fov = c_SCHED.underSeaFovOnly && cam;
     if (fov) this.frustum(cam);
@@ -3128,7 +3146,7 @@ const rndr = gg.rndr = {
   get viewDist() { return ChunkManager.renderDistance; }, set viewDist(v) { ChunkManager.setRenderDistance(v); },
   get scale() { return Game.scale; }, set scale(v) { Game.applyScale(v); },
   get maxMP() { return Game.maxMP; }, set maxMP(v) { Game.maxMP = v; Game.resize(); },
-  steps: 72, shadowSteps: 48, shadowStrength: 0.79, shadowDist: 300, waterClarity: 0.315, reflStrength: 0.935, fogA1: 0.576,
+  steps: 72, shadowSteps: 48, shadowStrength: 0.79, shadowDist: 300, waterClarity: 0.315, reflStrength: 0.935, fogA1: 0.,
   exposure: 1.08, lightDir: { x: 1.4, y: 0.35 }, aoStrength: 0.79, aoCurve: 1.016, waterA1: 0.696, waterA2: 0.92, waveStrength: 0.124, foamWidth: 0.217,
   palette: { cDeep: '#3ac5cd', cShallow: '#1c9ca4', cPlat: '#9effe3', cSnow: '#cdc484' },
 };
@@ -3612,6 +3630,10 @@ const Menus = {
     if (location.protocol.startsWith('http')) {
       const q = new URLSearchParams(location.search), packUrl = q.get('tex');
       if(packUrl) fetch(packUrl).then(r => r.ok ? r.blob() : (location='?tex=res/survivalpack.zip')).then(blob => blob && blob.size >= 1024 && loadPack(new File([blob], packUrl.split('/').pop())));
+      // Default sky for ?r=gl while its procedural clouds are off: lowest layer (a pack's pano, &pano= and dropped .hdr all win); an empty &pano= means none
+      const SKY_DEFAULT = { pano: 'res/puresky2k.hdr' };
+      if ((q.get('r') ?? 'gl') === 'gl' && !q.has('pano'))
+        for (const [k, u] of Object.entries(SKY_DEFAULT)) fetch(u).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('HTTP ' + r.status))).then(b => ResourcePack.setDefaultHdr(k, b)).catch(e => console.warn(`Default panorama ${u}:`, e));
       for (const key of ['pano', 'pano_night']) {
         const urls = (q.get(key) || '').split(',').filter(Boolean);
         urls.forEach((u, i) => fetch(u).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('HTTP ' + r.status))).then(b => loadHdr(urls.length > 1 ? key + (i + 1) : key, b)).catch(e => HUD.message(`Panorama ${u}: ${e.message}`)));

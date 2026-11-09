@@ -4,6 +4,8 @@
 > 面板自己负责预设、URL 注入、区间改写、折叠记忆、性能标注——这些现在要么只有 v2 有，要么没有。
 > 与 `goal-glmod` 的接口：Pass DSL 的 `${…}` 既接受箭头函数也接受 `gg.vars` 的引用（§2），glmod §1.3 的 `params.js` 即本文 §1–§2。
 > 现状速查见 `doc/lib.md`。
+> **[11-09 对齐] 本文是很久之前的策划，旧需求有多余。面板的最终需求以 IDEA「三大件」L82–92 与 `gode/s09-panify.md` §4 为准；已取消的旧需求见 s09 §4.1：两套旧 DSL 的兼容层、`{页面名}.json`、`&gizmo= / &pose=`、手工剔微参数流程（tier 只当写权限）、钉住条 + Alt 滚轮、交错 A/B 与 `/agg` 聚合、专用「区间」root、固定屏幕布局、面板里的函数行。新增：独立面板页（N3）、纯数据声明。下文未被取消的部分仍有效。**
+> [11-09，gode s16] 模块化与本包绑定：Ref 另带 owner 模块 id 与 `meta.doc / options`，路径根加 `mod / tbl / act`，面板多一个「模组」root；模块写法（脚本 + 受限 `gg / gm / c_` 视图，不写 `export / const`）、虚拟键、页面绑定、热替换见 `gode/s16-module.md`。`perf-collect.mjs`（§3.2 / §4）并入 `gode/tools/dev.js`（取代 `http-server -p 8765 -c 1`，s16 §13.4）；标记语言里参数主题写 `$Fx`（JS 里仍是 `c_.Fx`）。
 
 ## 0. 原则
 

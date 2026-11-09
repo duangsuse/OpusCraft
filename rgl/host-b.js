@@ -71,7 +71,7 @@ export function glsEnv(gg) {
   const eye = () => { const p = camera.position; return [Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)]; };
   return {
     get dayTime() { return Sky.time / gg.DAY_LENGTH; },                  // 0 = 06:00（Sky.update：theta = t·2π − π/2，alt = cos θ → t = 0 是日出）
-    get weather() { return { rain: Weather.amount, thunder: Weather.storm, wet: Weather.amount }; },
+    get weather() { return { rain: Weather.amount, thunder: Weather.storm, wet: Weather.amount, flash: Weather.flash }; },
     get flying() { return !!(player.flying || player.noclip); },
     get eyeInWater() { return !!player.headInWater; },
     get eyeSky() { const [x, y, z] = eye(); return world.getSky(x, y, z) / 15; },
@@ -92,7 +92,7 @@ const packName = n => PACK_NAME[n] || (/^wheat_(\d)$/.test(n) ? 'wheat_stage' + 
 
 /** 资源包 → TextureSource（goal-renderapi.ts §2b，labPBR）：albedo 取 Atlas 画布上该格（已是包分辨率 Atlas.tileRes），_n / _s 取 ResourcePack.maps；
  *  只给包里真有的名字（其余 null = rgl 自带 procgen）。缩放、goodGL 的染色约定（草顶 α）、POM 深度表、HD 阵列都在 rgl/texpack.js。
- *  天空：ResourcePack.sky（sun / moon_phases / pano*.hdr）+ addHdr 的额外全景 + properties → sky；HDR 异步解码（three/addons/loaders/HDRLoader.js），解码完推 onChange('sky')。 */
+ *  天空：宿主默认全景（defaultHdr，最低）< ResourcePack.sky（sun / moon_phases / pano*.hdr）< addHdr 的额外全景，+ properties → sky；HDR 异步解码（three/addons/loaders/HDRLoader.js），解码完推 onChange('sky')。 */
 export function glsTextures(gg) {
   const { Atlas, ResourcePack: RP, Events, THREE } = gg, cbs = [], fire = what => { for (const f of cbs) f(what); };
   // 原值读回：canvas 2D 存的是预乘 alpha，_n.A（高度）/ _s.A（自发光）小的纹素 RGB 会被抹掉 → 用一个 WebGL2 小上下文 texImage2D + readPixels（不预乘、不转色彩空间）
@@ -117,7 +117,7 @@ export function glsTextures(gg) {
   let sky = null, skyJob = 0;
   const flag = (v, d = true) => v == null ? d : !/^(false|0|off|no)$/i.test(String(v).trim());
   async function decodeSky() {
-    const job = ++skyJob, hdr = new Map([...RP.sky.hdr, ...RP.extraHdr]), P = RP.props || {};
+    const job = ++skyJob, hdr = new Map([...RP.defaultHdr, ...RP.sky.hdr, ...RP.extraHdr]), P = RP.props || {};
     const base = { sun: RP.sky.sun ? whole(RP.sky.sun) : null, moon: RP.sky.moon ? whole(RP.sky.moon) : null, show: { sun: flag(P.sun), moon: flag(P.moon), sky: flag(P.sky), stars: flag(P.stars) }, day: [], night: [], timed: false };
     if (hdr.size) {
       let Loader;
@@ -172,7 +172,7 @@ export async function createGlRenderer(gg, terrain) {
   Game.renderer.autoClear = false;   // 主循环 renderer.clear() 之后 VR.render()；three 画实体时不能再清掉 goodGL 的画面
   const ctx = {
     THREE: gg.THREE, scene: Game.scene, camera: Game.camera, renderer: Game.renderer,
-    settings: { get rd() { return gg.ChunkManager.renderDistance; }, get fov() { return Game.camera.fov; } },
+    settings: { get rd() { return gg.ChunkManager.renderDistance; }, get fogEdge() { return Math.min(1, (gg.rndr?.fogA1 ?? 0.576) / 0.576); }, get fov() { return Game.camera.fov; } },
     source: glsSource(gg), blockTable: glsBlocks(gg), env: glsEnv(gg), glid: lut, textures: glsTextures(gg),
     SOLID, getBlock: (x, y, z) => world.getBlock(x, y, z),
     get sky() { return gg.Sky.group; },   // 宿主的天空组（天球 / 日 / 月 / 星）：goodGL 自己画，这里每帧隐藏。区块网格不隐藏：Mesher.only 之后里面只剩特殊模型，要进实体合成

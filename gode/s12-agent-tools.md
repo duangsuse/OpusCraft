@@ -34,14 +34,15 @@ gd up [--ss] [--seed N] [--rd N] [--size 1280x720]   起浏览器 + 打开 gode/
 gd down                                              关浏览器、杀进程组、删 profile
 gd ps                                                列出守护进程、浏览器 pid、空闲时长、当前 URL
 gd go '<query>'                                      改 URL 参数（&g= &r= &cam= &json=）；参数与当前相同则跳过
-gd reload                                            强制重载（gode/ 下 js 有改动时 shot 前自动做）
-gd pose plain|@x,z^y,yaw,pitch[,fov]|iso-ne          摆机位（c_.Bench.poses 名字、坐标或 F4 相机名）
+gd reload                                            强制整页重载（引擎核心 js 有改动时 shot 前自动做；defl/ 的改动走热更新，s16 §13.5）
+gd pose plain|@x,z^y,yaw,pitch[,fov]|iso-ne          摆机位（c_.Bench.poses 名字、坐标，或 iso-ne 这类框景名）
 gd shot [pose…] [--tag T] [--sheet]                  settle → 截图 → 写 gode/shots/；打印文件路径
 gd xz <file.xz|-> [--at @x,z^y] [--frame] [--shot]   追加文本体素（s06 §5），--frame 自动用 iso 相机框住 bbox
 gd mark / gd revert                                  世界改动打点 / 回滚到打点（试错不累积）
-gd set c_.Path=v …                                   走 gm.pane.set（与 &json= 同路由）
+gd set c_.Path=v …                                   走 gm.pane.set（与 &json= 同路由）；也收标记语言写法 '$Path=v'（shell 里 $ 要加引号）
+gd mods [list | on <id> | off <id> | reload <id> | graph]   [新 11-09，s16 §13.5] 模块：状态、启停、热替换、依赖图（走 gm.mods）
 gd eval '<js>'                                       页面里执行，按值返回
-gd check [name…] [--matrix mini,gp,liq|all]           跑 checks.tsv（§6）；--matrix = pgviz 检查在每个生成器下各跑一遍
+gd check [name…] [--matrix mini,gp,liq|all]           跑 checks.tsv（§6）；--matrix = pgviz 检查在每个生成器下各跑一遍；check mods = 登记处观察 ⊆ 规格、热替换不泄漏、语法错回滚、表就地 diff（s16 §13.5）
 gd perf [--frames 120]                               低频：帧时间中位数 + 渲染器 stats()，不进默认 loop
 gd log [-f]                                          页面 console / 异常（自上次调用以来）
 ```
@@ -50,7 +51,7 @@ gd log [-f]                                          页面 console / 异常（�
 - **不留尸体**：① 空闲 10 min（`GD_IDLE`）自动 `down`；② 浏览器意外退出 → 守护进程也退；③ 守护进程收 SIGTERM / SIGINT / 未捕获异常都先 `process.kill(-pgid)` 再删 profile；④ `up` 前 `sweepStale`；⑤ `gd ps` 让 Agent 能看见在跑什么。
 - **快**：页面常驻；`shot` 只做 `pose → settle → capture`，目标热路径 < 2 s；冷 `up` < 6 s。每条命令打印耗时，超过 `GD_SLOW`（默认 8 s）时打出卡在哪一步（settle 的 pending 数）。
 - **默认启动**：`prime-run chromium --ozone-platform=x11 --use-angle=gl --enable-gpu --ignore-gpu-blocklist`，有头窗口放在屏幕外角落（`--window-position`）；视口用 `Emulation.setDeviceMetricsOverride` 钉死尺寸，与窗口大小无关。
-- **静态服务**：用户的 `http-server -p 8765 -c 1` 常驻在仓库根目录，`localhost:8765/gode/` 总是可用；gd **不自带服务器**，`up` 时探一下 `:8765`，不通就报错并提示启动命令（`GD_BASE` 可改）。
+- **静态服务**：用户的 `http-server -p 8765 -c 1` 常驻在仓库根目录，`localhost:8765/gode/` 总是可用；gd **不自带服务器**，`up` 时探一下 `:8765`，不通就报错并提示启动命令（`GD_BASE` 可改）。**[改 11-09，s16 §13.4 / K-14]** 服务器换成 `gode/tools/dev.js`（同端口、同 `-c 1` 语义，另加文件变更推送、写回、目录清单、perf-collect）；`up` 发现端口不通时改为自己拉起它（仍是用户可以常驻的同一个进程，不是 gd 的子进程：gd down 不杀它）。**dev.js 已写（`gode/tools/dev.js`，测试 `gode/tools/test-dev.mjs`），`gd up` 已接 [11-09]**：先探 `GD_BASE`——① 是 dev.js（`/__dev/info` 回 `gode-dev`）→ 直接用；② 是别的静态服务（http-server 等）→ 照用，提示一句「没有热更新 / 写回」；③ 不通且 `GD_BASE` 指向本机（localhost / 127.0.0.1 / [::1]）→ 拉起 dev.js（`-p` 取 `GD_BASE` 的端口）；④ 不通且不是本机 → 报错，不代起。拉起的 dev.js 是**独立进程**（detached，日志 `/tmp/gode-gd/dev.log`），不是 gd 的子进程：`gd down` 不会停它，`gd ps` 的 `dev` 行有它的 pid，要停就 `kill <pid>`。拉起失败（端口被不服务 `gode/` 的东西占了）→ 打印 dev.log 末尾并退出 1，不起守护进程。
 - **输出全部是一行一个结果的 tsv / 文本**，便于 Agent 读；失败时退出码非 0 并打印 `gd log` 的最后 20 行。
 
 ## 3. 实时截图目录
@@ -86,9 +87,9 @@ gode/shots/                    （gitignore）
 gm.test = {
   freeze({ hour = 10, wave = 10, cloud = 0, mobs = false }),  // 冻结时间 / 水波 / 云偏移，清 mob 与掉落物（handover/tools.md §3「冻结」「清场」）
   settle({ ms = 15000 }),       // Promise：区块 pending 0、slicer 队列空、网格上传完、riseFade 结束；超时 reject 并带 pending 计数
-  pose(p),                      // 名字 | {x,y,z,yaw,pitch,fov} | '@x,z^y,yaw,pitch' | 'iso-ne' 等 F4 相机
+  pose(p),                      // 名字 | {x,y,z,yaw,pitch,fov} | '@x,z^y,yaw,pitch' | 'iso-ne' 等框景名（gd 自己的，不是游戏相机）
   xz(text, { at }),             // 解析并放置 XZ1 文本（s06 §5）→ { bbox, placed, hash }
-  frame(bbox, cam = 'iso-ne'),  // 用 F4 正交 / 斜视相机框住 bbox（s09 §8）
+  frame(bbox, cam = 'iso-ne'),  // 用透视相机从 iso 方向斜上框住 bbox（框景是 gd 的事；游戏 F4 只有 fp / orbit / back，s09 §8）
   mark(), revert(),             // 记录 / 撤回自 mark 以来的全部改块（走正常 setBlock 路径，光照、网格一起回滚）
   hash(bbox),                   // 区域体素哈希（u16 + states），正确性断言不靠像素
   read(bbox),                   // 区域 → XZ1 文本（识别器输出，s06 §5）；用于「写进去再读出来」比对
@@ -177,8 +178,8 @@ gd down                                 # 收尾（忘了也会 10 min 自退）
 与 §2–§6 的差异 / 补充：
 
 - `sweepStale` 只清**带 owner 文件且 owner 已死**的 `/tmp/gode-gd-*`，别的工具（如 pgviz 自测脚本）起的同前缀浏览器不碰。守护进程被 `kill -9` 时浏览器会留到下一次 `up` / `down` / `ps` 才清。
-- 自动重载：shot / check / pose / mark / xz **之前**比较 `gode/ rgl/ vendor/` 与宿主 B 的 js/html 修改时间（`gd.js` 自身与 `defl/` 不算——`gd.js` 改了要 `down / up`）。xz 若触发重载会重新 `mark`。
-- 宿主 B 没有 F4 相机：`frame / iso-*` 用透视相机从斜上 35° 框住 bbox。
+- 自动重载 **[改 11-09，s16 §13.5：按 kernel 的 `HOT` 表]**：shot / check / pose / mark / xz **之前**比较 `main/ rgl/ w/ vendor/` 与宿主 B 的 js/html 修改时间，有改动才整页重载（`gd.js` 自身不算，改了要 `down / up`）。`defl/` 的脚本、表、ui 变了**不整页重载**：开发服务器把文件事件推给页面，页面自己热更新，gd 只调 `gm.mods.sync()` 等它落定；`defl/g/` 的生成器脚本走 `gode.restart`（世界重生）。没起开发服务器（`gm.dev.up` 为假）时，gd 按 mtime 自己调 `gm.mods.reload` / `Table.reload`。xz 若触发整页重载会重新 `mark`。
+- `frame / iso-*` 是 gd 的框景：用透视相机从斜上 35° 框住 bbox，与游戏的 F4 相机无关（11-09 起游戏 F4 只有 fp / orbit / back）。
 - 机位名不在表里且是 `plain canopy cave water uw` 之一时，`gm.test.find` 按 handover/tools.md §3 的规则搜索并写回 `c_.json`。`--ref` 的格子默认 hour 10、隐藏 HUD；`ice / mobs / map` 还没有机位（只放参考图），`trees / caustic / uwrefl` 借用 bench 机位，与参考图的构图差很多，M1 起补专门机位。
 - 一个守护进程只有**一个页面**：两个 Agent 共用时会互相 `go` 走对方的页面（命令会报「当前页面没有机位」）。需要时再加 `--tab`。
 - `freeze` 默认同时停宿主 B 的游戏 tick（随机 tick / 流体 / 火 / 草蔓延），否则世界随 settle 时长变化，`genhash` 时好时坏；要看动态时 `freeze({ tick: true })`。

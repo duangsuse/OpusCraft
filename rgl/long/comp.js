@@ -155,7 +155,7 @@ void main(){
       float hf = exp(-max(${Fps.camPos}.y + rel.y * 0.5 - 62.0, 0.0) / 90.0);
       float fa = 1.0 - exp(-dist * ${Fps.fogDensity} * (0.35 + 0.65 * hf));
       float border = smoothstep(${Fps.renderDist} * 0.72, ${Fps.renderDist} * 0.98, length(rel.xz));
-      col = mix(col, fogC, clamp(max(fa * (1.0 - ${Fps.caveFactor}), border), 0.0, 1.0));
+      col = mix(col, fogC, clamp(max(fa * (1.0 - ${Fps.caveFactor}), border * ${Fps.fogEdge}), 0.0, 1.0));
     }
     float H = 7.0; float h0 = 62.0;
     float D0 = ${Fps.mist} * 0.022;

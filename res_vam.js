@@ -354,6 +354,7 @@ const ResourcePack = {
   maps: new Map(),            // name -> { n?: ImageBitmap, s?: ImageBitmap }
   sky: { sun: null, moon: null, hdr: new Map() },   // hdr: 'pano' / 'pano3' / 'pano_night' ... -> ArrayBuffer
   extraHdr: new Map(),        // same keys, from addHdr (wins over the pack)
+  defaultHdr: new Map(),      // same keys, the host's default sky (loses to the pack and to addHdr)
   props: {},
   async load(file) {
     const zip = await JSZip.loadAsync(file);
@@ -413,6 +414,7 @@ const ResourcePack = {
     return key;
   },
   clearHdr() { this.extraHdr.clear(); this.version++; Events.emit('resourcePackSky'); },
+  setDefaultHdr(key, buf) { this.defaultHdr.set(key, buf); this.version++; Events.emit('resourcePackSky'); },
 };
 // key=value lines, # / ! comments (Java .properties subset)
 function parseProps(text) {

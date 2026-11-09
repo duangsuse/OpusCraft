@@ -519,7 +519,7 @@ Events.on('blockChanged', (x, y, z, oldId, newId) => {
     const nx = x + d[0], ny = y + d[1], nz = z + d[2], nid = gg.world.getBlock(nx, ny, nz);
     if (nid === AIR) continue;
     const ndef = Blocks.byId[nid];
-    if (ndef.liquid) Fluids.schedule(nx, ny, nz, Fluids.delay(nid));
+    if (ndef.liquid) Fluids.schedule(nx, ny, nz, newId === AIR && d[1] === -1 ? 1 : Fluids.delay(nid));   // 断供后的下落水柱：尾部按 1 tick 逐格追排，慢于头部（5 tick 一格）会变成永不收尾的滑动水柱
     if (ndef.gravity && d[1] === 1) Scheduler.add(nx, ny, nz, 2, TICK_FALL);
   }
   if (newId === B.wheat || oldId === B.wheat) { /* crops handled by random ticks */ }

@@ -43,12 +43,13 @@ defl/
 { key: 'G' }  { onhit: { zombie: meta } }  { ondie: … }  { tick: n }      // 只发订阅了的（M-3）
 // worker → main
 { ready: { meta: { id, subs: ['key:G E Space', 'onhit:zombie', 'ondie', 'tick:20'] } } }
-{ set: { 'c_.Motion.speed': 2, 'mob.zombie.ATK_buf': 0 } }                 // M-2
+{ set: { '$Motion.speed': 2, 'mob.zombie.ATK_buf': 0 } }                 // M-2
 { give: [':bow', ':arrow*16'] }  { tp: '@home' }  { time: 6 }  { weather: 'rain' }
 { spawn: ['zombie', '@x,z^y'] }  { popup: { url, w, h } }
 ```
 
-- 模组 worker 的写法同 s02 §2（README G-8）：`import '…/w/mod.js'` 引擎运行时，`export function onkwarg(kw)` 设全局变量，`export function key(k) / onhit(h) / …` 就是订阅的事件处理；向 main 发请求用运行时给的 `post({set: …})`。
+- **[改 11-09，s16 K-11]** 模组 worker 与 main 里的游戏模块同写法：一段脚本，`gg / gm / c_` 是注入的形参（worker 里的 `gm` 是消息代理）。订阅写 `gm.on({ key(k) {…}, onhit(h) {…} })`，不再 `export function`；`ready.meta.subs` 由 `gm.on` 的键自动生成，不手写；向 main 发请求就是调 `gm.<命名空间>.<动词>()`（经 M-2 白名单，运行时转成下面的 `{set / give / tp …}` 消息）。信封和消息本身不变；`onkwarg` 里的 `seed / mode / cheat` 变成 `gm.game` 的只读成员，`kw` 写进模组自己的 `c_` 主题。
+- 旧写法（`import '…/w/mod.js'` + `export function onkwarg / key / onhit`，s02 §2 / G-8）只留给生成器和渲染器 Worker。
 - `set` 的路径就是 `gm.pane.set` 的路径（goal-panify §5），面板写入、API 写入、模组写入走同一条 `Ref.set` 路由，面板自己会刷新。
 - 可写范围由面板 `tier` 决定：tier ≤ 2 可写，tier 3（冻结）不可写。
 

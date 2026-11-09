@@ -181,7 +181,12 @@ void main(){
   if ((v_flags & 24576) != 0) uv.xy = clamp(uv.xy, vec2(0.002), vec2(0.998));   // remix: 植物贴图 v = 1.0 恰在边上，REPEAT 会绕回顶行（花瓣出现在底边）
   vec3 dp1 = dFdx(v_rel), dp2 = dFdy(v_rel);
   vec3 N0 = v_normal;
-  vec3 dp2p = cross(dp2, N0), dp1p = cross(N0, dp1);
+  // remix: 植物是竖直双面薄片，但顶点法线写的是 (0,1,0)：切线系 / POM / 高光 / 环境反射全拿「朝上」当面法线，结果随视线俯仰角（屏幕 Y）剧烈变化。
+  // 这里用导数求真实面法线 Nf（朝向视线）建切线系和 POM，并另给光照一个不依赖俯仰角的 Nd（朝上与面法线各半）
+  bool plant = (v_flags & 24576) != 0;
+  vec3 Nf = N0;
+  if (plant) { vec3 cg = cross(dp1, dp2); Nf = cg * inversesqrt(max(dot(cg, cg), 1e-20)); if (dot(Nf, v_rel) > 0.0) Nf = -Nf; }
+  vec3 dp2p = cross(dp2, Nf), dp1p = cross(Nf, dp1);
   vec3 Tg = dp2p * gdx.x + dp1p * gdy.x, Bg = dp2p * gdx.y + dp1p * gdy.y;
   float tl = max(dot(Tg, Tg), 1e-12), bl = max(dot(Bg, Bg), 1e-12);
   Tg *= inversesqrt(tl); Bg *= inversesqrt(bl);
@@ -202,7 +207,7 @@ void main(){
   // 平滑 POM（双线性高度 + 自适应步数 + 二分）：pomSmooth 或下雨时启用，深度不变（雨天 ×1.5）；否则走下面原来的 14 步（逐 texel 平顶，关 TAA 时近看有横向纸片条纹）
   bool pomS = ${X.pomSmooth} > 0.5 || rainW > 0.01;
   float pomD = max(texelFetch(${X.pomTab}, ivec2(int(uv.z + 0.5), 0), 0).r * 0.25, foliage ? 0.05 * ${Fps.leafPom} * ${Fps.leafPbr} : 0.0) * float(POM_ON) * pbr * (1.0 - smoothstep(10.0, 18.0, d)) * mix(1.0, 1.5, rainW);
-  vec3 Vt = vec3(dot(V, Tg), dot(V, Bg), dot(V, N0));
+  vec3 Vt = vec3(dot(V, Tg), dot(V, Bg), dot(V, Nf));
   float hgt = 1.0; float pomSh = 1.0;
   // 掠射角限幅：原来 Vt.xy / max(Vt.z, 0.25) 最多放大到 4×pomD（cobblestone 0.12 → ~8 texel），14 步走不密 → 顶面横条 / 侧面竖条的阶梯拉丝。
   // 改成 offset limiting（分母 + 0.35，最多 ~1.8×），总位移再钳到 1.5×pomD 且不超过 3 texel；Vt.z 很小时整体淡出
@@ -276,23 +281,29 @@ void main(){
     // natural variation: lush / dry patches and per-block jitter, slightly less saturated than the raw biome tint
     vec2 wq = floor(v_world.xz + N0.xz * 0.01);
     float pv = vnoise(v_world.xz * 0.045) * 0.65 + vnoise(v_world.xz * 0.17) * 0.35;
-    float jit = hash12(wq) - 0.5;
+    float jit = plant ? vnoise(v_world.xz * 1.1) - 0.5 : hash12(wq) - 0.5;   // remix: 植物用连续噪声（逐格 hash 会在跨格的草片中间切出硬边）
     vec3 dry = tint * vec3(1.12, 1.02, 0.72), lush = tint * vec3(0.82, 0.95, 0.86);
-    tint = mix(lush, dry, smoothstep(0.3, 0.75, pv)) * (1.0 + jit * 0.07);
+    tint = mix(lush, dry, smoothstep(0.3, 0.75, pv)) * (1.0 + jit * (plant ? 0.45 : 0.07));
     float tl2 = dot(tint, vec3(0.3, 0.59, 0.11)); tint = mix(vec3(tl2), tint, 0.86);
   }
   if (tm == 1) c.rgb *= tint; else if (tm == 2) c.rgb = mix(c.rgb * tint, c.rgb, step(0.5, c.a));
   c.rgb *= ${X.colorMul}.rgb;
+  if ((v_flags & 8192) != 0) c.rgb *= mix(0.62, 1.38, smoothstep(0.2, 0.8, dot(c.rgb, vec3(0.3, 0.59, 0.11)) / max(dot(tint, vec3(0.3, 0.59, 0.11)), 0.2)));   // remix: 草叶贴图本身几乎是平涂，按相对亮度拉开明暗（叶脉 / 叶缘）给质感
+  if ((v_flags & 8192) != 0) {   // remix: 叶尖→根部色相渐变（用户 11-09）：根部偏冷偏暗、叶尖偏暖偏亮，强光下整片草不再是同一个绿；grassHue = 0 即无
+    float gh = smoothstep(0.1, 0.95, 1.0 - v_uv.y);
+    c.rgb *= mix(vec3(1.0), mix(vec3(0.82, 0.97, 1.0), vec3(1.1, 1.03, 0.84), gh), ${Fps.grassHue});
+  }
   vec3 albedo = pow(c.rgb, vec3(2.2));
   vec4 nm = textureGrad(${X.nrm}, uv, gdx, gdy);
   if (pomD <= 0.002) hgt = nm.a;
   // ---------------- material decode
   vec2 nxy = (nm.xy * 2.0 - 1.0) * pbr * (foliage ? ${Fps.leafNormal} : 1.0);
   vec3 nts = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));
-  vec3 N = normalize(Tg * nts.x + Bg * nts.y + N0 * nts.z);
-  N = normalize(mix(N, N0, smoothstep(32.0, 80.0, d)));
+  vec3 N = normalize(Tg * nts.x + Bg * nts.y + Nf * nts.z);
+  N = normalize(mix(N, Nf, smoothstep(32.0, 80.0, d)));
   if (dot(N, V) < 0.0 && !foliage) N = normalize(N - V * dot(N, V) * 1.01);
   if (foliage && ${Fps.leafPbr} > 0.0 && dot(N, V) < 0.0) N = -N;   // pg: 叶片双面，逐纹素法线翻到朝向视线的一面，漫反射 / 高光 / 透射都按可见面算
+  vec3 Nd = plant ? normalize(mix(N0, N, 0.5)) : N;   // remix: 漫反射 / 环境光用的法线
   float smooth_ = mix(0.2, sp.r, pbr);
   float f0b = sp.g * 255.0; bool metal = f0b > 229.5 && pbr > 0.5;
   float sb = sp.b * 255.0; float por = sb < 64.5 ? sb / 64.0 : 0.0; float sss = sb > 64.5 ? (sb - 65.0) / 190.0 : 0.0;
@@ -320,7 +331,7 @@ void main(){
   vec3 diffAlb = metal ? vec3(0.0) : albedo;
   // ---------------- direct light
   float NdotL0 = dot(N0, ${X.lightDir});
-  float NdotL = dot(N, ${X.lightDir});
+  float NdotL = dot(Nd, ${X.lightDir});
   float diffG = foliage ? 0.55 + 0.45 * abs(NdotL0) : max(NdotL0, 0.0);
   float diff = foliage ? mix(0.55 + 0.45 * abs(NdotL), 0.3 + 0.7 * clamp((NdotL + 0.35) / 1.35, 0.0, 1.0), ${Fps.leafPbr}) : max(NdotL, 0.0) * clamp(NdotL0 * 8.0, 0.0, 1.0);
   diff = mix(diff, clamp((NdotL + 0.5) / 1.5, 0.0, 1.0) * clamp(NdotL0 * 8.0 + 1.0, 0.0, 1.0), sss * 0.5 * float(!foliage));
@@ -338,7 +349,8 @@ void main(){
   }
   float fh = 1.0;   // remix: 花的体积感（折纸感）：花头在贴图的约 40%–85% 高度（不是整张图的顶 30%），这一段总带一层阴影，直射光和环境光一起压暗
   if ((v_flags & 16384) != 0) fh = 1.0 - 0.8 * smoothstep(0.35, 0.6, 1.0 - v_uv.y);
-  float shL = sh * pomSh * fh;
+  float gAo = (v_flags & 8192) != 0 ? mix(0.3, 1.0, smoothstep(0.0, 0.7, 1.0 - v_uv.y)) : 1.0;   // remix: 草丛内部的假自遮挡：根部暗、叶尖亮（草不接收阴影图，质感靠这个）
+  float shL = sh * pomSh * fh * mix(1.0, gAo, 0.6);
   bool under = (v_flags & 1024) != 0;
   float NoV = max(dot(N, V), 1e-3);
   vec3 H = normalize(${X.lightDir} + V);
@@ -349,6 +361,10 @@ void main(){
   vec3 Fs = F0 + (1.0 - F0) * pow(1.0 - VoH, 5.0);
   vec3 specD = min(vec3(D * G / (4.0 * NoV)) * Fs, vec3(60.0)) * (foliage ? 1.0 : clamp(NdotL0 * 8.0, 0.0, 1.0));
   vec3 lightI = ${X.lightCol} * shL;
+  if ((v_flags & 8192) != 0) {   // remix: 风致明暗（草浪，用户 11-09）：阵风掠过草面时直射光一阵强一阵弱；相位取 waving 的主波（t·1.6 + x·0.55 + z·0.3），waving 关时不动；grassWind = 0 即无
+    float gust = 0.6 * sin(${Fps.time} * 1.6 + v_world.x * 0.55 + v_world.z * 0.3) + 0.4 * (vnoise(v_world.xz * 0.35 + vec2(${Fps.time} * 0.5, ${Fps.time} * 0.3)) * 2.0 - 1.0);
+    lightI *= 1.0 + ${Fps.grassWind} * 0.35 * gust * ${X.wind};
+  }
   vec3 direct = lightI * diff * (1.0 - Fs * 0.5);
   if (under) {
 #if WCAUS == 0
@@ -362,8 +378,8 @@ void main(){
 #endif
     specD *= 0.2; }
   // ---------------- ambient: sky irradiance, ground bounce, torch
-  float up = N.y * 0.5 + 0.5;
-  float occl = (0.22 + 0.78 * ao) * cav * fh;   // remix: 花的体积感，fh = 1 时与原版一致
+  float up = Nd.y * 0.5 + 0.5;
+  float occl = (0.22 + 0.78 * ao) * cav * fh * gAo;   // remix: 花的体积感，fh = 1 时与原版一致
   vec3 amb = ${Fps.ambCol} * (0.45 + 0.55 * up) * sky * sky * occl;
   vec3 bounce = ${X.lightCol} * max(${X.lightDir}.y, 0.0) * vec3(0.5, 0.55, 0.42) * 0.045 * (1.0 - up) * sky * occl;
   if (under) amb *= vec3(0.5, 0.75, 0.9);
@@ -378,9 +394,10 @@ void main(){
     col += albedo * sqrt(max(albedo, 0.0)) * ${X.lightCol} * sh * fh * sssAmt * (0.1 + 0.65 * fw);
   }
   if (foliage && diffG > 0.0) {   // pg: 俯视受光——从上往下看树冠，叶层被太阳穿透、整面发亮发黄绿，叶团之间的暗处被天光填软（goodPG study-gl §3：叶子好看不在贴图）
-    float topF = smoothstep(0.3, 1.0, N0.y) * (0.5 + 0.5 * smoothstep(0.0, 0.8, V.y));
-    col += albedo * sqrt(max(albedo, 0.0)) * vec3(1.0, 1.0, 0.62) * ${X.lightCol} * sh * fh * max(${X.lightDir}.y, 0.0) * topF * 0.4 * ${Fps.leafGlow};
-    col += albedo * ${Fps.ambCol} * sky * sky * topF * 0.3 * ${Fps.leafGlow};
+    float kGlow = plant ? ${Fps.grassGlow} : ${Fps.leafGlow};   // remix: 草（植物）与树叶各一组倍率（用户 11-09）
+    float topF = smoothstep(0.3, 1.0, N0.y) * (plant ? 0.75 : 0.5 + 0.5 * smoothstep(0.0, 0.8, V.y));
+    col += albedo * sqrt(max(albedo, 0.0)) * vec3(1.0, 1.0, 0.62) * ${X.lightCol} * sh * fh * max(${X.lightDir}.y, 0.0) * topF * 0.4 * kGlow;
+    col += albedo * ${Fps.ambCol} * sky * sky * topF * 0.3 * kGlow;
   }
   if (foliage && ${Fps.leafPbr} > 0.0) {   // pg: 树冠 PBR——逆光透射（暖色，叶缘 / 低处更薄更透）+ Fresnel 轮廓光
     float lp = ${Fps.leafPbr};
@@ -388,13 +405,13 @@ void main(){
     float thin = 0.45 + 0.55 * (1.0 - hgt);
     col += albedo * vec3(1.0, 0.8, 0.32) * ${X.lightCol} * sh * fh * pomSh * back * thin * 0.9 * lp * ${Fps.leafTrans};
     float rim = pow(1.0 - NoV, 3.0) * cav;
-    col += (${Fps.ambCol} * sky * sky * 0.3 + ${X.lightCol} * sh * fh * 0.22 * clamp(NdotL * 0.5 + 0.5, 0.0, 1.0)) * mix(vec3(1.0), albedo * 2.2, 0.5) * rim * lp * ${Fps.leafRim};
+    col += (${Fps.ambCol} * sky * sky * 0.3 + ${X.lightCol} * sh * fh * 0.22 * clamp(NdotL * 0.5 + 0.5, 0.0, 1.0)) * mix(vec3(1.0), albedo * 2.2, 0.5) * rim * lp * (plant ? ${Fps.grassRim} : ${Fps.leafRim});
   }
   // specular: sun/moon + sky reflection (split-sum approximation)
   // 雨天顶面黑点：法线贴图斜率可到 ~50°（pbr.js ns × 1.8），湿面 smooth ≈ 0.88 时坑壁像素的反射方向钻到几何面以下 → 落进 horizon 的暗色兜底（ambCol × 0.25）且掠射 Fresnel 很大；
   // SSR 那边同一条射线立刻撞上本平面，用邻近暗像素减掉天空 → 黑点。环境反射把 R 折回几何面上方，SSR 权重按原 R 低于平面的程度淡掉。
   // 只对 POM 较深的像素（stone / cobblestone 等，pomD 已含 10–18 格距离淡出）按深度生效：grass_top 这类 pom = 0 的湿地面保持原来的暗反射，否则整个雨天地面发亮
-  vec3 R = reflect(-V, N);
+  vec3 R = plant ? Nd : reflect(-V, N);   // remix: 植物不做镜面反射方向（朝上 / 朝下看会让环境反射和菲涅尔随俯仰角变化）
   float rN0 = foliage ? 1.0 : dot(R, N0);   // 植物双面，N0 不代表可见面
   float rFix = smoothstep(0.005, 0.05, pomD);
   if (rN0 < 0.05) R = normalize(R + N0 * (0.05 - rN0) * rFix);
@@ -409,7 +426,7 @@ void main(){
   float ssrW = dot(eb, vec3(0.3, 0.59, 0.11)) * (1.0 - smoothstep(0.08, 0.22, rough)) * float(!under) * mix(1.0, smoothstep(0.0, 0.12, rN0), rFix);
   o2 = vec4(octEnc(N), rough, ssrW);
   envS += ${Fps.torchCol} * b * b * 0.08 * envBRDF(F0, sqrt(rough), NoV);
-  col += (lightI * specD * (foliage ? ${Fps.leafSpec} : 1.0) + envS * (foliage ? ${Fps.leafEnv} : 1.0)) * mix(0.5, 1.0, pbr);
+  col += (lightI * specD * (foliage ? (plant ? ${Fps.grassSpec} : ${Fps.leafSpec}) : 1.0) + envS * (foliage ? (plant ? ${Fps.grassEnv} : ${Fps.leafEnv}) : 1.0)) * mix(0.5, 1.0, pbr);
   // 岸壁水线（v2/gl shade.js:227–248）：紧邻水面格的侧面上，水线随涌浪升降（shoreH 在 d = 0 处），线下盖半透明水色，上方留湿痕。邻格是否为「最上面一格水」读岸线场（water/surfacefield.js）
   if (!under && abs(N0.y) < 0.5 && ${Fps.foamWidth} > 0.0 && ${Fps.shoreAmp} > 0.0 && length(v_rel) < 96.0) {
     int wy = int(floor(v_world.y - 0.001));

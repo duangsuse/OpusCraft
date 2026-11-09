@@ -29,7 +29,7 @@
 | 6 | rgl 接 gode 适配器（YZX、名字 → glid LUT、稀疏状态表）、`?r=gl` | s03 §1–§2 | 与宿主 B 同机位截图主观对照；bench 帧时间不劣于宿主 B |
 | 7 | `?r=lite`（`renderVanilla`）+ 运行时热切换 | s03 R-3 | 无 `EXT_color_buffer_float` 时自动回落 |
 | 8 | main 增量光照、改块、`blk.tsv` 前 14 行 + 宿主 B 方块导出 | s04 | 挖洞 / 放火把光照正确，跨区块接缝无暗缝 |
-| 9 | ⚡ 快调 / 渲染 root / 钉住条 + Alt 滚轮、F3 调试文字、F4 相机 1–9、`&cam=` | s09 §5–§8 | F3 文字与宿主 B 逐行一致；`&cam=iso-ne&gizmo=…` 一条链接截图到位 |
+| 9 | ⚡ 快调 / 渲染 root / 钉住条 + Alt 滚轮、F3 调试文字、F4 相机（fp / orbit / back）、`&cam=` | s09 §5–§8 | F3 文字与宿主 B 逐行一致；`&cam=orbit&gizmo=…` 一条链接截图到位 |
 | 10 | v2 Bliss 体积云移植成 rgl pass（半分辨率 + IGN + TAA，水面 SSR 回落时反云）；`:stained_glass` 走冰的半透明分支；s11 B-1…B-7 | s03 §7 · s11 §1 | `clouds1/2`、`cloud-match-sunDir`、`ice-alike-coloredglass` 同机位对照 |
 
 ## M2 · 存档
