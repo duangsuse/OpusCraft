@@ -1,4 +1,4 @@
-/* gode/vendor/old/blocks.js —— 宿主 B 的方块 id 表（index.html:706 BLOCK_DEFS 的名字顺序，id = 下标）与 gen.js 用到的分类。
+/* gode/vendor/mini/blocks.js —— 宿主 B 的方块 id 表（index.html:706 BLOCK_DEFS 的名字顺序，id = 下标）与 gen.js 用到的分类。
    只抽名字：生成器只需要 id；硬度 / 掉落 / 贴图留在宿主。宿主改了 BLOCK_DEFS 顺序时，对拍脚本比对 gg.Blocks.byId 名字会报错。 */
 export const NAMES = ['air', 'stone', 'granite', 'diorite', 'andesite', 'grass_block', 'dirt', 'cobblestone', 'mossy_cobblestone', 'stone_bricks',
   'sand', 'gravel', 'sandstone', 'bedrock', 'oak_log', 'oak_planks', 'oak_leaves', 'oak_sapling', 'birch_log', 'birch_planks', 'birch_leaves',

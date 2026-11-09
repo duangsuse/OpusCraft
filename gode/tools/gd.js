@@ -20,7 +20,7 @@
  *   gd hash <x0,y0,z0,x1,y1,z1|LAST>         区域体素哈希
  *   gd set c_.Path=v …                       值按 JSON 解析，失败当字符串
  *   gd eval '<js>'                           页面里执行（可 await），按值返回
- *   gd check [name…|all] [--matrix old,gp,liq|all]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
+ *   gd check [name…|all] [--matrix mini,gp,liq,old,v7,valleys|all]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
  *                                            --matrix = pgviz 检查在每个生成器下各跑一遍（行名带 @g，跑完回原页面）
  *   gd perf [--frames 120]                   低频：帧时间中位数 / p95 + 渲染器 stats()，追加到 gode/shots/perf.tsv
  *   gd log [-f]                              页面 console / 异常（自上次调用以来）；-f 持续跟随
@@ -448,9 +448,9 @@ async function daemon(opts) {
   // ── 检查（checks.tsv）──
   const gitChanged = () => { try { return execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean).map(l => l.slice(3)); } catch { return []; } };
   const globRe = g => new RegExp('^' + g.trim().replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
-  const MATRIX_GENS = ['old', 'gp', 'liq'];
+  const MATRIX_GENS = ['mini', 'gp', 'liq', 'old', 'v7', 'valleys'];
   const check = async (names, matrix) => {
-    if (matrix) {   // --matrix old,gp,liq（all = 三个）：pgviz 检查在每个生成器下各跑一遍，行名带 @g；跑完回到原页面
+    if (matrix) {   // --matrix mini,gp,liq,old,v7,valleys（all = 六个）：pgviz 检查在每个生成器下各跑一遍，行名带 @g；跑完回到原页面
       const gs = matrix === true || matrix === 'all' ? MATRIX_GENS : String(matrix).split(',').filter(Boolean), back = st.url, out = [], fails = [];
       for (const g of gs) {
         await navigate(resolveUrl(`gode/viz/?g=${g}`));
@@ -482,7 +482,7 @@ async function daemon(opts) {
   };
 
   // ── 生成器基线（s12 §11）：人类可读的「默认输出长什么样」。偏差只写进 shots 并在 gd down 时弹桌面通知给人，不进任何 Agent 看得到的命令输出 ──
-  const BASE_SEED = '20240607', BASE_GENS = ['old', 'gp', 'liq'];
+  const BASE_SEED = '20240607', BASE_GENS = ['mini', 'gp', 'liq'];
   const BASE_REGIONS = [['原点', [-48, 0, -48, 47, 255, 47]], ['东北', [752, 0, -648, 847, 255, -553]], ['西南', [-1552, 0, 1152, -1457, 255, 1247]]];
   const BASE_FILES = ['gode/w', 'gode/defl/g', 'gode/vendor', 'goodGP/js', 'goodLiqPG/src/world', 'gode/viz/stats.js', 'gode/viz/species.js'];   // 这些文件没动过，就不必再量
   const statsVer = () => +(/STATS_VER = (\d+)/.exec(readFileSync(join(GODE, 'viz', 'stats.js'), 'utf8'))?.[1] ?? 0);

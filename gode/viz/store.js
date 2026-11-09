@@ -1,7 +1,7 @@
 /* gode/viz/store.js —— pgviz 主线程的区块表（CPU 侧）：3D 窗口（整块体素，≤ 48²）+ 外圈 2D（列级地表，≤ 80²，s13 V-8）、
    跨块溢出合并（s02 §3）、CPU 步进（悬停 / 空气距离 / C4）。
    溢出不用挂起表：每块保留自己的 outside，块到达时 ① 把它的 outside 写进已载入的邻块 ② 把已载入邻块 outside 里落在本块的写进来。
-   与「先到先写」等价，且窗口移动丢块再回来时邻块的树冠不会丢。soft 规则：0 = 直写；k ≥ 1 = 只覆盖空气或 meta.over[k] 里的 type。
+   与「先到先写」等价（唯一例外：两棵树冠在同一邻块同一格抢写树叶，取较小的值，使结果与到达顺序无关），且窗口移动丢块再回来时邻块的树冠不会丢。soft 规则：0 = 直写；k ≥ 1 = 只覆盖空气或 meta.over[k] 里的 type。
    2D 列：Int16×4 = [实体 type, 实体 y, 群系, 水深]（w/slicer.js colReduce）；3D 块的列在主线程由体素算（含溢出），外圈的由 worker 的 col 动词给。 */
 import { cls } from './palette.js';
 import { colReduce } from '../w/slicer.js';
@@ -17,6 +17,7 @@ export class Store {
     this.w2 = 0; this.win2 = [0, 0];
     this.over = {};
     for (const k in meta.over ?? {}) { const s = this.over[k] = new Uint8Array(4096); for (const t of meta.over[k]) s[t] = 1; }
+    this.leaf = new Uint8Array(4096); (meta.names ?? []).forEach((n, i) => { if (i < 4096 && /_leaves$/.test(n)) this.leaf[i] = 1; });
     this.cls = new Uint8Array(4096); (meta.names ?? []).forEach((n, i) => { if (i < 4096) this.cls[i] = cls(n); });
     this.c4pre = 0;                          // 到达时（合并前）生成器 heights 与体素 top 的差异累计
   }
@@ -44,7 +45,7 @@ export class Store {
   }
   // 收一块；返回被改动的块（含自己），供重新上传（体素 + 列）
   put(g) {
-    const rec = { cx: g.cx, cz: g.cz, blocks: g.blocks, biomes: g.biomes, heights: g.heights, outside: g.outside, ms: g.ms };
+    const rec = { cx: g.cx, cz: g.cz, blocks: g.blocks, biomes: g.biomes, heights: g.heights, outside: g.outside, ms: g.ms, wrote: new Set() };
     for (let c = 0; c < 256; c++) if (top(rec.blocks, c, this.H) !== rec.heights[c]) this.c4pre++;
     this.map.set(key(rec.cx, rec.cz), rec);
     const touched = new Set([rec]);
@@ -67,7 +68,11 @@ export class Store {
       const r = only ?? this.map.get(key(x >> 4, z >> 4));
       if (!r || (x >> 4) !== r.cx || (z >> 4) !== r.cz) continue;
       const c = (z & 15) * 16 + (x & 15), j = (y << 8) | c, cur = r.blocks[j];
-      if (soft && cur && !this.over[soft]?.[cur & 0xfff]) continue;
+      if (soft && cur && !this.over[soft]?.[cur & 0xfff]) {
+        // 两棵树冠（outside）抢同一格：先到先得会让结果取决于到达顺序，改取较小的值（只在本格已被 outside 写过时；块自己的树叶仍然优先）
+        if (!(r.wrote?.has(j) && this.leaf[cur & 0xfff] && this.leaf[v & 0xfff] && v < cur)) continue;
+      }
+      if (soft && v) r.wrote?.add(j);
       r.blocks[j] = v; touched.add(r);
       if (v && y > r.heights[c]) r.heights[c] = y;
       else if (!v && y === r.heights[c]) r.heights[c] = top(r.blocks, c, this.H);

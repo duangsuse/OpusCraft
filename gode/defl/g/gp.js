@@ -9,7 +9,7 @@ const G = await loadGP();
 // goodGP 群系是中文名；地图色取 MC 群系图配色（goodLiqPG tools/preview_world.mjs BIOME_MAP_COL 同名项）
 const BIOME_COL = [0x000070, 0xfade55, 0x8db360, 0x056621, 0x307444, 0x0b6a5f, 0xf0f8ff, 0xfa9418, 0x707070, 0x0000ff, 0xdcdcf0, 0x7070d6];
 export const meta = {
-  id: 'gp', ver: 1, sea: G.SEA, h: G.HEIGHT,
+  id: 'gp', ver: 1, sea: G.SEA, h: G.HEIGHT, outside: false,   // outside: false = 不外写（viz-seam 据此跳过跨块检查）
   names: G.BLOCKS.map(b => b?.key ?? ''), biomes: G.BIOMES.slice(), colors: { biomes: BIOME_COL },
   knobs: G.GEN_PARAMS,   // s02 §2.1：扁平参数表，kw 由 w/params.js 校验
 };

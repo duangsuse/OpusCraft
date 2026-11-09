@@ -1,72 +1,56 @@
-/* gode/defl/g/old.js —— `?g=old` 生成器 Worker：宿主 B gen.js 的抽副本（vendor/old/*，s02 §4、s13 V-7）。
-   原生布局 xzy8（u8 id + u8 meta，x<<11|z<<7|y，H 128，列数组 x 主序）→ 运行时 xlate 成规范 YZX u16，y 原样（128 以上是空气）。
-   跨块写入：宿主 B 写进已生成邻块或 pendingFeatures；这里本块直写，块外一律进 outside [x,y,z,v,soft]（soft 1 = 只覆盖空气 / 树叶），
-   由 main 按宿主 B applyPending 的语义合并。差异：宿主先 applyPending 再装饰本块，这里邻块溢出总在本块装饰之后到达（树叶不幂等，C2 屏蔽）。 */
+/* gode/defl/g/old.js —— `?g=old` 生成器 Worker：VoxelCraft.html（仓库根）的地形生成抽副本（vendor/old/voxelcraft.js，s02 §4、s13 §12）。
+   原生布局：u8 id，(x*16+z)*96 + y（CH 96，海平面 40，没有 meta），这里直接写进规范 YZX u16（y 原样，96 以上是空气），不走 xlate。
+   VoxelCraft 没有群系：biome 由 vendor 的 surface() 按地表分类（海 / 滩 / 平原 / 林 / 石峰 / 雪坡）。树全在块内（x,z ∈ 2..13），outside 恒为空，meta.outside = false。 */
 import { serve } from '../../w/slicer.js';
-import { CHUNK_H, SEA_LEVEL } from '../../vendor/old/prng.js';
-import { NAMES, AIR, isLeaves } from '../../vendor/old/blocks.js';
-import { Terrain, BIOMES, W, PARAMS } from '../../vendor/old/terrain.js';
 import { resolveParams } from '../../w/params.js';
+import * as V from '../../vendor/old/voxelcraft.js';
 
-const BIOME_COL = { 'Ocean': 0x000070, 'Plains': 0x8db360, 'Forest': 0x056621, 'Desert': 0xfa9418, 'Mountains': 0x707070, 'Snowy Tundra': 0xf0f8ff,
-  'Taiga': 0x0b6a5f, 'Beach': 0xfade55, 'Birch Forest': 0x307444, 'Deep Ocean': 0x000030 };
+// 原版 B 表的 id → 名字（id = 下标；名字对齐各生成器通用的 palette / species 命名）
+const NAMES = ['air', 'grass_block', 'dirt', 'stone', 'cobblestone', 'oak_log', 'oak_leaves', 'oak_planks', 'sand', 'water',
+  'coal_ore', 'iron_ore', 'gold_ore', 'diamond_ore', 'bedrock', 'glass', 'crafting_table', 'furnace',
+  'torch', 'tall_grass', 'poppy', 'dandelion', 'snow_block', 'stone_bricks', 'tnt', 'gold_block'];
+const BIOME_COL = { ocean: 0x000070, beach: 0xfade55, plains: 0x8db360, forest: 0x056621, stony_peaks: 0x7b7b7b, snowy_slopes: 0xc4c4c4 };
+const CH = V.CH;
+
 export const meta = {
-  id: 'old', ver: 1, knobs: PARAMS, sea: SEA_LEVEL, h: 256, h0: CHUNK_H, layout: 'xzy8',
-  names: NAMES, biomes: BIOMES.map(b => b.name), colors: { biomes: BIOMES.map(b => BIOME_COL[b.name] ?? 0x808080) },
-  over: { 1: NAMES.map((n, i) => isLeaves(i) ? i : -1).filter(i => i >= 0) },   // soft 规则 1 额外可覆盖的 type（空气总可覆盖）
+  id: 'old', ver: 1, knobs: V.PARAMS, sea: V.SEA, h: 256, h0: CH, outside: false,
+  names: NAMES, biomes: V.BIOMES.slice(), colors: { biomes: V.BIOMES.map(b => BIOME_COL[b] ?? 0x808080) },
 };
 
-let SEED = '';
-
-// 宿主 B 的 Chunk 子集（index.html:1058）：gen.js 只读写 blocks / meta / height / biomes / tiles
-class Chunk {
-  constructor(cx, cz) {
-    this.cx = cx; this.cz = cz; this.state = 0;
-    this.blocks = new Uint8Array(16 * 16 * CHUNK_H); this.meta = new Uint8Array(16 * 16 * CHUNK_H);
-    this.height = new Uint8Array(256); this.biomes = new Uint8Array(256); this.tiles = new Map();
-  }
-  updateHeight(x, z) { let y = CHUNK_H - 1; const base = (x << 11) | (z << 7); while (y >= 0 && this.blocks[base | y] === 0) y--; this.height[x * 16 + z] = y + 1; }
-  recomputeHeights() { for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) this.updateHeight(x, z); }
-}
-
-let cur = null, outside = [];
-// 宿主 B World.setBlockGen（index.html:1193）的本块分支；块外 → outside
-W.setBlockGen = (x, y, z, id, meta = 0, replaceOnly = null) => {
-  if (y < 0 || y >= CHUNK_H) return;
-  const c = cur;
-  if ((x >> 4) !== c.cx || (z >> 4) !== c.cz) { outside.push(x, y, z, id | meta << 12, replaceOnly ? 1 : 0); return; }
-  const i = ((x & 15) << 11) | ((z & 15) << 7) | y, old = c.blocks[i];
-  if (replaceOnly && !replaceOnly(old)) return;
-  if (old === id && c.meta[i] === meta) return;
-  c.blocks[i] = id; c.meta[i] = meta;
-  const hi = (x & 15) * 16 + (z & 15);
-  if (id !== AIR && y >= c.height[hi]) c.height[hi] = y + 1;
-  else if (id === AIR && y === c.height[hi] - 1) c.updateHeight(x & 15, z & 15);
-};
-W.setTileGen = () => {};      // 方块实体（箱子 / 刷怪笼内容）V1 不传
-W.applyPending = () => {};    // 挂起表在 main（s02 §3）
+const tmp = new Uint8Array(16 * 16 * CH), bio = new Uint8Array(256);
 
 export function onkwarg({ seed, kw }) {
-  SEED = String(seed);        // 宿主 B：Game.seed = String(seed)，Terrain.init(this.seed)
-  Terrain.init(SEED);
-  Terrain.setParams(resolveParams(PARAMS, kw));   // s02 §2.1
+  const s = String(seed ?? '').trim();
+  V.initNoise(/^-?\d+$/.test(s) ? parseInt(s, 10) | 0 : V.hashStr(s) | 0);   // 原版：URL ?seed= 用 parseInt(…,10)|0
+  V.setParams(resolveParams(meta.knobs, kw));                               // s02 §2.1
   return { meta };
 }
 
 export function gen({ cx, cz }, out) {
-  const c = cur = new Chunk(cx, cz); outside = [];
-  Terrain.generateChunk(c);
-  out.blocks = c.blocks; out.meta = c.meta; out.biomes = c.biomes;
-  const hs = out.heights = new Int16Array(256);
-  for (let i = 0; i < 256; i++) hs[i] = c.height[i] - 1;          // 宿主 height = 顶格 + 1；仍是 x 主序，xlate 转
-  return { outside: Int32Array.from(outside) };
+  tmp.fill(0);
+  V.generateChunk(cx, cz, tmp, bio);
+  const b = out.blocks;
+  for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) {
+    const src = (x * 16 + z) * CH, c = z * 16 + x;
+    let top = -1;
+    for (let y = 0; y < CH; y++) { const v = tmp[src + y]; if (v) { b[(y << 8) | c] = v; top = y; } }
+    out.heights[c] = top;
+    out.biomes[c] = bio[x * 16 + z];
+  }
+  return { outside: new Int32Array(0) };
 }
 
 export function sample({ x, z }) {
-  const s = Terrain.sample(x, z);
-  return { h: s.h, biome: s.biome, temp: +s.temp.toFixed(3), hum: +s.hum.toFixed(3), mountain: +s.mountain.toFixed(3) };
+  const h = V.heightAt(x, z), slope = Math.max(Math.abs(V.heightAt(x + 1, z) - V.heightAt(x - 1, z)), Math.abs(V.heightAt(x, z + 1) - V.heightAt(x, z - 1)));
+  return { h, biome: V.surface(h, slope, x, z).biome, slope };
 }
 
-export function spawn() { return Terrain.findSpawn(); }
+export function spawn() {
+  for (let r = 0; r < 64; r += 2) for (let a = 0; a < 8; a++) {
+    const x = Math.round(Math.cos(a * Math.PI / 4) * r * 4), z = Math.round(Math.sin(a * Math.PI / 4) * r * 4), h = V.heightAt(x, z);
+    if (h > V.SEA + 1 && h < 60) return [x + 0.5, h + 2, z + 0.5];
+  }
+  return [0.5, V.SEA + 10, 0.5];
+}
 
 serve(import.meta.url);

@@ -1,5 +1,5 @@
-/* gode/vendor/old/prng.js —— 宿主 B 的随机数与噪声，逐行抽自 index.html:358–503（V-7 抽副本；宿主 B 本身不改）。
-   改动只有：加 export、去掉游戏用的全局 rng。与宿主 B 的一致性靠 old 生成器的区块哈希对拍（s13 V-7）。 */
+/* gode/vendor/mini/prng.js —— 宿主 B 的随机数与噪声，逐行抽自 index.html:358–503（V-7 抽副本；宿主 B 本身不改）。
+   改动只有：加 export、去掉游戏用的全局 rng。与宿主 B 的一致性靠 mini 生成器的区块哈希对拍（s13 V-7）。 */
 export const CHUNK_W = 16, CHUNK_H = 128, SEA_LEVEL = 62;
 export function bidx(x, y, z) { return (x << 11) | (z << 7) | y; }
 export const DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];

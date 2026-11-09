@@ -41,7 +41,7 @@ gd xz <file.xz|-> [--at @x,z^y] [--frame] [--shot]   追加文本体素（s06 §
 gd mark / gd revert                                  世界改动打点 / 回滚到打点（试错不累积）
 gd set c_.Path=v …                                   走 gm.pane.set（与 &json= 同路由）
 gd eval '<js>'                                       页面里执行，按值返回
-gd check [name…] [--matrix old,gp,liq|all]           跑 checks.tsv（§6）；--matrix = pgviz 检查在每个生成器下各跑一遍
+gd check [name…] [--matrix mini,gp,liq|all]           跑 checks.tsv（§6）；--matrix = pgviz 检查在每个生成器下各跑一遍
 gd perf [--frames 120]                               低频：帧时间中位数 + 渲染器 stats()，不进默认 loop
 gd log [-f]                                          页面 console / 异常（自上次调用以来）
 ```
@@ -114,7 +114,7 @@ gd revert                                          # 回到干净世界，下一
 
 ## 5. 机位表导入（T-4）
 
-- `tools/bench-b-poses.json`（seed 20240607：`plain canopy cave water uw`，宿主 B 坐标）→ `defl/c_.json` 的 `c_.Bench.poses['20240607@old']`。键带生成器名，因为同一种子在 `gp / liq` 下地形不同；`liq` 的 y 要 +64（s02 §4）。
+- `tools/bench-b-poses.json`（seed 20240607：`plain canopy cave water uw`，宿主 B 坐标）→ `defl/c_.json` 的 `c_.Bench.poses['20240607@mini']`。键带生成器名，因为同一种子在 `gp / liq` 下地形不同；`liq` 的 y 要 +64（s02 §4）。
 - 没有对应条目时，`gd shot` 按 handover/tools.md §3 的规则搜索一次（「±6 起伏最小」「树叶最密」……），写回 `c_.Bench.poses`（走 `✎ 写为 js 默认`，s09 §1）。
 - 新增**视觉目标机位**，与 `reference-vision/` 一一对应：`trees`（tree-and-shadow）、`clouds`、`sunset`、`caustic`、`uwrefl`、`ice`、`mobs`、`map`。`gd shot --ref` 把这些机位的截图与参考图拼成左右对照的联系表，供 Agent / 用户主观判断。
 - 冻结参数沿用 handover/tools.md §3：白天、水波时间 10、云偏移 0、清 mob；**机位按固定顺序访问**（访问顺序会影响已加载区块）。
@@ -130,6 +130,7 @@ gd revert                                          # 回到干净世界，下一
 | `seam` | 区块边界挖 3×3 洞、放火把，`probe` 两侧光照 | 两侧连续（s10 M1-8） |
 | `xz-roundtrip` | `tools/xz/*.xz` 逐个 `xz → read → hash` | hash 相等（s06 §5「逐格相等」） |
 | `outside` | 跨块树冠所在列的 `hash` 与单块生成 + 挂起合并结果比较 | 相等（s02 §3） |
+| `viz-seam` | pgviz：两种到达顺序下生成器输出与合并结果逐位相等、跨块写入无丢失、块边界地表连续（s13 §11；M1 的 `outside` 检查可沿用同一套判定） | 见 s13 §11 |
 | `r-switch` | `?r=gl → lite → gl` 热切换后 `stats()` 与 `errors()` | 无报错、draw calls 恢复 |
 | `cam` | F4 九个相机各截一张进联系表 | 无报错（画面人看） |
 
@@ -168,7 +169,7 @@ gd down                                 # 收尾（忘了也会 10 min 自退）
 | `tools/xz/*.xz` | `xz-roundtrip` 的样例 |
 | `tools/checks.tsv` | 列 `name host files js note`；`host` = `b / viz / gode`，只跑适用于当前页面的行 |
 | `shots/index.html` | 画廊（← → 同 tag 翻页、V 并排上一张） |
-| `defl/c_.json` | `c_.Bench.poses['20240607@old']`（导入）+ `c_.Bench.ref`（视觉目标 ↔ 参考图） |
+| `defl/c_.json` | `c_.Bench.poses['20240607@mini']`（导入）+ `c_.Bench.ref`（视觉目标 ↔ 参考图） |
 
 实测（宿主 B，RTX，1280×720）：冷 `up` 7–8 s（大头是 rd 6 世界 settle）；热 `shot` 0.15–0.4 s；四机位联系表 2.3 s；`eval` 10 ms；`check all` 1.5 s；`--ref` 3 s。十轮 `up / 超时杀 / kill -9` 后再 `up` 由 `sweepStale` 清干净，`pgrep` 无残留。
 
@@ -194,7 +195,7 @@ gd 的浏览器是有头的，用户可以直接在 Agent 打开的页面里操�
 
 ## 11. 生成器基线与 `--matrix` [11-09]
 
-**`gd check --matrix all`**：pgviz 的检查默认只在当前页面的生成器下跑；`--matrix old,gp,liq`（`all` = 三个）逐个 `gd go gode/viz/?g=…` 各跑一遍，行名带 `@g`，跑完回原页面。
+**`gd check --matrix all`**：pgviz 的检查默认只在当前页面的生成器下跑；`--matrix mini,gp,liq`（`all` = 三个）逐个 `gd go gode/viz/?g=…` 各跑一遍，行名带 `@g`，跑完回原页面。
 
 **基线（人类可读，只提醒人）**。生成器默认输出不该「悄悄变」，但创作者本来就会改生成器，所以**不用哈希指纹**（一改就红，还会让 Agent 去把有意的改动「修」回去），而是：
 

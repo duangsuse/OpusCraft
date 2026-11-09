@@ -13,24 +13,24 @@
 | V-3 | 参数就是 `c_.Gen`（s02 §2.1），面板走 `gg.pane`（s09）；**覆盖 goal-pgviz「参数不进存档」**：gode 里 knobs 随存档（s02 §2.1，因为它们决定 diff 基准） |
 | V-4 | 渲染沿用 goal-pgviz §3.2：R16UI 3D 纹理 + 轴向步进，六向正交，不走 rgl 管线；图层 / 空气层叠 / 切片照 §5 |
 | V-5 | 游戏端联动走 BroadcastChannel；M0 时游戏端是**宿主 B**（`?pgviz` 钩子，goal-pgviz §6–§7），gode/index.html 起来后换成 `c_.Gen` 的 `fx:'regen'` 正常路由 |
-| V-7 | `old` 适配器 = **抽副本**：`gen.js` 的逻辑与它依赖的 `Noise / Rand / 方块表` 复制进 `gode/`，宿主 B 不动、只收 knobs；正确性靠 `genhash` 与宿主 B 基线对拍 [11-09，关闭 §5] |
+| V-7 | `mini` 适配器 = **抽副本**：`gen.js` 的逻辑与它依赖的 `Noise / Rand / 方块表` 复制进 `gode/`，宿主 B 不动、只收 knobs；正确性靠 `genhash` 与宿主 B 基线对拍 [11-09，关闭 §5] |
 | V-6 | **俯视 + 侧视**，由**右下角 gizmo** 切换（§2.1）；悬停 gizmo = 沿当前视线轴快放 +N 层；+N 输入下方是「显示空气距离」开关 [11-09] |
 | V-8 | 视口：**3D 窗口**（整块体素，侧视 / 切片用）按缩放自动取大小，默认覆盖画布长边 **90%**（② `3D 占比`，URL `fill=`），上限 **48** 区块；之外一圈**列级 2D 地表**（每列 type / y / 群系 / 水深 8 B，slicer 引擎动词 `col`），俯视铺满画布、上限 **80×80** 区块；缩放下限 = 2D 刚好铺满，不再出现「中间一块 + 斜纹」。侧视时外圈只画剖面轮廓 [11-09] |
-| V-9 | ↗ 进游戏 = 宿主 B 读 `?seed=&p1=@x,z^y[,yaw]`：直接开一次性世界（不进标题、不暂停、创造飞行、不写存档槽 / `Save.last`、不自动存档；`&test=1` 时让给 gmtest-b）。pgviz 里 `g=old` 可用（落点：选区中心 > 悬停点 > 视图中心），`gp / liq` 置灰「M1 起可用」 [11-09] |
+| V-9 | ↗ 进游戏 = 宿主 B 读 `?seed=&p1=@x,z^y[,yaw]`：直接开一次性世界（不进标题、不暂停、创造飞行、不写存档槽 / `Save.last`、不自动存档；`&test=1` 时让给 gmtest-b）。pgviz 里 `g=mini` 可用（落点：选区中心 > 悬停点 > 视图中心），`gp / liq` 置灰「M1 起可用」 [11-09] |
 | V-10 | **悬停 = 左栏 ③**（方块名、坐标、群系、高度、sample 各字段），不再点击弹探针卡；**选区**（V-14 起改右键）：右键一下 / 两下，视线轴方向深度 `seld`，得一个 **3D 盒**；所有视角都画投影框，切片面穿过时高亮截面；换视角后拖框边改第三轴；⑤ 里 ⎘ 坐标 / ⎘ URL / ⎘ gd / 清除，URL `sel=x0,y0,z0,x1,y1,z1`，Esc 取消 [11-09] |
 | V-11 | gizmo 快放时**左栏浮出小图**，画「同时含主视线轴与扫描轴的平面」的剖面（例：俯视悬停 X 端点 → 南侧视剖面），标出主视图切面（青）、扫描线（黄虚线，同步移动）、光标（品红）、选区（白） [11-09] |
 | V-12 | 切片在**地表模式也可调**（= 把切片面以外削掉再看；拉回最外层 = 地表，URL 不带 `slice`）；**Shift+滚轮**调切片（Ctrl 一次 8 层）；快放时滑块与数值跟着动 [11-09] |
 | V-13 | **悬停无采样**：③ 悬停块只放不需要 `sample` 的实时字段（方块名、坐标、群系、高度、空气距）；400 ms 防抖 / 按列缓存 / 悬停 sample 行**全部删除**。`sample` 只在「已选中」里显示：选区近端格变化时按需取一次（不防抖），③ 的「⎘ sample」复制一行 JSON `{"at":"@x,z^y","sample":{h,biome,temp,…}}`（Agent 好读，`at` 相对原点并带 origin 标记）[11-09] |
 | V-14 | **选区与「已选中」合一**（只有 `S.sel`）：**左键 = 把选区设为点到位置所在的区块网格（16 对齐）**：俯视 = 该区块 16×16 整列（沿视线到底）；侧视 = 水平轴 16 对齐的区块宽 × 竖直轴 16 对齐的 section 高，沿视线轴仍是从命中点到窗口边。③「已选中」= 被点中的**那一格**（`S.hit`，URL `hit=`；选区被别的方式改过则取近端角）的信息（区块坐标、方块、群系、高度、sample）+ 选区范围；地图上该格用**反色标**（着色器 `uInv`：格 ≥ 8 px 整格反色，更小画 9 px 反色小方块），选区盒仍是白框。**右键保持方块精度**：两下定矩形，**第一下清空现有选区**并记待定角 A（黄虚线预览），**第二下 = A、B 成矩形**，深度 = **两角深度中点 ± seld/2**（② 可调）；右键拖 = 拉矩形；右键在已建立选区的框边上拖 = 改该轴；Esc：待定角 → 选区。URL 只有 `sel=`（`pin=` 只读兼容，`viz.pin` 是别名）。粘贴单点 `@x,z^y` = 左键点该格 [11-09] |
 | V-15 | **顶栏 X、Z = 视口左上角**的世界坐标（相对当前原点，缺省 0,0），平移 / 缩放实时更新，输入框可改（= 把左上角移过去）；**去掉 Go to 与 ⎘ URL 钮**，换成「粘贴 @x,z」输入。**复制与粘贴同一套坐标系**：复制写相对原点的 `@x,z^y`（点，③ 已选中的 ⎘）/ `@x0,z0^y0 @x1,z1^y1`（盒两角，⑤ 的 ⎘ 坐标），原点非 0,0 时末尾带 `(origin ox,oz)`；粘贴按文本里的 origin 标记还原，没有标记按当前原点相对。粘贴结果：两角 → **原样恢复选区**并居中；单点带 `^y` → 选区设为该格在当前视角的整条（= 左键）并居中；无 y → 只居中；gd 复制出的 URL / 命令里的 `x= z= y=` 按绝对跳转。检查 `viz-paste`（checks.tsv）对左键整条 / 右键两下单格 / 矩形 × 原点 0,0 与非 0,0 做复制 → 清空 → 粘贴，比较 sel 完全相等。**⌖ 钮**：左键回当前原点；右键弹**原点列表**：＋添加（有选区取其最小角 x,z，否则视口中心，默认名 `O1…`，名字可直接改）、每项 ×删除、导出列表（每行 `名字 @x,z`，绝对坐标）、导入（读剪贴板；把多行文本粘贴进顶栏粘贴框也导入）、重置原点；**点项 = 设为当前原点并跳过去，悬停项 = 在左栏快放小图位置预览该点处的俯视图**（窗口外只有 2D 外圈或空白）。列表存 `localStorage['pgviz.origins']`（try/catch），URL `origins=名:x,z;…`（> 600 字符省略）；当前原点 URL `origin=x,z`。原点影响顶栏读数、读数条、③ 坐标（同时列绝对）、复制的坐标；状态行与 ① 标出偏移。内部状态 / sel / pin / gd URL 一律绝对 [11-09] |
-| V-16 | **左栏**：右边缘拖动 resize（宽度进 `localStorage['pgviz.sw']`，try/catch），拖到 < 140 px 自动隐藏；**⫷ 钮只在左栏隐藏时显示**。「3D 占比」改名「**细节绘制**」移进 ① 世界（仍是 `fill=`）；**① 的折叠标题行 `#wsum` = `{生成器名} · 地表y {min…max} 群系 {n}`**（如 `old · 地表y 62…118 群系 9`，窗口里的列统计），生成器路径 / 海平面等在 ① 展开后的下面几行 [11-09] |
+| V-16 | **左栏**：右边缘拖动 resize（宽度进 `localStorage['pgviz.sw']`，try/catch），拖到 < 140 px 自动隐藏；**⫷ 钮只在左栏隐藏时显示**。「3D 占比」改名「**细节绘制**」移进 ① 世界（仍是 `fill=`）；**① 的折叠标题行 `#wsum` = `{生成器名} · 地表y {min…max} 群系 {n}`**（如 `mini · 地表y 62…118 群系 9`，窗口里的列统计），生成器路径 / 海平面等在 ① 展开后的下面几行 [11-09] |
 | V-17 | **键盘**：`T` 循环着色（方块 → 群系 → 高度）；`V` 循环视角（俯视 → 南 → 东 → 北 → 西 → 仰视），`Shift+V` 反向；`F` 地图区全屏（Fullscreen API，失败则隐藏顶栏 / 左栏 / 状态行，再按退出；⤢ 钮同）。输入框 / 下拉聚焦时不触发；`7 / 1 / 3` 别名保留。② 里标签标 `视角 (V)` `着色 (T)`。**① 世界默认折叠**（`#wsum` 摘要行仍显示）。**状态行**单行不换行：每段 `min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap` + `title` 悬停看全文；按优先级收缩（进度 / ms·块几乎不缩，`（worker）· 墙钟` 其次，`池 · 代 · 已复制 · 原点偏移` 最先缩成省略号），**「在途 n」永不缩、贴行末** [11-09] |
 
 ## 1. 相对 goal-pgviz 删掉 / 改掉的
 
 | goal-pgviz | gode |
 |---|---|
-| `pgviz/mini.js` + `shim.js` + `prng.js` 抽取（P1 步 2–3、C1 C7 C8） | 删。`old` 生成器在 s02 §4 已是 Worker 适配器 |
+| `pgviz/mini.js` + `shim.js` + `prng.js` 抽取（P1 步 2–3、C1 C7 C8） | 删。`mini` 生成器在 s02 §4 已是 Worker 适配器 |
 | `GenDesc`（§3.1） | 生成器 `meta` + `sample`；`fields` 由 `sample({x,z})` 的返回键决定（高度、温度、湿度、大陆度…） |
 | `liq.js` 适配器 | `defl/g/liq.js`（s02 §4，y + 64） |
 | 体素窗口 u16 列优先 | 规范 u16 YZX（s02 §1），直接 `texSubImage3D` |
@@ -70,7 +70,7 @@
 
 | 取自 | 元素 | 在 pgviz 里 |
 |---|---|---|
-| minecrafttools 顶栏 | seed + Go、版本下拉、Overworld/Nether/End 分段按钮、X/Z + Go to、Share | seed + Go、**生成器下拉**（old/gp/liq/URL）、**模式分段按钮**（地表 / 切片 / 层叠）、X/Z 跳转、⎘ 复制 URL、↗ 进游戏（打开 `gode/index.html?g=&seed=&p1=@x,z^y`） |
+| minecrafttools 顶栏 | seed + Go、版本下拉、Overworld/Nether/End 分段按钮、X/Z + Go to、Share | seed + Go、**生成器下拉**（mini/gp/liq/URL）、**模式分段按钮**（地表 / 切片 / 层叠）、X/Z 跳转、⎘ 复制 URL、↗ 进游戏（打开 `gode/index.html?g=&seed=&p1=@x,z^y`） |
 | minecrafttools 左栏 Features | 图标 chip 网格、All / None | **图层 chip**：点 = 开关，长按 / 右键 = 独奏，矿 / 植被 chip 带 ▸ 展开子项；All / None |
 | minecrafttools Highlight biome / Grid 下拉 | — | 群系高亮下拉、网格下拉（无 / 区块 / region 32×32） |
 | minecrafttools 右侧竖排工具钮 | ＋ － 定位 准星 尺子 下载 全屏 | 同；**gizmo 固定在地图右下角**（§2.1） |
@@ -141,20 +141,20 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 
 | 段 | 内容 | 验收 |
 |---|---|---|
-| V1 | 生成器 Worker 起池（slicer 的 `gen` 动词 + `old / gp / liq` 适配器，从 M1-3/4 提前）；3D 纹理 + 地表图层 + **右下 gizmo 俯视 / 侧视** + 探针卡 + URL 同步；顶栏与 ① ②；**+N 快放与空气距离**（§2.1） | 三个生成器都能看俯视图，y 刻度按 `meta`；C4 转置检查 0 差异 |
+| V1 | 生成器 Worker 起池（slicer 的 `gen` 动词 + `mini / gp / liq` 适配器，从 M1-3/4 提前）；3D 纹理 + 地表图层 + **右下 gizmo 俯视 / 侧视** + 探针卡 + URL 同步；顶栏与 ① ②；**+N 快放与空气距离**（§2.1） | 三个生成器都能看俯视图，y 刻度按 `meta`；C4 转置检查 0 差异 |
 | V2 | 图层 chip、群系、空气层叠 `count / depth3`、切片、`sample` 场热力图、统计 | goal-pgviz P2 验收 |
 | V3 | `gg.pane` 参数段（M1-2 提前）、湖泊 `w/feat/lake.js`、树参数映射；宿主 B 联动重生成；⑤ 选区 | goal-pgviz P3 验收 + C10 |
 
 ## 5. 待议
 
-（无；原「宿主 B 是否改用 old.js Worker」已由 V-7 关闭）
+（无；原「宿主 B 是否改用 mini.js Worker」已由 V-7 关闭）
 
 ## 6. V1 实现记录 [11-09]
 
 | 文件 | 内容 |
 |---|---|
 | `w/slicer.js` | 引擎运行时：单键信封分派 + id、`{ready:{meta}}`、`{err}`、`xlate`（`xzy8 → yzx16`）、`serve(import.meta.url)`（s02 §2）；引擎默认动词 `col`（整块生成后 `colReduce` 成列级地表，生成器可导出更便宜的 `col` 覆盖） |
-| `defl/g/old.js` + `vendor/old/{prng,blocks,terrain}.js` | 宿主 B `gen.js` 抽副本（V-7）；`terrain.js` 是 sed 机械替换的逐行副本 |
+| `defl/g/mini.js` + `vendor/mini/{prng,blocks,terrain}.js` | 宿主 B `gen.js` 抽副本（V-7）；`terrain.js` 是 sed 机械替换的逐行副本 |
 | `defl/g/gp.js` + `vendor/gp/load.js` | goodGP 供体原文 fetch 后拼成函数执行（零改动） |
 | `defl/g/liq.js` | 直接 import goodLiqPG ESM；y + 64，裁 256 以上（`clip` 计数进状态行） |
 | `viz/index.html app.js gl.js store.js pool.js palette.js` | 页面、装配 / 交互、着色器、CPU 区块表（3D + 2D）与溢出合并、slicer 池、按名字着色 |
@@ -171,21 +171,21 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 
 | 生成器 | ms/块（worker 内） | 墙钟 ms/块（8 worker，默认缩放 29² + 外圈 33²） | 最小缩放 48² + 80² | C4 |
 |---|---|---|---|---|
-| old | 1.9–2.4 | 0.6–0.9 | — | 0 |
+| mini | 1.9–2.4 | 0.6–0.9 | — | 0 |
 | gp | 2.0–3.0 | 0.6–0.7 | — | 0 |
 | liq | 6.7–8.9 | 0.8–1.2 | 2304 块 + 6400 列，ready 后 JS 堆 ≈ 1 GB | 0 |
 
-**old 与宿主 B 对拍**（V-7；宿主 B 页面里按行优先在沙箱 box 生成 8×8，取内圈 6×6 = 36 块；pgviz 同种子窗口覆盖同区域，逐格比 id + meta）：seed `20240607` @(−4,−4)：36/36 块逐字节相等；@(6,2)：35/36，差 1 格（树叶，邻块溢出到达顺序不同，C2 口径屏蔽后 36/36）；seed `hello` @(−20,10)：36/36。方块名字表与宿主 `gg.Blocks.byId` 相等（C8）。
+**mini 与宿主 B 对拍**（V-7；宿主 B 页面里按行优先在沙箱 box 生成 8×8，取内圈 6×6 = 36 块；pgviz 同种子窗口覆盖同区域，逐格比 id + meta）：seed `20240607` @(−4,−4)：36/36 块逐字节相等；@(6,2)：35/36，差 1 格（树叶，邻块溢出到达顺序不同，C2 口径屏蔽后 36/36）；seed `hello` @(−20,10)：36/36。方块名字表与宿主 `gg.Blocks.byId` 相等（C8）。
 
-**回归 [11-09]**：`gd check c4 errors` 在 old / gp / liq 三个生成器上都过；宿主 B `index.html?r=gl&seed=20240607&rd=6` 上 `errors seam xz-roundtrip r-switch` 过，`genhash` FAIL——撤掉 V-9 的改动后同样 FAIL（哈希每次不同），是既有问题，不是本轮引入。
+**回归 [11-09]**：`gd check c4 errors` 在 mini / gp / liq 三个生成器上都过；宿主 B `index.html?r=gl&seed=20240607&rd=6` 上 `errors seam xz-roundtrip r-switch` 过，`genhash` FAIL——撤掉 V-9 的改动后同样 FAIL（哈希每次不同），是既有问题，不是本轮引入。
 
-**V-13…17 实现记录 [11-09]**：全在 `viz/{index.html,app.js}`，检查在 `tools/checks.tsv` 的 `viz-paste`。左栏宽度用 CSS 变量 `--sw`（`#rsz` 是 7 px 拖动条；拖过界时恢复拖前宽度再隐藏）；顶栏读数 = `planeAt(0,0)` 取整，聚焦中的输入框不被覆盖；侧视时视线轴那一维读数是视图中心 / 切片位置。③ 已选中的近端格画在 `#rul` 覆盖层（橙框 + 十字，一格 < 8 px 画圈）；换视角后「近端格」按当前视线方向重取，代表格会变（俯视建的柱子在南侧视下是最底层）。回归：old / gp / liq `gd check c4 errors viz-paste` 全过；宿主 B `gd check all` 5/5 过。CDP 真实输入验证过左右键、按键、左栏拖动、F 全屏、原点菜单悬停预览。
+**V-13…17 实现记录 [11-09]**：全在 `viz/{index.html,app.js}`，检查在 `tools/checks.tsv` 的 `viz-paste`。左栏宽度用 CSS 变量 `--sw`（`#rsz` 是 7 px 拖动条；拖过界时恢复拖前宽度再隐藏）；顶栏读数 = `planeAt(0,0)` 取整，聚焦中的输入框不被覆盖；侧视时视线轴那一维读数是视图中心 / 切片位置。③ 已选中的近端格画在 `#rul` 覆盖层（橙框 + 十字，一格 < 8 px 画圈）；换视角后「近端格」按当前视线方向重取，代表格会变（俯视建的柱子在南侧视下是最底层）。回归：mini / gp / liq `gd check c4 errors viz-paste` 全过；宿主 B `gd check all` 5/5 过。CDP 真实输入验证过左右键、按键、左栏拖动、F 全屏、原点菜单悬停预览。
 
 **小图（第三版，定稿）[11-09]**：用户原意——**俯视时挂左栏顶部；其他视角（侧视 / 仰视）挂地图左上角；可 resize；只有一个实例**。结构：`#minid`（`position:fixed`，只改 opacity 与类名 `side` / `inmap`，不动其它布局，所以不会因布局变化打断 gizmo 悬停）里一个 `#mini` canvas + 一行说明 + 一个拖动手柄 `#mrz`。`showMini()` 每次出现时幂等地决定挂载：俯视且左栏可见 → `side`（宽随栏，`top` = ① 标题行下沿，只读 `#wsum` 所在 `summary` 的 rect）；否则 → `inmap`（左上角 `left = 左栏宽 + 8, top = 46`，左栏隐藏 / 全屏退化时贴 8 px；不挡右侧工具钮和左下读数条；`pointer-events` 只在手柄上）。手柄：`side` 拖下沿改高，`inmap` 拖右下角改宽高；大小存 `localStorage['pgviz.mini']`（`{mh, mw, mh2}`，try/catch）。快放 / 悬停会随鼠标离开消失，所以**打开原点菜单（⌖ 右键）时小图保持显示**，那时可拖。
 **两个旧 bug 的根因**：(a) 俯视时小图越来越靠下——`showMini` 用 `document.querySelector('#side summary')` 取 ① 标题下沿，而 `#minid` 当时是 `#side` 的第一个 `<details>`，取到的是它**自己的** summary，每调用一次 `top` 就累加一个标题高；现在 `#minid` 不在 `#side` 里，且只读 `#wsum`。(b) 其他视角里它在 canvas 左上角——不是挂载，而是旧版 `previewOrigin` 借主 GL 上下文先画进主画布左下角却没重画主图留下的残影；预览现在**不碰 GL**。
 **原点预览黑屏的根因**：预览点常在 3D 窗口 / 2D 外圈**之外**，store 里没有那里的列，GL 画出来就是 `uHas` 全无的黑；再加上借主画布（快放同款）渲染，时序一错就黑 / 残留。**现状**：`previewOrigin` 用 **CPU** 按列数据画（`paintPreview`：块色表 + 水深混蓝 + 西 / 北邻高差明暗，3 px/格）；`store.cols` 有就用，缺的块按需向 worker 要 `col` 放进预览专用缓存 `pcache`（≤ 900 块，换生成器时清），数据没到之前该块画暗色棋盘 + 「加载中…」，到齐再重画；每次悬停带令牌 `pTok`，旧请求回来只在仍是最新悬停时才重画，连续快速切换稳定。`viz.previewReady()` 等块到齐并返回 `{ok, missing}`。压力检查 `viz-preview`（checks.tsv，host=viz）：4 个原点（含 6000,−4000 与 40000,25000 这种窗口外的）× 3 轮快速悬停，再逐个等到齐后读回小图像素，非黑 ≥ 30%。
 
-**V-13…17 追加回归 [11-09]**：old / gp / liq 的 `gd check c4 errors viz-paste` 与宿主 B `gd check all` 全过；CDP 真实输入验证：左键区块选区 + 反色标、右键第一下清选区 + 黄虚线预览、第二下建矩形、「⎘ sample」JSON、原点菜单悬停预览（canvas 上无残留）、拖小图下沿。
+**V-13…17 追加回归 [11-09]**：mini / gp / liq 的 `gd check c4 errors viz-paste` 与宿主 B `gd check all` 全过；CDP 真实输入验证：左键区块选区 + 反色标、右键第一下清选区 + 黄虚线预览、第二下建矩形、「⎘ sample」JSON、原点菜单悬停预览（canvas 上无残留）、拖小图下沿。
 
 **底栏根因与后续修正 [11-09]**：真正的根因不是文字太长，而是 `.app` 的 grid 列写成 `var(--sw) 1fr`（= `minmax(auto, 1fr)`）：`#st` 里 `nowrap` 的各段把「地图列」的最小内容宽撑大，整张 grid 比视口宽，右边（含「在途」）被 `body{overflow:hidden}` 切掉——只在内容较长 / 窗口较窄的真实窗口里出现，之前 1280 下模拟看不出。现在所有列都写 `minmax(0, 1fr)`（含 `.nosd` / `.zen` / 窄屏媒体查询），`#st` 固定 24 px 单行、`min-width:0`。验证：`#app` 宽 1100 / 900 / 700 / 560 下 `在途` 右沿始终在行内（`Browser.setWindowBounds` 在 gd 的浏览器里不改 `innerWidth`，所以用 `#app` 宽度模拟）。
 **③ 已选中**：新增「⎘ 点」（与「⎘ sample」并排）复制被点中格 `S.hit` 的 `@x,z^y`（相对原点，原点非 0,0 带 `(origin x,z)`），粘贴 = 左键点该格；`viz-paste` 加一项「⎘ 点 → 清空 → 粘贴 → sel 与 hit 相等」。**原点列表去重**：按 `x,z` 去重（同坐标保留第一项、同名不同坐标保留）——＋添加遇到同坐标不再加、高亮已有项；导入跳过同坐标；URL `origins=` 与 localStorage 读取时去重，启动时把 localStorage 里的重复项写回清掉。**提示文字**改成「左键选区块 / 右键两下定矩形…」「（左键点选一个区块）」。**小图遮挡取舍**：俯视挂左栏时仍是浮层（改成流式会让左栏布局随悬停起伏，正是之前「越挪越下」类 bug 的温床），默认高度 178 → 120 px 以少盖 ②，想看大的可拖下沿（存 localStorage）。
@@ -200,7 +200,7 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 
 | 供体 | 改动 | 参数 |
 |---|---|---|
-| `vendor/old/terrain.js`（宿主 B gen.js 的副本） | `PARAMS` + `Terrain.P / setParams` | `terrain.contScale shift hillAmp mountAmp`、`cave.rate`、`ore.mul`、`tree.dens`、`plant.dens` |
+| `vendor/mini/terrain.js`（宿主 B gen.js 的副本） | `PARAMS` + `Terrain.P / setParams` | `terrain.contScale shift hillAmp mountAmp`、`cave.rate`、`ore.mul`、`tree.dens`、`plant.dens` |
 | `goodGP/js/world.js` | `GEN_PARAMS` + `World.P / setParams`，`vendor/gp/load.js` 多导出 `GEN_PARAMS` | 同上，另有 `river.width`（9 个） |
 | `goodLiqPG/src/world/gen/*` | `terrain.js` 的 `GEN_PARAMS`；`TerrainNoise.P` 由 `Generator` 共享，`carvers / ores / decorate` 读 `gen.P` | `terrain.contScale shift mountAmp factor`、`cave.rate`（蠕虫洞 + 峡谷）、`cave.cheese`（芝士洞偏置）、`ore.mul`、`tree.dens` |
 
@@ -213,7 +213,7 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 
 **空气距离（已改为开关，见 §10；以下是 select 版的旧记录）**：`#airsel` = 无 / 数字 / 水体风格（灰渐变），URL `air=off|num|gray`（旧 `air=1` = 数字），`viz.set('air', 'gray')`。数字照旧（格 ≥ 8 px，< 10）；水体风格不受缩放限制：`g = mix(0.92, 0.10, 1 − exp(−d/14))`，与底下明暗稍混（近亮远暗，思路同「水越深越暗」）。
 
-**检查**：`viz-kw`（未知键抛错、URL 往返、`ore.mul=3` 后矿数翻倍以上且 `vs.delta.ores` 存在、复原后与基线相等、无参 `stats()` 仍是状态、覆盖 = 全部列）、`viz-air`（三态的状态 / select / URL 一致）。old / gp / liq 下 `errors c4 viz-paste viz-kw viz-air` 全过。
+**检查**：`viz-kw`（未知键抛错、URL 往返、`ore.mul=3` 后矿数翻倍以上且 `vs.delta.ores` 存在、复原后与基线相等、无参 `stats()` 仍是状态、覆盖 = 全部列）、`viz-air`（三态的状态 / select / URL 一致）。mini / gp / liq 下 `errors c4 viz-paste viz-kw viz-air` 全过。
 
 **还没做**：`viz.stats` 的「只重算选区」——现在改参数重算的是整个窗口（够快）；人那边没有参数面板（V3 的 gg.pane），人只能通过 URL / 粘贴拿到 Agent 调好的 `kw`。（树已按种统计，见 §9。）
 
@@ -224,7 +224,7 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 | `E` | 循环 `#modes`（地表 ↔ 切片；V2 的层叠启用后自动入环），toast 提示当前模式 |
 | `R` | 空气距离开 / 关（见 §10） |
 | `C` | 原点菜单「＋添加」：选区最小角 / 无选区时视口中心；同坐标已有则只提示，不重复添加 |
-| `⏎` | ↗ 进游戏（`old` 以外 toast「M1 起可用」）；`preventDefault`，焦点在某个按钮上时也不会去触发那个按钮 |
+| `⏎` | ↗ 进游戏（`mini` 以外 toast「M1 起可用」）；`preventDefault`，焦点在某个按钮上时也不会去触发那个按钮 |
 | `Ctrl+⏎` | 一键提交给 Agent（= 「→ Agent」按钮） |
 
 焦点在 `input / select / textarea` 里时全部不触发（顶栏种子框的 ⏎ 仍是 Go）。
@@ -240,13 +240,13 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 | 图层 | 数据 | 画法 |
 |---|---|---|
 | `tree` 树种 | Store 的 2D 列里「地表实体」是树叶 / 树干的列（3D 窗口与外圈都有）；种 = 方块名 `<种>_leaves / _log / _wood / _stem` 的前缀（`species.js`，三个生成器通用） | 每种一个醒目色（oak 绿、spruce 青、birch 黄、jungle 荧光绿、acacia 橙、dark_oak 紫、cherry 粉），树干比树叶深；**非树的列压暗**，树才醒目 |
-| `f:<k>` 场热力图 | 生成器 `sample()` 返回的每个数值字段（`biome` 除外；old：h temp hum mountain；gp：+ humid cont mount river；liq：hEst temp humid cont ero weird pv）。slicer 新增**引擎默认动词 `field`**（`{x0, z0, n, step}` → 每字段一个 Float32Array），不用生成器改一行 | 64 格一块、每 4 格取一点（16×16），只取视野内 ±1 块、最近优先、最多 10 个在途；每块一张 16×16 色阶图放大（不平滑，所以是 4 格的色块）；色阶 = 已载入数据的 2%…98% 分位（范围变了 > 3% 才重染），蓝 → 青 → 绿 → 黄 → 红 |
+| `f:<k>` 场热力图 | 生成器 `sample()` 返回的每个数值字段（`biome` 除外；mini：h temp hum mountain；gp：+ humid cont mount river；liq：hEst temp humid cont ero weird pv）。slicer 新增**引擎默认动词 `field`**（`{x0, z0, n, step}` → 每字段一个 Float32Array），不用生成器改一行 | 64 格一块、每 4 格取一点（16×16），只取视野内 ±1 块、最近优先、最多 10 个在途；每块一张 16×16 色阶图放大（不平滑，所以是 4 格的色块）；色阶 = 已载入数据的 2%…98% 分位（范围变了 > 3% 才重染），蓝 → 青 → 绿 → 黄 → 红 |
 
 换生成器 / 种子 / 参数（`kw`）时图层缓存全部重置（`LY.reset`），改参数后热力图自然跟着变——**调参时可以直接看「这个旋钮动了哪个场」**。以后加图层 = `list()` 里多一项 + `colorChunk / colorTile` 里多一个分支（species.js 的「名字表 → 类别表 → 着色」就是预备好的套路）。
 
 **树的统计**（`stats.trees`）：见 §7 口径。`viz.stats({sel})` 现在回 `trees.bySpecies`，`vs.delta` 也会带出每个树种的变化（`tune({'tree.dens': 1.5})` 后能看到 oak / birch 各自多了多少）。
 
-**检查**：`viz-layers`（图层列表、树种图例、场的值与色条、侧视不抛错、未知图层抛错）、`viz-trees`（种合计一致、平均高 ≥ 1）、`viz-seldepth`。old / gp / liq 下 `gd check all --matrix all` 共 33 项全过，宿主 B `check all` 5/5。
+**检查**：`viz-layers`（图层列表、树种图例、场的值与色条、侧视不抛错、未知图层抛错）、`viz-trees`（种合计一致、平均高 ≥ 1）、`viz-seldepth`。mini / gp / liq 下 `gd check all --matrix all` 共 33 项全过，宿主 B `check all` 5/5。
 
 ## 10. 左栏与 Numpad 操控 [11-09 二]
 
@@ -278,3 +278,80 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 - **Shift+滚轮取反**：滚轮向上 = 往深处（切片沿视线前进），向下 = 回到外层；Ctrl 仍是一次 8 层。
 - 检查：`viz-numpad` 加了右键翻向、Shift+滚轮方向、四个端点的扫描方向。
 
+## 11. 区块接缝检查 `viz-seam` [11-09]
+
+`viz/seam.js`（`viz.seam({at, w})`，检查行 `viz-seam`，host = viz）：preview_world.mjs `seamCheck` 的 pgviz 版，**同一份 Store 合并代码**，三个生成器通用。私有单 Worker 池（不动页面主池），样地 = 沿螺旋（间隔 14 区块）按 `sample` 群系挑的 3 块 5×5 林地（`FOREST` 正则；找不到退回原点附近，`at` 可指定），每块样地按**正序、倒序**各 `onkwarg` 重置一个全新生成器、逐块 `gen` → 喂进全新 Store。
+
+| 项 | 判定 |
+|---|---|
+| raw | 两种顺序下每块 blocks / biomes / outside 逐位相等（生成器无状态、与调用顺序无关） |
+| merge | 合并后世界逐格相等，差异按「类型对」归类 |
+| lost | 每条落在已载入块里的 outside：已写入 / 被同格别的写入覆盖 / 被 soft 规则合理跳过，否则算丢（树冠缺口） |
+| cross | 跨块写入条数 > 0（样地没有跨块树则检查无意义，失败）；`meta.outside === false`（goodGP：树靠邻块重算、不外写，已在 `defl/g/gp.js` 声明）时 cross / lost 不适用 |
+| c4 | 合并之后每块 `heights` 与体素 top 一致 |
+| border | 块边界两侧地表（不算树 / 植物 / 水）高差均值 ≤ 块内相邻列的 1.5 倍 + 0.3 |
+
+**结果**（seed 20240607）：mini 662 条跨块写入、gp 不外写、liq 1223 条，lost 均为 0，raw 逐位相等，边界高差与块内同量级。**已修**：最初 liq 有 3 格 `leaves↔leaves` 不同——两棵树的树冠落在同一邻块的同一格，soft 规则「先到先得」使结果取决于到达顺序（供体 `applyFeatureBlocks` 同款语义）。现在 `Store.apply` 在「该格已被 outside 写过、旧新都是树叶」时取较小的值（块自己生成的树叶仍然优先、不受影响），结果与顺序无关，检查全绿。**这是对供体语义的刻意偏离**：M1 的 outside 合并（s02 §3）要照此实现。
+
+变异验证：把 `Store.apply` 的跨块写入丢掉 90%，`lost` 立即报出（`acacia_leaves` 应为、实为 air），还原后恢复。耗时 mini 0.3 s / gp 0.3 s / liq 0.7 s。
+
+## 12. `old` 改名 `mini` [11-09]
+
+生成器 `old`（宿主 B `gen.js` 的抽副本）改名 **`mini`**：`defl/g/old.js → mini.js`、`vendor/old → vendor/mini`、`meta.id`、`viz/{app.js,index.html}`、`gd` 的 `--matrix` / 基线、`gmtest-b` 的 `gen`、`c_.Bench.poses['20240607@mini']`、`tools/baseline.tsv` 第一列、本目录文档；数值一律不动。历史文字里的「old」同步改成了 mini。**随后 `old` 这个名字让给了 VoxelCraft 生成器（§13），`?g=old` 不再是 mini 的别名**；`shots/index.tsv` 里的旧 `g=old` URL 因此会指向 VoxelCraft 地形。
+
+## 13. `old` = VoxelCraft 生成器 [11-09]
+
+`?g=old`：仓库根 `VoxelCraft.html` 的地形生成抽副本，用来给 pgviz 多一个**风格迥异、无外写、无群系**的小生成器（Simplex 2D 高度 + 山脊遮罩、双噪声蠕虫洞 + 大洞、随机游走矿脉、树按噪声密度、H 96、海 40）。
+
+| 文件 | 内容 |
+|---|---|
+| `vendor/old/voxelcraft.js` | 逐行照搬（源行：常量 300–302、小工具 316–334、Simplex+fbm 339–402、B 表 659–661、生成 1096–1190）。改动只有：加 export、去掉 `Chunk / chunks / edits`、地表选择抽成 `surface()`（逐块与 `sample` 共用，并多回一个 biome）、`treeDens()` 抽出、knobs（`P`，默认值使输出逐位相同） |
+| `defl/g/old.js` | 适配器：原生 `(x*16+z)*96+y` u8 → 规范 YZX u16（y 原样，96 以上空气）；`meta.outside = false`（树只种在 x,z ∈ 2..13，树冠半径 2，全在块内）；`sample` → `h slope biome`；`spawn` 螺旋找 h > 41 的陆地 |
+
+- **群系**：VoxelCraft 没有，`surface()` 按地表分类 `ocean / beach / plains / forest（树密度 > 0.02）/ stony_peaks（坡度 ≥ 4）/ snowy_slopes（雪线）`，只给 pgviz 着色与统计，不是原版内容。
+- **knobs**（8 个，同 §7 的命名）：`terrain.contScale shift hillAmp mountAmp`、`cave.rate`、`ore.mul`、`tree.dens`、`plant.dens`。
+- **对拍**：原文件 1096–1190（加 `Chunk / chunks / edits` 桩）与 `vendor/old` 在默认参数下，4 个种子 × 12×12 = 576 块 **0 格差异**（含 36 833 格树叶）。
+- **检查**：`gd check all --matrix old` 13 项全过（`viz-kw` 矿 ×3：3691 → 11433；`viz-trees` 只有 oak；`viz-layers` 2 个场 + 树种）。`gd --matrix all` 现在是 4 个生成器（`mini gp liq old`）；**基线 `baseline.tsv` 还没有 old 的行**（`BASE_GENS` 没改，等人决定要不要 `gd baseline accept`）。
+- 没有湖泊：VoxelCraft 的水只有海平面以下，`water.lake*` 恒为 0。
+
+## 14. Luanti 系生成器 `v7` / `valleys` [11-09]
+
+**定位**：给 pgviz 多两个**噪声结构完全不同**的生成器（v7：3D 山地 + 山脊河 + 噪声交线洞；valleys：河谷剖面 + 河流 + 随河流 / 海拔改热度湿度），并且有**真实参考**可以对拍，所以调参 / 重构时不必靠截图主观比。
+
+**做法**（用户 11-09 定）：Luanti 的 C++ 只当参考（浅克隆到 `/tmp/luanti-src`），JS 是**独立重写**，不逐行翻译；移植**模块化、可拆**——算法只在 `vendor/luanti/`（见该目录 `NOTICE.md` 的许可证边界），gode 一侧只有薄适配；**群系仍是声明式**（`defl/g/lt/biomes.tsv`，gode 自己的 12 个群系，字段语义取自 Luanti，不是 Minetest Game 的 default 群系）。
+
+| 文件 | 内容 |
+|---|---|
+| `vendor/luanti/noise.js pcg.js` | 值噪声（整数哈希、缓和曲线、2D 缓和 / 3D 只在 eased 缓和的既有不对称、absvalue、点采样 `fractal2d/3d`、噪声区间 `bounds`）、PCG32（BigInt，只走稀疏路径） |
+| `vendor/luanti/biome.js` | 热度 / 湿度最近点 + 垂直范围 + 垂直渗透 + 过渡点；`parseTsv`；`BiomeSet` |
+| `vendor/luanti/mapgen.js` | 列式收尾：群系顶 / 填充 / 水 / 河床 → 噪声交线洞 → 洞穴 → 尘。**按参考的 80 格块（原点偏移 −32）分段**，段内状态重置，所以「地表落在块底时填充层被截断」这类参考的竖直接缝行为保留 |
+| `vendor/luanti/v7.js valleys.js` | 地形（默认噪声 / spflags 同参考）；knobs：`terrain.shift contScale mountAmp river.width cave.rate`（v7）、`terrain.shift contScale valley.depth river.size river.depth cave.rate`（valleys） |
+| `defl/g/lt/core.js adapter.js biomes.tsv decorations.json schematics.json` | 装配（种子 = 参考的 `read_seed`：整数 / 十六进制 / MurmurHash64A）、slicer 适配、群系 / 装饰 / schematic 声明；`defl/g/v7.js valleys.js` 是 Worker 入口 |
+| `vendor/luanti/deco.js` | 装饰（simple / schematic）与 schematic 的 ASCII 层声明，见 §14.1 |
+| `tools/luanti/run.mjs cmp.mjs parity.mjs ref-game/` | **对拍**：`run.mjs` 在 `/tmp/gode-lt/` 拼一个最小游戏（节点 + 同一张群系表，装饰 / 矿 / 地牢 / 光照 / 液体流动全关），起 `luanti --server` 导出某区域的真实节点；`cmp.mjs` 与 JS 逐格比；`parity.mjs` 一组回归（6 组种子 / 区域，约 20 s） |
+
+**对拍结果**（96×96 区域 × y −64…191，≈ 235 万格）：节点一致率 **99.992–100%**，群系列 100%，热度 / 湿度最大差 ≤ 1.2e-4（参考是 f32，这里 f64）。验收口径 ≥ 99.9% 且群系列全对（`parity.mjs` 的判据）。残留差异都在 **y = −33 / 47 一线（块边界）** 和 **阈值附近的 f32 翻转**。过程中靠对拍抓到的几个点：浮点 → u16 的填充深度截断；液体流动污染参考（关掉 `liquid_update`）；valleys 的海拔 / 河流修正按**块内最高石面**算（所以是 per-chunk 的）；被裁掉的山顶不能当空气落尘。
+
+**性能**：见 §14.1（列级噪声缓存后，不带装饰 v7 ≈ 8 ms/块、valleys ≈ 7，带装饰 10–30）。v7 山地 / valleys 的 3D 噪声另用「噪声区间能判出符号就跳过」，结果与不跳过完全相同。
+
+### 14.1 装饰（树 / schematic）与 VoxeLibre 的思路 [11-09]
+
+**装饰**（用户 11-09：「做树和 schematic 就行」）：`vendor/luanti/deco.js` 重写了 `simple` / `schematic` 两种装饰，沿参考的 **mapchunk（80³，原点偏移 −32）** 放置——每个块按注册顺序逐个 `placeDeco`（块种子 + i，PCG 种子 = blockseed + i + 53）、`sidelen` 分格、`noise` / `fill_ratio` 定数量、高度图 + biomemap + `place_on` + `spawn_by` 判定、schematic 居中 / 旋转 / 强制放置 / 只放进空气。**内容全是声明式**：`defl/g/lt/decorations.json`（7 条：橡树 / 桦树 / 云杉 / 丛林树 / 金合欢，按群系）、`defl/g/lt/schematics.json`（ASCII 层：`legend` 映射字符 → 节点，`.` = ignore，层从下往上、每层 z 行 × x 列）。
+
+| 要点 | 说明 |
+|---|---|
+| 放置位置 | 请求一个 16×16 列时，把「vm 区域（块 ± 16）覆盖到这些列」的相邻块的装饰结果（带缓存）写进来；所以树冠跨块**不需要 outside** |
+| 生成顺序 | 参考的 `emerge_area` 是 z 最外、y、x 最内，所以块按 (kz, ky, kx) 字典序「先后生成」；**先生成的相邻块的树叶对后生成的块可见**（叶子可行走 → 高度图抬高 → 树冠下 `place_on` 判定失败 → 不再种树，RNG 序列随之改变）。不模拟这条，密林里整块的树位置都对不上 |
+| 递推深度 | 前驱自己也依赖它的前驱，会连成一条无限链，所以只递推 `deco.depth` 层（knob，默认 2，0–3）：0 = 各块独立（约 99.67%）、2 ≈ 99.96%、3 ≈ 99.986%（对拍区域内），越大越慢 |
+| 参考的怪处 | ① 装饰噪声用的 `mapseed` 在参考里恒为 0（没有任何地方给它赋值），所以装饰噪声只受 `np.seed` 影响、不随世界种子变——我们照做；② schematic 的概率用全局 `myrand`（不可复现），这里用位置哈希，对拍用的 schematic 概率恒 255 |
+| 没模拟 | 先到的树冠写进「还没生成的块」时会顶替地形（只做了写入侧，没做树冠下的群系 / 洞穴处理）；`all_floors` / `all_ceilings` / `liquid_surface` 报错不支持 |
+| 尘 | `dustTopNodes` 挪到装饰之后（雪落在叶子上）；列顶必须是空气才落尘 |
+| knobs | `tree.dens`（装饰密度乘子，同名同义于其它生成器）、`deco.depth` |
+
+**列级噪声缓存**：`col3d`（`noise.js`）沿一列只缓存相邻两层格点，y 连续变化时几乎不再算哈希，**逐位等于** `fractal3d`（`selftest.mjs` 对拍，升 / 降 / 乱序 × 3 种 flags）。地形、山脊河、噪声洞、洞穴都用它：v7 ≈ 24 → 8 ms/块；带装饰（depth 2）v7 ≈ 10（普通）–30（密林）ms/块、valleys ≈ 10–24。pgviz 外圈 2D 的 `col` 动词覆盖成 `depth 0`（`adapter.js`），不然 6400 列会慢到 `viz-preview` 超时。
+
+**对拍**：参考服务器多 emerge 一圈（`gode_emerge_pad` 96），不然边缘的树冠缺一块；`cmp.mjs` 把「参考没生成过的块」从前驱里剔除（`bounds`）。12 组（v7 / valleys × 种子 / 区域，含 3 万树格的密林、洞穴与气候参数变体）节点一致率 **99.93–100%**，树格总数基本相等（密林 31962 vs 31870）。`tools/luanti/parity.mjs` 一把跑完约 45 s。
+
+**VoxeLibre 的思路（只参考，不用代码；VL 是 GPLv3）**：VL 的地形不是它自己的——v7 / valleys 的地形、河、洞都是引擎的 C++，VL（`mcl_mapgen_core`）只调参数、注册群系 / 装饰 / 结构：打开 caverns 且 `cavern_threshold = 0.20`、关地牢、不允许 v6；`minetest.conf` 里 `mgvalleys_spflags = noaltitude_chill,noaltitude_dry,nohumid_rivers,vary_river_depth`（它的群系自带雪版，海拔降温 / 降湿会重复；`humid_rivers` 会让蘑菇岛老出现在河边）。借过来的是**参数思路**，做成 knobs：`cavern.threshold`（v7 默认 0.7、valleys 0.6）、`cavern.limit`（默认 −256，在窗口外；调到 −30…100 才看得见大洞）、valleys 的 `climate.altChill / altDry / humidRivers`、`river.varyDepth`。VL 式预设 = `kw=cavern.threshold:0.2,cavern.limit:-30,climate.altChill:0,climate.altDry:0,climate.humidRivers:0`；这些 knobs 在对拍里验证过（`parity.mjs` 最后两组，99.992%）。
+
+**没做**（不在列式管线里，依赖整块 + 区块种子）：随机游走洞、地牢、悬岛（v7 `floatlands`）、矿。`ore.mul` 没有，`viz-kw` 在没有 `ore.mul` 时用 `terrain.shift`。pgviz `gd check all --matrix all`（6 个生成器）全过。**基线 `baseline.tsv` 没加 v7 / valleys / old**（`BASE_GENS` 没改，等人决定）。

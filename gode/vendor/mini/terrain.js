@@ -1,6 +1,6 @@
-/* gode/vendor/old/terrain.js —— 宿主 B gen.js 的地形生成，逐行副本（V-7 抽副本；gen.js 本身不改）。
+/* gode/vendor/mini/terrain.js —— 宿主 B gen.js 的地形生成，逐行副本（V-7 抽副本；gen.js 本身不改）。
    机械替换（sed，见 git diff 对照 gen.js）：头部 gg 解构 → import；gg.world.setBlockGen / setTileGen / applyPending → W.*；
-   gg.CH_GENERATED → 1；末尾 Object.assign(gg, …) → export。W 是跨块写入的世界接口，由 defl/g/old.js 填（本块直写、块外进 outside）。 */
+   gg.CH_GENERATED → 1；末尾 Object.assign(gg, …) → export。W 是跨块写入的世界接口，由 defl/g/mini.js 填（本块直写、块外进 outside）。 */
 import { CHUNK_H, CHUNK_W, DIRS, SEA_LEVEL, bidx, clamp, floor, hexToRgb, lerp, smoothstep, Noise, Rand, hashString } from './prng.js';
 import { AIR, B, isLeaves } from './blocks.js';
 export const W = { setBlockGen() {}, setTileGen() {}, applyPending() {} };

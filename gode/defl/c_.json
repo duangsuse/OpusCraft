@@ -1,8 +1,8 @@
 {
  "Bench": {
-  "#": "机位表（gode/s12 §5）。键 = '<seed>@<生成器>'，坐标是该生成器的规范 y（liq 要 +64）。20240607@old 导入自 tools/bench-b-poses.json（宿主 B）。ref = 视觉目标机位 ↔ gode/reference-vision/ 参考图，gd shot --ref 拼左右对照表；没有 pose 的格只放参考图",
+  "#": "机位表（gode/s12 §5）。键 = '<seed>@<生成器>'，坐标是该生成器的规范 y（liq 要 +64）。20240607@mini 导入自 tools/bench-b-poses.json（宿主 B）。ref = 视觉目标机位 ↔ gode/reference-vision/ 参考图，gd shot --ref 拼左右对照表；没有 pose 的格只放参考图",
   "poses": {
-   "20240607@old": {
+   "20240607@mini": {
     "plain": {
      "x": -19.5,
      "y": 67,

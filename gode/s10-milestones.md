@@ -24,7 +24,7 @@
 | 1 | `gode/index.html` 新宿主骨架：规范区块（u16 YZX H256）、权威区块 Map、移动与碰撞（宿主 B `Physics` 搬来） | s02 §1 · s03 R-1 | 能在平地上走、跳、飞 |
 | 2 | `gg.vars` / `c_` / `gg.pane` + 四层优先级（M0-6 已为 pgviz 做出，此处接入游戏）（含 `defl/c_.json`） | s09 P-1 | `&json=` 深赋值断言；`Object.keys(c_)` 列全 |
 | 3 | slicer worker：单键动词信封、`onkwarg`、`gen`（M0-6 已有）、初始光照、`mesh`（`vendor/gl/pool.js` 搬入）、池大小 | s01 | 同种子两次运行哈希一致；main 帧时间不因生成抖动 |
-| 4 | 生成器适配器 `old / gp / liq`（M0-6 已有，此处补 `outside` 之外的游戏侧接入）（liq：y + 64、峰顶 < 250），`?g=` 模块 URL | s02 | 各自 `genHash(n)` 内圈稳定；`old` 与宿主 B 基线相同 |
+| 4 | 生成器适配器 `mini / gp / liq`（M0-6 已有，此处补 `outside` 之外的游戏侧接入）（liq：y + 64、峰顶 < 250），`?g=` 模块 URL | s02 | 各自 `genHash(n)` 内圈稳定；`mini` 与宿主 B 基线相同 |
 | 5 | `outside` + 挂起表合并 | s02 §3 | 跨块树冠无缺口（截图比对） |
 | 6 | rgl 接 gode 适配器（YZX、名字 → glid LUT、稀疏状态表）、`?r=gl` | s03 §1–§2 | 与宿主 B 同机位截图主观对照；bench 帧时间不劣于宿主 B |
 | 7 | `?r=lite`（`renderVanilla`）+ 运行时热切换 | s03 R-3 | 无 `EXT_color_buffer_float` 时自动回落 |

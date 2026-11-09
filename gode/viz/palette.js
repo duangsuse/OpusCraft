@@ -20,7 +20,7 @@ const COL = {
   orange_tulip: 0xf08020, white_tulip: 0xf0f0f0, pink_tulip: 0xf0a0c0, oxeye_daisy: 0xf0f0e0, cornflower: 0x4060e0, lily_of_the_valley: 0xffffff,
   sunflower: 0xf0d020, lilac: 0xc080d0, rose_bush: 0xd02040, peony: 0xe0a0d0, pink_petals: 0xf0a0c8,
   // 以下 preview_world 没有：宿主 B / goodGP / 地表常见
-  grass_block: 0x7cad4c, water: 0x3f76e4, mud: 0x3c3a3e, moss_block: 0x5a7a2a, mycelium: 0x6f6265, magma_block: 0x8a3a10,
+  grass_block: 0x7cad4c, water: 0x3f76e4, river_water: 0x4a82d6, mud: 0x3c3a3e, moss_block: 0x5a7a2a, mycelium: 0x6f6265, magma_block: 0x8a3a10,
   netherrack: 0x6f3634, end_stone: 0xdbde9e, glowstone: 0xf0c060, spawner: 0x1a2a3a, chest: 0xa2782e, crafting_table: 0x9a6a3a,
   furnace: 0x6a6a6a, furnace_lit: 0x8a6a4a, lit_furnace: 0x8a6a4a, bookshelf: 0x8a6a3a, tnt: 0xd03a2a, farmland: 0x5a3a20, dirt_path: 0x9a7a40,
   glass: 0xc0e0f0, torch: 0xffd040, fire: 0xff7020, bricks: 0x96503a, stone_bricks: 0x7a7a7a, smooth_stone: 0x9e9e9e, hay_block: 0xb8a030,
@@ -30,7 +30,7 @@ const COL = {
 };
 // 植物 / 装饰：地表图层跳过（显示下面的地面），探针仍报名字
 const PLANT = /^(short_grass|tall_grass|grass|fern|large_fern|dead_bush|vine|cave_vines.*|glow_lichen|.*_sapling|wheat|.*_mushroom|sugar_cane|sweet_berry_bush|pink_petals|lily_pad|torch|.*_tulip|dandelion|poppy|blue_orchid|allium|azure_bluet|oxeye_daisy|cornflower|lily_of_the_valley|sunflower|lilac|rose_bush|peony|hanging_roots|spore_blossom|small_dripleaf.*|big_dripleaf.*|moss_carpet|snow)$/;
-const FLUID = /^(water|seagrass|tall_seagrass|kelp|kelp_plant|bubble_column)$/;
+const FLUID = /^(water|river_water|seagrass|tall_seagrass|kelp|kelp_plant|bubble_column)$/;
 
 function guess(n) {
   if (COL[n] !== undefined) return COL[n];

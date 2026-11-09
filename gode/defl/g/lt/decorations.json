@@ -1,0 +1,159 @@
+{
+ "#": "装饰声明（字段名与语义取自 Luanti register_decoration：type simple|schematic、place_on、biomes、sidelen、noise | fill_ratio、y_min/y_max、flags、rotation、place_offset_y …）。顺序 = 注册顺序 = 块种子 +i 的 i。",
+ "decorations": [
+  {
+   "name": "oak_forest",
+   "type": "schematic",
+   "schematic": "oak",
+   "place_on": [
+    "grass_block"
+   ],
+   "biomes": [
+    "forest"
+   ],
+   "sidelen": 16,
+   "noise": {
+    "offset": 0.018,
+    "scale": 0.012,
+    "spread": 250,
+    "seed": 2,
+    "octaves": 3,
+    "persist": 0.66
+   },
+   "y_min": 1,
+   "y_max": 200,
+   "flags": "place_center_x,place_center_z",
+   "rotation": "random",
+   "place_offset_y": 1
+  },
+  {
+   "name": "birch_forest",
+   "type": "schematic",
+   "schematic": "birch",
+   "place_on": [
+    "grass_block"
+   ],
+   "biomes": [
+    "forest"
+   ],
+   "sidelen": 16,
+   "noise": {
+    "offset": 0.006,
+    "scale": 0.006,
+    "spread": 200,
+    "seed": 11,
+    "octaves": 3,
+    "persist": 0.66
+   },
+   "y_min": 1,
+   "y_max": 200,
+   "flags": "place_center_x,place_center_z",
+   "rotation": "0",
+   "place_offset_y": 1
+  },
+  {
+   "name": "oak_grassland",
+   "type": "schematic",
+   "schematic": "oak",
+   "place_on": [
+    "grass_block"
+   ],
+   "biomes": [
+    "grassland"
+   ],
+   "sidelen": 16,
+   "fill_ratio": 0.0004,
+   "y_min": 1,
+   "y_max": 200,
+   "flags": "place_center_x,place_center_z",
+   "rotation": "random",
+   "place_offset_y": 1
+  },
+  {
+   "name": "spruce_coniferous",
+   "type": "schematic",
+   "schematic": "spruce",
+   "place_on": [
+    "podzol"
+   ],
+   "biomes": [
+    "coniferous"
+   ],
+   "sidelen": 16,
+   "noise": {
+    "offset": 0.02,
+    "scale": 0.01,
+    "spread": 250,
+    "seed": 7,
+    "octaves": 3,
+    "persist": 0.66
+   },
+   "y_min": 1,
+   "y_max": 200,
+   "flags": "place_center_x,place_center_z",
+   "rotation": "random",
+   "place_offset_y": 1
+  },
+  {
+   "name": "spruce_tundra",
+   "type": "schematic",
+   "schematic": "spruce",
+   "place_on": [
+    "dirt"
+   ],
+   "biomes": [
+    "tundra"
+   ],
+   "sidelen": 16,
+   "fill_ratio": 0.0006,
+   "y_min": 1,
+   "y_max": 200,
+   "flags": "place_center_x,place_center_z",
+   "rotation": "0",
+   "place_offset_y": 1
+  },
+  {
+   "name": "jungle_rainforest",
+   "type": "schematic",
+   "schematic": "jungle",
+   "place_on": [
+    "grass_block"
+   ],
+   "biomes": [
+    "rainforest"
+   ],
+   "sidelen": 16,
+   "noise": {
+    "offset": 0.03,
+    "scale": 0.01,
+    "spread": 250,
+    "seed": 9,
+    "octaves": 3,
+    "persist": 0.66
+   },
+   "y_min": 1,
+   "y_max": 200,
+   "flags": "place_center_x,place_center_z",
+   "rotation": "random",
+   "place_offset_y": 1
+  },
+  {
+   "name": "acacia_savanna",
+   "type": "schematic",
+   "schematic": "acacia",
+   "place_on": [
+    "grass_block"
+   ],
+   "biomes": [
+    "savanna"
+   ],
+   "sidelen": 16,
+   "fill_ratio": 0.0008,
+   "y_min": 1,
+   "y_max": 200,
+   "flags": "place_center_x,place_center_z",
+   "rotation": "random",
+   "place_offset_y": 1
+  }
+ ]
+}

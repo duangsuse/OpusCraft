@@ -9,6 +9,7 @@ import { Pool } from './pool.js';
 import { blockLUT, biomeLUT } from './palette.js';
 import { regionStats, diffStats } from './stats.js';
 import { Layers } from './layers.js';
+import { seamCheck } from './seam.js';
 import { resolveParams, diffFromDefault, parseKw, fmtKw, flatten } from '../w/params.js';
 
 const $ = (id) => document.getElementById(id);
@@ -70,7 +71,7 @@ const live = () => !!play && !play.frozen;   // 快放中（frozen = 其它轴�
 let hov = null;                        // 最近一次地图悬停：{ px, py, c, r, p }
 let selA = null, edge = null, copied = '', pinV = null, pinK = '';   // pinV / pinK：③ 近端格的 sample 缓存
 
-const genUrl = (g) => /^(old|gp|liq)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
+const genUrl = (g) => /^(mini|gp|liq|old|v7|valleys)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
 const dpr = () => window.devicePixelRatio || 1;
 
 // ---- 启动 / 重置：换生成器或种子 ----
@@ -297,14 +298,14 @@ function world() {
 
 // ---- UI 同步 ----
 function syncUI() {
-  $('seed').value = S.seed; $('gsel').value = /^(old|gp|liq)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade;
+  $('seed').value = S.seed; $('gsel').value = /^(mini|gp|liq|old|v7|valleys)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade;
   $('rate').value = S.rate; $('minipc').checked = S.minip; $('airc').checked = S.air; $('gridc').checked = S.grid;
   $('seld').value = S.seld; layerUI();
   $('fillr').value = S.fill; $('fillv').textContent = Math.round(S.fill * 100) + '%';
   $('zv').textContent = `${+S.zoom.toFixed(3)} px/格` + (S.air && S.zoom <= 22 ? '（> 22 才叠数字）' : '');
-  const ok = S.g === 'old', gb = $('game');
+  const ok = S.g === 'mini', gb = $('game');
   gb.classList.toggle('off', !ok); gb.style.opacity = ok ? '' : 0.4;
-  gb.title = ok ? '在宿主 B 打开同种子世界，落在选区中心 / 悬停点 / 视图中心（创造飞行，一次性世界、不写存档）' : 'M1 起可用（宿主 B 只有 old 地形）';
+  gb.title = ok ? '在宿主 B 打开同种子世界，落在选区中心 / 悬停点 / 视图中心（创造飞行，一次性世界、不写存档）' : 'M1 起可用（宿主 B 只有 mini 地形）';
   if (store) sliceUI(range());
   $('sub').style.display = hasAgent() ? '' : 'none';
   selUI(); pinPanel(); url(); gizmo();
@@ -774,7 +775,7 @@ addEventListener('keydown', (e) => {
   if (e.target.matches?.('input, select, textarea')) return;
   if (e.key === 'Enter' && !e.altKey && !e.metaKey) {   // ⏎ = 进游戏；Ctrl+⏎ = 一键提交给 Agent（preventDefault：焦点在按钮上时不再触发该按钮）
     e.preventDefault(); if (e.repeat) return;
-    if (e.ctrlKey) submitClick(); else if (S.g === 'old') $('game').click(); else toast('进游戏：M1 起可用（目前只有 old 地形）');
+    if (e.ctrlKey) submitClick(); else if (S.g === 'mini') $('game').click(); else toast('进游戏：M1 起可用（目前只有 mini 地形）');
     return;
   }
   if (e.key === 'Escape') { if (play?.frozen) { stopPlay(); toast('剖面已取消'); return; } if (selA) selA = null; else S.sel = null; changed(); return; }
@@ -811,7 +812,7 @@ function gameUrl() {
   const c = store?.col(x, z), y = c && c.y >= 0 ? `^${Math.max(c.y + c.wd, c.y) + 1}` : '';
   return new URL(`../../index.html?seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}${y}`, location.href).href;
 }
-$('game').onclick = () => { if (S.g === 'old') window.open(gameUrl(), '_blank'); };
+$('game').onclick = () => { if (S.g === 'mini') window.open(gameUrl(), '_blank'); };
 
 // ---- 顶栏 / 左栏 ----
 $('go').onclick = () => { S.seed = $('seed').value.trim() || '0'; restart(); };
@@ -932,6 +933,8 @@ window.viz = {
       msPerChunk: n ? +(st.wms / n).toFixed(2) : null, wallMsPerChunk: st.t1 && st.pn ? +((st.t1 - st.t0) / st.pn).toFixed(3) : null, colsGot: st.cols, clipped: st.clip, sel: S.sel, kw: { ...S.kw }, errors: errs.length };
   },
   c4: () => store.c4(),
+  // 区块接缝检查（seam.js）：私有单 Worker 池，不动页面主池；opts { at:[[cx,cz],…], w }
+  async seam(o = {}) { await booting; return seamCheck({ url: poolUrl, kwarg: { seed: S.seed, g: S.g, kw: S.kw }, meta, ...o }); },
   // 屏幕平面坐标（俯视 = 世界 x,z；侧视 = 水平坐标, y）上，从当前切片沿视线轴到第一个实体要穿过的空气格数；0 = 切面上就是实体；null = 没碰到
   airDist(a, b) {
     const v = VIEWS[S.view], rg = range(), c = [0, 0, 0], ra = axisOf(v.R), da = axisOf(v.D);

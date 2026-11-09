@@ -48,7 +48,7 @@ export function install(gg, gm) {
   const ISO = { ne: [1, 1], se: [1, -1], sw: [-1, -1], nw: [-1, 1] };   // 相机在目标的哪个方向（+x 东，−z 北）
 
   const T = {
-    seed: SEED, gen: 'old', host: 'b',
+    seed: SEED, gen: 'mini', host: 'b',
     ready: null,
     // { hour, wave, cloud, mobs, hud, tick }：tick=false 停游戏 tick（默认）；hud=false 隐藏 HUD 叠层（截图更干净）
     freeze({ hour = 10, wave = 10, cloud = 0, mobs = false, hud = true, tick = false } = {}) {

@@ -1,0 +1,18 @@
+# gode · Luanti 系生成器（?g=v7 / ?g=valleys）的群系表：声明式，gode 自己的表（不是 Minetest Game 的 default 群系，只借用 Luanti 的字段语义）。
+# 同一张表既喂 JS 生成器，也由 tools/luanti/run.mjs 生成 Lua 注册（参考服务器），保证两边群系一致。
+# 坐标 = Luanti 原生 y（海平面 water_level = 1）；heat / humid 对应 mg_biome 的 np_heat / np_humidity（约 0…100）；
+# 最近点分类：dist = Δheat² + Δhumid²（÷ weight），只在 [y_min, y_max] 内参选，y_max 之上 vblend 格内按概率「渗」出来。
+# 空串 = 不设。节点名 = 通用名（stone dirt grass_block …），water / river_water 另算流体。
+name	y_min	y_max	heat	humid	vblend	top	dtop	filler	dfiller	stone	wtop	dwtop	water	river	riverbed	driverbed	dust	color
+snowy_peaks	90	31000	50	50	4	snow_block	1	stone	0	stone	water	0	water	river_water	gravel	2	snow	0xdcdcf0
+icesheet	4	89	0	73	0	snow_block	1	dirt	2	stone	ice	1	water	river_water	gravel	2	snow	0xf0f8ff
+tundra	4	89	12	40	0	dirt	1	dirt	2	stone	water	0	water	river_water	gravel	2	snow	0xb4dcdc
+cold_desert	4	89	25	12	0	gravel	1	gravel	2	stone	water	0	water	river_water	gravel	2		0xa2a284
+coniferous	4	89	28	70	0	podzol	1	dirt	3	stone	water	0	water	river_water	sand	2		0x0b6a5f
+forest	4	89	45	62	0	grass_block	1	dirt	3	stone	water	0	water	river_water	sand	2		0x056621
+grassland	4	89	50	35	0	grass_block	1	dirt	3	stone	water	0	water	river_water	sand	2		0x8db360
+rainforest	4	89	86	65	0	grass_block	1	dirt	3	stone	water	0	water	river_water	sand	2		0x537b09
+savanna	4	89	89	42	0	grass_block	1	dirt	3	stone	water	0	water	river_water	sand	2		0xbdb25f
+desert	4	89	92	16	0	sand	1	sand	3	sandstone	water	0	water	river_water	sand	2		0xfa9418
+beach	1	3	50	50	1	sand	2	sand	2	stone	water	0	water	river_water	sand	2		0xfade55
+ocean	-255	0	50	50	0	sand	1	sand	3	stone	water	0	water	river_water	sand	2		0x000070

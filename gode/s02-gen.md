@@ -27,7 +27,7 @@ import { Generator } from '../../../goodLiqPG/src/world/gen/generator.js';   // 
 export const meta = { id: 'liq', ver: 1, sea: 127, h: 256, names: ['air', 'stone', …], biomes: […],
   colors: { biomes: [0x000070, …] },     // 可选：群系地图色（pgviz）；方块色由查看器按 names 查
   over: { 2: [/* soft 2 额外可覆盖的 type */] },   // outside 合并规则（下）
-  layout: 'yzx16' };                     // 可选，非规范布局时运行时 xlate（old = 'xzy8'）
+  layout: 'yzx16' };                     // 可选，非规范布局时运行时 xlate（mini = 'xzy8'）
 let SEED, G, K;                          // 模块级全局，由 onkwarg 设置
 
 export function onkwarg({ seed, kw }) {  // 初始化：直接设全局；再次收到 = 热重置
@@ -51,9 +51,9 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
   - 引擎默认动词 `col({cx, cz, cls})`：整块生成后归约成列级地表 `Int16Array(1024)` = 每列 `[实体 type, 实体 y, 群系, 水深]`（`cls` = main 按方块名算的分类表，植物跳过、流体计水深），pgviz 外圈 2D 用（s13 V-8）。生成器可导出只算列噪声的 `col` 覆盖它。
   - 异常一律回 `{err: {msg, stack}, id}`；`onkwarg` 总回 `{ready: {meta}}`（`meta` 取返回值的 `meta`，没有就取模块导出的 `meta`）；无 `id` 的广播事件不应答。
 - 光照、网格、地图这些**引擎动词**由 `slicer.js` 提供，生成器不用管；所以 s01 的「slicer 池 = 生成 + 光照 + 网格」照旧，池里每个 worker 都是同一个生成器脚本。
-- 短名映射：`old / gp / liq` → `$baseUrl/defl/g/<名>.js`；其余 URL 原样当 Worker 入口。`Pusc.json` 的 `$slicer` 存同一个字符串。
+- 短名映射：`mini / gp / liq / old / v7 / valleys` → `$baseUrl/defl/g/<名>.js`；其余 URL 原样当 Worker 入口。`Pusc.json` 的 `$slicer` 存同一个字符串。
 - 生成器可以直接写规范布局；用自己的布局时声明 `meta.layout`（`'yzx16' | 'xzy8' | …`），由运行时的 `xlate` 转换。
-- `outside`：`Int32Array`，每 5 个一组 `[x, y, z, v, soft]`（世界坐标），`soft` 规则号同 gen.md §2（1 = 只覆盖空气 / 树叶，2 = 覆盖空气或非流体可替换格）。规则落到具体 type 由生成器声明：`meta.over[soft]` = 除空气外还可覆盖的 type 列表（old：三种树叶；liq：`T_REPLACEABLE && !T_FLUID`），soft 0 = 直写。main 不需要知道各生成器的方块属性。
+- `outside`：`Int32Array`，每 5 个一组 `[x, y, z, v, soft]`（世界坐标），`soft` 规则号同 gen.md §2（1 = 只覆盖空气 / 树叶，2 = 覆盖空气或非流体可替换格）。规则落到具体 type 由生成器声明：`meta.over[soft]` = 除空气外还可覆盖的 type 列表（mini：三种树叶；liq：`T_REPLACEABLE && !T_FLUID`），soft 0 = 直写。main 不需要知道各生成器的方块属性。
 - 树苗生长原先是 main 直接调 `placeTree`（宿主 B mobsim.js:570）；现在改为发 `{tree}` 请求，异步返回写入列表，走 §3 的合并。
 
 ### 2.1 可调参数：湖泊与树 [定 11-08]
@@ -79,11 +79,14 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
 
 | 短名 | 来源 | 原布局 | 转换 | 溢出 |
 |---|---|---|---|---|
-| `old` | 宿主 B `gen.js` 的抽副本（`vendor/old/{prng,blocks,terrain}.js`，s13 V-7） | u8 + meta，XZY，H 128 | `meta.layout = 'xzy8'`，运行时转置为 YZX，y 原样（上半部空气） | `setBlockGen` 块外写入 → outside（soft 1） |
+| `mini` | 宿主 B `gen.js` 的抽副本（`vendor/mini/{prng,blocks,terrain}.js`，s13 V-7） | u8 + meta，XZY，H 128 | `meta.layout = 'xzy8'`，运行时转置为 YZX，y 原样（上半部空气） | `setBlockGen` 块外写入 → outside（soft 1） |
 | `gp` | goodGP `js/world.js`（`vendor/gp/load.js` 运行时 fetch 供体 util / blocks / world 原文拼成函数执行，零改动；只补 `ASSETS.tiles` 与色图两个桩） | u8 id + u8 meta，`(y<<8)\|(z<<4)\|x`，H 256 | **索引顺序与规范相同**，只需 `type = LUT[id] \| meta<<12` | 不外写（重算 3×3 树表），outside 为空 |
 | `liq` | goodLiqPG `src/world/gen/generator.js` | u16 12+4，`(yi*16+z)*16+x`，y −64…320 | 编码相同，查 LUT；**y + 64，191 以上裁掉**（§5） | `generateChunk` 已返回 `outside` |
+| `old` | 仓库根 `VoxelCraft.html` 的地形生成抽副本（`vendor/old/voxelcraft.js`，s13 §13） | u8 id，`(x*16+z)*96+y`，H 96，海 40，无 meta | 适配器直接写规范 YZX u16（不走 xlate），y 原样 | 无（树全在块内，`meta.outside = false`） |
+| `v7` | Luanti mapgen v7 的**列式独立重写**（`vendor/luanti/{noise,pcg,biome,mapgen,v7}.js`，装配 `defl/g/lt/`，s13 §14） | 无（逐点算，直接写规范 YZX u16） | 原生 y −64…191 ↔ 规范 0…255（+64，同 liq），海 1 ↔ 65 | 无（`meta.outside = false`；树冠按相邻 mapchunk 的装饰结果直接写进本块，s13 §14.1；矿 / 地牢 / 随机游走洞未做） |
+| `valleys` | 同上，`vendor/luanti/valleys.js` | 同上 | 同上 | 同上 |
 
-- V1 里 type 就是各生成器自己的 id（gp 0–168、liq 0–227、old 0–87），名字表在 `meta.names[type]`，pgviz 按名字着色 / 分类；统一 id LUT 等 s04 定表后再加。
+- V1 里 type 就是各生成器自己的 id（gp 0–168、liq 0–227、mini 0–87、old 0–25），名字表在 `meta.names[type]`，pgviz 按名字着色 / 分类；统一 id LUT 等 s04 定表后再加。
 - `Generator` 实例不可重入（gen.md §5），每个 slicer 一个实例。
 - 缺失方块先 SUB 到已有方块，按画面影响分批补（gen.md §5「4a / 4b」）。
 
@@ -91,7 +94,7 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
 
 - `y_gode = y_liq + 64`：海平面 63 → 127，深板岩层完整保留，liq 的 y > 191 裁掉。
 - 裁剪前用 knobs 把山高压到峰顶 < 250（留 5 格给树冠），适配器在 `generateChunk` 末尾统计被裁格数，genscope 显示，便于调参。
-- 因此 `meta.sea` 是规范坐标下的值：`old/gp` 为 62，`liq` 为 127。生成器之间的海平面差异由各自 meta 声明，玩法代码只读 `meta.sea`。
+- 因此 `meta.sea` 是规范坐标下的值：`mini/gp` 为 62，`liq` 为 127。生成器之间的海平面差异由各自 meta 声明，玩法代码只读 `meta.sea`。
 
 ## 6. 光照
 
