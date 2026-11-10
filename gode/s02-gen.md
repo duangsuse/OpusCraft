@@ -89,7 +89,7 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
 | `luanV` | 同上，`vendor/luanti/valleys.js` | 同上 | 同上 | 同上 |
 | `veg` | goodPG（VoxelCraft v3）`src/shared/world/terrain.ts`，`vendor/v3/terrain.mjs`（97 模块打包，`tools/build-v3.mjs` 生成，勿手改） | u16 状态 id（6 244 个，带朝向 / 水位），`(yi<<8)\|(z<<4)\|x`，y −64…319 | 状态 id 按去 `_<n>` 的名字压成规范 type（1 132 个，`meta=0`）；**y + 64，> 255 裁掉**（同 liq，带 `clip`） | 无（树 / 结构按全局网格算、写回时裁到本块，`meta.outside = false`；箱内容 / 村民 / 结构刷怪无通道，V1 丢弃） |
 
-- `pg1` 的参数表在副本里（`GEN_PARAMS`，11-11 起）：`terrain.mount / terrain.hills / terrain.mountPct / terrain.coast / cave.rate / cave.entrance / tree.dens / ore.mul`，默认值 = SURV 调优值（不是供体原值）；`defl/g/pg1.js` 的 `meta.knobs` 直接引用它，`onkwarg` 走 `resolveParams`。`sample` 回 `h / biome / temp / hum / cont / ero / mnt`（`colInfo`），噪声热力图可用。
+- `pg1` 的参数表在副本里（`GEN_PARAMS`，11-11 起）：`terrain.mount / terrain.hills / terrain.mountPct / terrain.coast / terrain.spike / terrain.canyon / mountain.hollow / cave.rate / cave.entrance / tree.dens / ore.mul`，默认值 = SURV 调优值（不是供体原值）；`defl/g/pg1.js` 的 `meta.knobs` 直接引用它，`onkwarg` 走 `resolveParams`。`sample` 回 `h / biome / temp / hum / cont / ero / mnt`（`colInfo`），噪声热力图可用。
 - V1 里 type 就是各生成器自己的 id（gp 0–168、liq 0–227、mini 0–87、old 0–25、pg1 0–452、veg 0–1131），名字表在 `meta.names[type]`，pgviz 按名字着色 / 分类；统一 id LUT 等 s04 定表后再加。veg 的 12 位是硬上限：v3 的 6 244 个状态必须合并（s13 §0 的清单第 1 条）。
 - `Generator` 实例不可重入（gen.md §5），每个 slicer 一个实例。
 - 缺失方块先 SUB 到已有方块，按画面影响分批补（gen.md §5「4a / 4b」）。

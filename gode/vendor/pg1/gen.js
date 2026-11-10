@@ -14,6 +14,9 @@ const GEN_PARAMS = [
   { k: 'terrain.hills', def: 1, min: 0, max: 2.5, note: '丘陵起伏乘子' },
   { k: 'terrain.mountPct', def: 0.13, min: 0.02, max: 0.5, note: '山脉区域占比（SurvivalCraft ≈ 0.13）' },
   { k: 'terrain.coast', def: 0.8, min: 0, max: 1, note: '海岸带压平 / 浅滩（按 base 离海平面距离；0 = 关）' },
+  { k: 'terrain.spike', def: 1, min: 0, max: 2, note: '高山尖峰/石柱强度' },
+  { k: 'terrain.canyon', def: 1, min: 0, max: 2, note: '高山峡谷切割强度' },
+  { k: 'mountain.hollow', def: 0.7, min: 0, max: 2, note: '山体中空/拱洞强度（0.7 ≈ 雪线山体空腔 19%）' },
   { k: 'cave.rate', def: 1.5, min: 0, max: 3, note: '洞穴体积乘子（1.5 = SURV 连通度）' },
   { k: 'cave.entrance', def: 1.5, min: 0, max: 3, note: '洞穴入口密度乘子（1.5 ≈ 每 64×64 格 82% 有入口）' },
   { k: 'tree.dens', def: 1, min: 0, max: 2, note: '树密度乘子（每块上限见 treeD）' },
@@ -851,7 +854,7 @@ class WorldGen {
   column(x, z) {
     const key = x * 131072 + z; const c = this.colCache.get(key); if (c !== undefined) return c;
     if (this.colCache.size > 400000) this.colCache.clear();
-    const o = this.colInfo(x, z), packed = o.h | (o.biome << 8);
+    const o = this.colInfo(x, z), packed = o.h | (o.biome << 8) | ((Math.min(255, (o.mntW * 255) | 0)) << 16);
     this.colCache.set(key, packed); return packed;
   }
   /** 列气候 / 高度（SURV 版）：地形按低频山脉因子分三档 —— 平原 70% / 丘陵 17% / 山脉 13%（SurvivalCraft TG）。 */
@@ -881,6 +884,14 @@ class WorldGen {
       const hills = this.nD.fbm2(x / 110, z / 110, 4);
       h = hb + hills * (5 + 16 * hillW + 8 * mntW) * (1 - 0.6 * coast) * PG['terrain.hills'] * (this.wtype === 'amplified' ? 1.8 : 1);
       h += Math.pow(pvr, 1.7) * 130 * mntW * PG['terrain.mount'] * this.amp;
+      // 高山造型（自然公园）：低频尖峰 + 平滑 V 形峡谷
+      if (mntW > 0.12) {
+        const spike = this.nP.ridge2(x / 90, z / 90, 2);
+        h += Math.pow(spike, 4) * 10 * mntW * PG['terrain.spike'];
+        const cn = this.nR.fbm2(x / 320 + 411, z / 320 - 277, 3);
+        const can = (1 - smoothstep(0, 0.12, Math.abs(cn))) * mntW;
+        if (can > 0) h = Math.max(h - 34 * can * PG['terrain.canyon'], SEA + 2);
+      }
       // mushroom islands
       const mush = cont < -0.25 && weird > 0.55;
       if (mush) h = Math.max(h, SEA + 2 + (weird - 0.55) * 60);
@@ -933,9 +944,9 @@ class WorldGen {
   }
   genOverworld(ch) {
     const X0 = ch.cx * 16, Z0 = ch.cz * 16, P = 8, PW = 32;
-    const H = new Int16Array(PW * PW), B = new Uint8Array(PW * PW);
-    for (let dz = 0; dz < PW; dz++) for (let dx = 0; dx < PW; dx++) { const c = this.column(X0 - P + dx, Z0 - P + dz); H[dz * PW + dx] = c & 255; B[dz * PW + dx] = (c >> 8) & 255; }
-    const hAt = (x, z) => H[(z - Z0 + P) * PW + (x - X0 + P)], bAt = (x, z) => B[(z - Z0 + P) * PW + (x - X0 + P)];
+    const H = new Int16Array(PW * PW), B = new Uint8Array(PW * PW), MW = new Uint8Array(PW * PW);
+    for (let dz = 0; dz < PW; dz++) for (let dx = 0; dx < PW; dx++) { const c = this.column(X0 - P + dx, Z0 - P + dz); H[dz * PW + dx] = c & 255; B[dz * PW + dx] = (c >> 8) & 255; MW[dz * PW + dx] = (c >> 16) & 255; }
+    const hAt = (x, z) => H[(z - Z0 + P) * PW + (x - X0 + P)], bAt = (x, z) => B[(z - Z0 + P) * PW + (x - X0 + P)], mwAt = (x, z) => MW[(z - Z0 + P) * PW + (x - X0 + P)] / 255;
     const blocks = ch.blocks, meta = ch.meta, rng = RNG(ihash(ch.cx, ch.cz, 77, this.seed));
     const flat = this.wtype === 'flat';
     if (flat) {
@@ -963,7 +974,7 @@ class WorldGen {
     };
     const deepY = 12;
     for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
-      const wx = X0 + x, wz = Z0 + z, h = hAt(wx, wz), bi = bAt(wx, wz), bio = BIOMES[bi];
+      const wx = X0 + x, wz = Z0 + z, h = hAt(wx, wz), bi = bAt(wx, wz), bio = BIOMES[bi], mw = mwAt(wx, wz);
       ch.biomes[(z << 4) | x] = bi;
       const slope = Math.max(Math.abs(hAt(wx + 1, wz) - h), Math.abs(hAt(wx - 1, wz) - h), Math.abs(hAt(wx, wz + 1) - h), Math.abs(hAt(wx, wz - 1) - h));
       const under = h < SEA;
@@ -998,6 +1009,11 @@ class WorldGen {
               else if (y < h - 7) { const d = tri(G1, x, y, z); if (d > 0.5 - Math.max(0, (40 - y)) * 0.004 - (cr - 1) * 0.06) cave = true; }
             }
             if (cave) id = y <= 9 ? BL.lava : 0;
+          }
+          // 山体中空：大尺度 3D 噪声挖洞厅；贴近地表时成为拱 / 侧窗
+          if (mw > 0.35 && id !== BL.bedrock && id !== 0 && y > 18 && y < h - 1) {
+            const hv = this.nCv1.fbm3(wx / 110, y / 60, wz / 110, 2) + (mw - 0.35) * 0.25 * PG['mountain.hollow'];
+            if (hv > 0.62) id = 0;
           }
         } else if (y <= SEA) {
           id = BL.water;
