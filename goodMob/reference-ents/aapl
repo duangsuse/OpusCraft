@@ -1,0 +1,21 @@
+model
+size = 7 7 7
+scale = 0.15 0.17 0.15
+origin = -y
+ao = 5 0.5
+
+material lighting = smooth, roughness = 0.2, fade = true, deform = 3
+  colors = A:#D11 B:#F60 D:#000 C:#F93
+material lighting = smooth, roughness = 1, fade = true, deform = 3
+  colors = E:#840 F:#000
+material lighting = flat, roughness = 1, fade = true, deform = 50, scatter = 0.1
+  colors = Z:#FC7
+
+voxels
+------- --ZZZ-- ------- --ZZZ-- ------- ------- ------- 
+--AAA-- -ZZZZZ- ------- -ZZZZZ- -BAAAA- ------- ------- 
+-BADAA- ZZZZZZZ --ZZZ-- ZZAAAZZ -B---A- ------- ------- 
+-BDDDA- ZZZZZZ- --ZZZ-- ZZBAAZZ -B-E-A- ---E--- ---FF-- 
+-BBDBA- ZZZZZZZ --ZZZ-- ZZBBAZZ -C---A- ------- ------- 
+--BBB-- -ZZZZZ- ------- -ZZZZZ- -CCBBB- ------- ------- 
+------- --ZZZ-- ------- --ZZZ-- ------- ------- ------- 

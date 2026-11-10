@@ -51,6 +51,10 @@ export interface RendererCtx {
   shadowCasters?: { x: num; y: num; z: num; r: num; sky: num }[];   // 每帧读（getter）：生物 / 掉落物的斑点阴影；键不存在 = 不建斑点阴影
   sky?: { visible: boolean }; sun?: { visible: boolean }; moon?: { visible: boolean };
   stars?: { visible: boolean }; clouds?: { visible: boolean };      // 宿主天空对象：gl 每帧置 visible = false（TODO：改走 Env.hide，见 §3）
+
+  // —— 微体素模型（SVOX，goal-svox.md；§2c）。缺省 = 无模型，行为与现状完全一致 ——
+  models?: ModelSource;              // 模型来源：方块 state.model 与 entities 都从这里取资产；类比 textures
+  entities?(): ModelInstance[];      // 每帧读（getter，类比 shadowCasters）：生物 / 掉落物 / 手持物；有它的实体不再走 ctx.scene + entityLight
 }
 
 export interface Renderer {
@@ -70,6 +74,7 @@ export interface Renderer {
   pending?(): num;                   // 视距内待网格化的段数；0 = 画面已稳（bench / verify 取基准前等它）
   reloadTextures?(): void;           // ⟶ 过渡：资源包换了 → 重传贴图 + 重算 PBR（宿主 B 包 Atlas.build 调它）；有 textures 后改由 TextureSource.onChange 驱动
   entityLight?(sky15: num, blk15: num, out: THREE.Color): THREE.Color;   // 宿主 lightColor() 的钩子（光照 0..15）：实体在 final 之后画，按渲染器曝光 / tonemap 折算
+  reloadModels?(): void;             // 模型换了 → 重建 smesh 缓冲与材质表；有 models.onChange 时由它驱动
 }
 export interface RendererStats { steps?: num; fetch?: num; gpuMs?: num; [k: string]: unknown }
 export declare function createRenderer(ctx: RendererCtx): Renderer;
@@ -172,8 +177,8 @@ export interface ChunkAux {
 // 2. 方块语义表 BlockTable  [confirmed §10.1]（数组视图）+ [meta.md §2.2/§2.3]（state/boxes，标 ★）
 // ───────────────────────────────────────────────────────────────────────────────
 
-/** kind 枚举：0..4 宿主可用；5/6 v2 内部保留；7 形状表（meta.md，宿主 B 的 box/layer/ladder/door 走它） */
-export const enum Kind { None = 0, Cube = 1, Cross = 2, Torch = 3, Fluid = 4, Halo = 5, Card = 6, Shape = 7 }
+/** kind 枚举：0..4 宿主可用；5/6 v2 内部保留；7 形状表（meta.md，宿主 B 的 box/layer/ladder/door 走它）；8 微体素模型（§2c，goal-svox.md） */
+export const enum Kind { None = 0, Cube = 1, Cross = 2, Torch = 3, Fluid = 4, Halo = 5, Card = 6, Shape = 7, Model = 8 }
 
 export interface BlockTable {
   // —— 数组视图（现状 + §10.1 预留；索引 = id，长度 256；宿主 A 只有这些）——
@@ -200,6 +205,7 @@ export interface BlockState {
   tiles: [top: num, bot: num, side: num, front: num];   // 图集层号（宿主 B 资源包 → 可能 > 255，见 TODO-3）
   transmit: [r: num, g: num, b: num];                      // ×255；普通方块 255,255,255
   tint: num;                                                     // 染色组
+  model?: num;                                                   // Kind.Model：ModelSource 里的模型 id（facing / axis / flip 复用上面的字段）；其余 kind 缺省 0 = 无
 }
 // occupied 在 v2 里的确切用法（DF 占据 = occupied ∪ 流体表皮、uBrick 含流体）见 goal-renderapi-v2.ts §2′。
 
@@ -260,6 +266,65 @@ export interface SkyAssets {
 //   · 亮度：按 mean 归一化后乘大气天空天顶亮度（下雨 / 黄昏自动变暗），再乘 P.panoExp；P.panoClamp 截掉烘进全景的太阳（位置和游戏太阳对不上）。
 // properties：zip 里任意 `shaders.properties` 或 `environment/*.properties`，`键=值` 行，# 注释。渲染器认 sun / moon / sky / stars（true/false）与 pomDepth（格）。
 // 方块级的 BlockTable.emissive 仍保留（火把 / 岩浆没有 _s 的包也要发光）；有 _s.A 时逐纹素乘它。
+
+// ───────────────────────────────────────────────────────────────────────────────
+// 2c. 模型来源 ModelSource（微体素 / SVOX；完整方案见 goal-svox.md）
+// ───────────────────────────────────────────────────────────────────────────────
+// 真源 = SVOX 文本（goodMob 的 Blockbench 插件产出 / 可直接贴进 Smooth Voxels Playground）。渲染器**运行时不解析 SVOX**：
+//   适配器（宿主侧，worker 里跑 Smooth Voxels）把它烘焙成下面的 ModelAsset 再交给渲染器；`svox` 字段只为「复制回去」保留。
+// 坐标约定：1 个模型体素 = 1/16 格 = 一个 16px 贴图 texel；模型空间 x 右、y 上、z 后（SVOX 轴）；origin 是体素坐标原点相对「格角（方块）/ 脚下中心（实体）」的偏移，单位 = 体素。
+// 材质：rgl 自己的 PBR 超集，由 SVOX material 在烘焙时翻译（映射表见 goal-svox.md §5）；toon / matcap / normal / 贴图类不支持。
+
+export interface ModelMaterial {
+  rough: num; metal: num;                      // 0..1；F0 = mix(0.04, albedo, metal)
+  emissive: num;                               // 0 = 不发光；>1 由 bloom 接手
+  sss: num; por: num;                          // 0..1；木头 / 皮肤 / 蜡可以两者并存（贴图的 _s.B 是二选一，这里不是）
+  opacity: num;                                // 1 = 不透明（scene pass）；<1 = 半透明（trans pass，按实例中心深度排序）
+  ior?: num; transmission?: num;               // 玻璃：ior 缺省 1.5；transmission > 0 → glass pass，读 scene 拷贝折射
+  attenuation?: [num, num, num]; thickness?: num;   // Beer 吸收：颜色 + 参考厚度（格）
+  aniso?: num; anisoDir?: [num, num, num];     // 各向异性高光（木纹 / 拉丝金属），方向在模型空间
+  unlit: 0 | 1; doubleSided: 0 | 1;            // unlit：不吃光照、不写 SSR（SVOX type = basic / lights = false）
+}
+export interface ModelPart { name: string; parent: num /* -1 = 根 */; pivot: [num, num, num] /* 体素 */; first: num; count: num /* 索引范围 */ }
+export interface ModelClip { fps: num; loop: boolean; tracks: Record<string /* 部件名 */, Float32Array /* 每帧 7 个数：四元数 xyzw + 位移 xyz（体素） */> }
+export interface ModelMesh {
+  pos: Float32Array;                           // 体素单位，3 / 顶点
+  nrm: Int16Array;                             // 八面体编码，2 / 顶点（snorm）
+  col: Uint8Array;                             // 反照率 rgb + 烘焙 AO（a），4 / 顶点；色彩空间 = sRGB（烘焙时转，见 goal-svox.md §10）
+  mat: Uint16Array;                            // 材质表行号，1 / 顶点
+  idx: Uint32Array;                            // 三角形；按 parts[i].first / count 分段
+}
+export interface ModelAsset {
+  name: string;
+  svox: string;                                // 真源文本
+  mesh: ModelMesh; materials: ModelMaterial[]; parts: ModelPart[];   // 至少一个部件 'root'
+  size: [num, num, num]; origin: [num, num, num];                    // 体素
+  bounds: Float32Array;                        // 6：体素单位 AABB，**含 deform / scatter 的外扩余量**（只用于剔除，不用于碰撞）
+  boxes: Float32Array;                         // 碰撞 AABB，6 / 个，格内坐标；由体素贪心合并得到（与渲染同源），旁路 JSON 可覆盖
+  anchors?: Record<string, [num, num, num]>;   // 手持锚点 / 眼睛 / 嘴等，体素
+  clips?: Record<string, ModelClip>;
+  sidecar?: unknown;                           // 旁路 JSON 原文（SVOX 表达不了的东西：骨骼、动画、锚点、碰撞覆盖）
+}
+export interface ModelSource {
+  version: num;                                // 换模型 / 热重载 +1
+  idOf(name: string): num;                     // 名字 → 模型 id（>0；0 保留 = 无）
+  get(model: num): ModelAsset | null;          // null = 尚未烘焙完（渲染器本帧跳过，不报错）
+  onChange?(cb: (model: num) => void): void;   // 推送；没有则渲染器每帧比 version
+  name?: string;
+}
+/** 一个世界里的模型实例：生物 / 掉落物 / 手持物。**方块里的模型不走这里**：渲染器扫 Kind.Model 自己收集（随 'blocks' 事件更新） */
+export interface ModelInstance {
+  model: num;
+  x: num; y: num; z: num; yaw: num; scale?: num;    // 脚下中心的世界坐标；yaw 弧度
+  pose?: Float32Array;                         // 每部件 7 个数（同 ModelClip），缺省 = 静止姿态
+  sky: num; blk: num;                          // 所在格光照 0..15（宿主给；渲染器不重复采样）
+  tint?: [num, num, num];                      // 乘到反照率（受击闪红等）
+  hand?: boolean;                              // 手持物：走 dynHand 同一条深度清除路径
+  shadow?: boolean;                            // 默认 true：进阴影图（受 P.entShadowDist 限制）
+}
+// Kind.Model 方块：不出区块网格面；state.opaque = 0（邻块的面保留）；solid / 碰撞来自 ModelAsset.boxes（宿主 boxes() 应当返回同一份）；
+//   渲染 = 把 get(state.model) 按 facing（绕格中心 k·90°）/ flip（上下镜像）摆进该格；光照取所在格的 sky / blk。
+// 缺省值保持旧行为：没有 ctx.models 时 Kind.Model 的方块按 Kind.None 处理（不画、不阻挡），entities 缺省不画。
 
 // ───────────────────────────────────────────────────────────────────────────────
 // 3. 环境输入 Env  [confirmed §10.3]
@@ -359,5 +424,7 @@ D-10    染色：做 uBio / tint。颜色走回调 source.tintColor(group, biome
 D-11    c_Veg：渲染器参数以 rgl P 键为准，对应表 VEG_KEYS 放适配器，经 VR.P + apply(key) 写入。
 D-12    天空资产随资源包走（§2b SkyAssets）：sun.png / moon_phases.png、Iris 开关 sun / moon / sky / stars、pano{,1-9}.hdr + pano_night{,1-9}.hdr；
         HDR 用 three/addons/loaders/HDRLoader.js（three 0.170 没有，importmap 单独指到 0.180 的文件）。.zip / .hdr 拖进窗口热重载（2026-11-05）。
+D-13    微体素：真源 = SVOX 文本 + 可选旁路 JSON；1 体素 = 1/16 格；渲染器不解析 SVOX，只吃烘焙后的 ModelAsset（§2c）。默认：材质表走 rgl 自己的 PBR 超集，不兼容 SVOX 的 toon / matcap / 贴图。
+D-14    微体素进渲染器的方式：新建 smesh 绘制集（三角形 + 材质表），不塞进 dyn（28 字节四边形格式，不兼容）；方块里的模型作为实例收集，不进区块网格。详见 goal-svox.md。
 */
 

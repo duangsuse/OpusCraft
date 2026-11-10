@@ -1,0 +1,63 @@
+// Lights are positioned in all voxels in the letters.  
+light color = #F00, intensity = 0.3, atvoxel = S, distance = 4
+light color = #F00, intensity = 0.3, atvoxel = T, distance = 4
+light color = #0F0, intensity = 0.2, atvoxel = V, distance = 4
+light color = #BDF, intensity = 0.2, atvoxel = O, distance = 4, size = 0.5, detail = 0 // Visible lights
+light color = #BDF, intensity = 0.2, atvoxel = P, distance = 4, size = 0.5, detail = 0 // Visible lights
+light color = #00F, intensity = 0.3, atvoxel = X, distance = 4
+
+model
+size = 76 14 28
+scale = 0.02
+origin = +z
+rotation = 90 0 0
+position = 0 0.25 0
+
+material lighting = both, roughness = 0.1, metalness = 1, lights = false, deform = 5 1, clamp = -y
+  colors = S:#A00
+material lighting = both, roughness = 0.1, metalness = 1, lights = false, deform = 5 1, clamp = +y
+  colors = T:#A00
+  
+material lights = false, deform = 5, scatter = 0.2
+  colors = V:#4A0
+  
+material lighting = both, roughness = 0, metalness = 1, opacity = 0.0001, lights = false, deform = 15, clamp = y
+  colors = O:#8CF, transparent = true
+material lighting = both, roughness = 0, metalness = 1, opacity = 0.0001, scatter = 3, lights = false, deform = 15, clamp = none
+  colors = P:#8CF, transparent = true
+  
+material roughness = 0.5, lights = false
+  colors = X:#14A
+  
+material roughness = 0.5, ao = #000 2 3
+  colors = B:#FFF
+
+voxels
+4(----------------------------------------------------------------------------) 2(76-) 2(76B) 2(76-) 4(----------------------------------------------------------------------------)
+4(----------------------------------------------------------------------------) 2(76-) 2(76B) 2(76-) 4(----------------------------------------------------------------------------)
+4(----------------------------------------------------------------------------) 2(76-) 2(76B) 2(76-) 4(----------------------------------------------------------------------------)
+4(----------------------------------------------------------------------------) 2(76-) 2(76B) 2(76-) 4(----------------------------------------------------------------------------)
+4(--------XXXX----XXXX-----OOOOOOOO-----VVVV------VVVV-----TTTTTTTT-----------) 2(76-) 2(76B) 2(76-) 4(-----------SSSSSSSS-----VVVV------VVVV-----PPPPPPPP-----XXXX----XXXX--------)
+4(--------XXXX----XXXX---OOOOOOOOOOOO---VVVV------VVVV---TTTTTTTTTTTT---------) 2(76-) 2(76B) 2(76-) 4(---------SSSSSSSSSSSS---VVVV------VVVV---PPPPPPPPPPPP---XXXX----XXXX--------)
+4(--------XXXX----XXXX---OOOOOOOOOOOO---VVVV------VVVV---TTTTTTTTTTTT---------) 2(76-) 2(76B) 2(76-) 4(---------SSSSSSSSSSSS---VVVV------VVVV---PPPPPPPPPPPP---XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOOOOOOOOOOOO--VVVV------VVVV--TTTTTTTTTTTTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSSSSSSSSSSSS--VVVV------VVVV--PPPPPPPPPPPPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOO------OOOO--VVVV------VVVV--TTTT------TTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSS------SSSS--VVVV------VVVV--PPPP------PPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOO------OOOO--VVVV------VVVV--TTTT------TTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSS------SSSS--VVVV------VVVV--PPPP------PPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOO------OOOO--VVVV------VVVV------------TTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSS------------VVVV------VVVV--PPPP------PPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOO------OOOO--VVVV------VVVV------------TTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSS------------VVVV------VVVV--PPPP------PPPP--XXXX----XXXX--------)
+4(------------XXXX------OOOO------OOOO--VVVV------VVVV-----TTTTTTTTTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSSSSSSSSS-----VVVV------VVVV--PPPP------PPPP------XXXX------------)
+4(------------XXXX------OOOO------OOOO--VVVV------VVVV---TTTTTTTTTTTT---------) 2(76-) 2(76B) 2(76-) 4(---------SSSSSSSSSSSS---VVVV------VVVV--PPPP------PPPP------XXXX------------)
+4(------------XXXX------OOOO------OOOO--VVVV------VVVV---TTTTTTTTTTTT---------) 2(76-) 2(76B) 2(76-) 4(---------SSSSSSSSSSSS---VVVV------VVVV--PPPP------PPPP------XXXX------------)
+4(------------XXXX------OOOO------OOOO--VVVV------VVVV--TTTTTTTTTTT-----------) 2(76-) 2(76B) 2(76-) 4(-----------SSSSSSSSSSS--VVVV------VVVV--PPPP------PPPP------XXXX------------)
+4(--------XXXX----XXXX--OOOO------OOOO--VVVVV----VVVVV--TTTT------------------) 2(76-) 2(76B) 2(76-) 4(------------------SSSS--VVVVV----VVVVV--PPPP------PPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOO------OOOO--VVVVVV--VVVVVV--TTTT------------------) 2(76-) 2(76B) 2(76-) 4(------------------SSSS--VVVVVV--VVVVVV--PPPP------PPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOO------OOOO---VVVVVVVVVVVV---TTTT------TTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSS------SSSS---VVVVVVVVVVVV---PPPP------PPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOO------OOOO----VVVVVVVVVV----TTTT------TTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSS------SSSS----VVVVVVVVVV----PPPP------PPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX--OOOOOOOOOOOOOO-----VVVVVVVV-----TTTTTTTTTTTTTT--------) 2(76-) 2(76B) 2(76-) 4(--------SSSSSSSSSSSSSS-----VVVVVVVV-----PPPPPPPPPPPPPP--XXXX----XXXX--------)
+4(--------XXXX----XXXX---OOOOOOOOOOOO-------VVVVVV-------TTTTTTTTTTTT---------) 2(76-) 2(76B) 2(76-) 4(---------SSSSSSSSSSSS-------VVVVVV-------PPPPPPPPPPPP---XXXX----XXXX--------)
+4(--------XXXX----XXXX---OOOOOOOOOOOO--------VVVV--------TTTTTTTTTTTT---------) 2(76-) 2(76B) 2(76-) 4(---------SSSSSSSSSSSS--------VVVV--------PPPPPPPPPPPP---XXXX----XXXX--------)
+4(--------XXXX----XXXX-----OOOOOOOO-----------VV-----------TTTTTTTT-----------) 2(76-) 2(76B) 2(76-) 4(-----------SSSSSSSS-----------VV-----------PPPPPPPP-----XXXX----XXXX--------)
+4(----------------------------------------------------------------------------) 2(76-) 2(76B) 2(76-) 4(----------------------------------------------------------------------------)
+4(----------------------------------------------------------------------------) 2(76-) 2(76B) 2(76-) 4(----------------------------------------------------------------------------)
+4(----------------------------------------------------------------------------) 2(76-) 2(76B) 2(76-) 4(----------------------------------------------------------------------------)
+4(----------------------------------------------------------------------------) 2(76-) 2(76B) 2(76-) 4(----------------------------------------------------------------------------)

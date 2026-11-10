@@ -1,0 +1,27 @@
+texture id = env, image = %ENVIRONMENT%
+
+model
+size = 9 8 9
+scale = 0.111
+resize = fit
+origin = -y
+
+material type = phong, lighting = flat, shininess = 1000, deform = 1 1.5, refractionratio = 0.5, combine = multiply, envmap = env, shell = Reflection 0.01, 
+  colors = R:#900 E:#060 S:#007 D:#FFF // Ruby Emerald Sapphire Diamond
+material lighting = smooth, roughness = 0.8, metalness = 1, deform = 5
+  colors = V:#900  // Velvet
+material lighting = both, roughness = 0.25, deform = 1, clamp = y
+  colors = B:#300  // Box
+material lighting = flat, metalness = 1, roughness = 0, opacity = 0.2
+  colors = Reflection:#FFF
+
+voxels
+BBBBBBBBB BBBBBBBBB --------- ---EEE--- ---EEE--- ---EEE--- ---EEE--- ---EEE--- 
+BVVVVVVVB B-------B --------- --------- --------- --------- --------- --------- 
+BVVVVVVVB B-VVVVV-B --------- --------R --------R --------R --------R --------R 
+BVVVVVVVB B-VVVVV-B --------- --------R S-------R S------RR S-------R --------R 
+BVVVVVVVB B-VVVVV-B --------- S-------R S------RR S------RR S------RR S-------R 
+BVVVVVVVB B-VVVVV-B --------- --------R S-------R S------RR S-------R --------R 
+BVVVVVVVB B-VVVVV-B --------- --------R --------R ----D---R --------R --------R 
+BVVVVVVVB B-------B --------- --------- ----D---- ---DDD--- ----D---- --------- 
+BBBBBBBBB BBBBBBBBB --------- ---DDD--- --DDDDD-- --DDDDD-- --DDDDD-- ---DDD--- 

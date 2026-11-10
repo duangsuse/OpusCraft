@@ -1,0 +1,25 @@
+model
+size = 160 5 160
+scale = 0.02 0.1 0.02
+origin = -y
+
+define grass type = basic, lighting = smooth, fade = true, warp = 2 0.5, clamp = -y, side = double
+
+material grass, skip = x y
+  colors = A:#040 B:#080 C:#0D0
+material grass, skip = z y
+  colors = E:#040 F:#0A0 G:#0E0
+material type = basic, lighting = flat, side = double, skip = x z -y
+  colors = X:#040
+  
+voxels 
+20(
+  20(XXXXXXXX) 20(--------) 20(A---E---) 20(B---F---) 20(C-------)
+  20(XXXXXXXX) 20(--------) 20(--------) 20(--------) 20(--------)
+  20(XXXXXXXX) 20(--------) 20(--F---B-) 20(--G---C-) 20(--------)
+  20(XXXXXXXX) 20(--------) 20(--------) 20(--------) 20(--------)
+  20(XXXXXXXX) 20(--------) 20(A---E---) 20(B---F---) 20(----G---)
+  20(XXXXXXXX) 20(--------) 20(--------) 20(--------) 20(--------)
+  20(XXXXXXXX) 20(--------) 20(--E---B-) 20(--F---C-) 20(--------)
+  20(XXXXXXXX) 20(--------) 20(--------) 20(--------) 20(--------)
+)

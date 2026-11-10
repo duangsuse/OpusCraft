@@ -1,0 +1,56 @@
+model
+size = 22 3 36
+scale = 0.03
+origin = -y
+wireframe = false
+
+define mat roughness = 0.2, metalness = 0.2
+
+material mat, lighting = smooth, deform = 10
+  colors = A:#FFF  Y:#FB0
+material mat, lighting = smooth, deform = 2,  fade = true
+  colors = S:#C00 B:#600
+material mat, lighting = both,   deform = 50, clamp = y
+  colors = D:#222
+material mat, lighting = both,   deform = 3,  clamp = z
+  colors = E:#222 F:#800 
+material mat, lighting = smooth, deform = 4
+  colors = G:#222
+
+voxels
+---GGGGGGGGGGGGGGGG--- ---GGGGGGGGGGGGGGGG--- ---DDDDDDDDDDDDDDDD--- 
+--GGGGGGGGGGGGGGGGGG-- --GGGGGGGGGGGGGGGGGG-- --DD--------------DD-- 
+-GGGDDDDDDDDDDDDDDGGG- -GGGG------------GGGG- -DD----------------DD- 
+GGGDDDDDDDDDDDDDDDDGGG GGGG--------------GGGG DD------------------DD 
+GGDDDDDDDDDDDDDDDDDDGG GGG-----------SS---GGG D-------------SS-----D 
+GGDDDDDDDDDDDDDDDDDDGG GG----AAAAA---SS----GG D-------------SB-----D 
+GGDDDDDDDDDDDDDDDDDDGG GG---AAAAAAA--SS-SS-GG D-------------SS-BS--D 
+GGDDDDDDDDDDDDDDDDDDGG GG--AAAAAAAAA-SS-SS-GG D-------------BS-SS--D 
+GGDDDDDDDDDDDDDDDDDDGG GG-AAAAAAAAAA-SS-SS-GG D-----YYYY----SB-SB--D 
+GGDDDDDDDDDDDDDDDDDDGG GG-AAAAAAAAAA-SS-SS-GG D-----YYYY----SS-BS--D 
+GGDDDDDDDDDDDDDDDDDDGG GG-AAAAAAAAAA-SS-SS-GG D-----YYYY----BS-SB--D 
+GGDDDDDDDDDDDDDDDDDDGG GG-AAAAAAAAAA-SS-SS-GG D-----YYYY----SB-BS--D 
+GGDDDDDDDDDDDDDDDDDDGG GG-AAAAAAAAAA-SS-SS-GG D-------------SS-SB--D 
+GGDDDDDDDDDDDDDDDDDDGG GG--AAAAAAAAA-SS-SS-GG D-------------BS-SS--D 
+GGDDDDDDDDDDDDDDDDDDGG GG---AAAAAAAA----SS-GG D----------------BS--D 
+GGDDDDDDDDDDDDDDDDDDGG GG----AAAAAAAA---SS-GG D----------------SB--D 
+GGDDDDDDDDDDDDDDDDDDGG GG-----AAAAAAA------GG D--------------------D 
+GGDDDDDDDDDDDDDDDDDDGG GGG------AAAA------GGG D--------------------D 
+GGGDDDDDDDDDDDDDDDDGGG GGGG--------------GGGG DD------------------DD 
+-GGGDDDDDDDDDDDDDDGGG- GGGGG------------GGGGG -DD----------------DD- 
+--GGGGGGGGGGGGGGGGGG-- -GGGGGGGGGGGGGGGGGGGG- --DD--------------DD-- 
+---GGGGGGGGGGGGGGGG--- --GGGGDDDDDDDDDDGGGG-- ---DDDDDDDDDDDDDDDD--- 
+---------------------- -------DDEEEEDD------- -------DDDDDDDD------- 
+---------------------- ---------EEEE--------- ---------EEEE--------- 
+---------------------- ---------EEEE--------- ---------EEEE--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 
+---------------------- ---------FFFF--------- ---------FFFF--------- 

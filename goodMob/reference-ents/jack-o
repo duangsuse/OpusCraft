@@ -1,0 +1,41 @@
+model
+size = 18 17 18
+scale = 0.05
+origin = -y
+shape = cylindery
+
+// Outside and candle stick
+material lighting = smooth, deform = 4, roughness = 0.75, fade = true, ao = #01F -3 -3
+  colors = A(66):#C30 F(246):#FFF E(144):#660000
+  
+// Stem at the top  
+material lighting = smooth, deform = 4, roughness = 0.75
+  colors = S(233):#040
+  
+// Teeth  
+material lighting = smooth, deform = 1 0.75, roughness = 0.75, fade = true, ao = #01F 3 -3
+  colors = B(30):#C30
+  
+// Interior and candle flame  
+material type = basic, ao = 5, lighting = smooth, deform = 1 0.75, fade = true
+  colors = C(18):#F80 D(6):#FF0
+
+voxels
+------------------ ------------------ ------------------ -AAAAA-AAAA-AAAAA- -AAAAA-AAAA-AAAAA- -AAAAA-AAAA-AAAAA- -AAAAA-AAAA-AAAAA- -AAAAA-AAAA-AAAAA- -AAAAA-AAAA-AAAAA- -AAAAA-AAAA-AAAAA- -AAAAA-AAAA-AAAAA- -AAAAA-AAAA-AAAAA- ------------------ ------------------ ------------------ ------------------ ------------------ 
+------------------ ------------------ ---AAA-AAAA-AAA--- -EAAAAEAAAAEAAAAE- -EAAAAEAAAAEAAAAE- -EAAAAEAAAAEAAAAE- -EAAAAEAAAAEAAAAE- -EAAAAEAAAAEAAAAE- -EAAAAEAAAAEAAAAE- -EAAAAEAAAAEAAAAE- -EAAAAEAAAAEAAAAE- -EAAAAEAAAAEAAAAE- ---AAA-AAAA-AAA--- ------------------ ------------------ ------------------ ------------------ 
+------------------ ----AA-AAAA-AA---- ---AAAEAAAAEAAA--- AAEAACCCCCCECAAEAA AAAACCCCCCCCCCAAAA AAACCCCCCCCCCCCAAA AAACCCCCCCCCCCCAAA AAACCCCCCCCCCCCAAA AAACCCCCCCCCCCCAAA AAAACCCCCCCCCCAAAA AAAAACCCCCCCCAAAAA AAAAAAEAAAAEAAAAAA --EAAA-AAAA-AAAE-- ------------------ ------------------ ------------------ ------------------ 
+------------------ ----AA-AAAA-AA---- -AAEACECCCCECAEAA- AAACCC------CCCAAA AAACC--------CCAAA AACC----------CCAA AACC----------CCAA AACC----------CCAA AACC----------CCAA AAACC--------CCAAA AAACCCC----CCCCAAA AAAAACCCCCCCCAAAAA -AAEAAEAAAAEAAEAA- ----AA-AAAA-AA---- ------------------ ------------------ ------------------ 
+-----A-AAAA-A----- --AAEAEAAAAEAEAA-- -AAAAACCCCCCAAAAA- AAACCCC----CCCCAAA AACC----------CCAA AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AACC----------CCAA AAACCCCC--CCCCCAAA AAAAAACCCCCCAAAAAA -AAAAAAAAAAAAAAAA- ---AAA-AAAA-AAA--- ------------------ ------------------ ------------------ 
+----AA-AAAA-AA---- --AAAAACCCCAAAAA-- -AAACC------CCAAA- AAAC----------CAAA AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AAAC----------CAAA AAAACCCCCCCCCCAAAA -AAAAAAAAAAAAAAAA- ---AA--------AA--- ------------------ ------------------ ------------------ 
+------------------ ----EAAAAAAAAE---- --EECC------CCEE-- -EAC----------CAE- -EC------------CE- -EC------------CE- -EC------------CE- -EC------------CE- -EC------------CE- -EC------------CE- -EAC----------CAE- -EEACCCCCCCCCCAEE- ---EAAAEEEEAAAE--- ------------------ ------------------ ------------------ ------------------ 
+----AA------AA---- --AAACAAEEAACAAA-- -AAAC---FF---CAAA- AAAC----FF----CAAA AAC-----FF-----CAA AAC-----FF-----CAA AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AAAC----------CAAA AAAACCCCCCCCCCAAAA -AAAAAEEEEEEAAAAA- ---AA---SS---AA--- --------SS-------- ------------------ ------------------ 
+----AA------AA---- --AAACAEEEEACAAA-- -AAAC--FFFF--CAAA- AAAAC--FFFF--CAAAA AAACC--FFFF--CCAAA AAAC---FFFF---CAAA AAAC----AA----CAAA AAAC----DD----CAAA AAAC----DD----CAAA AAACC---D----CCAAA AAAACC------CCAAAA AAAAACCCCCCCCAAAAA -AAAAAEEEEEEAAAAA- ---AA--SSSS--AA--- -------SSSS------- -----SSSSS-------- -----SSSS--------- 
+----AA------AA---- --AAACAEEEEACAAA-- -AAAC--FFFF--CAAA- AAAAC--FFFF--CAAAA AAAAC--FFFF--CAAAA AAAC---FFFF---CAAA AAAC----------CAAA AAAC----DD----CAAA AAAC----DD----CAAA AAAAC---D----CAAAA AAAAC--------CAAAA AAAAACCCCCCCCAAAAA -AAAAAEEEEEEAAAAA- ---AA--SSSS--AA--- -------SSSS------- -----SSSSS-------- -----SSSS--------- 
+----AA------AA---- --AAACAAEEAACAAA-- -AAAC---FF---CAAA- AAAC----FF----CAAA AAAC----FF----CAAA AAC-----FF-----CAA AAC------------CAA AAC------------CAA AAC------------CAA AAAC----------CAAA AAAC----------CAAA AAAACCCCCCCCCCAAAA -AAAAAEEEEEEAAAAA- ---AA---SS---AA--- --------SS-------- ------------------ ------------------ 
+------------------ ----EAAAAAAAAE---- --EEC--------CEE-- -EC------------CE- -EC------------CE- -EC------------CE- -EC------------CE- -EC------------CE- -EC------------CE- -EAC----------CAE- -EAACC------CCAAE- -EEAAACCCCCCAAAEE- ---EAAAEEEEAAAE--- ------------------ ------------------ ------------------ ------------------ 
+----AA-AAAA-AA---- --AAAAACCCCAAAAA-- -AACCC------CCCAA- AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AACC----------CCAA AAACC--------CCAAA AAAACC------CCAAAA -AAAAAAAAAAAAAAAA- ---AA--------AA--- ------------------ ------------------ ------------------ 
+-----A-AAAA-A----- --AAEAECCCCEAEAA-- -AAAACC----CCAAAA- AAACC--------CCAAA AAAC----------CAAA AAC------------CAA AAC------------CAA AAC------------CAA AAC------------CAA AAAC----------CAAA AAAC----------CAAA AAAACCC----CCCAAAA -AAAAAACCCCAAAAAA- ---AAA-AAAA-AAA--- ------------------ ------------------ ------------------ 
+------------------ ----AAEAAAAEAA---- -AAEAAEAAAAEAAEAA- AAAAA-BB--BB-AAAAA AAA------------AAA AAA--BB-BB-BB--AAA AAA--AA-AA-AA--AAA AAAAAAAAAAAAAAAAAA AAAAA---AA---AAAAA AAAA---AAAA---AAAA AAAA--AAAAAA--AAAA AAAAAAAAAAAAAAAAAA -AAEAAEAAAAEAAEAA- ----AA-AAAA-AA---- ------------------ ------------------ ------------------ 
+------------------ ----AA-AAAA-AA---- ---AAAEAAAAEAAA--- AAEA--BB--BB--AEAA AAAA----------AAAA AAAA-BB-BB-BB-AAAA AAAA-AA-AA-AA-AAAA AAAAAAAAAAAAAAAAAA AAAAA---AA---AAAAA AAAAA--AAAA--AAAAA AAAA--AAAAAA--AAAA AAAAAAEAAAAEAAAAAA --EAAA-AAAA-AAAE-- ------------------ ------------------ ------------------ ------------------ 
+------------------ ------------------ ---AAAEAAAAEAAA--- -EAA--BB--BB--AAE- -EAA----------AAE- -EAA-BB-BB-BB-AAE- -EAA-AE-AA-EA-AAE- -EAAAAEAAAAEAAAAE- -EAAAA--AA--AAAAE- -EAAA--AAAA--AAAE- -EAA--EAAAAE--AAE- -EAAAAEAAAAEAAAAE- ---AAA-AAAA-AAA--- ------------------ ------------------ ------------------ ------------------ 
+------------------ ------------------ ------------------ -AAA----------AAA- -AAA----------AAA- -AAA----------AAA- -AAA----------AAA- -AAAAA-AAAA-AAAAA- -AAAAA--AA--AAAAA- -AAAA--AAAA--AAAA- -AAA---AAAA---AAA- -AAAAA-AAAA-AAAAA- ------------------ ------------------ ------------------ ------------------ ------------------ 

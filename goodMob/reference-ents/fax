@@ -1,0 +1,23 @@
+model
+size = 9 5 9
+scale = 0.03 0.02 0.03
+origin = -y
+ao = 1 0.75
+
+material lighting = both, deform = 10, clamp = x -y
+  colors = A:#333 F:#088
+material lighting = both, deform = 1, clamp = x
+  colors = B:#222 K:#000
+material lighting = both, deform = 1
+  colors = C:#111
+
+voxels
+----AAAAA ----AAAAA BBB-AAAAA BBB-AAAAA ----AAAAA 
+----AAAAA ----AAAAA BBB-AAAAA BBB-AAAAA ----AAAAA 
+----AAAAA ----AAAAA BBB-AAAAA BBB-AAAAA ----AFFFA 
+-AAAAAAAA -AAAAAAAA -A--AAAAA BBB-AAAAA --------- 
+-AAAAAAAA -AAAAAAAA -A--AAAAA BBB-AAAAA -----K-K- 
+-AAAAAAAA -AAAAAAAA -A--AAAAA BBB------ --------- 
+----AAAAA ----AAAAA BBB-AAAAA BBB--K-K- --------- 
+----AAAAA BBB-AAAAA BBB-AAAAA --------- --------- 
+----AAAAA BBB------ --------- --------- --------- 

@@ -1,0 +1,23 @@
+model
+size     = 19 1 40
+scale    = 0.04
+origin   = -y 
+
+define metal lighting = both, roughness = 0.4, metalness = 1
+
+material metal, deform = 6,             colors = A:#DEF
+material metal, deform = 1, clamp = y,  colors = B:#445
+material metal, deform = 1,             colors = C:#864
+
+voxels
+   ---------A---------
+   --------AAA--------
+   -------AAAAA-------
+   -------AAAAA-------
+25(-------AABAA-------)
+   BBCCCCCBBBBBCCCCCBB
+   BBCCCCCCCCCCCCCCCBB
+   -------CCCCC-------
+ 6(--------CCC--------)
+ 2(-------BBBBB-------)
+

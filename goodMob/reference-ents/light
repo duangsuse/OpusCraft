@@ -1,0 +1,22 @@
+model
+size = 5 25 5 
+scale = 0.04
+origin = x -y z
+clamp = -y
+skip = -y
+
+material lighting = flat, roughness = 0.3, metalness = 1, deform = 1, warp = 1 0.25
+  colors = B:#222
+material lighting = smooth, roughness = 0.2, metalness = 1, deform = 1, warp = 1 0.25
+  colors = P:#222
+material lighting = smooth, emissive = #FC0, fog = false, opacity = 0.2 , deform = 1, warp = 1 0.25
+  colors = G:#FC0
+material lighting = smooth, emissive = #FC0, fog = false, deform = 1 0.75
+  colors = L:#FC0
+  
+voxels
+3(BBBBB) 2(-----) 13(-----) ----- ----- ----- ----- BBBBB ----- -----  
+3(BBBBB) 2(-BBB-) 13(-----) -BBB- -GGG- -GGG- -GGG- BBBBB -BBB- -----  
+3(BBBBB) 2(-BBB-) 13(--P--) -BBB- -GGG- -GLG- -GLG- BBBBB -BBB- --B--  
+3(BBBBB) 2(-BBB-) 13(-----) -BBB- -GGG- -GGG- -GGG- BBBBB -BBB- -----  
+3(BBBBB) 2(-----) 13(-----) ----- ----- ----- ----- BBBBB ----- -----

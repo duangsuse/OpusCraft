@@ -1,0 +1,216 @@
+Smooth Voxels 2.4.0 Cheat Sheet
+Define syntax
+Define syntax
+define	define <name> <settings>	Define must be on a separate line. Replaces all instances of <name> in the model with <settings>.
+
+Planar syntax
+Planar syntax	clamp / flatten	skip / hide	origin	aosides / tile
+all allowed options		{ -x >x x <x +x -y >y y <y +y -z >z z <z +z | none }	{ -x >x x <x +x -y >y y <y +y -z >z z <z +z | none }	{ -x x +x -y y +y -z z +z | none }	{ -x x +x -y y +y -z z +z | none }
+negative y	-y	The bottom side from the lower most voxel(s).	The bottom side from the lower most voxel(s).	The bottom side of the model.	The bottom side of the model.
+greater than y	>y	Each vertex except those at the top or bottom of the model.	The bottom side of all except the lower most voxel(s).	N.A.	N.A.
+y	y	Each vertex in the y direction.	The top and bottom sides from all voxels.	The center of the model.	The top and bottom sides of the model.
+less than y	<y	Each vertex except those at the top or bottom of the model.	The top side of all except the top most voxel(s).	N.A.	N.A.
+positive y	+y	The top side from the top most voxel(s).	The top side from the top most voxel(s).	The top side of the model.	The top side of the model.
+
+Texture properties
+Texture properties
+id	<string>	The texture Id, which material maps reference.
+borderoffset	<borderoffset>	The borderoffset prevents texture bleeding. The default is 0.5 pixels but high resolutions textures may require a higher value.
+size	<float:size> | <x> <y>	Used to prevent bleeding (reduce by setting size smaller).
+cube	{ true | false }	Wheter this is a cube texture.
+image	data:image/<type>base64,...	The image in Base64 format. Load in the playground using 'Add Image'.
+
+Model properties
+Main properties
+size	<int:size> | <int:x> <int:y> <int:z>	The size of the voxel matrix.
+scale	<float:scale> | <float:x> <float:y> <float:z>	The scale of the voxels in world units (1 = 1 meter).
+origin	{ -x x +x -y y +y -z z +z | none}	The origin for the model. Default is x y z (the center of the model).
+resize	{ fill | fit | bounds | fitbounds | none }	Compensates for size change due to deform, warp, scatter, (smooth)translate, ...
+rotation	<x> <y> <z>	The rotation of the model over the three axes.
+position	<x> <y> <z>	The position of the group (in world coordinates from the origin).
+wireframe	{ true | false }	Render the model as wireframe (excl. matcap materials).
+randomseed	<float>	A randomseed to guarantee the same results, e.g. when animating.
+ 
+Planar properties
+flatten	{ -x x +x -y y +y -z z +z | none }	Flattens as if a part is cut off.
+clamp	{ -x x +x -y y +y -z z +z | none }	Flattens with peripendicular sides.
+skip	{ -x x +x -y y +y -z z +z | none }	Faces are not created, do not influence other faces, do not have shells, etc.. Use skip unless hide is needed, as skip is faster.
+hide	{ -x x +x -y y +y -z z +z | none }	Faces are created, influence other faces, have shells, etc. but do not add ambient occlusion, and are not created in the mesh.
+tile	{ -x x +x -y y +y -z z +z | none }	Don't warp or scatter these model edges to allow tiling
+ 
+Effects properties
+ao	<#RGB|#RRGGBB> <maxdistance> [<intensity>] [<angle>]	Calculate ambient occlusion (not visible on normal materials). Max. distance in voxels.
+quickao	<#RGB|#RRGGBB> [<intensity>]	Determines ambient occlusion by checking immediate neighboring voxels. Not suitable for deformed models.
+aosides	{ -x x +x -y y +y -z z +z | none }	The 'walls', 'floor' or 'ceiling' that occlude the model. Dependant on the bounds of the model (ignoring groups).
+aosamples	<integer>	The number of samples (default 50) used to calculate ao. Higher looks better but genreates slower.
+shadowquality	{ hight | low }	When using castshadow = true on a lights, low shadow quality is less accurate and more blocky, but faster. Default is high.
+shell	[<colorId> <distance>]+	Material shell or shells.
+ 
+Shader properties
+simplify	{ true | false }	By default faces are combined to reduce the model memory size, which may be unwanted for shaders.
+data	[<attributename> <float> <float> ...]+	Vertex data for use in shaders. Names and values in materials must match this definition.
+ 
+Shape properties
+shape	{ box | sphere | cylinderx | cylindery | cylinderz }	Reshapes the group to fit in this shape. Is not applied to nested groups. Values cylinder-x, cylinder-y and cylinder-z will be deprecated in a future release!
+scale<axis><over>	scale<axis><over> = <scale0> ... <scaleN>	Linear interpolated scale. E.g. scalexy = 1 1 0 scales x over y like a house. Is not applied to nested groups. When textures are distored use simplify = false.
+Options: scaleyx, scalezx, scalexy, scalezy, scalexz, scaleyz
+smoothscale<axis><over>	smoothscale<axis><over> = <scale0> ... <scaleN>	Smooth interpolated scale. E.g. scalexy = 1 1 0 scales x over y like a house. Is not applied to nested groups. When textures are distored use simplify = false.
+Options: smoothscaleyx, smoothscalezx, smoothscalexy, smoothscalezy, smoothscalexz, smoothscaleyz
+rotate<over>	rotate<over> = <degrees0> ... <degreesN>	Linear interpolated rotate. E.g. rotatey = 0 90 180 twists around in the y direction. Is not applied to nested groups. Without deform usually combined with lighting = sides.
+Options: rotatex, rotatey, rotatez
+smoothrotate<axis><over>	smoothrotate<axis><over> = <degrees0> ... <degreesN>	Smooth interpolated rotate. E.g. rotatey = 0 90 180 twists around in the y direction. Is not applied to nested groups. Without deform usually combined with lighting = sides.
+Options: smoothrotatex, smoothrotatey, smoothrotatez
+translate<axis><over>	translate<axis><over> = <offset0> ... <offsetN>	Linear interpolated translate in voxels. E.g. translateyx = 10 0 10 translates in a V shape. Is not applied to nested groups.
+Options: translateyx, translatezx, translatexy, translatezy, translatexz, translateyz
+smoothtranslate<axis><over>	smoothtranslate<axis><over> = <offset0> ... <offsetN>	Smooth interpolated translate in voxels. E.g. translateyx = 10 0 10 translates in a V shape. Is not applied to nested groups.
+Options: smoothtranslateyx, smoothtranslatezx, smoothtranslatexy, smoothtranslatezy, smoothtranslatexz, smoothtranslateyz
+bend<axis><over>	bend<axis><over> = <degrees> <center>	Bends the group. E.g. bendxy = 90 10 bends x over y upwards 90 degreed to the right around a point 10 voxels to the right. Use negative values for bend to the left and/or from the top. Is not applied to nested groups.
+Options: bendyx, bendzx, bendxy, bendzy, bendxz, bendyz
+
+Light properties
+Light properties
+color	<#RGB|#RRGGBB>	The light color (default #FFF).
+intensity	<float>	The intensity of the light.
+direction	<x> <y> <z>	The direction from which the directional light shines.
+atvoxel	<ColorId>	The color Id of the voxel(s) for which a light is created in its center. May result in many lights and slow rendering!
+position	<x> <y> <z>	The position (in world coordinates!) at which the positional light is located. Distance & size in world units.
+distance	<float>	For 'atvoxel' the distance in voxels that the light travels, but for 'position' these are world units
+size	<float>	The size of the visible positional light sphere. For 'atvoxel' in voxels, for 'position' in world units.
+detail	{ 0 | 1 | 2 | 3 }	The detail of the visible positional light sphere. 0 = 8 faces, 1 = 32 faces, 2 = 128 faces, 3 = 512 faces.
+castshadow	{ true | false }	Defines whether this light casts baked shadows. Add castshadow = false to materials that have atvoxel lights.
+data	[<attributename> <float1> ... <float4>]+	Vertex data for use in shaders, so only for visible lights (detail <> 0). Names and values must match model data.
+
+Group properties
+Group properties
+id	<string>	The optional group Id, add materials to a group by adding group = <groupid> to the material.
+clone	<string>	Clone another group to reuse it, overwriting any of its properties, e.g. rotating or scaling the group and its children.
+prefab	{ true | false }	Prefab groups are clonable templates. Prefab properties are not overwritten when cloning. Prefabs cannot be nested.
+group	<string>	The group Id from a parent group, to which this group is attached, following it for rotation and translation.
+swap	[<coloridtoswap>:<newcolorid>]+	Swaps (some of) the colors for this group, or its sub groups, by specifying another color ID from any of the defined materials in the model.
+recolor	[<coloridtorecolor>:<#RGB|#RRGGBB>]+	Recolor (some of) the colors for this group, or its sub groups, by specifying a new hexadecimal RGB value for them. In combination with swap, use the original color id.
+scale	<x> [<y> <z>]	The scale of the voxels for this group in voxels (0.5 = half the size of voxels in model).
+origin	{ -x x +x -y y +y -z z +z }	The origin for the group.
+resize	{ fill | fit | bounds | fitbounds | none }	Compensates for size change due to deform, warp, scatter, (smooth)translate, ...
+rotation	<float:x> <float:y> <float:z>	The rotation of the group around its center over the three axes.
+position	<float:x> <float:y> <float:z>	The position of the group (in voxels coordinates from the parent group or model origin).
+translation	<float:x> <float:y> <float:z>	The translation of the group (in voxels coordinates from the original group position).
+ 
+Shape properties
+See model	shape, scale.., smoothscale.., translate.., smoothtranslate.., rotate.., smoothrotate.., bend..	The shape options for groups are identical to those in the model. Note that they only apply to voxels in the group, not to nested groups.
+
+Material properties
+basic
+lambert
+phong
+standard
+physical
+toon
+matcap
+normal
+Material properties	bas	lam	pho	sta	phy	too	mat	nor	
+type	{ basic | lambert | phong | standard | physical | toon | matcap | normal }	✓	✓	✓	✓	✓	✓	✓	✓	The material type.
+name	<string>	✓	✓	✓	✓	✓	✓	✓	✓	Internal material name (different names means extra materials / draw calls!).
+group	<string>	✓	✓	✓	✓	✓	✓	✓	✓	The group Id from a group, to allow for rotation and translation of this separate group.
+lighting	{ flat | quad | smooth | both | sides }	✓	✓	✓	✓	✓	✓	✓	✓	The lighting of the surface. Smooth, flat (triangles), quad (rectangles), both (smooth with clamped sides) or sides (smooth sides with hard edges).
+side	{ front | back | double }	✓	✓	✓	✓	✓	✓	✓	✓	Defines which side of faces will be rendered.
+shadowside	{ front | back | double }	✓	✓	✓	✓	✓	✓	✓	✓	Defines which side of faces cast shadows. Note, this is only applied to real lights, it is ignored for baked shadows!!
+wireframe	{ true | false }	✓	✓	✓	✓	✓	✓		✓	Render the material as wireframe.
+ 
+Surface properties	bas	lam	pho	sta	phy	too	mat	nor	
+shininess	<shininess>			✓						A higher value (>1000) gives a sharper specular highlight.
+reflectivity	<reflectivity>	✓	✓	✓		✓				Degree of reflectivity. Default is 0.5. For physical also changes refraction. Do not forget to set envmap for basic, lambert and phong materials!
+combine	{ add | multiply | mix }	✓	✓	✓						How to combine the environment map, if any, with the diffuse color.
+roughness	<float>				✓	✓				How rough the material appears. 0.0 means a smooth mirror reflection.
+metalness	<float>				✓	✓				How much the material is like a metal.
+ 
+Maps	bas	lam	pho	sta	phy	too	mat	nor	
+map	<textureid:RGB>	✓	✓	✓	✓	✓	✓	✓		Model texture. An alpha channel should be combined with transparent or alphatest.
+atlas	<gridx> <gridy> <cellx> <celly>	✓	✓	✓	✓	✓	✓	✓	✓	Combines with maps, but uses only one cell in an atlas for all faces of the voxels of this material.
+atlas<face>	atlas<face> = <gridx> <gridy> <cellx> <celly>	✓	✓	✓	✓	✓	✓	✓	✓	Specifies the atlas for one face, E.g. atlaspy = 8 8 2 3 shows cell (2,3) on the positive Y face.
+Options: atlasnx, atlaspx, atlasny, atlaspy, atlasnz, atlaspz.
+maptransform	<width> <height> [<xoffset> <yoffset> [<rotation>]]	✓	✓	✓	✓	✓	✓	✓	✓	Shift, scale or rotate textures. For atlases use only integers and no rotation.
+mapproject	<x> <y> <z>	✓	✓	✓	✓	✓	✓	✓	✓	Projects the texture from the direction specified.
+normalmap	<textureid:Normal>		✓	✓	✓	✓	✓	✓	✓	The texture to create a normal map (e.g. visual bumps or ridges).
+normalscale	<scale>|<xscale> <yscale>		✓	✓	✓	✓	✓	✓	✓	How much the normal map affects the material. Allows for two values.
+bumpmap	<textureid:Greyscale>		✓	✓	✓	✓	✓	✓	✓	The texture to create a bump map (e.g. visual bumps or ridges).
+bumpscale	<float>		✓	✓	✓	✓	✓	✓	✓	How much the bump map affects the material.
+envmap	<textureid:RGB>	✓	✓	✓	✓	✓				The environment map. You must set this for basic, lambert and phong materials as it is only automatically set for standard and physical materials!
+envmapintensity	<float>				✓	✓				Scales the effect of the environment map by multiplying its color.
+roughnessmap	<textureid:Green-channel>				✓	✓				The green channel alters the roughness of the material (requires roughness > 0).
+metalnessmap	<textureid:Blue-channel>				✓	✓				The blue channel is used, multiplied by metalness (i.e. use metalness = 1)
+matcap	<textureid:RGB>							✓		The matcap map. See https://observablehq.com/@makio135/matcaps
+ 
+Transparency properties	bas	lam	pho	sta	phy	too	mat	nor	
+opacity	<float>	✓	✓	✓	✓	✓	✓	✓	✓	A value of 0.0 indicates fully transparent, 1.0 is fully opaque.
+transparent	{ true | false }	✓	✓	✓	✓	✓	✓	✓	✓	Defines whether this material is transparent. Mostly set automatically.
+alphatest	<float>	✓	✓	✓	✓	✓	✓	✓		The material will not see through if the opacity in the map is lower than this value.
+alphatocoverage	{ true | false }	✓	✓	✓	✓	✓	✓	✓		Enable alpha to coverage to improve foliage transparency handling.
+alphamap	<textureid:Green-channel>	✓	✓	✓	✓	✓	✓	✓		Controls the opacity (0: transparent; 255: opaque).
+ 
+Emissive properties	bas	lam	pho	sta	phy	too	mat	nor	
+emissive	<#RGB|#RRGGBB>		✓	✓	✓	✓	✓			Emissive (light) color of the material.
+emissiveintensity	<float>		✓	✓	✓	✓	✓			The intensity of the emissive light.
+emissivemap	<textureid:RGB>		✓	✓	✓	✓	✓			Emissive (glow) map (requires emissive color not black and emissiveintensity > 0)
+ 
+Specular properties	bas	lam	pho	sta	phy	too	mat	nor	
+specular	<#RGB|#RRGGBB>			✓						Specular color of the material. Default is #111 (very dark grey).
+specularmap	<textureid:Greyscale>	✓	✓	✓						Specular map used by the material. Default is null.
+specularcolor	<#RGB|#RRGGBB>					✓				Specular color of the material. Default is #FFF (white).
+specularcolormap	<textureid:RGB>					✓				The RGB channels of this texture are multiplied against .specularColor.
+specularintensity	<float>					✓				A float that scales the amount of specular reflection for non-metals only.
+specularintensitymap	<textureid:Alpha-channel>					✓				The alpha channel of this texture is multiplied against specularintensity.
+ 
+Refraction properties	bas	lam	pho	sta	phy	too	mat	nor	
+refractionratio	<float>	✓	✓	✓						Index of refraction of air (~1) divided by the index of refraction of the material.
+ior	<float>					✓				Index-of-refraction for non-metallic materials, from 1.0 to 2.333. Default is 1.5.
+thickness	<float>					✓				The thickness of the volume beneath the surface for refraction.
+thicknessmap	<textureid:Green-channel>					✓				G channel defines the thickness. Multiplied by thickness.
+transmission	<float>					✓				Degree of transmission (or optical transparency), from 0.0 to 1.0.
+transmissionmap	<textureid:Red-channel>					✓				The red channel of this texture is multiplied against transmission.
+attenuationcolor	<#RGB|#RRGGBB>					✓				The color that white light turns into due to absorption at the attenuation distance.
+attenuationdistance	<float>					✓				The average distance (related to the thickness value) that light travels before interacting with a particle.
+ 
+Clearcoat properties	bas	lam	pho	sta	phy	too	mat	nor	
+clearcoat	<float>					✓				The intensity of the clear coat layer, from 0.0 to 1.0.
+clearcoatmap	<textureid:Red-channel>					✓				The red channel of this texture is multiplied against clearcoat.
+clearcoatnormalmap	<textureid:Normal>					✓				Enables independent normals for the clear coat layer.
+clearcoatnormalscale	<scale>|<xscale> <yscale>					✓				How much the clearcoatnormalmap affects the clear coat layer, from (0,0) to (1,1).
+clearcoatroughness	<float>					✓				Roughness of the clear coat layer, from 0.0 to 1.0. Default is 0.0.
+clearcoatroughnessmap	<textureid:Green-channel>					✓				Requires clearcoatroughness > 1.
+ 
+Displacement properties	bas	lam	pho	sta	phy	too	mat	nor	
+displacementmap	<textureid:Greyscale>		✓	✓	✓	✓	✓	✓	✓	White=high. Flat planes, a normalmap and simplify = false work best.
+displacementscale	<float>		✓	✓	✓	✓	✓	✓	✓	How much the displacement map affects the mesh.
+displacementbias	<float>		✓	✓	✓	✓	✓	✓	✓	The offset of the displacement map's values on the mesh's vertices.
+ 
+Effects properties	bas	lam	pho	sta	phy	too	mat	nor	
+blending	{ no | normal | additive | subtractive | multiply }	✓	✓	✓	✓	✓	✓	✓	✓	Blending mode.
+dithering	{ true | false }	✓	✓	✓	✓	✓	✓	✓	✓	Whether to apply dithering to remove the appearance of banding in slow gradients.
+fog	{ true | false }	✓	✓	✓	✓	✓	✓	✓		Whether the material is affected by fog in a scene. Default is true.
+lights	{ true | false }	✓	✓	✓	✓	✓	✓	✓		Whether Smooth Voxel lights affect this surface.
+castshadow	{ true | false }	✓	✓	✓	✓	✓	✓	✓	✓	Defines whether this material casts baked shadows (and ao!). Add castshadow = false to materials that have atvoxel lights.
+receiveshadow	{ true | false }	✓	✓	✓	✓	✓	✓	✓		Defines whether this material receives baked shadows (and ao!). By default materials receive baked shadows if a light with castshadow = true is present.
+ao	<#RGB|#RRGGBB> <maxdistance> [<intensity>] [<angle>]	✓	✓	✓	✓	✓	✓	✓		Calculate ambient occlusion.
+quickao	<#RGB|#RRGGBB> [<intensity>]	✓	✓	✓	✓	✓	✓	✓		Determines ambient occlusion by checking immediate neighboring voxels. Not suitable for deformed models. Overrules ao on the model.
+shell	[<colorId> <distance>]+	✓	✓	✓	✓	✓	✓	✓	✓	Material shell or shells.
+ 
+Deformation properties	bas	lam	pho	sta	phy	too	mat	nor	
+deform	<int:count> <float:strength> <float:damping>	✓	✓	✓	✓	✓	✓	✓	✓	Deforms the surface by repeated averaging of vertices.
+warp	<float:ampl> [<float:freq>] OR <amplX> <amplY> <amplZ> [<freq>]	✓	✓	✓	✓	✓	✓	✓	✓	Warps the voxels with an amplitude (distance in voxels) and frequency (in voxels). For
+scatter	<float>	✓	✓	✓	✓	✓	✓	✓	✓	Scatters the vertices. Distance is in voxels
+ 
+Planar properties	bas	lam	pho	sta	phy	too	mat	nor	
+flatten	{ -x >x x <x +x -y >y y <y +y -z >z z <z +z | none }	✓	✓	✓	✓	✓	✓	✓	✓	Flattens as if a part is cut off. Note: uses material bounds, not model bounds.
+clamp	{ -x >x x <x +x -y >y y <y +y -z >z z <z +z | none }	✓	✓	✓	✓	✓	✓	✓	✓	Flattens with peripendicular sides. Note: uses material bounds, not model bounds.
+skip	{ -x >x x <x +x -y >y y <y +y -z >z z <z +z | none }	✓	✓	✓	✓	✓	✓	✓	✓	Faces are not created, do not influence other faces, do not have shells, etc. Note: uses material bounds, not model bounds.
+hide	{ -x >x x <x +x -y >y y <y +y -z >z z <z +z | none }	✓	✓	✓	✓	✓	✓	✓	✓	Faces are created, influence other faces, have shells, etc. but do not add ambient occlusion, and are not created in the mesh. Note: uses material bounds, not model bounds.
+ 
+Shader properties	bas	lam	pho	sta	phy	too	mat	nor	
+simplify	{ true | false }	✓	✓	✓	✓	✓	✓	✓	✓	By default faces are combined to reduce the model memory size, which may be unwanted for shaders.
+data	[<attributename> <float1> ... <float4>]+	✓	✓	✓	✓	✓	✓	✓	✓	Vertex data for use in shaders. Names and values must match model data.
+ 
+Color properties	bas	lam	pho	sta	phy	too	mat	nor	
+fade	{ true | false }	✓	✓	✓	✓	✓	✓	✓		Whether colors in this material fade into each other
+colors	[<colorid>:<#RGB|#RRGGBB>]+|
+[<colorid>(<magicavoxindex>):<#RGB|#RRGGBB>]+	✓	✓	✓	✓	✓	✓	✓	✓	Colors for this material. Use fade=true to fade between them.
+Magica voxel palette index will be added when (re)loading .vox files in the playground.

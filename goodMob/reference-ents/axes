@@ -1,0 +1,19 @@
+model
+size     = 14 20 5
+scale    = 0.04 0.04 0.02
+origin   = -y 
+wireframe = false
+
+material lighting = both, roughness = 0.4, metalness = 1, deform = 20, clamp = y
+  colors = A:#DEF 
+material lighting = both, roughness = 0.4, metalness = 1, deform = 20
+  colors = C:#DEF D:#444
+material lighting = flat, roughness = 0.4, metalness = 1, deform = 1, clamp = -y 
+  colors = B:#420
+  
+voxels
+12(--------------) -------------- -------------- 4(-----DDDD-----) -------------- -------------- 
+12(------BB------) ---D--BB--D--- ---DD-BB-DD--- 4(---DDDBBDDD---) ---DD-BB-DD--- ---D------D--- 
+12(------BB------) ACCD--BB--DCCA AAADD-BB-DDAAA 4(AAADDDBBDDDAAA) AAADD-BB-DDAAA ACCD------DCCA 
+12(------BB------) ---D--BB--D--- ---DD-BB-DD--- 4(---DDDBBDDD---) ---DD-BB-DD--- ---D------D--- 
+12(--------------) -------------- -------------- 4(-----DDDD-----) -------------- --------------

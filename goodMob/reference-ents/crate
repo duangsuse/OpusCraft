@@ -1,0 +1,35 @@
+model
+size = 20 20 20
+scale = 0.05
+origin = -y
+
+material lighting = flat, deform = 1 0.5
+  colors = A:#C80
+material lighting = flat
+  colors = B:#950
+
+group id = C, translation = 0 0 0
+material group = C, lighting = both, roughness = 0.25, metalness = 1, deform = 1 1, clamp = y, hide = y
+  colors = C:#CCC
+
+voxels
+AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA 14(AAA--------------AAA) AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA 
+AAAAAAAAAAAAAAAAAAAA A-BBBBB-BBBB-BBBBBCA A----C--C--C--C----A 14(A----C--C--C--C----A) A----C--C--C--C----A A-BBBCB-CBBC-BCBBB-A AAAAAAAAAAAAAAAAAAAA 
+AAAAAAAAAAAAAAAAAAAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(A------------------A) A------------------A A-BBBBB-BBBB-BBBBB-A AAAAAAAAAAAAAAAAAAAA 
+AAA--------------AAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAA--------------AAA 
+AAA--------------AAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAA--------------AAA 
+AAA--------------AAA ACBBBBB-BBBB-BBBBBCA AC----------------CA 14(-C----------------C-) AC----------------CA ACBBBBB-BBBB-BBBBBCA AAA--------------AAA 
+AAA--------------AAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAA--------------AAA 
+AAA--------------AAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAA--------------AAA 
+AAA--------------AAA ACBBBBB-BBBB-BBBBBCA AC----------------CA 14(-C----------------C-) AC----------------CA ACBBBBB-BBBB-BBBBBCA AAA--------------AAA 
+AAAAAAAAAAAAAAAAAAAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAAAAAAAAAAAAAAAAAAA 
+AAAAAAAAAAAAAAAAAAAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAAAAAAAAAAAAAAAAAAA 
+AAA--------------AAA ACBBBBB-BBBB-BBBBBCA AC----------------CA 14(-C----------------C-) AC----------------CA ACBBBBB-BBBB-BBBBBCA AAA--------------AAA 
+AAA--------------AAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAA--------------AAA 
+AAA--------------AAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAA--------------AAA 
+AAA--------------AAA ACBBBBB-BBBB-BBBBBCA AC----------------CA 14(-C----------------C-) AC----------------CA ACBBBBB-BBBB-BBBBBCA AAA--------------AAA 
+AAA--------------AAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAA--------------AAA 
+AAA--------------AAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(--------------------) A------------------A A-BBBBB-BBBB-BBBBB-A AAA--------------AAA 
+AAAAAAAAAAAAAAAAAAAA A-BBBBB-BBBB-BBBBB-A A------------------A 14(A------------------A) A------------------A A-BBBBB-BBBB-BBBBB-A AAAAAAAAAAAAAAAAAAAA 
+AAAAAAAAAAAAAAAAAAAA A-BBBBB-BBBB-BBBBB-A A----C--C--C--C----A 14(A----C--C--C--C----A) A----C--C--C--C----A A-BBBBB-BBBB-BBBBB-A AAAAAAAAAAAAAAAAAAAA 
+AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA 14(AAA--------------AAA) AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA
