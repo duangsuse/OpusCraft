@@ -55,7 +55,29 @@ export type CPath = `$${string}`    // 参数路径：'$Fx.gravity'（JS 里 c_.
  *  虚拟键 'act.pause.keys'，以及任何 Ref 型 gm 成员，如 'title.screen'、'cam.mode'（index.ts 的 RefPath）。gm.pane / 模组 {set} / 命令 /set / MOVES / BIND 共用。
  *  参数主题在标记语言里写 $Fx（CPath），其余仍是点分路径 */
 export type Path = CPath | `${string}.${string}`
-export interface Stack { name: Item; count: num; dur?: num; v?: unknown }      // 宿主 B 物品栈（gm 值物品带 v，:2469）
+
+/** BIME 值 [定 11-10，用户：放置态 / 物品态 / 非网格态不得用不同的数据类型]：名字 + pkv 状态，一个字符串 —— ':oak_stairs{half bottom}' ':iron_pickaxe{dur 12}' '#zombie{hp 8}'。
+ *  耐久、液位、朝向、掉落物属性……都是 {…} 里的键，不另设字段。place（落到体素网格，值自带占位 Foot）/ born（实体，建模时已与网格对齐）/ give（进格子）
+ *  都只是在预备「一个可能进入世界的东西」：值不变，区别只在之后谁管它（born 有游戏 AI；give 进格子，按 Q 放出时没有专属模型就用默认贴图）。
+ *  状态不同则不可堆叠 = 规范化 pkv（键序固定）的字符串不相等；checks 的 bime-roundtrip 对拍 */
+export type Bime = Blk | Item | Mob
+/** 堆叠 = 值 + 数量。文本形 ':stone*3'，热路径元组 [值, 数量]（字段与文本形一一对应，连接点规则 ①） */
+export type Stack = `${Bime}*${num}` | readonly [Bime, num]
+/** 占位 [定 11-10，用户]：place 到体素网格的值自带占格范围，锚在最小角那一格，文本形同偏移 '+@1,0'（床 = '+@0,1'、门 = '+@0,0^1'）；
+ *  来自 BIME 表的 foot 列。born 的实体不需要：模型原点在建模时已与网格对齐（脚下中心 / 格角，goal-svox §4.3） */
+export type Foot = OffStr
+
+/** 渲染器唯一认的实例 [定 11-10，用户：来源不同、结构相同]。来源有三个：网格（mesh 出区块网格时顺带吐）、实体（ents）、手持（p1.bar.held）；
+ *  都经 gg.render.inst.set(来源, 列表) 交给渲染器，渲染器不分网格 / 物品 / 实体。模型由 BIME 表的 #mdlID.animID 查到；没有专属模型的物品 = 贴图压出厚度的默认模型 */
+export interface ModelInstance {
+  id: string          // 来源内唯一：网格 '@x,z^y'（锚格）· 实体 '#<id>' · 手持 '#p1'
+  of: Bime
+  P: XYZ              // 网格：锚格角；实体：脚下中心（浮点）
+  turn: num           // 度，0 = 东、顺时针（同 mat.t，IDEA）
+  foot?: Foot         // 网格来源的多格模型才有
+  anim?: string; t?: num
+  hand?: true         // 手持：先清深度，用 hand 投影画（goal-svox §6.6）
+}
 
 /** 玩家标签 [定 11-10，用户]：和某个玩家有关的事件载荷都带 ev.p1.who（'' = 服主）。联机时同一条事件流里有多个玩家，订阅者按需过滤；
  *  页面绑定、hud 默认只看 ''。载荷里已有的 by: Mob 不变（谁干的），p1 是「这是哪个玩家的事」；非玩家造成的（爆炸、生物、流体）p1 缺省 */
@@ -67,8 +89,8 @@ export type P1Tag = { p1: Who }
 export interface Grid {
   readonly size: num
   slots: Ref<readonly (Stack | null)[]>
-  give(s: Stack | Item | `${Item}*${num}`): num      // 放进去，返回放进去几个
-  take(s: Stack | Item | `${Item}*${num}`): num      // 拿出来，返回拿到几个
+  give(s: Stack | Bime): num      // 放进去，返回放进去几个
+  take(s: Stack | Bime): num      // 拿出来，返回拿到几个
 }
 
 /** 标记：世界里一份（gm.marks），小地图（actOnMap）与主视图叠层（act）都画它。at 是口诀：'@x,z' / '@x,z^y' / '@地名' / '@p1'，或 [x, z] 元组；
@@ -79,9 +101,11 @@ export interface MarkTable {
   list: Ref<readonly Marker[]>
   add(at: Marker[0], emoji: string, opts?: Marker[2]): void
   remove(at: Marker[0]): num                        // 删掉该点的全部标记，返回删了几个
+  view: MarkLayers                                  // 主视图的层开关（小地图的在 gm.actOnMap）；hud 的叠层用 gm.act.xyz2scr 画
   live(layer: string, f: () => readonly Marker[]): () => void   // 动态标记（每次重绘求值，如 gm.ents.near 的生物）：不存档，返回取消；登记在调用模块名下，停用时撤销
 }
-/** 视图的标记层开关 [定 11-10]：主视图（gm.act）与每张地图（gm.actOnMap）各管各的，标记本身在 gm.marks */
+/** 视图的标记层开关 [定 11-10]：主视图（gm.marks.view）与每张地图（gm.actOnMap）各管各的，标记本身在 gm.marks。
+ *  [定 11-10，用户：gm.act.* 只做键鼠 / 触屏的唯一入口] 主视图的层开关从 gm.act 挪到 gm.marks.view */
 export interface MarkLayers {
   layers: Ref<Readonly<Record<string, boolean>>>    // 没出现的层 = 开
   layer(name: string, on?: boolean): boolean        // 读 / 开关一层（缺省 = 翻转），返回之后的状态

@@ -12,7 +12,7 @@
  *   - 脚步声的计步搬到 p1（p1_step），本模块只管「看」。
  *   - Pose 是本模块唯一的输出画面数据；渲染器不读 player、不读相机对象（连接点规则 ②）。
  */
-import type { num, XYZ, PStr, Pose, Action, Intent, Ref, Blk, Mob, MarkLayers, P1Tag } from './core.ts'
+import type { num, XYZ, PStr, Pose, Action, Intent, Ref, Blk, Mob, P1Tag } from './core.ts'
 import type { Mod } from './index.ts'
 import type { MoveRow } from './kernel.ts'
 
@@ -38,7 +38,7 @@ export interface Api {
     tap(sx: num, sy: num, how?: 'tap' | 'long' | 'dbl'): void   // 触屏点击屏幕坐标（CSS px，左上原点）：命中屏幕按钮就当按钮，否则查 ACTS 触屏列的区域手势
     scr2xyz(sx: num, sy: num, reach?: num): Hit | null       // 屏幕点 → 射线选取；没打到（天空 / 超出 reach）返回 null。原 gm.act.scr2xyz（s05）
     xyz2scr(P: XYZ): readonly [sx: num, sy: num] | null      // 世界点 → 屏幕像素；在相机背后或视锥外返回 null（marker 绘制用）
-  } & MarkLayers                                             // 主视图的标记层开关 [定 11-10]；标记本身在 gm.marks（一份），hud 的叠层用 xyz2scr 画。小地图的同一套在 gm.actOnMap（render.ts）
+  }   // 只有输入与屏幕 ↔ 世界换算；标记层开关在 gm.marks.view [11-10 挪出]，小地图的在 gm.actOnMap（render.ts）
 }
 /** gg：焦点与相机（装置） */
 export interface GgApi {

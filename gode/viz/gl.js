@@ -24,7 +24,7 @@ uniform int uShade;                 // 0 方块色 1 群系色 2 洞窟（noclip
 uniform int uTerr;                  // 俯视的地表阴影：0 默认台阶式（西 / 北邻列更高 → 压暗）1 2.5D 地形（邻列高度算法线的山体阴影）2 平滑光照（四角环境光遮蔽双线性插值）
 uniform int uBMode;                 // 群系 finder：0 无 1 只显示（射线里剪枝）2 高亮 3 取消高亮（选中集 = uBsel，256×1 R8）
 uniform vec3 uLight, uSun;          // 光色乘子（时间 / 光色覆盖；默认白）、太阳方向（指向光源；默认左上）
-uniform int uAir, uGrid, uSel;      // uAir：0 无 1 开（灰渐变；格 > 22 px 叠黑色数字）；uSel：0 无 1 选区 2 拉框预览
+uniform int uAir, uGrid, uSel, uXray;   // uAir：0 无 1 灰渐变（格 > 22 px 叠黑色数字）；uXray：>0 = 切面往里这么多格内的方块半透明叠加（看穿、洞穴不只是截面）；uSel：0 无 1 选区 2 拉框预览
 uniform ivec3 uSelMin, uSelMax;
 uniform ivec4 uClip;                // 端点快放：轴、符号、值、开关 —— 越过的部分压暗并画切线
 uniform ivec4 uInv;                 // 反色标记格 (x,y,z,开关)：选区近端格
@@ -114,9 +114,11 @@ void main() {
   ivec3 c0 = c;
   int n = (uEnd - uStart) * dir + 1;
   vec3 bg = vec3(0.075, 0.08, 0.095);
-  int hitV = 0, wd = 0, dist = 0, waterV = 0; bool known = false, hit = false, cave = false;
+  int hitV = 0, wd = 0, dist = 0, waterV = 0, step = 0; bool known = false, hit = false, cave = false;
+  vec3 xacc = vec3(0.0); float xa = 0.0;   // uXray：切面往里每格实体按深度衰减的叠加（前 + 后透出来）
   for (int i = 0; i < 1024; i++) {
     if (i >= n) break;
+    step++;
     if (uBMode == 1) { ivec4 b0; if (col2(c.x, c.z, b0) && !bsel(b0.z)) { known = true; if (fa == 1) break; c[fa] += dir; if (wd == 0) dist++; continue; } }   // 只显示：未选中群系的列直接剪掉（当空气；俯视整条射线一步退出，侧视 / 切片沿线跳过）
     int v = vox(c);
     if (v < 0) { if (fa == 1 || known) break; c[fa] += dir; dist++; continue; }
@@ -129,9 +131,17 @@ void main() {
     }
     if (v != 0) {
       int k = clsOf(lut(v));
-      if (k == 1) { hitV = v; hit = true; break; }
+      if (uXray > 0 && (k == 1 || k == 2)) {   // xray：切面往里每格按 alpha 前到后合成；实体用方块色
+        float al = k == 1 ? 0.26 : 0.14;
+        xacc += (1.0 - xa) * al * lut(v).rgb; xa += (1.0 - xa) * al;
+      }
+      if (k == 1) {
+        if (!hit) { hitV = v; hit = true; if (uXray == 0) break; }                                   // 无 xray：停在第一格实体
+        if (uXray > 0 && step > uXray) break;
+      }
       if (k == 2) { if (wd == 0) waterV = v; wd++; }
     }
+    if (uXray > 0 && v == 0 && hit) { float al = 0.10; xacc += (1.0 - xa) * al * vec3(0.62, 0.30, 0.95); xa += (1.0 - xa) * al; }   // 地表以下的空气 = 紫色薄雾：洞 / 空腔在后面透出来（天空不染）
     if (wd == 0) dist++;
     c[fa] += dir;
   }
@@ -185,6 +195,7 @@ void main() {
       vec3 w = uShade == 0 ? lut(waterV).rgb * 0.85 : vec3(0.15, 0.3, 0.7);
       col = hit ? mix(col, w, min(1.0, 0.45 + float(wd) * 0.04)) : w * 0.7;
     }
+    if (uXray > 0) col = xacc + bg * (1.0 - xa);   // xray：纯体积合成（方块色 + 背景），洞 / 空腔是没被填上的暗区
   }
   if (uBMode != 0 && (known ? (hit || wd > 0) : shown)) {   // 群系 finder
     ivec2 xz = known ? c.xz : c0.xz; ivec4 bv;
@@ -338,7 +349,7 @@ export class Renderer {
     gl.uniform3f(u.uCenter, ...p.center); gl.uniform1f(u.uZoom, p.zoom);
     gl.uniform3i(u.uF, ...p.F); gl.uniform3i(u.uR, ...p.R); gl.uniform3i(u.uD, ...p.D);
     gl.uniform1i(u.uStart, p.start); gl.uniform1i(u.uEnd, p.end); gl.uniform1i(u.uShade, p.shade); gl.uniform1i(u.uTerr, p.terr | 0); gl.uniform1i(u.uBMode, p.bmode | 0); gl.uniform3f(u.uLight, ...(p.light ?? [1, 1, 1])); gl.uniform3f(u.uSun, ...(p.sun ?? [-0.5, 0.67, -0.5]));
-    gl.uniform1i(u.uAir, p.air | 0); gl.uniform1i(u.uGrid, p.grid ? 1 : 0);
+    gl.uniform1i(u.uAir, p.air | 0); gl.uniform1i(u.uXray, p.xray | 0); gl.uniform1i(u.uGrid, p.grid ? 1 : 0);
     gl.uniform4i(u.uClip, ...p.clip); gl.uniform4i(u.uMark, ...p.mark); gl.uniform4i(u.uInv, ...(p.inv ?? [0, 0, 0, 0]));
     gl.uniform1i(u.uSel, p.sel ?? 0); gl.uniform3i(u.uSelMin, ...(p.selMin ?? [0, 0, 0])); gl.uniform3i(u.uSelMax, ...(p.selMax ?? [0, 0, 0]));
     gl.drawArrays(gl.TRIANGLES, 0, 3);

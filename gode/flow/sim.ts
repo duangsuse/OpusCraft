@@ -166,5 +166,5 @@ export const mod = {
   sub: ['delta', 'chunk_in', 'chunk_out', 'tick', 'clock', 'pose', 'pause', 'lightning', 'hook_sched'],   // hook_sched：模组钩子的 e.schedule（hooks.ts）；clock：昼夜系数；pose：停放判断；pause：tpause 的「暂停模拟」；lightning：点火
   depends: ['world', 'slicer', 'weather', 'hooks', 'pane'],  // weather.at：雨灭火、积雪；hooks.run：到期的 onSched、抽样到的 onRandom
   tables: ['fluid.json', 'on.js', 'blk.tsv'], c_: ['$Light', '$Sched', '$Fire', '$Fall', '$RandomTick', '$Snow'],
-  save: ['pending'],                    // 待办 tick → pending.tsv（s06 M2-3）：'@x,z^y  fluid 3'；光照不存（s04 §4）
+  calls: ['tree'], save: ['pending'],                    // 待办 tick → pending.tsv（s06 M2-3）：'@x,z^y  fluid 3'；光照不存（s04 §4）
 } as const satisfies Mod

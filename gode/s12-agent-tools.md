@@ -42,6 +42,9 @@ gd mark / gd revert                                  世界改动打点 / 回滚
 gd set c_.Path=v …                                   走 gm.pane.set（与 &json= 同路由）；也收标记语言写法 '$Path=v'（shell 里 $ 要加引号）
 gd mods [list | on <id> | off <id> | reload <id> | graph]   [新 11-09，s16 §13.5] 模块：状态、启停、热替换、依赖图（走 gg.mods）
 gd eval '<js>'                                       页面里执行，按值返回
+
+gd open <图册webp> [--nth N] [--px X,Y [--sel]] [--depth]  [新 11-10，s13 §0] 按 pgviz 图册路径回到拍这张图的状态（seed/生成器/群系中心/视图/切片 Y/xray/UI），打印中心 probe、全部层路径 + canvas↔像素映射；拼图 `..._going_deeper.webp` 直接用 --nth N 选层（1 = 最高）；--px 读图片像素下的块
+
 gd check [name…] [--matrix mini,gp,liq|all]           跑 checks.tsv（§6）；--matrix = pgviz 检查在每个生成器下各跑一遍；check mods = 登记处观察 ⊆ 规格、热替换不泄漏、语法错回滚、表就地 diff（s16 §13.5）
 gd perf [--frames 120]                               低频：帧时间中位数 + 渲染器 stats()，不进默认 loop
 gd log [-f]                                          页面 console / 异常（自上次调用以来）

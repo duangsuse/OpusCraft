@@ -22,11 +22,12 @@ import { mod as hud } from './hud.ts'
 import { mod as render } from './render.ts'
 import { mod as hooks } from './hooks.ts'
 import { mod as net } from './net.ts'
+import { mod as mesh } from './mesh.ts'
 
 declare const process: { argv: string[]; getBuiltinModule(n: string): any }
 type D = { id: string; where: string; catalog: string; layer?: string; axis: string; ms: string; doc: string; off?: string; emit: Record<string, string>; sub: readonly string[]; depends: readonly string[]; tables: readonly string[]; c_: readonly string[]; save: readonly string[] }
-const NEW = new Set(['input', 'feel', 'audio', 'fx', 'sim', 'weather', 'title', 'hud', 'hooks', 'net'])   // 11-09 划分的七个模块（输入拆出 feel）+ 11-10 的 hooks；其余是边界与框架
-const all: D[] = [...Object.values(host), kernel, pane, render, hooks, net, input, feel, audio, fx, sim, weather, title, hud]
+const NEW = new Set(['input', 'feel', 'audio', 'fx', 'sim', 'weather', 'title', 'hud', 'hooks', 'net', 'mesh'])   // 11-09 划分的七个模块（输入拆出 feel）+ 11-10 的 hooks；其余是边界与框架
+const all: D[] = [...Object.values(host), kernel, pane, render, hooks, net, mesh, input, feel, audio, fx, sim, weather, title, hud]
 
 const ev = new Map<string, { rate: string; from: string; to: string[] }>()
 for (const m of all) for (const [e, rate] of Object.entries(m.emit)) ev.set(e, { rate, from: m.id, to: [] })

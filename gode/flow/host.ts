@@ -5,7 +5,7 @@
  *   状态型事件在其持有者的命名空间里各有一个同名的「最新值」Ref（world.here、p1.stat、p1.bar.hot、weather.clock…）：事件是变化的推送，Ref 是页面绑定与 gm 读取用的。
  *   玩家相关事件的载荷带 p1.who（core.ts P1Tag，'' = 服主）；格子口径 grid / bag / bar / bins 见 core.ts Grid。
  */
-import type { num, XYZ, PStr, PName, Blk, Item, Mob, Stack, Ref, Delta, Src, Here, Body, Stat, SaveEntry, StartArg, Grid, Who, P1Tag, MarkTable } from './core.ts'
+import type { num, XYZ, PStr, PName, Blk, Item, Mob, Bime, Stack, Ref, Delta, Src, Here, Body, Stat, SaveEntry, StartArg, Grid, Who, P1Tag, MarkTable } from './core.ts'
 import type { Mod } from './index.ts'
 
 export interface Out {
@@ -98,20 +98,19 @@ export interface Api {
     list(): readonly string[]                              // 在线玩家（服主是 ''）
   }
   ents: {
-    item(P: XYZ, s: Stack, vel?: XYZ): void                // 掉落物
-    fall(P: XYZ, blk: Blk): void                           // 下落方块实体 [新]（宿主 B 是瞬移，mobsim.js:498）
     near(r: num): readonly { mob: Mob; P: XYZ }[]          // 命令补全 '#…'、小地图标记
-    set(id: num, patch: { v?: XYZ; hp?: num; meta?: Readonly<Record<string, unknown>> }): boolean   // 写实体（组件的 {ent} 命令落到这里）；id 不在 = false
+    set(id: num, patch: { v?: XYZ; st?: string /* pkv 状态补丁 '{hp 8; …}' */ }): boolean   // 写实体（组件的 {ent} 命令落到这里）；id 不在 = false
   }
-  /** 快速生成实体 [定 11-10，用户]（取代 ents.spawn）：put('#zombie')、put('#zombie*10', '@12,5^64')。
+  /** 快速生成实体 [定 11-10，用户]（取代 ents.spawn / ents.item / ents.fall）：put('#zombie')、put('#zombie*10', '@12,5^64')；任何 Bime 值都行 ——
+   *  put(':stone*3') = 掉落物，put(':sand{…}', P) = 下落方块（落地后同值回到网格，状态不丢）。born 的实体与网格对齐，不带 Foot。
    *  缺省位置 = 服主准星格上方（没有目标就是脚前 2 格）；o.line = 一排、每只间隔几格（/arena zombie 10，IDEA-sys L38）；返回成功生成的实体 id。同 Cmd 的 spawn × n */
-  put(what: Mob | `${Mob}*${num}`, at?: XYZ | PStr | PName, o?: { meta?: Readonly<Record<string, unknown>>; line?: num }): readonly num[]
+  put(what: Bime | `${Bime}*${num}`, at?: XYZ | PStr | PName, o?: { line?: num }): readonly num[]
   bins: {
     at(P: XYZ): Bin | null                                 // 该格是储物 / 工具方块时给它的 grid，否则 null
     open(P: XYZ, who?: string): boolean                    // 为玩家（缺省服主）打开界面（screen → 'bin'）；发 bin 事件
     cur: Ref<BinView | null>                               // 服主当前打开的 bin（页面绑定用；null = 没开）
   }
-  marks: MarkTable                                         // 世界标记表（一份，存档）；各视图的层开关在 gm.act / gm.actOnMap
+  marks: MarkTable                                         // 世界标记表（一份，存档）；主视图的层开关在 marks.view，小地图的在 gm.actOnMap
 }
 export interface GgApi {
   game: { start(a: StartArg): Promise<void>; pause(): void; resume(): void; tpause(f: Partial<Out['pause']>): void }   // paused = title.screen ≠ 'game'（派生，不另存）；tpause 另管时钟 / 生物 / 模拟
@@ -120,6 +119,19 @@ export interface GgApi {
     put(file: Blob): Promise<SaveEntry>; remove(seed: string): Promise<void>; export(seed?: string): Promise<Blob>
   }
   slicer: { tree(P: XYZ, kind: string): Promise<readonly (readonly [XYZ, Blk])[]> }   // s01 可选动词：树苗长成树
+}
+
+/** worker 的 RPC 动词（s01 §2 信封：单键动词 + id）。服务者在 Mod.serves 里声明，调用者在 Mod.calls 里声明；index.ts 检查「每个被调用的动词有且仅有一个服务者」。
+ *  slicer 池的动词：gen / tree 由生成器脚本提供，mesh / bake 由运行时提供（mesh.ts 的 Rpc）[定 11-10，用户：mesher 是 slicer 池的第二个动词] */
+export interface SlicerRpc {
+  gen(a: { cx: num; cz: num }): Promise<{ cx: num; cz: num; blocks: ArrayBuffer; biomes: ArrayBuffer; heights: ArrayBuffer; light: ArrayBuffer; outside: ArrayBuffer; ms: num }>
+  tree(a: { P: XYZ; kind: string }): Promise<readonly (readonly [XYZ, Blk])[]>
+}
+/** dumper 的动词（s06 §4.3：OPFS 唯一读写者）。slicer 的结果不经过它；main 落盘时 transfer 过去 */
+export interface DumperRpc {
+  read(a: { cx: num; cz: num }): Promise<{ xzp: ArrayBuffer } | null>
+  write(a: { cx: num; cz: num; xzp: ArrayBuffer }): Promise<void>
+  flush(a: {}): Promise<void>
 }
 
 export const mods = {
@@ -131,12 +143,12 @@ export const mods = {
   world: {
     id: 'world', where: 'main', catalog: 'core', layer: 'core', axis: 'play', ms: 'M1 ✅', doc: 'main/world.js；s02 §3、s14 §4',
     emit: { delta: 'sync', chunk_in: 'edge', chunk_out: 'edge', here: '4Hz', biome: 'edge' },
-    sub: ['pose', 'p1_move', 'tbl_change', 'bar'], depends: ['slicer'], tables: ['blk.tsv'], c_: ['$R'], save: ['xzp', 'pile', 'marks'],   // bar 事件 → Here.held（不依赖 p1：p1 依赖 world，会成环）
+    sub: ['pose', 'p1_move', 'tbl_change', 'bar'], depends: ['slicer'], tables: ['blk.tsv'], c_: ['$R'], save: ['xzp', 'pile', 'marks'], calls: ['gen', 'read', 'write', 'flush'],   // bar 事件 → Here.held（不依赖 p1：p1 依赖 world，会成环）
   },
   p1: {
     id: 'p1', where: 'main', catalog: 'core', layer: 'core', axis: 'play', ms: 'M1 ✅', doc: 'main/phys.js；生存状态 M3；落雷 3 格内按 hurt.js 的 lightning 行扣血（MC 5）',
     emit: { p1_move: 'frame', p1_step: 'edge', p1_land: 'edge', p1_fluid: 'edge', p1_stat: 'edge', p1_hurt: 'edge', p1_die: 'edge', bar: 'edge' },
-    sub: ['intent', 'tick', 'game_mode', 'pause', 'lightning', 'key'], depends: ['world', 'pane'], tables: ['hurt.js'], c_: ['$Motion'], save: ['p1', 'bar'],   // bar = p1.bar 的格子（物品栏状态属玩家；interact 管合成 / 熔炉的界面逻辑）
+    sub: ['intent', 'tick', 'game_mode', 'pause', 'lightning', 'key'], depends: ['world', 'render', 'pane'], tables: ['hurt.js'], c_: ['$Motion'], save: ['p1', 'bar'],   // bar = p1.bar 的格子（物品栏状态属玩家；interact 管合成 / 熔炉的界面逻辑）
   },
   interact: {
     id: 'interact', where: 'main', catalog: 'core', layer: 'core', axis: 'play', ms: 'M3-7', doc: 'M3-7；宿主 B Interaction :1933、Inventory :2297',
@@ -146,12 +158,12 @@ export const mods = {
   ents: {
     id: 'ents', where: 'main', catalog: 'core', layer: 'core', axis: 'play', ms: 'M3-6', doc: 'M3；s05；宿主 B mobsim.js Mobs、Entities :2775',
     emit: { blk_touch: 'edge', mob_say: 'edge', mob_hurt: 'edge', mob_die: 'edge', tnt_fuse: 'edge', explode: 'edge' },
-    sub: ['tick', 'pause', 'fluid_wash', 'blk_fall', 'lightning'], depends: ['world', 'fx'], tables: ['mob.json', 'ent.json', 'on.js', 'hurt.js', 'blk.tsv'], c_: ['$MobAI'], save: ['mat'],
+    sub: ['tick', 'pause', 'fluid_wash', 'blk_fall', 'lightning'], depends: ['world', 'fx', 'render'], tables: ['mob.json', 'ent.json', 'on.js', 'hurt.js', 'blk.tsv'], c_: ['$MobAI'], save: ['mat'],
   },
   save: {
     id: 'save', where: 'dumper', catalog: 'core', layer: 'core', axis: 'play', ms: 'M2', doc: 'M2；s06；宿主 B Save :3021',
-    emit: { save_index: 'edge' },
+    emit: { save_index: 'edge' }, serves: ['read', 'write', 'flush'],
     sub: ['delta', 'game_ready', 'screen'], depends: ['render', 'pane'], tables: [], c_: ['$Save'], save: [],
   },
-  slicer: { id: 'slicer', where: 'slicer', catalog: 'core', layer: 'core', axis: 'play', ms: 'M1 ✅', doc: 's01 / s02：w/slicer.js', emit: {}, sub: [], depends: [], tables: ['g/*.js'], c_: [], save: [] },
+  slicer: { id: 'slicer', where: 'slicer', catalog: 'core', layer: 'core', axis: 'play', ms: 'M1 ✅', doc: 's01 / s02：w/slicer.js', emit: {}, sub: [], depends: [], tables: ['g/*.js'], c_: [], save: [], serves: ['gen', 'tree', 'mesh', 'bake'] },
 } as const satisfies Record<string, Mod>

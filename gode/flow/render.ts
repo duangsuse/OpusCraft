@@ -1,7 +1,8 @@
 /**
  * gode/flow/render.ts —— 渲染器的连接点 + c_ 参数主题 [定 11-09，用户：rgl 的 P_DEFAULTS 按面板文件夹拆成 c_ 主题，写进 flow]
  *
- *   pose（每帧，6 个数）+ here（4 Hz）+ clock（每帧）+ chunk_in / chunk_out / delta / light ──▶ 渲染器 ──▶ 画面
+ *   pose（每帧，6 个数）+ here（4 Hz）+ clock（每帧）+ mesh_ready / chunk_out（网格来自 mesh.ts，渲染器不再自己订阅 delta / light）──▶ 渲染器 ──▶ 画面
+ *   gg.render.inst ◀── 网格（mesh）/ 实体（ents）/ 手持（p1）三个来源，同一种 ModelInstance
  *   lightning ──▶ 电光条（c_Bolt）；Clock.flash ──▶ 天空、环境光、雾一起闪（只有 flash 提亮，thunder 列只压暗）
  *   gg.render.fx ◀── fx 模块的粒子请求（fx.ts RenderFx）
  *
@@ -14,7 +15,7 @@
  *   算法与数值不改，头注释写出处。
  * 宿主 B 出处：rgl/index.js（P_DEFAULTS :171、面板文件夹 :177–187）· rgl/host-b.js glsEnv（weather / eyeSky / flying）。
  */
-import type { num, PStr, Ref, MarkLayers, P1Tag } from './core.ts'
+import type { num, PStr, Ref, MarkLayers, P1Tag, ModelInstance } from './core.ts'
 import type { Mod } from './index.ts'
 import type { RenderFx } from './fx.ts'
 
@@ -46,7 +47,11 @@ export interface Api {
 }
 
 export interface GgApi {
-  render: { stats(): Readonly<Record<string, num>>; shot(): Promise<Blob>; fx: RenderFx }
+  render: {
+    stats(): Readonly<Record<string, num>>; shot(): Promise<Blob>; fx: RenderFx
+    /** 唯一的模型入口 [定 11-10，用户：来源不同、结构相同]：src = 来源名（'grid@cx,cz' 由 mesh 推、'ents' 由 ents 推、'held' 由 p1 推），整表替换该来源的实例；[] = 清掉 */
+    inst: { set(src: string, list: readonly ModelInstance[]): void }
+  }
 }
 
 /** 一个可调参数：[默认, 最小, 最大, 面板标签]。范围按「滑到两端一眼看得出差别」定 */
@@ -167,7 +172,7 @@ export const TOPICS = {
 export const mod = {
   id: 'render', where: 'render', catalog: 'core', layer: 'render', axis: 'look', ms: 'M1-6', doc: 's03、s15；rgl / lite。只吃 Pose + Here + Clock + 区块事件，其余经 gm 取',
   emit: { marker: 'edge', map_tap: 'edge' },
-  sub: ['pose', 'here', 'clock', 'delta', 'chunk_in', 'chunk_out', 'light', 'screen', 'lightning', 'tbl_change'],
+  sub: ['pose', 'here', 'clock', 'mesh_ready', 'chunk_out', 'screen', 'lightning', 'tbl_change'],
   depends: ['world', 'marks', 'pane'],       // marks：画标记；world.height：雨的遮挡；world.at：洞穴雾的取样兜底
   tables: ['sky.json', 'blk.tsv'],          // blk.tsv：emit 列（手持光）、fx 列（发射点，见 fx.ts）
   c_: ['$Gl', '$Sky', '$Cloud', '$Shadow', '$Water', '$Under', '$Fog', '$Precip', '$Bolt', '$HeldLight', '$Items', '$Leaf', '$Pack', '$Ent', '$Load'],

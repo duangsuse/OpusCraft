@@ -1,4 +1,4 @@
-/* gode/defl/g/lt/core.js —— Luanti 系生成器（v7 / valleys）的装配：群系表 + 地形 + 列式收尾 + 装饰 + 尘。纯函数式，Worker 适配器（./adapter.js）与对拍工具（tools/luanti/cmp.mjs）共用。
+/* gode/defl/g/lt/core.js —— Luanti 系生成器（luan0 = Luanti v7、luanV = Luanti valleys）的装配：群系表 + 地形 + 列式收尾 + 装饰 + 尘。纯函数式，Worker 适配器（./adapter.js）与对拍工具（tools/luanti/cmp.mjs）共用。
    算法在 vendor/luanti/（独立重写，Luanti 源码只作参考；许可证边界见 vendor/luanti/NOTICE.md），群系 / 装饰 / schematic 都是声明式数据（./biomes.tsv ./decorations.json ./schematics.json）。
    装饰按参考的 mapchunk（80³，原点偏移 −32）放：请求一个 16×16 列时，把「vm 区域（块 ± 16）覆盖到这些列」的相邻块的装饰结果（带缓存）写进来，所以树冠跨块不需要 outside。 */
 import { parseTsv, BiomeSet, heatHumid } from '../../../vendor/luanti/biome.js';
@@ -9,13 +9,13 @@ import { Schematic, makeDeco, placeDeco, blockSeed2, NONE_Y } from '../../../ven
 import { resolveParams } from '../../../w/params.js';
 
 export const DY = 64;               // 规范 y = 原生 y + DY（同 liq）
-export const MAKERS = { v7: makeV7, valleys: makeValleys };
+export const MAKERS = { luan0: makeV7, luanV: makeValleys };
 // 装饰相关 knobs（两个 mapgen 共用）：树密度乘子（同名同义于其它生成器）、先生成的相邻块的可见性递推层数（越大越接近参考、越慢）
 const DECO_KNOBS = [
   { k: 'tree.dens', key: 'treeDens', def: 1, min: 0, max: 4, note: '装饰（树）密度乘子（乘 noise / fill_ratio），0 = 无树' },
   { k: 'deco.depth', key: 'decoDepth', def: 2, min: 0, max: 3, note: '相邻块树冠可见性的递推层数（0 = 各块独立；2 与参考 ≈ 99.96% 一致；越大越慢）' },
 ];
-export const KNOBS = { v7: [...V7_KNOBS, ...DECO_KNOBS], valleys: [...VALLEYS_KNOBS, ...DECO_KNOBS] };
+export const KNOBS = { luan0: [...V7_KNOBS, ...DECO_KNOBS], luanV: [...VALLEYS_KNOBS, ...DECO_KNOBS] };
 
 // 种子：十进制 / 0x 十六进制整数按 u64 取低 32 位（s32），其余字符串走 MurmurHash64A（种子 0x1337，UTF-8 字节），与参考的 read_seed 一致
 const M = 0xc6a4a7935bd1e995n, U64 = (1n << 64n) - 1n;

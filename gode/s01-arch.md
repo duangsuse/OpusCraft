@@ -42,10 +42,18 @@ IDEA 的写法是**单键对象**：键是动词，值是参数。gode 全部消
 
 | Worker | 入口 | 必须实现 | 可选 |
 |---|---|---|---|
-| slicer | **生成器脚本本身**（`?g=` 的 URL），它 import 引擎运行时 `gode/w/slicer.js`（s02 §2） | `onkwarg gen`（生成器写）；`mesh light map`（运行时提供） | `set sample explain spawn tree` |
+| slicer | **生成器脚本本身**（`?g=` 的 URL），它 import 引擎运行时 `gode/w/slicer.js`（s02 §2） | `onkwarg gen`（生成器写）；`mesh bake light map`（运行时提供） | `set sample explain spawn tree` |
 | dumper | `gode/w/dumper.js`（M2） | `onkwarg read write flush` | `export train` |
 | net | `gode/w/net.js`（联机里程碑） | `onkwarg up down` | — |
 | ~~rgl 网格池~~ | 并入 slicer [定 11-08]：`vendor/gl/pool.js` 的 mesh 实现搬进 slicer 的 `mesh` 动词 | — | — |
+
+### 3.1 mesh / bake 与实例 [定 11-10，用户]
+
+- **mesher 是 slicer 池的第二个动词**，不另起 worker；`flow/mesh.ts` 是 main 里的驱动（订阅 `chunk_in / delta / light`，发 `{mesh}`，发 `mesh_ready`）。
+- `{mesh}` 出区块网格时**顺带吐出**：① `ModelInstance[]`（块里 Kind.Model 的方块不出面，改出实例）② 发射点（blk.tsv 的 fx 字段命中的格，给 fx 的火把 / 火 / 岩浆 / 瀑布）。渲染器不扫区块，fx 不遍历 `chunk_in / delta`。
+- `{bake}`：一个 Bime 值的模型（SVOX / XZ1 / BBat 图层 / 贴图压厚度）→ `ModelAsset`（网格 + 体素生成的碰撞盒 + 锚点）。
+- **渲染器只认 `ModelInstance`**（`gg.render.inst.set(来源, 列表)`）；来源有网格（mesh）、实体（ents）、手持（p1）三个，结构相同。place 的方块模型自带 Foot（占格），born 的实体建模时就与网格对齐。
+- worker 动词在 flow 里有类型：`host.SlicerRpc / DumperRpc`、`mesh.Rpc`；Mod 的 `serves / calls` 由 tsc 检查闭合（index.ts ⑭）。
 
 ## 4. 光照 [定 11-08]
 

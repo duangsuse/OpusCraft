@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- gode/viz/index.html —— pgviz：地形查看与调参（s13，M0）。直接起 s02 的生成器 Worker（defl/g/<g>.js）池，R16UI 3D 纹理轴向步进出图。
-     URL：?g=mini|gp|liq|old|v7|valleys|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&rate=12&minip=1&air=1&layer=none|tree|f:字段&lop=0.75&shade=block|biome|height&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
+     URL：?g=mini|gp|liq|old|luan0|luanV|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&rate=12&minip=1&air=1&xray=0&layer=none|tree|f:字段&lop=0.75&shade=block|biome|height&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
      Agent：window.viz = { ready, stats, c4, airDist, probe, regen, set, errors, sel, pin, click, jump, … }（app.js） -->
 <html lang="zh">
 <head>
@@ -93,7 +93,7 @@
   <div id="rsz" title="拖动改左栏宽度；< 140 px 自动隐藏"></div>
   <div id="top">
     <button id="sdbtn" title="展开左栏">⫷</button>
-    <select id="gsel" title="生成器（s02 §4）"><option value="mini">mini</option><option value="gp">gp</option><option value="liq">liq</option><option value="old">old</option><option value="v7">v7</option><option value="valleys">valleys</option></select>
+    <select id="gsel" title="生成器（s02 §4）"><option value="mini">mini</option><option value="gp">gp</option><option value="liq">liq</option><option value="old">old</option><option value="luan0">luan0</option><option value="luanV">luanV</option><option value="veg">veg</option></select>
     <input id="seed" placeholder="种子" spellcheck="false"><button id="go">Go</button>
     <span class="sep"></span>
     <span class="seg" id="modes"><button data-m="surface" title="切片面回到最外层（E 循环）。俯视：切片 Y = 已载入的地表最高点。E 切换时选区变成两个截面之间的长条（按 9 扫过）">地表</button><button data-m="slice" title="切片面放到海平面 / 屏幕中心（Shift+滚轮调；E 循环）">切片</button><button data-m="stack" disabled title="V2">层叠</button><button id="layb" style="margin-left:6px;border-radius:4px" title="地理覆盖：左栏变成 ① 世界 / ② 群系 / ③ 方块 / ④ 选区（没有 ② 视图；不进 E 循环）">地理🌍</button></span>

@@ -1,5 +1,5 @@
 /* gode/main/boot.js —— gode 宿主（M1）：起 slicer 池 → 世界镜像 → 控制器 → rgl，主循环。
-   URL：?g=mini|gp|liq|old|v7|valleys|<worker url>（默认 mini）&seed=（默认 20240607）&rd=（默认 6）&kw=a.b:1,c:2（生成器参数，s02 §2.1）
+   URL：?g=mini|gp|liq|old|luan0|luanV|<worker url>（默认 mini）&seed=（默认 20240607）&rd=（默认 6）&kw=a.b:1,c:2（生成器参数，s02 §2.1）
         &hour=（0..24，默认 10）&tspeed=（时钟快进：游戏小时 / 秒，默认 0 = 钉住）&pos=x,y,z[,yaw,pitch]（不给 = 出生点）&fly=1&noclip=1&r=gl
    Agent / 调试：window.gode = { world, ctl, pool, VR, tbl, meta, clock, pose(), settle(), stats(), errors() } */
 import * as THREE from '../../vendor/npm/three.module.js';
@@ -12,7 +12,7 @@ import { createGl } from './rgl.js';
 
 const q = new URLSearchParams(location.search);
 const G = q.get('g') ?? 'mini', SEED = q.get('seed') ?? '20240607', RD = Math.min(16, +(q.get('rd') ?? 6) || 6);
-const genUrl = (g) => /^(mini|gp|liq|old|v7|valleys)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
+const genUrl = (g) => /^(mini|gp|liq|old|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
 const $ = (id) => document.getElementById(id);
 
 // ---- 错误收集（errors() 取自上次调用以来的）：页面日志之外给 Agent 一个结构化入口

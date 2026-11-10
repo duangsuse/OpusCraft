@@ -13,7 +13,7 @@
  *   ⑦ MOVES 行（kernel.ts）：动作名在 ACTS 里，否则是事件名；事件名列在 kernel.sub；Ref 路径是 Gm / Gg 里的 Ref 型成员
  *   ⑧ BIND 行：路径的头部是 Ref 型成员或 c_ 参数
  *   ⑨ 非核心模块必须写 off（停用后消费者看到什么）；核心模块不可停（Mod 的类型约束）
- *   ⑩ hooks.HOOKS 表与 BlockHooks 的键一致   ⑪ HOOKS 里的触发事件（by）都列在 hooks.sub 里   ⑫ Mod.wake 的事件都在该模块的 sub 里   ⑬ hooks.CMD_ROUTE 与 Cmd 的动词一一对应
+ *   ⑩ hooks.HOOKS 表与 BlockHooks 的键一致   ⑪ HOOKS 里的触发事件（by）都列在 hooks.sub 里   ⑫ Mod.wake 的事件都在该模块的 sub 里   ⑬ hooks.CMD_ROUTE 与 Cmd 的动词一一对应   ⑭ worker 的 RPC 动词：calls 的都有 serves、每个动词一个服务者、Rpcs 里没有死动词
  *   另：Mod 必填 layer / axis / ms（README 概览总表由 node gode/flow/graph.ts readme --write 生成）；layer 为 defl ⇔ 非核心
  * 这里的 emit / sub / depends / tables / c_ / save 是设计期规格。运行时登记处自己观察这些（kernel.ts ③），gd check mods 比对「观察到的 ⊆ 规格」；
  * doc 在 Mod 里只是运行时 Ref mod.<id>.doc 的初值（defl/doc.tsv，面板里可改）。
@@ -33,10 +33,11 @@ import type * as pane from './pane.ts'
 import type * as feel from './feel.ts'
 import type * as hooks from './hooks.ts'
 import type * as net from './net.ts'
+import type * as mesh from './mesh.ts'
 import type { Ref, CPath } from './core.ts'
 
 /** 全部事件：名字 → 载荷。命名照 s05 的「类别_名字」；模组订阅写 'blk_break' 或通配 'blk_Any'（s07 M-3） */
-export interface Ev extends host.Out, hooks.Out, net.Out, kernel.Out, pane.Out, input.Out, feel.Out, audio.Out, fx.Out, sim.Out, weather.Out, title.Out, hud.Out, render.Out {}
+export interface Ev extends host.Out, hooks.Out, net.Out, mesh.Out, kernel.Out, pane.Out, input.Out, feel.Out, audio.Out, fx.Out, sim.Out, weather.Out, title.Out, hud.Out, render.Out {}
 export type EvName = keyof Ev
 
 /** window.gm：每个命名空间由一个模块提供（Api），另加订阅入口 on */
@@ -44,7 +45,7 @@ export interface Gm extends host.Api, hooks.Api, kernel.Api, pane.Api, input.Api
   on(h: { [K in EvName]?: (e: Ev[K]) => void } & { up?: (prev?: any) => void; down?: () => unknown; genChunk?: hooks.GenHook }): () => void   // 同宿主 B gm.on（:2518），返回取消函数；up / down / genChunk = 模块私有的伪事件，不进 Ev（genChunk 只在 where: 'slicer' 的模块里有，hooks.ts ⑤）：down 返回交接对象，下一个实例的 up(prev) 收到（形状是模块私有的，所以 prev 是 any；kernel.ts ⑤'）
 }
 /** window.gg：引擎装置与表现层（只在 main，不进 worker 白名单，不进 delta）+ 模块视图自带的登记工具 GgTools [定 11-10，用户：gm 只放模组高频 API] */
-export interface Gg extends kernel.GgTools, host.GgApi, hooks.GgApi, net.GgApi, kernel.GgApi, input.GgApi, feel.GgApi, audio.GgApi, sim.GgApi, weather.GgApi, title.GgApi, hud.GgApi, render.GgApi {}
+export interface Gg extends kernel.GgTools, host.GgApi, hooks.GgApi, net.GgApi, mesh.GgApi, kernel.GgApi, input.GgApi, feel.GgApi, audio.GgApi, sim.GgApi, weather.GgApi, title.GgApi, hud.GgApi, render.GgApi {}
 export type GmNs = Exclude<keyof Gm, 'on'>
 export type GgNs = Exclude<keyof Gg, keyof kernel.GgTools>
 export type Ns = GmNs | GgNs                       // 同名命名空间（game / hooks / sim）两边各有一部分，depends 写一次两边都给
@@ -54,6 +55,9 @@ export type Ns = GmNs | GgNs                       // 同名命名空间（game 
 export type Rate = 'frame' | 'tick' | 'sync' | 'edge' | `${number}Hz`
 /** 模块在哪运行。HTML 不是运行位置：页面是 Ref 的视图（kernel.ts ⑤），title / hud 是 main 里的普通模块 [定 11-09] */
 /** dumper = 存档的唯一读写者（OPFS，s06 §4.3）；net = 联机传输（心跳 / 重连 / 排队，net.ts）；slicer = 生成 + 光照 + 网格池；render = 渲染器 */
+/** worker 动词全集：slicer 池（gen tree mesh bake）+ dumper（read write flush） */
+export type Rpcs = host.SlicerRpc & host.DumperRpc & mesh.Rpc
+export type RpcVerb = keyof Rpcs
 export type Where = 'main' | 'worker' | 'render' | 'slicer' | 'dumper' | 'net'
 
 /** 升级轴（README 概览）：play = 玩法（doc 简版 → 引擎 + 默认模组）· look = 渲染与反馈（rgl / lite / map + 粒子 + 音效）· ui = 主屏幕 · 触屏 · 面板 · 命令 */
@@ -78,13 +82,15 @@ interface ModBase {
   tables: readonly string[]             // 读的默认模组表（$baseUrl/defl/，模组同名表覆盖，s07 §4）；脚本里用 gm.tbl.<名字> 取
   c_: readonly core.CPath[]             // 面板参数主题（defl/c_.json 的键）
   save: readonly string[]               // 状态注册表的键（s14 §5）
+  serves?: readonly RpcVerb[]           // 本模块（所在 worker）提供的 RPC 动词（host.ts SlicerRpc / DumperRpc、mesh.ts Rpc）
+  calls?: readonly RpcVerb[]            // 本模块向 worker 发的动词；每个被调用的动词必须有且仅有一个服务者（下面 ⑭）
 }
 /** catalog 'core' 不可停用；catalog 'defl'（mod.tsv 里的行）可停、可被同 id 模组替换，必须写明停用后的样子（off） */
 export type Mod = ModBase & ({ catalog: 'core'; layer: CoreLayer } | { catalog: 'defl'; off: string; wake?: readonly EvName[] /* 停用期间这些事件一发出就重新启用，必须在 sub 里（kernel.ts ④） */ })
 
 // ───────────────────────────── 连通性检查 ─────────────────────────────
 type Mods = typeof host.mods & {
-  kernel: typeof kernel.mod; hooks: typeof hooks.mod; net: typeof net.mod; pane: typeof pane.mod; input: typeof input.mod; feel: typeof feel.mod; audio: typeof audio.mod; fx: typeof fx.mod; sim: typeof sim.mod
+  kernel: typeof kernel.mod; hooks: typeof hooks.mod; net: typeof net.mod; mesh: typeof mesh.mod; pane: typeof pane.mod; input: typeof input.mod; feel: typeof feel.mod; audio: typeof audio.mod; fx: typeof fx.mod; sim: typeof sim.mod
   weather: typeof weather.mod; title: typeof title.mod; hud: typeof hud.mod; render: typeof render.mod
 }
 type M = keyof Mods
@@ -99,12 +105,24 @@ type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : 
 export type Unheard = Exclude<AllSub, AllEmit>
 /** ② 被多个模块发出 */
 export type Multi = { [E in AllEmit]: true extends IsUnion<Emitters<E>> ? E : never }[AllEmit]
+type ServesOf<K extends M> = Mods[K] extends { serves: readonly (infer V)[] } ? V : never
+type CallsOf<K extends M> = Mods[K] extends { calls: readonly (infer V)[] } ? V : never
+type AllServes = { [K in M]: ServesOf<K> }[M]
+type AllCalls = { [K in M]: CallsOf<K> }[M]
+type Servers<V> = { [K in M]: V extends ServesOf<K> ? K : never }[M]
+/** ⑭ 有人调用、没人提供的 worker 动词 */
+export type Unserved = Exclude<AllCalls, AllServes>
+/** ⑭ 同一个动词有多个服务者 */
+export type MultiServed = { [V in AllServes]: true extends IsUnion<Servers<V>> ? V : never }[AllServes]
+/** ⑭ 动词表里有、没人提供（Rpcs 与各模块 serves 要一致） */
+export type Dead = Exclude<RpcVerb, AllServes>
 /** 发了但模块里没人订阅：允许（留给模组 worker），graph.ts 会标「（模组）」 */
 export type ForMods = Exclude<AllEmit, AllSub>
 
 type Ok<T, Msg extends string> = [T] extends [never] ? true : { [k in Msg]: T }
 export const closed: Ok<Unheard, '有人订阅却没人发'> = true
 export const single: Ok<Multi, '同一事件有多个发出者'> = true
+export const rpc: { unserved: Ok<Unserved, '有人调用的 worker 动词没人提供'>; multi: Ok<MultiServed, '同一个 worker 动词有多个服务者'>; dead: Ok<Dead, 'Rpcs 里有、没有模块 serves'> } = { unserved: true, multi: true, dead: true }
 
 type Diff<A, B> = Exclude<A, B> | Exclude<B, A>
 type HostEmit = { [K in keyof typeof host.mods]: keyof (typeof host.mods)[K]['emit'] }[keyof typeof host.mods]
@@ -112,6 +130,7 @@ export const owns: {
   host: Ok<Diff<HostEmit, keyof host.Out>, 'emit 与 Out 不一致'>
   hooks: Ok<Diff<EmitOf<'hooks'>, keyof hooks.Out>, 'emit 与 Out 不一致'>
   net: Ok<Diff<EmitOf<'net'>, keyof net.Out>, 'emit 与 Out 不一致'>
+  mesh: Ok<Diff<EmitOf<'mesh'>, keyof mesh.Out>, 'emit 与 Out 不一致'>
   kernel: Ok<Diff<EmitOf<'kernel'>, keyof kernel.Out>, 'emit 与 Out 不一致'>
   pane: Ok<Diff<EmitOf<'pane'>, keyof pane.Out>, 'emit 与 Out 不一致'>
   input: Ok<Diff<EmitOf<'input'>, keyof input.Out>, 'emit 与 Out 不一致'>
@@ -123,7 +142,7 @@ export const owns: {
   title: Ok<Diff<EmitOf<'title'>, keyof title.Out>, 'emit 与 Out 不一致'>
   hud: Ok<Diff<EmitOf<'hud'>, keyof hud.Out>, 'emit 与 Out 不一致'>
   render: Ok<Diff<EmitOf<'render'>, keyof render.Out>, 'emit 与 Out 不一致'>
-} = { host: true, hooks: true, net: true, kernel: true, pane: true, input: true, feel: true, audio: true, fx: true, sim: true, weather: true, title: true, hud: true, render: true }
+} = { host: true, hooks: true, net: true, mesh: true, kernel: true, pane: true, input: true, feel: true, audio: true, fx: true, sim: true, weather: true, title: true, hud: true, render: true }
 
 type WakeOf<K extends M> = Mods[K] extends { wake: readonly (infer E)[] } ? E : never
 export const wake: Ok<{ [K in M]: Exclude<WakeOf<K>, SubOf<K>> }[M], 'wake 的事件没列进 sub'> = true

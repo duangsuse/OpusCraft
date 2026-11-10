@@ -16,12 +16,17 @@
  *                                            --vs 每格左右并排「上一张 / 这一张」并标粗差异 Δ%；
  *                                            --ref 按 c_.Bench.ref 拍视觉目标机位，与 gode/reference-vision/ 左右对照
  *   gd snap [--tag T] [--note N]             直接截当前页面（不等 settle，不要求是宿主 B；面板 mock 等非游戏页用）
+ *   gd open <图册webp> [--nth N] [--px X,Y [--sel]] [--depth]
+ *                                            按图册路径回拍这张图时的状态（<seed>/<gen> 与 biomes.tsv 里的群系中心 + 视图 / 切片 Y / xray）；
+ *                                            .../slc/<名>_going_deeper.webp 这类拼图按 --nth 选第 N 层（1 = 最高，默认 1）并列出全部层，
+ *                                            打印中心点 probe（含 sample）与 canvas↔图片像素映射；--px 读该图片像素下的块（--sel 顺手选中，
+ *                                            之后 viz.stats() 直接算这块）；slc/mine 默认附逐 Y 组成（viz.depth，--depth 强制 / --depth=false 关）
  *   gd xz <file.xz|-> [--at @x,z^y] [--frame] [--shot] [--tag T]   追加 XZ1 文本体素（s06 §5）
  *   gd mark | gd revert                      改块打点 / 回滚到打点
  *   gd hash <x0,y0,z0,x1,y1,z1|LAST>         区域体素哈希
  *   gd set c_.Path=v …                       值按 JSON 解析，失败当字符串
  *   gd eval '<js>'                           页面里执行（可 await），按值返回
- *   gd check [name…|all] [--matrix mini,gp,liq,old|all（all 不含 v7 / valleys，要跑显式写）]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
+ *   gd check [name…|all] [--matrix mini,gp,liq,old|all（all 不含 luan0 / luanV / veg，要跑显式写）]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
  *                                            --matrix = pgviz 检查在每个生成器下各跑一遍（行名带 @g，跑完回原页面）
  *   gd perf [--frames 120]                   低频：帧时间中位数 / p95 + 渲染器 stats()，追加到 gode/shots/perf.tsv
  *   gd log [-f]                              页面 console / 异常（自上次调用以来）；-f 持续跟随
@@ -191,7 +196,40 @@ const LOCAL = ['localhost', '127.0.0.1', '[::1]'].includes(new URL(BASE).hostnam
 const BASELINE = join(TOOLS, 'baseline.tsv'), DRIFT_MD = join(SHOTS, 'drift.md'), DRIFT_JSON = join(SHOTS, 'drift.json');
 const INDEX_COLS = ['seq', 'ts', 'tag', 'pose', 'url', 'files', 'note', 'verdict', 'ms'];
 const QUALITY = 82;
-const VALUED = new Set(['seed', 'rd', 'size', 'url', 'tag', 'note', 'vs', 'at', 'frames', 'wait', 'matrix']);
+const VALUED = new Set(['seed', 'rd', 'size', 'url', 'tag', 'note', 'vs', 'at', 'frames', 'wait', 'matrix', 'px', 'nth']);
+
+/** 图册 webp → 机位：shots/<seed>/<gen>/{top|side|mine}/<名>.webp 或 .../slc/<名>/@<Y>.webp。
+ *  种子 / 参数取自 <seed>/<gen>/biomes.tsv 首行（gen= seed= url= shade= xray=），群系中心取该行 x,z。 */
+function shotLoc(file, nth) {
+  const abs = resolve(ROOT, file), rel = relative(SHOTS, abs).split('\\').join('/');
+  if (rel.startsWith('..')) throw new Error(`不在 gode/shots/ 里：${file}`);
+  const s = rel.split('/'), [seed, gen, kind] = s;
+  if (!['top', 'side', 'mine', 'slc'].includes(kind)) throw new Error(`图册路径要是 <seed>/<gen>/{top|side|mine}/<名>.webp 或 .../slc/<名>/@<Y>.webp（或拼图 .../slc/<名>_going_deeper.webp）（给的是 ${rel}）`);
+  const slc = kind === 'slc', GRID = '_going_deeper.webp';
+  const base = slc ? s[3] ?? '' : basename(rel, '.webp'), name = base.endsWith(GRID) ? base.slice(0, -GRID.length) : base;
+  let y = null, layers = null;
+  if (slc) {
+    const slcDir = join(SHOTS, seed, gen, 'slc', name);
+    if (!existsSync(slcDir)) throw new Error(`没有 ${relative(ROOT, slcDir)}`);
+    layers = readdirSync(slcDir).filter(f => /^@-?\d+\.webp$/.test(f)).sort((p, q) => Number(q.slice(1, -5)) - Number(p.slice(1, -5))).map(f => `slc/${name}/${f}`);
+    if (!layers.length) throw new Error(`${relative(ROOT, slcDir)} 里没有 @<Y>.webp`);
+    if (base.endsWith(GRID)) {   // 拼图：--nth 选第几层（1 = 最高）
+      const n = nth === undefined || nth === '' || nth === true ? 1 : Math.round(+nth);
+      if (!Number.isInteger(n) || n < 1 || n > layers.length) throw new Error(`--nth 要 1…${layers.length}（这张拼图有 ${layers.length} 层），给的是 ${nth}`);
+      y = Number(layers[n - 1].replace(/^.*@/, '').replace(/\.webp$/, ''));
+    } else {
+      y = Number(String(s[4] ?? '').replace(/^@/, '').replace(/\.webp$/, ''));
+      if (!Number.isInteger(y)) throw new Error(`切片路径要是 .../slc/<名>/@<Y>.webp 或 .../slc/<名>_going_deeper.webp（给的是 ${rel}）`);
+    }
+  }
+  const tsv = join(SHOTS, seed, gen, 'biomes.tsv'), { rows } = readTsv(tsv);
+  const row = rows.find(r => r.name === name);
+  if (!row) throw new Error(`${relative(ROOT, tsv)} 里没有群系 ${name}`);
+  const head = readFileSync(tsv, 'utf8').split('\n').find(l => l.startsWith('# gen=')) ?? '';
+  const pick1 = re => (head.match(re) || [])[1];
+  return { rel, abs, seed, gen, kind, name, y, slc, layers, x: +row.x, z: +row.z, hSample: +row.hSample, hTop: +row.hTop, block: row.block,
+    url: pick1(/url=(\S+)/), shade: pick1(/shade=(\S+)/) ?? 'block', xray: +(pick1(/xray=(\d+)/) ?? 0), slcY: row.slcY };
+}
 
 function parseArgs(argv) {
   const pos = [], o = {};
@@ -352,8 +390,9 @@ async function daemon(opts) {
     if (!existsSync(INDEX)) writeFileSync(INDEX, INDEX_COLS.join('\t') + '\n');
     appendFileSync(INDEX, INDEX_COLS.map(k => tsvCell(row[k])).join('\t') + '\n');
   };
-  // 超过 500 张或最老的超过 7 天：每个 tag 只留最后 20 张
+  // 超过 500 张或最老的超过 7 天：每个 tag 只留最后 20 张（会连文件一起删）。GD_NOPRUNE=1 关掉
   const prune = () => {
+    if (process.env.GD_NOPRUNE) return;
     const rows = indexRows(), old = Date.now() - 7 * 864e5;
     if (rows.length <= 500 && !(rows.length && Date.parse(rows[0].ts) < old)) return;
     const keep = new Set(), byTag = {};
@@ -452,9 +491,10 @@ async function daemon(opts) {
   // ── 检查（checks.tsv）──
   const gitChanged = () => { try { return execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean).map(l => l.slice(3)); } catch { return []; } };
   const globRe = g => new RegExp('^' + g.trim().replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
-  const MATRIX_GENS = ['mini', 'gp', 'liq', 'old'];   // v7 / valleys 不进自动矩阵（11-09 定：慢、且有 tools/luanti/parity.mjs 对拍）；要跑时显式 --matrix v7,valleys
+  const MATRIX_GENS = ['mini', 'gp', 'liq', 'old'];   // luan0 / luanV / veg 不进自动矩阵（11-09 定：慢、且有 tools/luanti/parity.mjs 对拍；veg 块均 ~21 ms）；要跑时显式 --matrix luan0,luanV,veg
+  //   实测 11-10：luan0 14 ms/块、luanV 9 ms/块，但 `--matrix luan0,luanV` 一次峰值 ≈5.2 GiB 且两次都没跑完（s13 §14.2）
   const check = async (names, matrix) => {
-    if (matrix) {   // --matrix mini,gp,liq,old（all = 这四个；v7 / valleys 要显式写）：pgviz 检查在每个生成器下各跑一遍，行名带 @g；跑完回到原页面
+    if (matrix) {   // --matrix mini,gp,liq,old（all = 这四个；luan0 / luanV 要显式写）：pgviz 检查在每个生成器下各跑一遍，行名带 @g；跑完回到原页面
       const gs = matrix === true || matrix === 'all' ? MATRIX_GENS : String(matrix).split(',').filter(Boolean), back = st.url, out = [], fails = [];
       for (const g of gs) {
         await navigate(resolveUrl(`gode/viz/?g=${g}`));
@@ -614,6 +654,50 @@ async function daemon(opts) {
     async pose(o) { const rl = await autoReload(); return [...(rl ? ['# 代码有改动，已重载'] : []), JSON.stringify(await doPose(o.p))]; },
     async shot(o) { return shot(o); },
     async snap(o) { const r = writeShot(await capture(), { tag: o.tag || 'snap', pose: '-', note: o.note || '', ms: 0 }); return [`${r.seq}\t${r.file}`]; },   // 不等 settle、不碰宿主：任何页面（面板 mock 等）直接截当前画面
+    // 图册 webp → 回来时的机位：URL（seed/生成器/参数）+ 群系中心 + 视图/切片 Y/xray，然后读中心点的 probe / sample
+    async open(o) {
+      if (!o.file) throw new Error('用法：gd open gode/shots/<seed>/<gen>/{top|side|mine}/<名>.webp（或 .../slc/<名>/@<Y>.webp）[--px X,Y [--sel]] [--depth]');
+      const L = shotLoc(o.file, o.nth);
+      const u = new URL(L.url || `gode/viz/?g=${L.gen}&seed=${L.seed}`, BASE);
+      u.searchParams.set('p1', `@${L.x},${L.z}`);
+      const url = u.href;
+      if (url !== st.url) await navigate(url); else await autoReload();   // 同 URL 也重载更新的页面代码（viz.depth 之类新 API）
+      const view = L.kind === 'side' ? 'south' : 'top', mode = L.slc ? 'slice' : 'surface', shade = L.kind === 'mine' ? 'height' : L.shade;
+      await evalJS(`(async () => { const t = ${T};
+        // 图册是隐藏左栏 / 右上竖条 / gizmo 拍的：不恢复的话 canvas 尺寸不同，图片像素就对不上世界坐标
+        document.getElementById('app').classList.add('nosd');
+        for (const id of ['giz', 'tools', 'toast']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+        t.set('view', ${JSON.stringify(view)}); t.set('mode', ${JSON.stringify(mode)}); t.set('slice', ${L.slc ? L.y : 'null'});
+        t.set('shade', ${JSON.stringify(shade)}); t.set('xray', ${L.slc ? L.xray : 0}); t.set('air', false); t.set('sel', null);
+        await t.ready(); return 'ok'; })()`, 60000);
+      const y = L.slc ? L.y : L.hTop, pxpy = o.px ? String(o.px).split(',').map(Number) : null;
+      if (pxpy && !(pxpy.length === 2 && pxpy.every(Number.isFinite))) throw new Error('--px 要 X,Y（图片像素，左上原点）');
+      const [px, py] = pxpy ?? [];
+      const wantDepth = o.depth ?? (L.slc || L.kind === 'mine');
+      const info = await evalJS(`(async () => { const t = ${T}, cv = document.getElementById('cv'), rc = cv.getBoundingClientRect();
+        const S = t.state();
+        const out = { probe: await t.probe(${L.x}, ${y}, ${L.z}), canvas: { left: rc.left, top: rc.top, w: cv.clientWidth, h: cv.clientHeight }, dpr: devicePixelRatio, win: [innerWidth, innerHeight],
+          state: { view: S.view, mode: S.slice === null ? 'surface' : 'slice', slice: S.slice, xray: S.xray, shade: S.shade, zoom: S.zoom, x: S.x, z: S.z } };
+        ${pxpy ? `out.point = await t.at(${px} - rc.left, ${py} - rc.top, { sample: true });` : ''}
+        ${pxpy && o.sel ? `out.sel = t.click(${px} - rc.left, ${py} - rc.top, 0);` : ''}
+        ${wantDepth ? `out.depth = t.depth({ x: ${L.x}, z: ${L.z} });` : ''}
+        return out; })()`, 120000);
+      const p = info.probe;
+      const active = L.slc ? `slc/${L.name}/@${L.y}.webp` : null;
+      const lines = [
+        `${L.rel}\t${L.gen}\t${L.kind}${L.slc ? ' @' + L.y : ''}\t${L.name}\t@${L.x},${L.z}\thSample ${L.hSample} hTop ${L.hTop} ${L.block}`,
+        ...(L.layers ? [`layers\t${L.layers.map(f => f === active ? f + '*' : f).join(' ')}\t（*= 当前打开的第 ${L.layers.indexOf(active) + 1}/${L.layers.length} 层；--nth N 换层）\n\n`] : []),
+        `url\t${st.url}`,
+        `probe\t${p.at}\t${p.name}\t${p.biome}\tcol h=${p.h} surface=${p.surface}${p.yNative !== undefined ? ' yNative=' + p.yNative : ''}\tsample ${JSON.stringify(p.sample)}`,
+        `canvas\t${info.canvas.w}x${info.canvas.h} @${info.canvas.left},${info.canvas.top}\tdpr ${info.dpr}\twin ${info.win.join('x')}\t（viz.at/click 以 canvas 左上为原点；截图 = 页面 CSS 像素，--px 直接给图里的像素）`,
+        `state\t${JSON.stringify(info.state)}`,
+      ];
+      if (info.point) lines.push(`point\t${px},${py} → ${info.point.at}\t${info.point.name}\t${info.point.biome}\thit ${info.point.hit} water ${info.point.water} dist ${info.point.dist}${info.point.sample ? '\tsample ' + JSON.stringify(info.point.sample) : ''}`);
+      if (info.sel) lines.push(`sel\t${JSON.stringify(info.sel.p)}\t（3D 选区已设，viz.stats() 就算这块）`);
+      if (info.depth) lines.push(`depth\t${JSON.stringify(info.depth)}`);
+      lines.push(`next\tgd eval "viz.at(700,300,{sample:true})" / viz.click(px,py) 选点 → viz.stats() / viz.depth({n:33,step:8}) → gd snap`);
+      return lines;
+    },
     async xz(o) {
       const rl = await autoReload();
       if (rl) await evalJS('gm.test.mark()');   // 重载丢了打点：重新打，revert 仍然只撤本次
@@ -749,6 +833,7 @@ async function main() {
     case 'go': body = { q: pos[1] || '' }; break;
     case 'pose': body = { p: pos[1] }; break;
     case 'snap': body = { tag: o.tag, note: o.note }; break;
+    case 'open': body = { file: pos[1], px: o.px, sel: o.sel, depth: o.depth, nth: o.nth }; break;
     case 'shot': body = { poses: pos.slice(1), tag: o.tag, note: o.note, sheet: o.sheet, vs: o.vs, ref: o.ref }; break;
     case 'xz': body = { text: !pos[1] || pos[1] === '-' ? readFileSync(0, 'utf8') : readFileSync(pos[1], 'utf8'), at: o.at, frame: o.frame, shot: o.shot, tag: o.tag }; break;
     case 'hash': body = { b: pos[1] || 'LAST' }; break;

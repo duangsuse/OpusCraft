@@ -2,7 +2,7 @@
  * gode/flow/fx.ts —— 粒子：挖方块碎屑（burst）· fire · firefly · flutter [定 11-09，用户：先收现有的四种]
  *
  *   事件 ──BURSTS 表──▶ render.fx.burst（一次性碎屑 / 溅起 / 烟）
- *   区块内容 ──blk.tsv 的 fx 字段 + EMIT 表──▶ render.fx.fire / drops（火把 / 火 / 岩浆 / 瀑布：按区块扫、按 delta 失效）
+ *   mesh_ready.emit（mesher 按 blk.tsv 的 fx 字段命中的格）──▶ render.fx.fire.blocks / drops（火把 / 火 / 岩浆 / 瀑布）
  *   Pose + Here + Clock ──AMBIENT 表──▶ render.fx.flutter（落叶、气泡、水下微粒…，发射区跟着相机）
  *   模组 / 实体 ──gm.fire / gm.firefly / gm.flutter──▶ 锚在实体或世界点上的光效（API 照 rgl 现有的，不改名）
  *
@@ -114,7 +114,7 @@ export const mod = {
   off: '没有粒子（挖方块碎屑、萤火虫、落叶、火星、水花），其余不受影响',
   doc: '触发与放置在 main；模拟与绘制在渲染器（RenderFx）',
   emit: {},
-  sub: ['pose', 'here', 'clock', 'chunk_in', 'chunk_out', 'delta',                       // 发射区、常驻发射器缓存
+  sub: ['pose', 'here', 'clock', 'mesh_ready', 'chunk_out',                       // 发射区；常驻发射器 = mesh_ready.emit（mesher 出网格时顺带吐，不再自己扫 chunk_in / delta）
     'blk_break', 'blk_hit', 'p1_fluid', 'fluid_harden', 'explode', 'mob_die', 'item_eat'],   // = BURSTS 表第一列
   depends: ['render', 'world', 'pane'],
   tables: ['fx.js', 'ambient.js'], c_: ['$Fx'], save: [],

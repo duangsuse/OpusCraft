@@ -1,4 +1,4 @@
-# gode · Luanti 系生成器（?g=v7 / ?g=valleys）的群系表：声明式，gode 自己的表（不是 Minetest Game 的 default 群系，只借用 Luanti 的字段语义）。
+# gode · Luanti 系生成器（?g=luan0 / ?g=luanV）的群系表：声明式，gode 自己的表（不是 Minetest Game 的 default 群系，只借用 Luanti 的字段语义）。
 # 同一张表既喂 JS 生成器，也由 tools/luanti/run.mjs 生成 Lua 注册（参考服务器），保证两边群系一致。
 # 坐标 = Luanti 原生 y（海平面 water_level = 1）；heat / humid 对应 mg_biome 的 np_heat / np_humidity（约 0…100）；
 # 最近点分类：dist = Δheat² + Δhumid²（÷ weight），只在 [y_min, y_max] 内参选，y_max 之上 vblend 格内按概率「渗」出来。

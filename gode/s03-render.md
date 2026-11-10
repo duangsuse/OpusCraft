@@ -96,7 +96,7 @@ gm.on({
 })
 ```
 
-- 主视图（第一人称画面）同理：`gm.act.layer(name, on?)` 管主视图叠层的层开关，hud 叠层用 `gm.act.xyz2scr` 画同一份 `gm.marks`。
+- 主视图（第一人称画面）同理：`gm.marks.view.layer(name, on?)` 管主视图叠层的层开关，hud 叠层用 `gm.act.xyz2scr` 画同一份 `gm.marks`。
 - `gm.pts` 的地名自动出现在内置层 `'pts'`，不用手写。
 - `marks.list` 与 s09 的 Ref 同形：**一个函数既读又写**（`list()` 读，`list(v)` 写），因此它也能直接挂进面板、被 `&json=` 写、被 `{set}` 消息写。
 - 每个标记是 `[坐标, emoji, opts?]`：坐标是世界格 `[x, z]` 或口诀字符串 `'@x,z' / '@地名' / '@p1'`；`opts = { r, label, color, layer }`（r = 玩家走近几格发 `near`）。

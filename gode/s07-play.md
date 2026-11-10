@@ -31,7 +31,7 @@ defl/
   mode.js          默认模组 worker（$mode 的默认值）
   c_.json          全部 c_Topic 的默认值，一个文件（取代 goal-panify §3.2 的 {页面名}.json）
   blk.tsv  item.tsv  mob.tsv  recipe.tsv  smelt.tsv  hurt.tsv  …   （宿主 B 里有面板的 DEF 表各一张）
-  g/mini.js g/gp.js g/liq.js g/old.js g/v7.js g/valleys.js      生成器（s02）
+  g/mini.js g/gp.js g/liq.js g/old.js g/luan0.js g/luanV.js      生成器（s02）
   r/gl.js  r/lite.js             渲染器（s03）
 ```
 

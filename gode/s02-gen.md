@@ -51,7 +51,7 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
   - 引擎默认动词 `col({cx, cz, cls})`：整块生成后归约成列级地表 `Int16Array(1024)` = 每列 `[实体 type, 实体 y, 群系, 水深]`（`cls` = main 按方块名算的分类表，植物跳过、流体计水深），pgviz 外圈 2D 用（s13 V-8）。生成器可导出只算列噪声的 `col` 覆盖它。
   - 异常一律回 `{err: {msg, stack}, id}`；`onkwarg` 总回 `{ready: {meta}}`（`meta` 取返回值的 `meta`，没有就取模块导出的 `meta`）；无 `id` 的广播事件不应答。
 - 光照、网格、地图这些**引擎动词**由 `slicer.js` 提供，生成器不用管；所以 s01 的「slicer 池 = 生成 + 光照 + 网格」照旧，池里每个 worker 都是同一个生成器脚本。
-- 短名映射：`mini / gp / liq / old / v7 / valleys` → `$baseUrl/defl/g/<名>.js`；其余 URL 原样当 Worker 入口。`Pusc.json` 的 `$slicer` 存同一个字符串。
+- 短名映射：`mini / gp / liq / old / luan0 / luanV / veg` → `$baseUrl/defl/g/<名>.js`；其余 URL 原样当 Worker 入口。`Pusc.json` 的 `$slicer` 存同一个字符串。
 - 生成器可以直接写规范布局；用自己的布局时声明 `meta.layout`（`'yzx16' | 'xzy8' | …`），由运行时的 `xlate` 转换。
 - `outside`：`Int32Array`，每 5 个一组 `[x, y, z, v, soft]`（世界坐标），`soft` 规则号同 gen.md §2（1 = 只覆盖空气 / 树叶，2 = 覆盖空气或非流体可替换格）。规则落到具体 type 由生成器声明：`meta.over[soft]` = 除空气外还可覆盖的 type 列表（mini：三种树叶；liq：`T_REPLACEABLE && !T_FLUID`），soft 0 = 直写。main 不需要知道各生成器的方块属性。
 - 树苗生长原先是 main 直接调 `placeTree`（宿主 B mobsim.js:570）；现在改为发 `{tree}` 请求，异步返回写入列表，走 §3 的合并。
@@ -75,7 +75,7 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
 - 挂起表随存档保存（s06），否则重进存档后邻块缺树冠。
 - 确定性测试照 gen.md：按行优先生成 n×n，只哈希内圈 (n−2)²。
 
-## 4. 三个适配器
+## 4. 生成器适配器
 
 | 短名 | 来源 | 原布局 | 转换 | 溢出 |
 |---|---|---|---|---|
@@ -83,10 +83,11 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
 | `gp` | goodGP `js/world.js`（`vendor/gp/load.js` 运行时 fetch 供体 util / blocks / world 原文拼成函数执行，零改动；只补 `ASSETS.tiles` 与色图两个桩） | u8 id + u8 meta，`(y<<8)\|(z<<4)\|x`，H 256 | **索引顺序与规范相同**，只需 `type = LUT[id] \| meta<<12` | 不外写（重算 3×3 树表），outside 为空 |
 | `liq` | goodLiqPG `src/world/gen/generator.js` | u16 12+4，`(yi*16+z)*16+x`，y −64…320 | 编码相同，查 LUT；**y + 64，191 以上裁掉**（§5） | `generateChunk` 已返回 `outside` |
 | `old` | 仓库根 `VoxelCraft.html` 的地形生成抽副本（`vendor/old/voxelcraft.js`，s13 §13） | u8 id，`(x*16+z)*96+y`，H 96，海 40，无 meta | 适配器直接写规范 YZX u16（不走 xlate），y 原样 | 无（树全在块内，`meta.outside = false`） |
-| `v7` | Luanti mapgen v7 的**列式独立重写**（`vendor/luanti/{noise,pcg,biome,mapgen,v7}.js`，装配 `defl/g/lt/`，s13 §14） | 无（逐点算，直接写规范 YZX u16） | 原生 y −64…191 ↔ 规范 0…255（+64，同 liq），海 1 ↔ 65 | 无（`meta.outside = false`；树冠按相邻 mapchunk 的装饰结果直接写进本块，s13 §14.1；矿 / 地牢 / 随机游走洞未做） |
-| `valleys` | 同上，`vendor/luanti/valleys.js` | 同上 | 同上 | 同上 |
+| `luan0` | Luanti mapgen v7 的**列式独立重写**（`vendor/luanti/{noise,pcg,biome,mapgen,v7}.js`，装配 `defl/g/lt/`，s13 §14） | 无（逐点算，直接写规范 YZX u16） | 原生 y −64…191 ↔ 规范 0…255（+64，同 liq），海 1 ↔ 65 | 无（`meta.outside = false`；树冠按相邻 mapchunk 的装饰结果直接写进本块，s13 §14.1；矿 / 地牢 / 随机游走洞未做） |
+| `luanV` | 同上，`vendor/luanti/valleys.js` | 同上 | 同上 | 同上 |
+| `veg` | goodPG（VoxelCraft v3）`src/shared/world/terrain.ts`，`vendor/v3/terrain.mjs`（97 模块打包，`tools/build-v3.mjs` 生成，勿手改） | u16 状态 id（6 244 个，带朝向 / 水位），`(yi<<8)\|(z<<4)\|x`，y −64…319 | 状态 id 按去 `_<n>` 的名字压成规范 type（1 132 个，`meta=0`）；**y + 64，> 255 裁掉**（同 liq，带 `clip`） | 无（树 / 结构按全局网格算、写回时裁到本块，`meta.outside = false`；箱内容 / 村民 / 结构刷怪无通道，V1 丢弃） |
 
-- V1 里 type 就是各生成器自己的 id（gp 0–168、liq 0–227、mini 0–87、old 0–25），名字表在 `meta.names[type]`，pgviz 按名字着色 / 分类；统一 id LUT 等 s04 定表后再加。
+- V1 里 type 就是各生成器自己的 id（gp 0–168、liq 0–227、mini 0–87、old 0–25、veg 0–1131），名字表在 `meta.names[type]`，pgviz 按名字着色 / 分类；统一 id LUT 等 s04 定表后再加。veg 的 12 位是硬上限：v3 的 6 244 个状态必须合并（s13 §0 的清单第 1 条）。
 - `Generator` 实例不可重入（gen.md §5），每个 slicer 一个实例。
 - 缺失方块先 SUB 到已有方块，按画面影响分批补（gen.md §5「4a / 4b」）。
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* gode/tools/luanti/cmp.mjs —— 把参考服务器导出的真实输出（run.mjs）与 JS 移植逐格对拍。
-   用法：node tools/luanti/cmp.mjs --mg v7|valleys --seed 12345 [--bin /tmp/gode-lt/v7-12345.bin] [--show 10] [--nodeco]（run.mjs 用了 --nodeco 这里也要加）[--kw cavern.limit:-20,…]（run.mjs 的 --conf 要写对应的原生设置）
+   用法：node tools/luanti/cmp.mjs --mg v7|valleys（Luanti 的 mapgen 名；gode 侧短名 luan0 / luanV） --seed 12345 [--bin /tmp/gode-lt/v7-12345.bin] [--show 10] [--nodeco]（run.mjs 用了 --nodeco 这里也要加）[--kw cavern.limit:-20,…]（run.mjs 的 --conf 要写对应的原生设置）
    输出：节点一致率、按（参考 → 移植）类型对统计的差异、差异格离「噪声阈值」的距离不可得时给出 y 分布；群系列（get_biome_data @ biomeY）对拍。 */
 import fs from 'node:fs'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url)), G = path.join(HERE, '..', '..');
@@ -12,7 +12,7 @@ const { createGen } = await import(path.join(G, 'defl/g/lt/core.js'));
 const { parseKw } = await import(path.join(G, 'w/params.js'));
 const kw = parseKw(a('kw', ''));   // 与 run.mjs 的 --conf 对应的 knobs，如 cavern.limit:-20,cavern.threshold:0.2
 const deco = !process.argv.includes('--nodeco');
-const gen = await createGen(mg, seed, { biomesText: fs.readFileSync(path.join(G, 'defl/g/lt/biomes.tsv'), 'utf8'), kw, decoText: deco ? { decorations: fs.readFileSync(path.join(G, 'defl/g/lt/decorations.json'), 'utf8'), schematics: fs.readFileSync(path.join(G, 'defl/g/lt/schematics.json'), 'utf8') } : null,
+const gen = await createGen({ v7: 'luan0', valleys: 'luanV' }[mg] ?? mg, seed, { biomesText: fs.readFileSync(path.join(G, 'defl/g/lt/biomes.tsv'), 'utf8'), kw, decoText: deco ? { decorations: fs.readFileSync(path.join(G, 'defl/g/lt/decorations.json'), 'utf8'), schematics: fs.readFileSync(path.join(G, 'defl/g/lt/schematics.json'), 'utf8') } : null,
   bounds: deco ? { x0: x0 - 96, z0: z0 - 96, x1: x1 + 96, z1: z1 + 96, y0, y1 } : null });   // run.mjs 多 emerge 了 96 格；参考里不存在的块不能当前驱
 const refName = (i) => hd.names[i].replace(/^gode_ref:/, '').replace(/_source$/, '');
 const mine = (id) => gen.names[id];

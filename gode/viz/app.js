@@ -54,14 +54,14 @@ const S = {
   g: q.get('g') || 'gp', seed: q.get('seed') ?? '20240607', view: PV?.view ?? (VIEWS[q.get('view')] ? q.get('view') : 'top'),   // 旧 view= x= z= y= slice= mode= 仍认
   x: P1 ? P1[0] : num('x', 0), y: P1?.[2] ?? num('y', null), z: P1 ? P1[1] : legacyXZ ? num('z', 0) : 0, zoom: zoomQ,
   slice: PV ? PV.slice : q.get('mode') === 'surface' ? null : num('slice', null),    // null = 地表（从最外层开始）
-  fill: clamp(num('fill', 1), 0.2, 1), air: parseAir(q.get('air')), layer: /^(none|tree|f:[\w.-]+)$/.test(q.get('layer') ?? '') ? q.get('layer') : 'none', lop: clamp(num('lop', 0.35), 0.1, 1),
+  fill: clamp(num('fill', 1), 0.2, 1), air: parseAir(q.get('air')), xray: clamp(Math.round(num('xray', 0)), 0, 64), layer: /^(none|tree|f:[\w.-]+)$/.test(q.get('layer') ?? '') ? q.get('layer') : 'none', lop: clamp(num('lop', 0.35), 0.1, 1),
   shade: ['block', 'biome', 'height'].includes(q.get('shade')) ? q.get('shade') : 'block', grid: q.get('grid') !== '0', sel: parseSel(q.get('sel')) ?? parsePin(q.get('pin')),   // 旧 pin= 3 / 6 元 → sel
   origin: parsePair(q.get('origin')) ?? [0, 0], origins: q.has('pts') || q.has('origins') ? parseOrigins(q.get('pts') ?? q.get('origins')) : lsOrigins,   // origins= 旧名
   hit: parsePair3(q.get('hit')), rate: clamp(num('rate', 7), 1, 60), minip: q.get('minip') === '1', otext: q.get('otext') !== '0', terr: parseTerr(q.get('terr')), lay: q.get('lay') === '1', bio: parseBio(q.get('bio')), bm: ['only', 'hl', 'un'].includes(q.get('bm')) ? q.get('bm') : 'hl', tod: parseTod(q.get('tod')), lcol: /^[0-9a-f]{6}$/i.test(q.get('lcol') ?? '') ? q.get('lcol').toLowerCase() : null, opath: q.get('opath') === '1', seld: clamp(num('seld', 16), 1, 256),
 };
 
 // 只有 g seed kw p1 pv shade layer z 随改动实时写进地址栏；其余（sel hit pts bio 与各开关 / 参数）location 里只有「加载时带的」或「最近一次复制 URL / gd 时」的快照
-const snapVals = () => ({ sel: S.sel && [...S.sel], hit: S.hit && [...S.hit], pts: fmtPts(S.origins), bio: [...S.bio], origin: [...S.origin], fill: S.fill, rate: S.rate, minip: S.minip, otext: S.otext, grid: S.grid, terr: S.terr, lay: S.lay, bm: S.bm, tod: S.tod, lcol: S.lcol, opath: S.opath, air: S.air, lop: S.lop, seld: S.seld });
+const snapVals = () => ({ sel: S.sel && [...S.sel], hit: S.hit && [...S.hit], pts: fmtPts(S.origins), bio: [...S.bio], origin: [...S.origin], fill: S.fill, rate: S.rate, minip: S.minip, otext: S.otext, grid: S.grid, terr: S.terr, lay: S.lay, bm: S.bm, tod: S.tod, lcol: S.lcol, opath: S.opath, air: S.air, xray: S.xray, lop: S.lop, seld: S.seld });
 const snap = { ...snapVals(), pts: q.has('pts') || q.has('origins') ? fmtPts(S.origins) : '' };   // 启动时 pts 不取 localStorage 的
 
 // ---- 错误收集（viz.errors()） ----
@@ -78,16 +78,17 @@ const busy = new Set();                // 在途：'g' + key（整块）/ 'c' + 
 let n3 = [], n2 = [], wc = null;       // 待生成（最近优先）、窗口中心区块
 const dirty3 = new Set(), dirty2 = new Set();
 const st = { t0: 0, t1: 0, got: 0, wms: 0, clip: 0, cols: 0, pn: 0 };   // got / wms 累计；t0 t1 pn = 当前这一轮加载（墙钟）
-let waiters = [], fadeEnd = 0, booting = null, frameReq = 0, gizHover = null, play = null;
+let waiters = [], fadeEnd = 0, booting = null, bootErr = null, frameReq = 0, gizHover = null, play = null;
 const live = () => !!play && !play.frozen;   // 快放中（frozen = 其它轴的扫描线 / 剖面已停在某层，Esc 取消）
 let hov = null;                        // 最近一次地图悬停：{ px, py, c, r, p }
 let selA = null, edge = null, copied = '', pinV = null, pinK = '', pinPend = false;   // pinV / pinK：③ 近端格的 sample 缓存
 
-const genUrl = (g) => /^(mini|gp|liq|old|v7|valleys)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
+const genUrl = (g) => /^(mini|gp|liq|old|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
 const dpr = () => window.devicePixelRatio || 1;
 
 // ---- 启动 / 重置：换生成器或种子 ----
 async function boot() {
+  bootErr = null;
   const url = genUrl(S.g);
   if (pool && poolUrl !== url) { pool.close(); pool = null; }
   if (!pool) { pool = new Pool(url); poolUrl = url; pool.onerr = (e) => { errs.push('slicer: ' + e.msg); cerr('[slicer]', e.msg, e.stack); status(); }; pool.pump = pump; }
@@ -103,7 +104,7 @@ async function boot() {
   Object.assign(st, { t0: performance.now(), t1: 0, got: 0, wms: 0, clip: 0, cols: 0, pn: 0 });
   recenter(true); syncUI(); world(); draw();
 }
-const restart = () => (booting = boot().catch(e => { errs.push('boot: ' + e.message); cerr(e); $('s1').innerHTML = `<span class="bad">启动失败：${e.message}</span>`; }));
+const restart = () => (booting = boot().catch(e => { bootErr = e; errs.push('boot: ' + e.message); cerr(e); $('s1').innerHTML = `<span class="bad">启动失败：${e.message}</span>`; }));
 
 // ---- 窗口大小（V-8）：3D 覆盖画布长边的 fill（≤ 48 区块），2D 铺满画布（≤ 80）；缩放下限 = 2D 刚好铺满 ----
 const zmin = () => Math.max(cv.clientWidth, cv.clientHeight) / ((C2 - 2) * 16);
@@ -218,7 +219,7 @@ function draw() {
   const v = VIEWS[S.view], rg = range();
   const clip = play && play.axis !== rg.a ? [play.axis, -play.sign, clipVal(), 1] : [0, 0, 0, 0];   // 压暗的是「已扫过」的那一侧（扫描方向的背后），所以符号取反
   const mk = hov?.r?.hit ?? hov?.r?.water;
-  const e = R.draw(viewParams(v, { res: [w, h], center: center3(), zoom: S.zoom * k, start: rg.start, end: rg.end, air: S.air ? 1 : 0, grid: S.grid, clip, mark: mk ? [...mk, 1] : [0, 0, 0, 0] }));
+  const e = R.draw(viewParams(v, { res: [w, h], center: center3(), zoom: S.zoom * k, start: rg.start, end: rg.end, air: S.air ? 1 : 0, xray: S.xray | 0, grid: S.grid, clip, mark: mk ? [...mk, 1] : [0, 0, 0, 0] }));
   if (e) errs.push(e);
   layerDraw(rg);
   ruler(); originMarks(); bioTick(); sliceUI(rg); tlUI();
@@ -478,7 +479,7 @@ function world() {
 
 // ---- UI 同步 ----
 function syncUI() {
-  $('seed').value = S.seed; $('gsel').value = /^(mini|gp|liq|old|v7|valleys)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade; $('cleg').style.display = S.shade === 'height' ? '' : 'none';
+  $('seed').value = S.seed; $('gsel').value = /^(mini|gp|liq|old|luan0|luanV)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade; $('cleg').style.display = S.shade === 'height' ? '' : 'none';
   $('rate').value = S.rate; $('minipc').checked = S.minip; $('otextc').checked = S.otext; $('terrsel').value = S.terr; dialUI(); $('side').classList.toggle('lay', S.lay); $('layb').classList.toggle('on', S.lay); $('bmode').value = S.bm; bioUI(); $('airc').checked = S.air; $('gridc').checked = S.grid;
   $('seld').value = S.seld; layerUI();
   $('fillr').value = S.fill; $('fillv').textContent = Math.round(S.fill * 100) + '%';
@@ -503,7 +504,7 @@ function urlParams(o = {}, live = false) {   // live = true：快照那组也取
   const p = new URLSearchParams({ g: S.g, seed: S.seed, pv: sgn(V.ax) + (S.slice !== null ? ':' + S.slice : ''), p1: `@${Math.round(S.x)},${Math.round(S.z)}` + (axisOf(V.F) !== 1 ? '^' + Math.round(S.y ?? 64) : ''), z: Math.round(S.zoom) });
   if (S.shade !== 'block') p.set('shade', S.shade); if (S.layer !== 'none') p.set('layer', S.layer);
   if (Object.keys(S.kw).length) p.set('kw', fmtKw(S.kw));
-  if (L.fill !== 1) p.set('fill', L.fill); if (L.rate !== 7) p.set('rate', L.rate); if (L.minip) p.set('minip', 1); if (!L.otext) p.set('otext', 0); if (L.terr) p.set('terr', L.terr); if (L.lay) p.set('lay', 1); if (L.bio.length) p.set('bio', L.bio.join(',')); if (L.bm !== 'hl') p.set('bm', L.bm); if (L.tod !== null) p.set('tod', +L.tod.toFixed(2)); if (L.lcol) p.set('lcol', L.lcol); if (L.opath) p.set('opath', 1); if (L.air) p.set('air', 1); if (L.lop !== 0.35) p.set('lop', L.lop);
+  if (L.fill !== 1) p.set('fill', L.fill); if (L.rate !== 7) p.set('rate', L.rate); if (L.minip) p.set('minip', 1); if (!L.otext) p.set('otext', 0); if (L.terr) p.set('terr', L.terr); if (L.lay) p.set('lay', 1); if (L.bio.length) p.set('bio', L.bio.join(',')); if (L.bm !== 'hl') p.set('bm', L.bm); if (L.tod !== null) p.set('tod', +L.tod.toFixed(2)); if (L.lcol) p.set('lcol', L.lcol); if (L.opath) p.set('opath', 1); if (L.air) p.set('air', 1); if (L.xray) p.set('xray', L.xray); if (L.lop !== 0.35) p.set('lop', L.lop);
   if (!L.grid) p.set('grid', 0); if (L.sel) p.set('sel', L.sel.join(','));
   if (L.origin[0] || L.origin[1]) p.set('origin', L.origin.join(',')); if (L.hit && L.sel && inBox(L.hit, L.sel)) p.set('hit', L.hit.join(','));
   if (L.pts && L.pts.length < 600) p.set('pts', L.pts);
@@ -1117,6 +1118,7 @@ async function regionCall(o) {
   if (o.go ?? (!!o.sel && !store.inWin(mx >> 4, mz >> 4))) { S.x = mx; S.z = mz; changed(); await window.viz.ready(); }
   const res = await regionStats(store, meta, box, { noise: o.noise, noiseN: o.noiseN, sample: (x, z) => pool.call('sample', { x, z }) });
   Object.assign(res, { g: S.g, seed: S.seed, kw: { ...S.kw } });
+  if (o.depth) res.depth = await window.viz.depth({ x: mx, z: mz, ...(o.depth === true ? {} : o.depth) });   // 逐 Y 组成（矿洞）：跟选区一起回
   const k = box.join(',') + '|' + S.g + '|' + S.seed, prev = lastStats.get(k);
   const ref = o.vs === 'base' ? prev?.base : prev?.last;
   if (ref && !o.fresh) res.vs = { against: o.vs === 'base' ? 'base' : 'prev', kw: ref.kw, delta: diffStats(ref.res, res) };
@@ -1125,13 +1127,14 @@ async function regionCall(o) {
 }
 
 // ---- window.viz：给 Agent / gd ----
-const KEYS = { layer: String, lop: Number, g: String, seed: String, view: String, x: Number, y: Number, z: Number, zoom: Number, mode: String, n: Number, rate: Number, minip: Boolean, lay: Boolean, bio: parseBio, bm: (v) => { if (!['only', 'hl', 'un'].includes(v)) throw new Error('bm ∈ only hl un'); return v; }, terr: parseTerr, tod: (v) => parseTod(v), lcol: (v) => /^#?[0-9a-f]{6}$/i.test(v ?? '') ? String(v).replace('#', '').toLowerCase() : null, otext: Boolean, opath: Boolean, air: parseAir, shade: String, grid: Boolean, fill: Number,
+const KEYS = { layer: String, lop: Number, g: String, seed: String, view: String, x: Number, y: Number, z: Number, zoom: Number, mode: String, n: Number, rate: Number, minip: Boolean, lay: Boolean, bio: parseBio, bm: (v) => { if (!['only', 'hl', 'un'].includes(v)) throw new Error('bm ∈ only hl un'); return v; }, terr: parseTerr, tod: (v) => parseTod(v), lcol: (v) => /^#?[0-9a-f]{6}$/i.test(v ?? '') ? String(v).replace('#', '').toLowerCase() : null, otext: Boolean, opath: Boolean, air: parseAir, xray: (v) => clamp(Math.round(+v || 0), 0, 64), shade: String, grid: Boolean, fill: Number,
   slice: (v) => v === null || v === '' ? null : Number(v), sel: (v) => v === null || v === '' ? null : Array.isArray(v) ? normSel(v.map(Number)) : parseSel(v),
   origin: (v) => v === null || v === '' ? [0, 0] : Array.isArray(v) ? v.map(Number).map(Math.round) : parsePair(v) ?? [0, 0], pin: (v) => v === null || v === '' ? null : Array.isArray(v) ? parsePin(v.join(',')) : parsePin(v), seld: Number };   // pin = sel 的别名
 window.viz = {
   // 当前 3D 窗口与外圈 2D 全部到达、上传并画完后 resolve
   async ready() {
     await booting;
+    if (bootErr) throw bootErr;   // 池加载失败（生成器脚本 404 / 语法错）：立刻失败，不要干等 40 s
     if (!(idle() && !dirty3.size && !dirty2.size)) await new Promise(r => { waiters.push(r); frame(); });
     draw(); const w = fadeEnd - performance.now(); if (w > 0) await new Promise(r => setTimeout(r, w));   // 等视角切换的淡出结束
     return true;
@@ -1152,6 +1155,38 @@ window.viz = {
     const v = VIEWS[S.view], rg = range(), c = [0, 0, 0], ra = axisOf(v.R), da = axisOf(v.D);
     c[ra] = Math.floor(a); c[da] = Math.floor(b); c[rg.a] = rg.start;
     const r = store.march(c, v.F, rg.end); return r.hit || r.wd ? r.dist : null;
+  },
+  // 逐 Y 组成（矿洞 / 切片）：以 (x,z) 为中心 n×n 列、步长 step 格，bin 格一档 → 各组分千分比。
+  // 只读已加载的块（缺的格不计入分母）；air = 空气，water/lava/ore 按名字归类。
+  depth(o = {}) {
+    if (!store) throw new Error('viz.depth: 还没有体素（先 await viz.ready()）');
+    const n = clamp(Math.round(o.n ?? 17), 1, 129), step = Math.max(1, Math.round(o.step ?? 16)), bin = clamp(Math.round(o.bin ?? 4), 1, 64);
+    const x0 = Math.floor(o.x ?? S.x) - ((n - 1) >> 1) * step, z0 = Math.floor(o.z ?? S.z) - ((n - 1) >> 1) * step;
+    const nb = Math.ceil(H / bin), kind = new Uint8Array(4096);
+    (meta?.names ?? []).forEach((nm, i) => { if (i < 4096) kind[i] = nm === 'air' ? 1 : /water/.test(nm) ? 2 : /lava|magma/.test(nm) ? 3 : /(^|_)ore(_|$)|ancient_debris/.test(nm) ? 4 : 0; });
+    const cnt = [null, new Float64Array(nb), new Float64Array(nb), new Float64Array(nb), new Float64Array(nb)], tot = new Float64Array(nb);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const x = x0 + i * step, z = z0 + j * step;
+      for (let y = 0; y < H; y++) {
+        const v = store.get(x, y, z); if (v < 0) continue;
+        const b = (y / bin) | 0; tot[b]++;
+        const k = v ? kind[v & 0xfff] : 1;
+        if (k) cnt[k][b]++;
+      }
+    }
+    const perm = a => [...a].map((v, i) => tot[i] ? Math.round(1000 * v / tot[i]) : 0);
+    return { x0, z0, n, step, bin, cols: n * n, H, air: perm(cnt[1]), water: perm(cnt[2]), lava: perm(cnt[3]), ore: perm(cnt[4]) };
+  },
+  // 屏幕点 → 世界点（canvas CSS 像素，左上为原点）：沿视线轴步进到第一个实体，读它是什么 / 哪列 / 群系；sample 可选（按列取群系噪声）
+  async at(px, py, o = {}) {
+    if (!store) throw new Error('viz.at: 还没有体素（先 await viz.ready()）');
+    const h = pick(px, py), p = h.p, v = store.get(...p), col = store.col(p[0], p[2]);
+    const r = { px, py, p, hit: !!h.r.hit, water: !!h.r.water, dist: h.r.dist,
+      name: v < 0 ? '(未生成)' : v ? meta.names?.[v & 0xfff] ?? '#' + (v & 0xfff) : '空气',
+      biome: col ? meta.biomes?.[col.biome] ?? col.biome : null, col: col ? { h: col.h, y: col.y, wd: col.wd } : null,
+      d2: !!h.d2, at: atRel(p[0], p[1], p[2]) };
+    if (o.sample) r.sample = await pool.call('sample', { x: p[0], z: p[2] }).catch(e => ({ err: e.message }));
+    return r;
   },
   async probe(x, y, z) {
     [x, y, z] = [x, y, z].map(Math.floor);

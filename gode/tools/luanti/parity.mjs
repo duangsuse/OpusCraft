@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* gode/tools/luanti/parity.mjs —— 回归：v7 / valleys 在若干种子与区域上与真实 Luanti 逐格对拍，每行一条，≥ 99.9% 且群系列全对才算过。
+/* gode/tools/luanti/parity.mjs —— 回归：v7 / valleys（gode 的 luan0 / luanV）在若干种子与区域上与真实 Luanti 逐格对拍，每行一条，≥ 99.9% 且群系列全对才算过。
    用法：node tools/luanti/parity.mjs [--quick]（--quick 只跑每个 mapgen 一组）。需要本机装了 luanti；每组约 5 s。 */
 import { spawnSync } from 'node:child_process'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));

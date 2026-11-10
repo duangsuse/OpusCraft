@@ -1,4 +1,4 @@
-/* gode/defl/g/lt/adapter.js —— Luanti 系生成器的 Worker 适配（slicer 契约，s02 §2）：adapter('v7' | 'valleys') → { meta, onkwarg, gen, sample, spawn }。
+/* gode/defl/g/lt/adapter.js —— Luanti 系生成器的 Worker 适配（slicer 契约，s02 §2）：adapter('luan0' | 'luanV') → { meta, onkwarg, gen, sample, spawn }。
    规范 y = Luanti 原生 y + 64（同 liq）：原生 −64…191 ↔ 规范 0…255，海平面 water_level 1 ↔ 65。无外写（地形与群系都是逐点的，没有跨块特征；装饰 / 矿 / 地牢另说）。 */
 import { createGen, DY, KNOBS } from './core.js';
 import { colReduce } from '../../../w/slicer.js';

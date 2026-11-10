@@ -2,9 +2,97 @@
 
 > 上游：`goal-pgviz.md`（全文；本节只写 gode 的差异）；s02 §2 生成器 Worker 契约、§2.1 `c_.Gen` knobs；s12 Agent 工具。
 > UI 参考：`techstack/res/minecrafttools.wiki/*-L.webp`（seed map）、`techstack/res/craftplicator.com/*-L.webp`（mcweb）。
-> 用途：**人和 Agent 都用它调地形参数**——人拖滑块看图；Agent 用 URL + `gd shot` 闭环。
+> 用途：**人和 Agent 都用它调地形参数**——人拖滑块看图；Agent 用 URL + `gd snap`（pgviz 不是宿主 B，`shot` 的机位不适用）闭环。
 
-## 0. 已定 [11-09]
+## 0. 调用（先看这个；11-10 全部实测）
+
+静态服务在 `http://localhost:8765/`（`node gode/tools/dev.js` 或任意 `-c 1` 的服务器）。两条路等价：
+
+```bash
+# 人：浏览器直接开
+http://localhost:8765/gode/viz/?g=gp&seed=20240607&pv=Y&p1=@0,0&zoom=2
+
+# Agent：gd 守护进程（无头用 GD_HEADLESS=1）
+gd up
+gd go 'gode/viz/?g=gp&seed=20240607&pv=Y&p1=@0,0&zoom=2'
+gd snap --tag viz-gp          # pgviz 用 snap（shot 是宿主 B 的机位截图）
+```
+
+最少三个参数：`g`（生成器）+ `seed` + `pv`（视角 / 切片）。`pv` 写法：
+
+| `pv=` | 含义 |
+|---|---|
+| `Y` | 俯视地表 |
+| `Y:80` | 俯视 + 切到 y=80（**Y 切片**；② 的滑块与 Shift+滚轮同步） |
+| `-Y:80` | 仰视，切面在 y=80 |
+| `south` `north` `east` `west` | 侧视；`:n` 是沿该轴切到 n（单位随轴换 x / z） |
+
+其余常用键：`p1=@x,z[^y]` 视口中心、`zoom`（px/格）、`shade=block|biome|height`、`xray=N`（切片透视，见 §2.1）、`layer=`、`sel=x0,y0,z0,x1,y1,z1`、`kw=<点号键>:值,…`（例 `kw=river.width:0.02`）。
+
+
+**群系图册**：`node gode/tools/biomeshots.mjs <gen> [<name>[&<urlparams>]]` —— 逐个群系拍一组
+`top`（地表，关切片）/ `side`（南侧视）/ `slc`（**多层切片**）/ `mine`（俯视 + `shade=height`，洞窟 / 空气深度视图），
+存 `gode/shots/<seed>/<gen>/{top,side,mine}/<群系名>.webp` 和 `<seed>/<gen>/slc/<群系名>/@<Y>.webp`（按 seed 分目录、不按日期；层高随群系变，所以 slc 按群系分目录、Y 在文件名里）；
+同时写 `<gen>/biomes.tsv`（中心点 `x,z`、`hSample`/`hTop`/`block`、`sample` 的温度/湿度/山地/大陆度、`slcY`/`slc`/`slcAir`/`air`、`top`/`side`/`mine` 路径）。
+`<name>` 省略或 `all` = 全部；`&` 后是附带 URL 参数（默认 `g=<gen>&seed=20240607&pv=Y&z=5&terr=1&tod=14.08`，后面的覆盖前面的）。
+
+**回到某张图**：`node gode/tools/gd.js open gode/shots/<seed>/<gen>/{top,side,mine}/<群系名>.webp`（或 `.../slc/<群系名>/@<Y>.webp`，或拼图 `.../slc/<群系名>_going_deeper.webp --nth N`，N 从 1 = 最高层，缺省 1）——
+按 `<gen>/biomes.tsv` 首行的参数与那一行的 `x,z` 重新导航（`p1=@x,z`）+ 设 `view`/`mode`/`slice`/`shade`/`xray`，并恢复拍图时的 UI（左栏 `nosd`、隐藏 gizmo / 右上竖条 / toast，所以 canvas 尺寸与像素对应关系和截图一致）。输出：
+`layers`（slc 的全部层路径，`*` 标当前打开的那层）、`probe`（中心点，含 `sample`）、`canvas`（尺寸 / 偏移 / dpr：`--px` 用图里的像素，换算 `canvas = px - rect.left/top`）、`state`（view/mode/slice/xray/shade/zoom）、
+`depth`（slc/mine 默认带，`viz.depth` 的曲线）、可选 `point`（`--px X,Y` 读该像素下的块 + sample）、`sel`（`--px X,Y --sel` 顺手左键选中，之后 `viz.stats()` 就算这块）。
+之后照常 `gd eval` / `gd snap`；`gd open` 不会改图册文件。
+
+**slc 层高**（11-10 起替掉固定 `Y=110` —— 山顶和海底切同一刀没意义）：
+
+| `&slc=` | 层 |
+|---|---|
+| `auto`（默认） | 中心列**真地表** `min(hSample, hTop)` 的 **0.9 / 0.6 / 0.3 / 0.1**：深海海底 98 → 88/59/29/10，高山 200 → 180/120/60/20；同一比例跨群系同义 |
+| `auto:N` | 均分 N 层（0.9→0.1，N ≤ 8） |
+| `Y1,Y2,…` | 绝对高度（`&slc=110`、`&slc=110,64` 是旧用法 / 定点对比） |
+
+- 层高按 `min(hSample, hTop)` 算（水域的 `hTop` 是水面 / 冰面，深海一律 126，直接用会切出一层水；取小的才是海底）、夹在 `0…meta.h-1` 并去重，所以低群系不会退化重复。
+- `air` 列 = 每层以中心为原点、`33×33` 格（步长 8）采 `viz.airDist` 的「空气占比 / 平均空气格数 / 最大」——不开图也能读洞穴开敞度。
+- 每层默认开 `xray=12`（11-10）：切片面往里 12 格做**前到后半透明合成**——实体按 0.26、水 0.14 的 alpha 叠（越近越实），地表以下的空气染成紫色薄雾。于是矿洞 / 空腔 / 矿脉在后面透出来，不再只是一张截面；`&xray=N` 改厚度（0…64，0 = 关）。
+- `depth` 列 = 逐 Y 组成曲线（JSON：`bin` 格一档，`air`/`water`/`lava`/`ore` 千分比，围绕中心 17×17 列采样）。调 3D 洞穴先看这条线：想要 y=-40 附近 12% 空气，直接看那一档。
+- `mine` 是现成的 `shade=height`（洞窟）视图：颜色 = 空气柱底的高度，矮洞压暗 —— 一张图看整列的空气深度。
+- **grid**（跑完顺手，有 ffmpeg 才做）：`slc/<群系名>/` 的各层拼成 **`slc/<群系名>_going_deeper.webp`** —— 2 列行优先、Y 从高到低（= tsv `slcY` 顺序），每格缩到 640×360、四周 8 px 黑边，整张 1312×752；Agent 一次 Read 看完整列剖面。派生图不进 `biomes.tsv` / `index.tsv`，`GD_NOGRID=1` 关；`node gode/tools/biomeshots.mjs grid <gen>[&seed=…]` 可单独补（不连浏览器）。
+
+中心点：`viz.jump('@0,0')` 起（11-10 起固定起点，重跑 / 换顺序都得到同一个中心）→ `bioSearch` 最近出现处 → ±256 格 `bfind`（步长 8）→ 优先陆地命中（`sample.h > meta.sea+1`，≥8 个且 ≥10% 时）取质心 → 最近命中点；最后复验 `sample.biome`。
+顶栏 X/Z 两个输入框临时填 `@x,z` 和群系名（只改 value，不回车）；截图前隐藏 gizmo / 右上工具条 / toast，左栏 `nosd`。
+gd 的 `--tag` 不支持路径（会 slug 成 `_`），所以工具按默认名截图后把文件搬到目标目录，并同步改 `shots/index.tsv` 该行的 `files`（同 tag 旧行清掉，免得 prune 删到当前文件）。
+
+**`g` 不限于短名**：`mini/gp/liq/old/luan0/luanV/veg` 映射到 `defl/g/<名>.js`，其它值按 URL 解析（相对或绝对），所以新生成器**不改 viz 也能先看**：
+
+```bash
+gd go 'gode/viz/?g=../defl/g/v3.js&seed=20240607&pv=Y&p1=@0,0'
+```
+
+Agent 侧 API（`gd eval '<js>'`，异步的用 `await`；页面里也可直接调）：
+
+| 调用 | 作用 |
+|---|---|
+| `await viz.ready()` | 3D 窗口 + 外圈 2D 全部到齐并画完；**生成器脚本 404 / 语法错时立刻抛错**（11-10 起，不再干等 40 s） |
+| `viz.stats()` | 当前窗口：块数 / 在途 / ms·块 / 池 / 代 / `clipped` / `errors` |
+| `viz.stats({sel:[x0,y0,z0,x1,y1,z1]})` | 区域统计（方块 / 群系 / 水 / 树 / 洞 / 噪声场）；`{base:true}` 钉基线、`{vs:'base'}` 对比；`{depth:true}` 额外回 `depth`（= `viz.depth`，取选区中心） |
+| `viz.probe(x,y,z)` | 单格：原始 `v`、`type`、`meta`、`name`、群系、地表 y、`sample`（越界给 `-1`） |
+| `viz.depth({x,z,n,step,bin})` | **逐 Y 组成曲线**（矿洞 / 切片用）：中心 `n×n` 列（默认 17、步长 16）按 `bin` 格（默认 4）分档，回 `air`/`water`/`lava`/`ore` 千分比数组 + `x0,z0,cols,H`；只算已载入的格（缺的不进分母）。`viz.stats({sel:…, depth:true})` 会把同一份曲线挂在区域统计的 `depth` 上 |
+| `viz.at(px,py,{sample:true})` | 屏幕点（canvas CSS 像素，左上原点）→ 沿视线步进到第一个实体：世界点 `p`、方块名、群系、列 `h/surface`、`dist`、`hit/water`，可选按列取 `sample`；`viz.click(px,py,btn)` / `viz.hover(px,py)` 是它的输入路径（左键 = 选中） |
+| `viz.params()` / `viz.tune({...})` / `viz.set(k,v)` | knobs 的 schema + 当前值 / 改一批并重算 / 改一个 UI 键（`slice`、`view`、`g`、`seed`…） |
+| `viz.regen()` | 同参数重生成（改完生成器文件后） |
+| `viz.airDist(a,b)`、`viz.layers()`、`viz.seam({at:[[cx,cz],…]})` | 视线空气距离 / 图层 / 接缝检查 |
+| `viz.bioLocate(id)` / `viz.bioSearch(id)` / `viz.bfind({x0,z0,n,step,want})` | 群系 finder（§16）：窗口里定位 / 向窗口外扫描 / 直接问一个 512 格见方的块 |
+
+**加一个生成器**要动这几处（按顺序）：
+
+1. `gode/defl/g/<名>.js`（s02 §2 契约：`meta / onkwarg / gen / sample`，`serve(import.meta.url)` 收尾）
+2. 想进下拉框：`gode/viz/index.html` 的 `<select id="gsel">` 加一项
+3. 想用短名 `?g=<名>`：`gode/viz/app.js` 与 `gode/main/boot.js` 的 `genUrl` 白名单（否则就用 `?g=../defl/g/<名>.js`，两处都不用改）
+4. 想进 `gd check --matrix all`：`gode/tools/gd.js` 的 `MATRIX_GENS`
+5. 文档 / 基线：s02 §4 的表、本文件、`gode/tools/baseline.tsv` 第一列、`defl/c_.json` 的 `c_.Bench.poses['<seed>@<名>']`
+
+> 打包型生成器（`veg`）：产物在 `vendor/v3/terrain.mjs`，由 `node gode/tools/build-v3.mjs` 生成，`--check` 比对；改了 goodPG 源码就重跑它，别手改产物。
+
+## 0.1 已定 [11-09]
 
 | # | 决定 |
 |---|---|
@@ -37,7 +125,7 @@
 | 单 Worker 流式 | 用 slicer 池（s01），同一池大小规则 |
 | Tweakpane 参数面板 | `gg.pane`：`c_.Gen.lake.it.rate` 等，`meta.knobs` 决定显示哪些行 |
 | `localStorage['pgviz.knobs.mini']` | `gg_v` 层（s09 §1）；「固化」= `✎ 写为 js 默认` 写回 `defl/c_.json` |
-| `tools/genview.mjs` CLI + `cpu-march.js` | **不做**。Agent 出图用 `gd shot`（s12）对 pgviz 页面截图；C6 GL/CPU 对拍随之删去 |
+| `tools/genview.mjs` CLI + `cpu-march.js` | **不做**。Agent 出图用 `gd snap`（s12）对 pgviz 页面截图，群系图册用 `tools/biomeshots.mjs`（§0）；C6 GL/CPU 对拍随之删去 |
 
 保留：图层模型与空气层叠（§5）、gizmo 与键盘（§4）、URL 同步、重生成协议（§7 的消息表）、C4 转置检查、C10 重生成检查。
 
@@ -118,6 +206,8 @@
 - 和快放配合：快放时数字逐层变小，到 `-` 时那一格正好被切到。
 - Agent 用法：`gd eval 'viz.airDist(x, z)'` 拿同一个数，不必读图上的字。
 
+**切片透视 `xray=N`**（URL / `viz.set('xray', 12)`，默认 0）：从切面往里数 N 格做前到后合成，实体 0.26、水 0.14，`y` 低于第一格实体的空气再叠 0.10 的紫雾；洞 = 紫色薄雾、矿脉与岩浆会在后层透出来。第 `i` 格实体的权重是 `(1-alpha)^i`，所以近层仍是主体，只是不再「一截面挡死」。
+
 ## 3. 调参闭环
 
 **人**：④ 拖 `c_.Gen.*` → 防抖 200 ms → 只重算当前窗口（代际 id 取消过期任务，旧图保留到新图到达，goal-pgviz P3-2）→ 满意后 ↗ 进游戏 / 选区「在游戏里重生成」。
@@ -130,7 +220,7 @@ gd eval 'viz.params()'                                         # 这个生成器
 gd eval 'viz.stats({sel:[-64,0,-64,63,255,63]})'               # 人框的区间（粘贴来的 sel）：方块 / 群系 / 水 / 树 / 洞 / 噪声场的数字
 gd eval 'viz.tune({"tree.dens":3,"terrain.shift":-6},{sel:[-64,0,-64,63,255,63]})'   # 改参数 → 重算窗口 → 同选区统计 + vs.delta（与上次的差）
 gd set c_.Gen.cave.rate=0.5                                    # 单个参数；`gd set kw=null` 全部回默认；未知键直接报错并列出可用键
-gd shot --tag tuned --vs -1                                    # 前后对照，进 gode/shots/
+gd snap --tag tuned                                            # 前后对照：两次 snap，看 gode/shots/ 里的两张（snap 没有 --vs）
 ```
 
 - `viz.stats()` 无参 = 状态（块数 / 在途 / ms 每块）；`viz.stats({sel})` = 区域统计，Agent 先看数字是否接近目标分布，再看图。选项：`sel`（缺省 = 页面上的选区）、`go`（盒心不在 3D 窗口时把视图挪过去；显式传 `sel` 时默认开）、`noise`（噪声场 min / mean / max，默认开；`noiseN` = 网格边长，6）、`fresh`（不与上次比）、`base`（把这次钉成基线）、`vs:'base'`（与基线比而不是上一次）。
@@ -314,9 +404,11 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 - **检查**：`gd check all --matrix old` 13 项全过（`viz-kw` 矿 ×3：3691 → 11433；`viz-trees` 只有 oak；`viz-layers` 2 个场 + 树种）。`gd --matrix all` 现在是 4 个生成器（`mini gp liq old`）；**基线 `baseline.tsv` 还没有 old 的行**（`BASE_GENS` 没改，等人决定要不要 `gd baseline accept`）。
 - 没有湖泊：VoxelCraft 的水只有海平面以下，`water.lake*` 恒为 0。
 
-## 14. Luanti 系生成器 `v7` / `valleys` [11-09]
+## 14. Luanti 系生成器 `luan0` / `luanV` [11-09]
 
-**定位**：给 pgviz 多两个**噪声结构完全不同**的生成器（v7：3D 山地 + 山脊河 + 噪声交线洞；valleys：河谷剖面 + 河流 + 随河流 / 海拔改热度湿度），并且有**真实参考**可以对拍，所以调参 / 重构时不必靠截图主观比。
+**11-10 改名**：`v7` → `luan0`、`valleys` → `luanV`（Generator 短名与 Worker 文件名；`vendor/luanti/` 的模块名与对拍工具的 `--mg` 仍是 Luanti 的 mapgen 名 `v7` / `valleys`）。
+
+**定位**：给 pgviz 多两个**噪声结构完全不同**的生成器（luan0：3D 山地 + 山脊河 + 噪声交线洞；luanV：河谷剖面 + 河流 + 随河流 / 海拔改热度湿度），并且有**真实参考**可以对拍，所以调参 / 重构时不必靠截图主观比。
 
 **做法**（用户 11-09 定）：Luanti 的 C++ 只当参考（浅克隆到 `/tmp/luanti-src`），JS 是**独立重写**，不逐行翻译；移植**模块化、可拆**——算法只在 `vendor/luanti/`（见该目录 `NOTICE.md` 的许可证边界），gode 一侧只有薄适配；**群系仍是声明式**（`defl/g/lt/biomes.tsv`，gode 自己的 12 个群系，字段语义取自 Luanti，不是 Minetest Game 的 default 群系）。
 
@@ -325,14 +417,14 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 | `vendor/luanti/noise.js pcg.js` | 值噪声（整数哈希、缓和曲线、2D 缓和 / 3D 只在 eased 缓和的既有不对称、absvalue、点采样 `fractal2d/3d`、噪声区间 `bounds`）、PCG32（BigInt，只走稀疏路径） |
 | `vendor/luanti/biome.js` | 热度 / 湿度最近点 + 垂直范围 + 垂直渗透 + 过渡点；`parseTsv`；`BiomeSet` |
 | `vendor/luanti/mapgen.js` | 列式收尾：群系顶 / 填充 / 水 / 河床 → 噪声交线洞 → 洞穴 → 尘。**按参考的 80 格块（原点偏移 −32）分段**，段内状态重置，所以「地表落在块底时填充层被截断」这类参考的竖直接缝行为保留 |
-| `vendor/luanti/v7.js valleys.js` | 地形（默认噪声 / spflags 同参考）；knobs：`terrain.shift contScale mountAmp river.width cave.rate`（v7）、`terrain.shift contScale valley.depth river.size river.depth cave.rate`（valleys） |
-| `defl/g/lt/core.js adapter.js biomes.tsv decorations.json schematics.json` | 装配（种子 = 参考的 `read_seed`：整数 / 十六进制 / MurmurHash64A）、slicer 适配、群系 / 装饰 / schematic 声明；`defl/g/v7.js valleys.js` 是 Worker 入口 |
+| `vendor/luanti/v7.js valleys.js` | 地形（默认噪声 / spflags 同参考）；knobs：`terrain.shift contScale mountAmp river.width cave.rate`（luan0）、`terrain.shift contScale valley.depth river.size river.depth cave.rate`（luanV） |
+| `defl/g/lt/core.js adapter.js biomes.tsv decorations.json schematics.json` | 装配（种子 = 参考的 `read_seed`：整数 / 十六进制 / MurmurHash64A）、slicer 适配、群系 / 装饰 / schematic 声明；`defl/g/luan0.js luanV.js` 是 Worker 入口 |
 | `vendor/luanti/deco.js` | 装饰（simple / schematic）与 schematic 的 ASCII 层声明，见 §14.1 |
-| `tools/luanti/run.mjs cmp.mjs parity.mjs ref-game/` | **对拍**：`run.mjs` 在 `/tmp/gode-lt/` 拼一个最小游戏（节点 + 同一张群系表，装饰 / 矿 / 地牢 / 光照 / 液体流动全关），起 `luanti --server` 导出某区域的真实节点；`cmp.mjs` 与 JS 逐格比；`parity.mjs` 一组回归（6 组种子 / 区域，约 20 s） |
+| `tools/luanti/run.mjs cmp.mjs parity.mjs ref-game/` | **对拍**（`--mg` 用 Luanti 的 `v7` / `valleys`，`cmp.mjs` 自动映射到 luan0 / luanV）：`run.mjs` 在 `/tmp/gode-lt/` 拼一个最小游戏（节点 + 同一张群系表，装饰 / 矿 / 地牢 / 光照 / 液体流动全关），起 `luanti --server` 导出某区域的真实节点；`cmp.mjs` 与 JS 逐格比；`parity.mjs` 一组回归（6 组种子 / 区域，约 20 s） |
 
-**对拍结果**（96×96 区域 × y −64…191，≈ 235 万格）：节点一致率 **99.992–100%**，群系列 100%，热度 / 湿度最大差 ≤ 1.2e-4（参考是 f32，这里 f64）。验收口径 ≥ 99.9% 且群系列全对（`parity.mjs` 的判据）。残留差异都在 **y = −33 / 47 一线（块边界）** 和 **阈值附近的 f32 翻转**。过程中靠对拍抓到的几个点：浮点 → u16 的填充深度截断；液体流动污染参考（关掉 `liquid_update`）；valleys 的海拔 / 河流修正按**块内最高石面**算（所以是 per-chunk 的）；被裁掉的山顶不能当空气落尘。
+**对拍结果**（96×96 区域 × y −64…191，≈ 235 万格）：节点一致率 **99.992–100%**，群系列 100%，热度 / 湿度最大差 ≤ 1.2e-4（参考是 f32，这里 f64）。验收口径 ≥ 99.9% 且群系列全对（`parity.mjs` 的判据）。残留差异都在 **y = −33 / 47 一线（块边界）** 和 **阈值附近的 f32 翻转**。过程中靠对拍抓到的几个点：浮点 → u16 的填充深度截断；液体流动污染参考（关掉 `liquid_update`）；luanV 的海拔 / 河流修正按**块内最高石面**算（所以是 per-chunk 的）；被裁掉的山顶不能当空气落尘。
 
-**性能**：见 §14.1（列级噪声缓存后，不带装饰 v7 ≈ 8 ms/块、valleys ≈ 7，带装饰 10–30）。v7 山地 / valleys 的 3D 噪声另用「噪声区间能判出符号就跳过」，结果与不跳过完全相同。
+**性能**：见 §14.1（列级噪声缓存后，不带装饰 luan0 ≈ 8 ms/块、luanV ≈ 7，带装饰 10–30）。luan0 山地 / luanV 的 3D 噪声另用「噪声区间能判出符号就跳过」，结果与不跳过完全相同。
 
 ### 14.1 装饰（树 / schematic）与 VoxeLibre 的思路 [11-09]
 
@@ -348,13 +440,26 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 | 尘 | `dustTopNodes` 挪到装饰之后（雪落在叶子上）；列顶必须是空气才落尘 |
 | knobs | `tree.dens`（装饰密度乘子，同名同义于其它生成器）、`deco.depth` |
 
-**列级噪声缓存**：`col3d`（`noise.js`）沿一列只缓存相邻两层格点，y 连续变化时几乎不再算哈希，**逐位等于** `fractal3d`（`selftest.mjs` 对拍，升 / 降 / 乱序 × 3 种 flags）。地形、山脊河、噪声洞、洞穴都用它：v7 ≈ 24 → 8 ms/块；带装饰（depth 2）v7 ≈ 10（普通）–30（密林）ms/块、valleys ≈ 10–24。pgviz 外圈 2D 的 `col` 动词覆盖成 `depth 0`（`adapter.js`），不然 6400 列会慢到 `viz-preview` 超时。
+**列级噪声缓存**：`col3d`（`noise.js`）沿一列只缓存相邻两层格点，y 连续变化时几乎不再算哈希，**逐位等于** `fractal3d`（`selftest.mjs` 对拍，升 / 降 / 乱序 × 3 种 flags）。地形、山脊河、噪声洞、洞穴都用它：luan0 ≈ 24 → 8 ms/块；带装饰（depth 2）luan0 ≈ 10（普通）–30（密林）ms/块、luanV ≈ 10–24。pgviz 外圈 2D 的 `col` 动词覆盖成 `depth 0`（`adapter.js`），不然 6400 列会慢到 `viz-preview` 超时。
 
-**对拍**：参考服务器多 emerge 一圈（`gode_emerge_pad` 96），不然边缘的树冠缺一块；`cmp.mjs` 把「参考没生成过的块」从前驱里剔除（`bounds`）。12 组（v7 / valleys × 种子 / 区域，含 3 万树格的密林、洞穴与气候参数变体）节点一致率 **99.93–100%**，树格总数基本相等（密林 31962 vs 31870）。`tools/luanti/parity.mjs` 一把跑完约 45 s。
+**对拍**：参考服务器多 emerge 一圈（`gode_emerge_pad` 96），不然边缘的树冠缺一块；`cmp.mjs` 把「参考没生成过的块」从前驱里剔除（`bounds`）。12 组（luan0 / luanV × 种子 / 区域，含 3 万树格的密林、洞穴与气候参数变体）节点一致率 **99.93–100%**，树格总数基本相等（密林 31962 vs 31870）。`tools/luanti/parity.mjs` 一把跑完约 45 s。
 
-**VoxeLibre 的思路（只参考，不用代码；VL 是 GPLv3）**：VL 的地形不是它自己的——v7 / valleys 的地形、河、洞都是引擎的 C++，VL（`mcl_mapgen_core`）只调参数、注册群系 / 装饰 / 结构：打开 caverns 且 `cavern_threshold = 0.20`、关地牢、不允许 v6；`minetest.conf` 里 `mgvalleys_spflags = noaltitude_chill,noaltitude_dry,nohumid_rivers,vary_river_depth`（它的群系自带雪版，海拔降温 / 降湿会重复；`humid_rivers` 会让蘑菇岛老出现在河边）。借过来的是**参数思路**，做成 knobs：`cavern.threshold`（v7 默认 0.7、valleys 0.6）、`cavern.limit`（默认 −256，在窗口外；调到 −30…100 才看得见大洞）、valleys 的 `climate.altChill / altDry / humidRivers`、`river.varyDepth`。VL 式预设 = `kw=cavern.threshold:0.2,cavern.limit:-30,climate.altChill:0,climate.altDry:0,climate.humidRivers:0`；这些 knobs 在对拍里验证过（`parity.mjs` 最后两组，99.992%）。
+**VoxeLibre 的思路（只参考，不用代码；VL 是 GPLv3）**：VL 的地形不是它自己的——luan0 / luanV（Luanti 的 v7 / valleys）的地形、河、洞都是引擎的 C++，VL（`mcl_mapgen_core`）只调参数、注册群系 / 装饰 / 结构：打开 caverns 且 `cavern_threshold = 0.20`、关地牢、不允许 v6；`minetest.conf` 里 `mgvalleys_spflags = noaltitude_chill,noaltitude_dry,nohumid_rivers,vary_river_depth`（它的群系自带雪版，海拔降温 / 降湿会重复；`humid_rivers` 会让蘑菇岛老出现在河边）。借过来的是**参数思路**，做成 knobs：`cavern.threshold`（luan0 默认 0.7、luanV 0.6）、`cavern.limit`（默认 −256，在窗口外；调到 −30…100 才看得见大洞）、valleys 的 `climate.altChill / altDry / humidRivers`、`river.varyDepth`。VL 式预设 = `kw=cavern.threshold:0.2,cavern.limit:-30,climate.altChill:0,climate.altDry:0,climate.humidRivers:0`；这些 knobs 在对拍里验证过（`parity.mjs` 最后两组，99.992%）。
 
-**没做**（不在列式管线里，依赖整块 + 区块种子）：随机游走洞、地牢、悬岛（v7 `floatlands`）、矿。`ore.mul` 没有，`viz-kw` 在没有 `ore.mul` 时用 `terrain.shift`。pgviz `gd check all --matrix all`（6 个生成器）全过。**基线 `baseline.tsv` 没加 v7 / valleys / old**（`BASE_GENS` 没改，等人决定）。
+### 14.2 测试开销（11-10 实测）
+
+| 项 | luan0 | luanV |
+|---|---|---|
+| 单块生成（带装饰 `deco.depth 2`，Node 直接调 `createGen`） | **14.4 ms/块** | **8.7 ms/块** |
+| 建表（群系 + 装饰 + schematic） | 5 ms | 1 ms |
+| 单进程常驻（100 块后 rss / heapUsed） | 228 MB / 70 MB | 324 MB / 130 MB |
+
+- 量法：`createGen(mg, 20240607, {biomesText, decoText})` 后连算 100 块 × 256 列 `finalColumn`（`/tmp` 一次性脚本，未进仓库）。
+- **浏览器侧才是大头**：pgviz 一屏 289 块、8 个 worker + Chrome，`gd check --matrix luan0,luanV` 一次峰值 ≈ **5.2 GiB**。
+- 同一条命令这次两次都没跑完：第一次 284 s 后 `Runtime.evaluate 超时`，重试 94 s `socket hang up`（守护进程随之退出）；**页面本身 ready 正常**（默认 URL 下 luan0 / luanV 都在 5 s 内 ok），失败在检查流程里，原因没定位。所以 luan 系和 `veg` 一样**不进 `--matrix all`**。
+- 要验挑一样就够：`node gode/tools/luanti/cmp.mjs --mg v7 --seed 42`（纯 Node，无 Chrome，235 万格 **0.9 s**、内存 < 0.5 GiB；11-10 重命名后实测 99.9996%）、`node gode/tools/luanti/parity.mjs`（6 组 ≈ 45 s）、`gd check errors --matrix luan0`（只开一个生成器，内存减半）、或小窗口 `?g=luan0&p1=@0,0&z=5` + `gd snap`。
+
+**没做**（不在列式管线里，依赖整块 + 区块种子）：随机游走洞、地牢、悬岛（v7 `floatlands`）、矿。`ore.mul` 没有，`viz-kw` 在没有 `ore.mul` 时用 `terrain.shift`。pgviz `gd check all --matrix all`（6 个生成器）全过。**基线 `baseline.tsv` 没加 luan0 / luanV / old**（`BASE_GENS` 没改，等人决定）。
 
 ## 15. 原点叠加：文字 + 路径 [11-09]
 
@@ -372,11 +477,12 @@ gd shot --tag tuned --vs -1                                    # 前后对照，
 - **顶栏 `#modes` 里「图层」= 独立开关**（`layb`，URL `lay=1`，`viz.set('lay', true)`），不带 `data-m`，所以 **E 只在地表 / 切片间切**；「层叠」占位钮保持禁用（空气层叠以后做成「层叠」文件夹，不进 E 循环）。开了以后左栏 = ① 世界 → 群系 → ③ 方块 → ⑤ 选区，**没有 ② 视图**（关掉图层开关才有；视角 / 着色 / 拨盘等要等分进新文件夹）。
 - **群系文件夹**：`模式` select（只显示 / 高亮显示 / 取消高亮，`bm=only|hl|un`）+ **群系网格**（参考 `reference-vision/ui/time-and-biome-picker.png`：圆色块 + 名 + 窗口内面积占比）。**左键 = 单选**（再点唯一选中的 = 清空）、**右键 = 多选开关**、「清空」= Erase；窗口里没有的群系变灰。选中集 `S.bio`（群系 id 数组，URL `bio=3,5`，`viz.set('bio', [3,5])`），没选 = 不起作用。
 - **着色器**（`uBMode` + 256×1 R8 掩码 `uBsel`，纹理单元 6）：按 2D 列的群系 id 查掩码。**只显示 = 渲染时剪枝**：射线遇到未选中群系的列直接当空气跳过（俯视整条射线一步退出；侧视 / 切片沿线跳过，所以剖面里也只剩选中群系的体积）；高亮 = 选中加亮、其余变暗；取消高亮 = 选中压暗。只显示 / 高亮会给选中群系朝外的边画 1.3 px 亮线（缩放 ≥ 1.5、俯视 / 仰视）。
-- **单选定位**：左键单选的群系在屏幕里没有（俯视按 x/z 矩形；侧视按水平轴）→ 视口中心挪到已载入列里离中心最近的那一格并 toast；已载入范围里也没有 → **`bioSearch`**：沿 512 格见方的方块环向外扫生成器（slicer 引擎动词 `bfind`：每块 32×32 点、步长 16 格，回 `sample().biome` 命中的点；多 worker 并行，按环从近到远，第一个有命中的环里取离中心最近的点，最远 48 环 ≈ 2.4 万格）。**每搜 3 秒停下问「继续找？」**（底部浮条 [继续] / [停止]，Esc 也停；换选中群系也会取消）。mini 全程约 2 秒扫完 48 环，liq 约 3 秒到 5900 格。`viz.bioLocate(id)` / `viz.bioSearch(id)`。网格第一格叫「清空/右多选」，模式的 hint 在 select 上。换生成器时选中集清空。
+- **单选定位**：左键单选的群系在屏幕里没有（俯视按 x/z 矩形；侧视按水平轴）→ 视口中心挪到已载入列里离中心最近的那一格并 toast；已载入范围里也没有 → **`bioSearch`**：沿 512 格见方的方块环向外扫生成器（slicer 引擎动词 `bfind`：每块 32×32 点、步长 16 格，回 `sample().biome` 命中的点；多 worker 并行，按环从近到远，第一个有命中的环里取离中心最近的点，最远 48 环 ≈ 2.4 万格）。**每搜 3 秒停下问「继续找？」**（底部浮条 [继续] / [停止]，Esc 也停；换选中群系也会取消）。mini 全程约 2 秒扫完 48 环，liq 约 3 秒到 5900 格。`viz.bioLocate(id)` / `viz.bioSearch(id)`。
+- **Agent 调用（11-10 实测，`?g=veg`）**：`gd eval 'viz.set("bio","19"); viz.set("bm","only"); await viz.bioSearch(19)'` → 视图跳到命中点并 toast；`viz.bioLocate(id)` 只查已载入的列（`false` = 屏幕里已有，`true` = 挪过去了，`null` = 没载入、交给 `bioSearch`）。`bfind` 走 `sample({x,z}).biome`，所以生成器只要 `sample` 的 `biome` 与 `meta.biomes` 下标一致就能用（veg 的 `sample` 用 `columnInfo`：群系精确，`h` 是平滑高度不是密度面）。veg 实测：单块 512×512 / 1 024 采样点约 **1 ms**；蘑菇岛、冰刺之地、红树林沼泽都在第 0–1 环 **12–17 ms** 命中；找一个主世界不存在的群系（末地）走满 48 环 + 一次「继续找」提示，**3.5 s** 返回 `null`，无报错。网格第一格叫「清空/右多选」，模式的 hint 在 select 上。换生成器时选中集清空。
 - 还没做：窗口内「找」（连通块按面积列出、点一下跳过去、＋原点）；结构、层叠文件夹。
-- 检查 `viz-biome`（6 个生成器的矩阵都过）。
+- 检查 `viz-biome`（6 个生成器的矩阵都过；`veg` 也过，11-10）。
 
-- **自动矩阵口径 [11-09 定]**：`gd check --matrix all` = mini / gp / liq / old，**v7 / valleys 不参与自动测试**（慢，且有 `tools/luanti/parity.mjs` 对拍）；要跑显式 `--matrix v7,valleys`。
+- **自动矩阵口径 [11-09 定]**：`gd check --matrix all` = mini / gp / liq / old，**luan0 / luanV 不参与自动测试**（慢，且有 `tools/luanti/parity.mjs` 对拍）；要跑显式 `--matrix luan0,luanV`。
 
 ## 17. 默认值 / URL 约定 / 布局收尾 [11-09]
 

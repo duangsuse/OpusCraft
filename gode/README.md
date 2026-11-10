@@ -45,7 +45,7 @@ gode 是对「doc 所示简版玩法 + rgl + 主屏幕 / 触屏 UI」的**功能
 | 层 ＼ 轴 | 玩法 | 渲染与反馈 | UI（主屏幕 · 触屏 · 面板 · 命令） |
 |---|---|---|---|
 | 框架 | — | — | kernel（未排期）<br>pane（M1-2） |
-| 引擎核心（不可停） | game（M1 ✅）<br>world（M1 ✅）<br>p1（M1 ✅）<br>interact（M3-7）<br>ents（M3-6）<br>save（M2）<br>slicer（M1 ✅）<br>hooks（M3-7）<br>net（未排期） | — | input（M1-9） |
+| 引擎核心（不可停） | game（M1 ✅）<br>world（M1 ✅）<br>p1（M1 ✅）<br>interact（M3-7）<br>ents（M3-6）<br>save（M2）<br>slicer（M1 ✅）<br>hooks（M3-7）<br>net（未排期） | mesh（M1 ✅） | input（M1-9） |
 | 默认模组（可停可换） | sim（M1-8）<br>weather（M1-9） | audio（未排期）<br>fx（未排期） | feel（M1-9）<br>title（未排期）<br>hud（M1-9） |
 | 渲染器（可换 `?r=`） | — | render（M1-6） | — |
 
@@ -63,6 +63,7 @@ gode 是对「doc 所示简版玩法 + rgl + 主屏幕 / 触屏 UI」的**功能
 | render | core | render | look | render | M1-6 | s03、s15；rgl / lite。只吃 Pose + Here + Clock + 区块事件，其余经 gm 取 |
 | hooks | core | core | play | main | M3-7 | defl/on.js 钩子与 comp.js 组件的调度者：delta / blk_* → BlockEvent（局部快照）；写操作入队，tick 末尾应用；组件每 tick 批量跑 |
 | net | core | core | play | net | 未排期 | s06 §7、s11 §2：一个权威档，appendOnly Δ 日志 + 低频块 diff；单机 = 本地回环；只写协议，不排期 |
+| mesh | core | core | look | main | M1 ✅ | s01 §1；goal-svox §3：区块网格 + 实例 + 发射点；bake 把 Bime 值烘成 ModelAsset |
 | input | core | core | ui | main | M1-9 | 虚拟键（ACTS）→ Intent / key；Body + feel + 相机模式 → Pose |
 | feel | defl | defl | ui | main | M1-9 | 相机手感：Body + 事件 → 6 个差量（晃动 / 落地下沉 / FOV / 受伤下压 / 抖动） |
 | audio | defl | defl | look | main | 未排期 | WebAudio；首个按键 / 触摸解锁（宿主 B audioInit） |
