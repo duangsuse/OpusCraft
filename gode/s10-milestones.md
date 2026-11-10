@@ -1,6 +1,7 @@
 # s10 · 里程碑
 
 > 顺序 [定 11-08]：M0 Agent 工具 + pgviz → M1 生成 + 渲染 Worker → M2 存档 → M3 模组 / 生物 → M4 λ.。联机只写协议（s06 S-4），不排期。
+> **[11-10] 里程碑只是标签**：每个模块的里程碑写在 `flow/*.ts` 的 `mod.ms`，README §1 总表由它生成；这里的条目（`M3-7` 这样的编号）是 `ms` 的取值范围。模块没有对应条目 = `未排期`，集中列在 §5，逐个子系统对照时再并入。
 
 ## M0 · Agent 工具 + pgviz（先于 M1）
 
@@ -36,7 +37,7 @@
 
 | # | 内容 | 节 |
 |---|---|---|
-| 1 | io worker、OPFS region 32×32、ping-pong + crc、Web Locks 互斥、配额提示 + s11 B-8（快照原子、导入先校验、失败可见、容器标脏） | s06 §4.3 · s11 |
+| 1 | dumper worker、OPFS region 32×32、ping-pong + crc、Web Locks 互斥、配额提示 + s11 B-8（快照原子、导入先校验、失败可见、容器标脏） | s06 §4.3 · s11 |
 | 2 | XZP 三种 section 编码取最小 + zstd wasm + 字典训练（不全量重压） | s06 §4.1–§4.2 |
 | 3 | `Pusc.json` / `BIME.tsv` / `xyzb.tsv` / `mat.tsv` / `pending.tsv`，pkv 读写 | s06 §2–§3 |
 | 4 | 导出 / 导入 webp + zip，标题屏两个输入框（seed / 联机码，webp 粘贴） | s06 §1 |
@@ -53,15 +54,31 @@
 | 4 | 注册：模组 tsv 覆盖 + `{reg}` 补丁 | s07 §4 |
 | 5 | iframe：弹框、HUD 叠层、方块绑定；`gode-ui.js` | s07 §5 |
 | 6 | `tools/vendor-pg.mjs`；7 种生物换 goodPG 模型 / 贴图 / 姿态；原生骨骼 pass | s05 · s03 §4 |
-| 7 | BIME 声明表（`item.json ent.json mob.json on.js`）按键合并、`on / ondie / ontap`、`_buf` 覆盖、Blk 与 Mob 共用可交互字段 | s05 §1–§2 |
+| 7 | BIME 声明表（`item.json ent.json mob.json on.js`）按键合并、`on / onDie / onTap`、`_buf` 覆盖、Blk 与 Mob 共用可交互字段（钩子签名以 `flow/hooks.ts` 为准） | s05 §1–§2 |
+| 8 | **[议 11-10]** `hooks` 调度者：`BlockEvent` 局部快照（`face6` + `region(r)` 惰性拷贝）、`Cmd` 队列（tick 末尾应用，级联下一 tick）、`onPlace / onBreak / onTap / onFaceBlkChanged / onEntityCollide / onSched / onRandom`、`hook_err` 隔离与预算 | `flow/hooks.ts` |
+| 9 | **[议 11-10]** 组件批处理：`defl/comp.js` + `mob.json` 的 `comp` 列，引擎每 tick 对 `near` 内的实体调 `run(entities)`（`ai:wander`、`ai:hostile`）；宿主 B `Mobs.update` 的 AI 拆进去 | `flow/hooks.ts` · s05 |
+| 10 | **[议 11-10]** 生成 phase 钩子：`terrain / carve / surface / decorate / structure`，纯函数 + 种子化 RNG；`mod.tsv` 的 `where = 'slicer'` | `flow/hooks.ts` · s02 |
 
 ## M4 · λ. 与地图
 
 | # | 内容 | 节 |
 |---|---|---|
-| 1 | slicer `map` 动词、`gm.addMiniMap`、M 键 Y 切片动画、地图物品 | s03 §3 |
+| 1 | slicer `map` 动词、`gm.actOnMap.add`、M 键 Y 切片动画、地图物品 | s03 §3 |
 | 2 | 文本体素识别器（`gm.test.read`，解析与放置已在 M0-5）（逐格相等校验） | s06 §5 |
 | 3 | BBat 多图层 + 依存骨骼树 → 动画实体 | s08 §5 |
 | 4 | clawd、LS、零点同步写回、钻石箱 | s08 |
 
 - [11-09 追加] pgviz V2 一部分：图层 chip（树种 + 各 sample 场热力图，`L` 键）、树按种统计；slicer 引擎默认动词 `field`；`gd check --matrix`；生成器基线 `gd baseline`（偏差只写 shots + `gd down` 时桌面通知，不进 Agent 的输出），见 s13 §9、s12 §11。genhash 在宿主 B 连跑 39 次（含 check all 之后、reload 之后）全稳定。
+
+## 5. 待排期（概览 11-10 提出；暂定落点是 [议]，逐个子系统对照时定，定了就改 `flow/*.ts` 的 `ms`）
+
+README 总表里标「未排期」的模块，以及 s10 原本没有的任务：
+
+| 模块 | 已有材料 | 暂定落点 | 理由 |
+|---|---|---|---|
+| kernel（模块框架、登记处、热替换、MOVES、HTML 绑定） | s16、`flow/kernel.ts`；`tools/dev.js` 已有 | **M1-2 之后插一项（M1-2b）** | `pane` 的 Ref / `gm.on` 已是它的子集；M1-9 的 F3 / F4 与 `defl/*.js` 都要先有加载器 |
+| audio（BGM / 持续层 / SFX） | `flow/audio.ts`、宿主 B `SND` | M1-9 之后（M1-11） | 纯订阅者，不挡别的；手机上要等首次触摸解锁 |
+| fx（粒子 / firefly / flutter / 火） | `flow/fx.ts`、s15 | 与 M1-7 `lite` 同批 | lite 至少要实现 `burst`（s14 §8 Q-3） |
+| title（标题屏 / 暂停屏 / 加载条） | `flow/title.ts`、IDEA「主界面横排俩按钮」 | M2-4（导入导出入口）一并做 | 两个输入框就是存档入口；没有存档时只需 `screen` 五态 |
+| BBat / 微体素 / λ. 的 flow 声明 | s08、IDEA-sys L72–97 | M4 之前，先于 M3-6 的原生骨骼 pass | 骨骼 pass 与 BBat 同一套多图层实体，数据类型要先统一 |
+

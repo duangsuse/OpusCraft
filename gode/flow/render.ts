@@ -3,7 +3,7 @@
  *
  *   pose（每帧，6 个数）+ here（4 Hz）+ clock（每帧）+ chunk_in / chunk_out / delta / light ──▶ 渲染器 ──▶ 画面
  *   lightning ──▶ 电光条（c_Bolt）；Clock.flash ──▶ 天空、环境光、雾一起闪（只有 flash 提亮，thunder 列只压暗）
- *   gm.render.fx ◀── fx 模块的粒子请求（fx.ts RenderFx）
+ *   gg.render.fx ◀── fx 模块的粒子请求（fx.ts RenderFx）
  *
  * 渲染器要的其余信息一律自己经 gm 取（连接点规则 ②）：手持光 = Here.held → blk.tsv 的 emit 列；洞穴雾 = Here.sky / Here.blk；
  *   雨的遮挡 = gm.world.height（每列最高的挡雨格 → 高度图纹理）；默认天空 = defl/sky.json（SKY）。rgl 不认识任何文件名。
@@ -14,13 +14,38 @@
  *   算法与数值不改，头注释写出处。
  * 宿主 B 出处：rgl/index.js（P_DEFAULTS :171、面板文件夹 :177–187）· rgl/host-b.js glsEnv（weather / eyeSky / flying）。
  */
-import type { num } from './core.ts'
+import type { num, PStr, Ref, MarkLayers, P1Tag } from './core.ts'
 import type { Mod } from './index.ts'
 import type { RenderFx } from './fx.ts'
 
-export interface Out {}   // 渲染器不发事件
+/** 渲染器只发小地图的事件（s03 §3.4：marker_Any / hover_Any / near_Any / tap 在 Ev 里的写法）；画面本身不发 */
+export interface Out {
+  marker: { map: string; i: num; at: PStr; emoji: string; layer: string; how: 'tap' | 'hover' | 'leave' | 'near' } & P1Tag   // 点 / 悬停 / 离开 / 玩家走进 r 格内；map '' = M 键主小地图。模组按 emoji 过滤（s03 的 'marker_🏠' 写成 e.emoji === '🏠'）
+  map_tap: { map: string; P: PStr } & P1Tag                // 点了地图空白处（P = 世界坐标）
+}
 
+/** gm.actOnMap [定 11-10，用户]：和 gm.act 对称的地图侧。标记表是世界里一份（gm.marks），地图只管自己的层开关（MarkLayers）与屏幕 ↔ 世界换算、点选；所以叫 act 而不只是 addMiniMap（s03 §3.4 改写）。
+ *  默认指 M 键主小地图（id ''）；gm.actOnMap.of(id) 取别的（clawd 查看器、钻石箱检查点、世界面板的「添加 Seed 对比」，s08、IDEA-sys L47）。同 p1.now 的口径 */
+export interface MapAct extends MarkLayers {
+  readonly id: string
+  readonly el: HTMLElement
+  scr2xz(sx: num, sy: num): readonly [x: num, z: num] | null     // 屏幕点 → 世界 xz；点在地图元素外返回 null
+  xz2scr(x: num, z: num): readonly [sx: num, sy: num] | null     // 世界 xz → 屏幕像素；在地图可视范围外返回 null（marker 绘制、点选都用）
+  tap(sx: num, sy: num, how?: 'tap' | 'long'): void              // 点地图：命中标记发 marker，否则发 map_tap
+  center(cx: num, cz: num): void                                 // 区块坐标
+  zoom: Ref<num>; mode: Ref<string>                              // 1 / 2 / 4 / 8 格一像素；'top' | 'slice' | …（s03 §3.3）
+}
+export interface MapOpts { zoom?: num; mode?: string; size?: readonly [w: num, h: num] }
 export interface Api {
+  actOnMap: MapAct & {
+    add(cx: num, cz: num, o?: MapOpts): MapAct                   // 原 gm.addMiniMap
+    of(id: string): MapAct | null
+    list(): readonly string[]
+    remove(id: string): void
+  }
+}
+
+export interface GgApi {
   render: { stats(): Readonly<Record<string, num>>; shot(): Promise<Blob>; fx: RenderFx }
 }
 
@@ -140,10 +165,10 @@ export const TOPICS = {
 } as const
 
 export const mod = {
-  id: 'render', where: 'render', core: true, doc: 's03、s15；rgl / lite。只吃 Pose + Here + Clock + 区块事件，其余经 gm 取',
-  emit: {},
+  id: 'render', where: 'render', catalog: 'core', layer: 'render', axis: 'look', ms: 'M1-6', doc: 's03、s15；rgl / lite。只吃 Pose + Here + Clock + 区块事件，其余经 gm 取',
+  emit: { marker: 'edge', map_tap: 'edge' },
   sub: ['pose', 'here', 'clock', 'delta', 'chunk_in', 'chunk_out', 'light', 'screen', 'lightning', 'tbl_change'],
-  depends: ['world', 'pane'],                // world.height：雨的遮挡；world.at：洞穴雾的取样兜底
+  depends: ['world', 'marks', 'pane'],       // marks：画标记；world.height：雨的遮挡；world.at：洞穴雾的取样兜底
   tables: ['sky.json', 'blk.tsv'],          // blk.tsv：emit 列（手持光）、fx 列（发射点，见 fx.ts）
   c_: ['$Gl', '$Sky', '$Cloud', '$Shadow', '$Water', '$Under', '$Fog', '$Precip', '$Bolt', '$HeldLight', '$Items', '$Leaf', '$Pack', '$Ent', '$Load'],
   save: [],

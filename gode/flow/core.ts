@@ -3,8 +3,9 @@
  *
  * gode/flow/ 是 s14 的 TS 版：开工程之前，先把子系统的**声明式数据流**写清 —— 谁发什么事件、谁订阅、经哪个 gm 命名空间调用、
  *   读哪张 defl/ 表、有哪些 c_ 参数、存哪些键。粒度对齐 KubeJS / Luanti 模组 API：模组作者只读这几份文件就能写模组。
- * 文件：core（词汇）· kernel（框架：模块 = 脚本 + 受限视图、登记处、mod.tsv、通用 MOVES、HTML 绑定、gm.mods，s16）·
+ * 文件：core（词汇）· kernel（框架：模块 = 脚本 + 受限视图、登记处、mod.tsv、通用 MOVES、HTML 绑定、gg.mods，s16）·
  *       index（事件表 Ev、gm 表 Gm、模块描述 Mod、连通性检查）· host（已有 / 后续里程碑的边界模块，只写连接点）
+ *       hooks（模组 API 总章 [议 11-10]：BlockEvent 局部快照、Cmd 命令入队、五类钩子、组件批处理、生成 phase；来源 doc/IDEA-sys.md L99）
  *       input · feel · audio · fx · sim · weather · title · hud（11-09 用户划分的七个模块；输入与相机手感分成两个文件，手感可停用）·
  *       render（渲染器的连接点与 c_ 参数主题，s15）· graph（node 直接运行，打印事件 × 模块矩阵、mod.tsv）
  * 检查：node ~/.bun/install/cache/typescript@5.9.3@@@1/bin/tsc -p gode/flow   （类型检查通过 = 连接点对得上，见 index.ts 末尾）
@@ -56,9 +57,39 @@ export type CPath = `$${string}`    // 参数路径：'$Fx.gravity'（JS 里 c_.
 export type Path = CPath | `${string}.${string}`
 export interface Stack { name: Item; count: num; dur?: num; v?: unknown }      // 宿主 B 物品栈（gm 值物品带 v，:2469）
 
+/** 玩家标签 [定 11-10，用户]：和某个玩家有关的事件载荷都带 ev.p1.who（'' = 服主）。联机时同一条事件流里有多个玩家，订阅者按需过滤；
+ *  页面绑定、hud 默认只看 ''。载荷里已有的 by: Mob 不变（谁干的），p1 是「这是哪个玩家的事」；非玩家造成的（爆炸、生物、流体）p1 缺省 */
+export interface Who { who: string }
+export type P1Tag = { p1: Who }
+
+/** 格子口径 [定 11-10，用户]：grid = 一组格子（UI 与数据同一个词）；bag = 玩家的 grid（p1.bag）；bar = bag 的前 N 格（热键栏，p1.bar）；
+ *  bins = 储物箱柜 / 工具（箱子、熔炉、工作台）等非玩家的 grid（interact 的 gm.bins）。引擎负责格子拖放，规则（配方、燃料）在 defl 表（s07 §1、§5） */
+export interface Grid {
+  readonly size: num
+  slots: Ref<readonly (Stack | null)[]>
+  give(s: Stack | Item | `${Item}*${num}`): num      // 放进去，返回放进去几个
+  take(s: Stack | Item | `${Item}*${num}`): num      // 拿出来，返回拿到几个
+}
+
+/** 标记：世界里一份（gm.marks），小地图（actOnMap）与主视图叠层（act）都画它。at 是口诀：'@x,z' / '@x,z^y' / '@地名' / '@p1'，或 [x, z] 元组；
+ *  opts：r = 玩家走近几格触发 near（默认 4）、layer = 所属层（缺省 ''，恒显示）。s03 §3.4 */
+export type Marker = readonly [at: P2Str | PStr | PName | readonly [x: num, z: num], emoji: string, opts?: { r?: num; label?: string; color?: string; layer?: string }]
+/** 世界标记表 [定 11-10，用户：一份，各视图只管层开关]：gm.marks（world 持有，存档）。list 读 / 写（整表、函数式更新）；'pts' 层由 gm.pts 的地名自动显示，不用手写 */
+export interface MarkTable {
+  list: Ref<readonly Marker[]>
+  add(at: Marker[0], emoji: string, opts?: Marker[2]): void
+  remove(at: Marker[0]): num                        // 删掉该点的全部标记，返回删了几个
+  live(layer: string, f: () => readonly Marker[]): () => void   // 动态标记（每次重绘求值，如 gm.ents.near 的生物）：不存档，返回取消；登记在调用模块名下，停用时撤销
+}
+/** 视图的标记层开关 [定 11-10]：主视图（gm.act）与每张地图（gm.actOnMap）各管各的，标记本身在 gm.marks */
+export interface MarkLayers {
+  layers: Ref<Readonly<Record<string, boolean>>>    // 没出现的层 = 开
+  layer(name: string, on?: boolean): boolean        // 读 / 开关一层（缺省 = 翻转），返回之后的状态
+}
+
 /** 世界写入的唯一记录（s14 §4）。v / old = u16（type | meta<<12）。文本形 '@x,z^y :name{…}'（pile、联机、模组都用这一种） */
 export type Src = 'gen' | 'p1' | 'sim' | 'mod' | 'net' | 'load'
-export interface Delta { seq: num; P: XYZ; old: num; v: num; st?: string /* xyzb.tsv 状态条目（linkBlk 等）的 pkv，变了才带 */; src: Src }
+export interface Delta { seq: num; P: XYZ; old: num; v: num; st?: string /* xyzb.tsv 状态条目（linkBlk 等）的 pkv，变了才带 */; src: Src; p1?: Who /* src = 'p1' 时是谁；联机广播带，不进 pile 文本 */ }
 
 /** 相机所在处的环境：world 模块按 Pose 每秒采样 4 次（host.ts）。音效持续层、BGM、粒子、HUD、渲染器（水下 / 眼处光照）都读它 */
 export interface Here {
@@ -86,7 +117,7 @@ export interface Clock extends WxRow {
   wet: num            // 地面湿度：rain 的滞后量（goodLiqPG wetness）
   flash: num          // 闪电脉冲：落雷那一下 ~1，几百 ms 衰减到 0。只有它提亮画面；thunder 列只压暗（11-09 修过宿主 B 把两者混用的过曝）
   precip: 'rain' | 'snow' | 'none'   // 相机处下的是什么（按群系与高度，weather.ts PRECIP）
-  cover: num          // 雪盖 0..1：相机处下雪时涨、不下时化；着色器把露天顶面渐白（真实雪层另由 sim.ts ABM 堆）
+  cover: num          // 雪盖 0..1：相机处下雪时涨、不下时化；着色器把露天顶面渐白（真实雪层另由 sim.ts 的 onRandom 堆）
 }
 
 /** 玩家身体（p1 = main/phys.js，每帧）。相机、HUD、音效只读它，不碰 player 全局 */

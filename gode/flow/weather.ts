@@ -26,7 +26,7 @@ export interface Out {
   lightning: { P: XYZ }                                   // 落点 = 相机 lightningR 格内随机一列的地表（world.height）
 }
 
-export interface Api {
+export interface GgApi {
   weather: {
     time(hour?: num): num                                 // 读 / 设墙上时钟小时（gm_time 值物品、/time、模组 {time: 6}）
     speed(k?: num): num                                   // 时钟倍速（&tspeed=、tpause 的 1.0x）
@@ -107,11 +107,12 @@ export const PRECIP: readonly (readonly [biome: RegExp, precip: Clock['precip'],
 ]
 
 export const mod = {
-  id: 'weather', where: 'main',
+  id: 'weather', where: 'main', catalog: 'defl', axis: 'play', ms: 'M1-9',
   off: 'Clock 的天气列恒为 clear 行（无雨、雪、雷、风、闪电、雪盖），时间由 game 内置钟（$Time）照常推进',
   doc: '时钟 + 天气；全局天气与参数行都是 (t, seed) 的纯函数',
   emit: { clock: 'frame', hour: 'edge', weather_change: 'edge', lightning: 'edge' },
-  sub: ['frame', 'tick', 'here', 'pause'],               // frame 推时钟、tick 掷闪电与涨落雪盖、here 取群系 / 高度、pause 停钟
+  sub: ['frame', 'tick', 'here', 'pause', 'hook_time', 'hook_weather'],   // frame 推时钟、tick 掷闪电与涨落雪盖、here 取群系 / 高度、pause 停钟；hook_*：模组命令 {time} / {weather}
+  wake: ['hook_time', 'hook_weather'],                       // [定 11-10，用户] 停用时收到模组的时间 / 天气命令 = 重新启用（kernel，mod_change why 'wake'）
   depends: ['world', 'pane'],                                // world.height：闪电落点
   tables: ['weather.tsv', 'biome.tsv'], c_: ['$Time', '$Weather'],
   save: ['time', 'weather'],                              // time = {t, speed} → Pusc.json 基础信息；weather = override（没有就不写）

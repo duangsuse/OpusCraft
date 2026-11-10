@@ -9,7 +9,7 @@
  * 宿主 B 出处：res_vam.js c_Audio :506、spatial :516（距离衰减 + 按 yaw 声像）、SOUND_MAT / SOUND_RULES（方块材质）、MOB_VOICE、SND :575。
  *   宿主 B 只有 SFX，全部是 WebAudio 现场合成（噪声 + 振荡器）；持续层与 BGM 都是 [新]。
  * 照 Luanti：方块的声音按「材质」给（node def 的 sounds = {footstep, dig, dug, place}）→ blk.tsv 的 sound 字段 = 材质名；
- *   gm.audio.play 返回句柄可淡出（sound_play / sound_fade / sound_stop）。照 MC：按类别分总线，各自音量。
+ *   gg.audio.play 返回句柄可淡出（sound_play / sound_fade / sound_stop）。照 MC：按类别分总线，各自音量。
  */
 import type { num, XYZ, Blk, Mob, Here, Clock, Body, Stat, Screen } from './core.ts'
 import type { Mod, Ev, EvName } from './index.ts'
@@ -29,7 +29,7 @@ export type SoundSpec = Synth | Sample | readonly SoundSpec[]
 export interface PlayOpt { at?: XYZ; vol?: num; pitch?: num; loop?: boolean; bus?: Bus; fadeIn?: num }
 export interface SndHandle { set(o: { vol?: num; pitch?: num; at?: XYZ }): void; stop(fade?: num): void; readonly alive: boolean }
 
-export interface Api {
+export interface GgApi {
   audio: {
     play(s: SndKey | SoundSpec, o?: PlayOpt): SndHandle
     bgm: { play(id?: string, fade?: num): void; stop(fade?: num): void; readonly now: string | null }
@@ -149,7 +149,7 @@ export const c_Audio = {
 }
 
 export const mod = {
-  id: 'audio', where: 'main',
+  id: 'audio', where: 'main', catalog: 'defl', axis: 'look', ms: '未排期',
   off: '无声：没有音效、持续层与 BGM',
   doc: 'WebAudio；首个按键 / 触摸解锁（宿主 B audioInit）',
   emit: {},

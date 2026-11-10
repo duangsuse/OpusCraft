@@ -40,7 +40,7 @@ gd shot [pose…] [--tag T] [--sheet]                  settle → 截图 → 写
 gd xz <file.xz|-> [--at @x,z^y] [--frame] [--shot]   追加文本体素（s06 §5），--frame 自动用 iso 相机框住 bbox
 gd mark / gd revert                                  世界改动打点 / 回滚到打点（试错不累积）
 gd set c_.Path=v …                                   走 gm.pane.set（与 &json= 同路由）；也收标记语言写法 '$Path=v'（shell 里 $ 要加引号）
-gd mods [list | on <id> | off <id> | reload <id> | graph]   [新 11-09，s16 §13.5] 模块：状态、启停、热替换、依赖图（走 gm.mods）
+gd mods [list | on <id> | off <id> | reload <id> | graph]   [新 11-09，s16 §13.5] 模块：状态、启停、热替换、依赖图（走 gg.mods）
 gd eval '<js>'                                       页面里执行，按值返回
 gd check [name…] [--matrix mini,gp,liq|all]           跑 checks.tsv（§6）；--matrix = pgviz 检查在每个生成器下各跑一遍；check mods = 登记处观察 ⊆ 规格、热替换不泄漏、语法错回滚、表就地 diff（s16 §13.5）
 gd perf [--frames 120]                               低频：帧时间中位数 + 渲染器 stats()，不进默认 loop
@@ -178,7 +178,7 @@ gd down                                 # 收尾（忘了也会 10 min 自退）
 与 §2–§6 的差异 / 补充：
 
 - `sweepStale` 只清**带 owner 文件且 owner 已死**的 `/tmp/gode-gd-*`，别的工具（如 pgviz 自测脚本）起的同前缀浏览器不碰。守护进程被 `kill -9` 时浏览器会留到下一次 `up` / `down` / `ps` 才清。
-- 自动重载 **[改 11-09，s16 §13.5：按 kernel 的 `HOT` 表]**：shot / check / pose / mark / xz **之前**比较 `main/ rgl/ w/ vendor/` 与宿主 B 的 js/html 修改时间，有改动才整页重载（`gd.js` 自身不算，改了要 `down / up`）。`defl/` 的脚本、表、ui 变了**不整页重载**：开发服务器把文件事件推给页面，页面自己热更新，gd 只调 `gm.mods.sync()` 等它落定；`defl/g/` 的生成器脚本走 `gode.restart`（世界重生）。没起开发服务器（`gm.dev.up` 为假）时，gd 按 mtime 自己调 `gm.mods.reload` / `Table.reload`。xz 若触发整页重载会重新 `mark`。
+- 自动重载 **[改 11-09，s16 §13.5：按 kernel 的 `HOT` 表]**：shot / check / pose / mark / xz **之前**比较 `main/ rgl/ w/ vendor/` 与宿主 B 的 js/html 修改时间，有改动才整页重载（`gd.js` 自身不算，改了要 `down / up`）。`defl/` 的脚本、表、ui 变了**不整页重载**：开发服务器把文件事件推给页面，页面自己热更新，gd 只调 `gg.mods.sync()` 等它落定；`defl/g/` 的生成器脚本走 `gode.restart`（世界重生）。没起开发服务器（`gg.dev.up` 为假）时，gd 按 mtime 自己调 `gg.mods.reload` / `Table.reload`。xz 若触发整页重载会重新 `mark`。
 - `frame / iso-*` 是 gd 的框景：用透视相机从斜上 35° 框住 bbox，与游戏的 F4 相机无关（11-09 起游戏 F4 只有 fp / orbit / back）。
 - 机位名不在表里且是 `plain canopy cave water uw` 之一时，`gm.test.find` 按 handover/tools.md §3 的规则搜索并写回 `c_.json`。`--ref` 的格子默认 hour 10、隐藏 HUD；`ice / mobs / map` 还没有机位（只放参考图），`trees / caustic / uwrefl` 借用 bench 机位，与参考图的构图差很多，M1 起补专门机位。
 - 一个守护进程只有**一个页面**：两个 Agent 共用时会互相 `go` 走对方的页面（命令会报「当前页面没有机位」）。需要时再加 `--tab`。

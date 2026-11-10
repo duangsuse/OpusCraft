@@ -17,7 +17,7 @@
 | L-8 | 雷暴默认过曝 | **bug**：`rgl/host-b.js` 把持续的雷暴强度 `Weather.storm` 当成 `flash` 传给 rgl，雷暴期间天空和环境光一直 +0.6；真正的闪光脉冲 `Weather.flash` 没传 | 只有落雷那一下提亮；平时雷暴压暗 | **已修**（§2） |
 | L-9 | 没有闪电 | 宿主 B 每 tick 1/300 只放一声爆炸音 | **电光条 + 闪光 + 延迟雷声 + 雷击点火 + 伤害** | `weather.ts` `lightning` → `render.ts` `c_Bolt`、`sim.ts` `c_Fire.bolt`、p1 / ents（`hurt.js`）、audio |
 | L-10 | 没有大风天气 | 宿主 B 只有晴 / 雨 / 雷暴 | 天气换成 **goodLiqPG 的 7 种**，每种一行连续参数，大风 = `wind` 列；**仍是确定性**（转移概率照抄，骰子 = `hash(seed, 段号)`）。风影响：植物与树叶摆动、雨丝倾斜与雪漂移、落叶与粒子（不含风声、火势） | `weather.ts` `WEATHER` `NEXT` `wxRow`；`core.ts` `WxRow` `Clock.wind / windDir`；`fx.ts` `windDrift / windLeaf` |
-| L-11 | 没有积雪 | 没有 | **着色器雪盖 + 真实雪层**：下雪时露天顶面先渐白；ABM 在露天最高格堆雪层，走 delta、进 pile | `core.ts` `Clock.cover`；`render.ts` `c_Precip.cover`；`sim.ts` ABM「积雪」、`c_Snow` |
+| L-11 | 没有积雪 | 没有 | **着色器雪盖 + 真实雪层**：下雪时露天顶面先渐白；onRandom（sim.ts，`top` 抽样）在露天最高格堆雪层，走 delta、进 pile | `core.ts` `Clock.cover`；`render.ts` `c_Precip.cover`；`sim.ts` ABM「积雪」、`c_Snow` |
 | L-12 | 体积光联动差 | 光柱只乘云影（`volCloud`）；雨天在 `rgl/long/comp.js:195` 按 `1 + rain` 放大，此外不看天气 | 跟**火把与洞穴、天气参数（fog / rain 列）、闪电**联动；不跟昼夜 | `render.ts` `c_Fog` |
 | L-13 | 雨雪视效差，溅落不像水 | 宿主 B 1400 个纯色点精灵（`gls.js:641`），只在落进水里时冒一个粒子 | **rgl GPU 雨丝**（受风倾斜、拖影、按高度图遮挡，屋檐下不下雨）+ **水面涟漪**（接 `rgl/ripple.js`）+ 地面小水花；雪花慢、飘、有大小差 | `render.ts` `c_Precip` |
 

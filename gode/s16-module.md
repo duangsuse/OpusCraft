@@ -14,7 +14,7 @@
 | K-4 | **页面是视图**：游戏暴露「值」和「动作」。枚举 → `<html data-*>`，连续量 → CSS 变量，文本 → `data-bind`，列表 → `<template data-each>`；点击 `data-act="…"` = 按一次虚拟键。页面（`defl/ui.html` + `ui.css`，模组可整体替换）决定每个状态下怎么显示。`STATES`、`ELEMS` 取消 | 表单 1 |
 | K-5 | **虚拟键 = `ACTS` 表**（`KEYS` 升级）：`[动作, 键, 触屏手势, 方式, 何时有效, 标签]`。物理键、触屏、`data-act`、命令行、模组都只产生动作名，进同一个 `press(act)`。没有键位的行（continue / start / ask / respawn）也是合法虚拟键；`Action` 是开放集合，模组往 `acts.tsv` 追加行就多一个动作 | 表单 2 |
 | K-6 | **`MOVES` 通用化**：`[Ref 路径, 从, 动作, 到]`，kernel 执行，改的是 Ref。screen、cam（F4 轮转）共用一个机制；模组追加行就能加新屏。`paused = screen ≠ 'game'` 派生；`preview` 归相机（订阅 `screen`） | 表单 2 |
-| K-7 | **管理工具 = 面板「模组」root（`gg.pane`）+ `gm.mods`**，不另做页面 | 表单 2 |
+| K-7 | **管理工具 = 面板「模组」root（`gg.pane`）+ `gg.mods`**，不另做页面 | 表单 2 |
 | K-8 | **引擎核心不可停，默认模组可停、可被同 id 模组替换**。核心 = game world p1 interact ents save render pane slicer kernel input；默认模组 = audio fx sim weather title hud feel。每个可停用模块的 `Mod.off` 写明停用后消费者看到什么 | 表单 3 |
 | K-9 | **模块写法 = 脚本 + 受限视图，不写 `export / const / class`**：`gg / gm / c_` 作为形参注入，赋值与对象字面量登记，位置决定种类（Pass DSL、`c_.X = {…}`、`gg.ev`、宿主 B `gm.on` 同一路） | 表单 4（用户澄清：项目对复用与声明式要求高，不要 JS 噪音） |
 | K-10 | **元信息放 `defl/mod.tsv` 一张表**：`id file where depends on`。脚本里零声明；管理面板直接改「启用」列；模组同 id 行覆盖 | 表单 4 |
@@ -25,6 +25,7 @@
 | K-15 | **脚本热替换的私有状态：`down()` 返回交接对象，`up(prev)` 接收**（HMR dispose / accept 风格；没选 `gm.keep`） | 表单 5 |
 | K-16 | **表热更新 = 就地 diff**：改了的行写 Ref，增删行发 `tbl_change`；模块读表必须经 `gm.tbl.<名字>`，不缓存副本 | 表单 5 |
 | K-17 | **gd 配合**：新增 `gd mods`、`gd check mods`；shot / check 前的自动重载按 `HOT` 表：能热更新的（`defl/` 的脚本、表、ui）不整页重载，只有引擎核心 js 才整页 | 表单 5 |
+| K-18 | **唤醒（`Mod.wake`）[11-10 用户]**：默认模组可声明一组事件（须在它的 `sub` 里）；它停用期间这些事件一发出，kernel 先重新启用它（`mod_change why = 'wake'`）再交给它。只用于明确的指令（模组命令 `{time}` / `{weather}` → weather）；被动消费（粒子、音效）不唤醒，消费者看 `off`。`{popup}` 归 kernel（核心，不可停） | hooks 对照 |
 
 ## 1. 一个模块长什么样
 
@@ -34,7 +35,7 @@
 c_.Fx = { gravity: [0.8, 0, 2, '重力'], max: [600, 100, 2000, '粒子上限'] }   // 赋值 = 登记参数主题；[默认, 最小, 最大, 标签] 一行
 gm.on({                                                                      // 对象字面量批量订阅，键 = 事件名
   blk_break(e) {
-    gm.render.fx.burst({ at: e.P, n: 24, vel: [[-1, 1, -1], [1, 3, 1]], life: [0.4, 0.9], color: 'blk', of: e.blk, tex: true })
+    gg.render.fx.burst({ at: e.P, n: 24, vel: [[-1, 1, -1], [1, 3, 1]], life: [0.4, 0.9], color: 'blk', of: e.blk, tex: true })
   },
   p1_land(e) { if (e.fall > 3) gm.world.get(e.P) },
   down() { },                                                                // 停用 / 重载时调用（可省；模块私有，不进 Ev）
@@ -70,6 +71,8 @@ mod.fx    触发与放置在 main；模拟与绘制在渲染器（RenderFx）
 
 ## 2. 登记处与所有权
 
+**三个形参的分工 [定 11-10，用户]**：`gm` = 模组高频 API（`world p1 ents put act pts hooks.cmd sim.schedule game.mode tbl fx pane`，加订阅 `gm.on`），worker 里的模组只有它（经 s07 M-2 白名单代理成消息）；`gg` = 引擎装置（`audio render cam feel weather title hud save slicer mods dev input`、`game.start/pause/…`、`hooks.run`、`sim.relight`）加上面的登记工具，只在 main；`c_` = 参数。`depends` 一个列表同时限制两边，同名命名空间（`game / hooks / sim`）两边各有一部分。`gm.pane`（运行时读写）与 `gg.pane(root, rows)`（声明）是两回事，后者留在 gg。
+
 **视图带来所有权**：kernel 执行脚本时把 `gg / gm / c_` 换成这个模块的视图，视图上的每个登记点都记在模块名下。不需要全局「当前模块」，所以脚本跑完之后（事件回调里再登记）也不会丢主人。
 
 | 登记点 | 登记什么 | 停用时 |
@@ -100,7 +103,7 @@ mod.fx    触发与放置在 main；模拟与绘制在渲染器（RenderFx）
 | `tbl` | defl 表的行（面板 `pickLib` 可搜索编辑） | `tbl.bursts.blk_break.n` |
 | `mod` | 模块自己 | `mod.fx.on`、`mod.fx.doc` |
 | `act` | 虚拟键行（可重绑） | `act.pause.keys` |
-| gm 的 Ref 型成员 | 运行时状态，不进 `gg_v` | `title.screen`、`cam.mode`、`p1.stat`、`world.here`、`weather.clock`、`inv.hot` |
+| gm 的 Ref 型成员 | 运行时状态，不进 `gg_v` | `title.screen`、`cam.mode`、`p1.stat`、`world.here`、`weather.clock`、`p1.bar.hot` |
 
 - 状态型事件在持有者的命名空间里各有一个同名的「最新值」Ref：事件是变化的推送，Ref 是页面绑定和 `gm` 读取用的。
 - `index.ts` 的 `RefPath` 从 `Gm` 里推出所有 Ref 型成员，`MOVES` 与 `BIND` 的路径用它做类型检查。
@@ -153,7 +156,7 @@ data-act ┤                         └─▶ key 事件 ─▶ kernel MOVES、
 <!-- defl/ui.html（节选） -->
 <section id=menu> <button data-act="continue">继续</button> <input id=seed> <button data-act="start">开始</button> </section>
 <div id=bars><i style="--n: var(--hp)"></i></div>
-<template data-each="inv.hot"><b data-bind=".name"></b></template>
+<template data-each="p1.bar.hot"><b data-bind=".name"></b></template>
 <style>
 html[data-screen=game]    #menu   { display: none }
 html[data-screen=loading] #spin   { display: block }
@@ -188,7 +191,7 @@ html[data-hurt]           body::after { content: ''; background: #f004 }
  └ 依赖图          mermaid（graph.ts mermaid 的运行时版），点节点跳到该模块
 ```
 
-`gm.mods` 是同一份数据的 API：`list() get(id) on(id, bool) reload(id) sync() graph()`，`gm.tbl.<名字>` 取表，`gm.dev` 是开发服务器的页面端（面板 ✎ 写回走 `gm.dev.write`，§13.4）。命令行 `/mods off fx` 之类等管理面板就绪后再加。
+`gg.mods` 是同一份数据的 API：`list() get(id) on(id, bool) reload(id) sync() graph()`，`gm.tbl.<名字>` 取表，`gg.dev` 是开发服务器的页面端（面板 ✎ 写回走 `gg.dev.write`，§13.4）。命令行 `/mods off fx` 之类等管理面板就绪后再加。
 
 ## 8. 核心与可停用
 
@@ -209,7 +212,7 @@ html[data-hurt]           body::after { content: ''; background: #f004 }
 | 文档 | 改动 |
 |---|---|
 | README | G-8 加注：模块脚本无 `export`（生成器 / 渲染器 Worker 的动词导出不变）；新增 G-10；节索引加 s16 |
-| s07 §2 | 模组 worker 同写法（K-11）：`export function onkwarg / key / onhit` 改为 `gm.on({ key(k){}, onhit(h){} })`；协议信封不变，`subs` 自动生成 |
+| s07 §2 | 模组 worker 同写法（K-11）：`export function onkwarg / key / onhit` 改为 `gm.on({ key(k){}, onHit(h){} })`；协议信封不变，`subs` 自动生成 |
 | s09 | Ref 带 owner 模块与 `meta.doc`；新增路径根 `mod / tbl / act`；§6 布局加「模组」root |
 | s14 §8 | 模块描述符字段改名（`uses → depends`，`defl → tables`），加 `core / off`；`STATES / ELEMS` 取消，`KEYS → ACTS`，`MOVES` 通用化；`input` 拆出 `feel` |
 | `goal-panify/README.md` | 顶部加一行指向本节：Ref 的 owner、doc，「模组」root；`perf-collect.mjs` 并入 `gode/tools/dev.js`（§13.4） |
@@ -233,7 +236,7 @@ html[data-hurt]           body::after { content: ''; background: #f004 }
 
 0. ~~**`gode/tools/dev.js`**（§13.4）~~ **已写，已接 `gd up`**（11-09；用户已把常驻的 `http-server` 换成它）。
 1. **panify 1–3**：`c_` 命名空间 + `gg.vars`（Ref 加 `owner / meta.doc / options`，以 `rgl/vars.js` 为底）+ `gg.pane` + 四层优先级。M1-2 本来就要做。
-2. **kernel**：登记处 + 视图（`Proxy`）+ `mod.tsv` 加载与拓扑序 + `gm.mods / gm.tbl / gm.dev` + 启停 / 热替换（§13）。把 `boot.js` 里已有的东西按「核心 / 默认模组」拆开，先拆 weather（s15 §4 第一步也在它）。
+2. **kernel**：登记处 + 视图（`Proxy`）+ `mod.tsv` 加载与拓扑序 + `gg.mods / gm.tbl / gg.dev` + 启停 / 热替换（§13）。把 `boot.js` 里已有的东西按「核心 / 默认模组」拆开，先拆 weather（s15 §4 第一步也在它）。
 3. **虚拟键 + MOVES + 绑定器**：`ACTS`、`press`、MOVES 执行器、HTML 绑定器；用标题屏做第一个页面（`data-screen` + `data-act`）。
 4. **「模组」root**：列表、启停、doc / 参数 / 表行编辑、实时计数、依赖图。
 5. **`gd mods` 与 `gd check mods`**（§13.5）：登记处观察 ⊆ 规格；热替换不泄漏、语法错回滚、表就地 diff。
@@ -277,7 +280,7 @@ html[data-hurt]           body::after { content: ''; background: #f004 }
 
 - 解析新文件，与当前行比对：**改了的行写它的 Ref**（订阅者和面板自动收到，值与来源层不变）；**增删行发 `tbl_change { name, added, removed }`**。行 Ref 不会换掉，面板里展开着的行不会塌。
 - 所以模块**读表必须每次经 `gm.tbl.<名字>`**，不在加载时拷贝一份；自己建了派生索引的模块（world 的方块表、render 的 `blk.tsv` emit 列）订阅 `tbl_change`。
-- 面板里改表行与编辑器里改 tsv 走同一条路：面板改了经 `gm.dev.write` 写回文件，文件事件回来时比对发现已经是最新，不再重复通知。
+- 面板里改表行与编辑器里改 tsv 走同一条路：面板改了经 `gg.dev.write` 写回文件，文件事件回来时比对发现已经是最新，不再重复通知。
 
 ### 13.4 开发服务器 `gode/tools/dev.js`（已写，`node --test gode/tools/test-dev.mjs` 10 项）
 
@@ -292,11 +295,11 @@ html[data-hurt]           body::after { content: ''; background: #f004 }
 | `GET /__dev/info` | `{ name: 'gode-dev', … }`：gd 用它区分「这是 dev.js」还是「端口上是别的静态服务」 |
 | `POST /t`、`GET /agg` | 性能投送与聚合：goal-panify §4 里计划但还没写的 `perf-collect.mjs` 并进来，一个进程。`/t` 收 JSON / JSONL 追加到 `gode/shots/perf-collect.jsonl`；`/agg` 按 `path` 聚合 `{ n, topic, from, to, fps, gpu, t }`，`fps` / `gpu` 取各记录的中位数。**假设**：记录里的 `fps` / `gpu` 就是 panify §4 说的「前后各 1 s 中位数之差」；timeit 写出来时若口径不同，在这里改 |
 
-没起开发服务器时页面一切照常，只是 `gm.dev.up` 恒为假：没有热重载、没有写回。脚本源码不能经 `PUT` 写回（脚本在编辑器里改）。
+没起开发服务器时页面一切照常，只是 `gg.dev.up` 恒为假：没有热重载、没有写回。脚本源码不能经 `PUT` 写回（脚本在编辑器里改）。
 
 ### 13.5 gd 的配合
 
-- **新增 `gd mods`**：`list`（id · 状态 · 启用 · 订阅数 · 最近 1 s 发出）、`on <id>` / `off <id>`、`reload <id>`、`graph`；都走 `gm.mods`。
+- **新增 `gd mods`**：`list`（id · 状态 · 启用 · 订阅数 · 最近 1 s 发出）、`on <id>` / `off <id>`、`reload <id>`、`graph`；都走 `gg.mods`。
 - **新增 `gd check mods`**（进 `checks.tsv`）：① 登记处观察到的订阅、发出、用到的命名空间 ⊆ 规格（`flow/*.ts`）；② 每个模块 `reload` 三次后 `seen` 与监听器数不变（热替换不泄漏）；③ 故意给一个语法错的脚本 → 旧版还在跑；④ 改一行表 → 只有那个 Ref 通知，`tbl_change` 不发。
-- **自动重载改按 `HOT` 表**（s12 §自动重载）：shot / check 前，`defl/` 的脚本、表、ui 变了不整页重载，只调 `gm.mods.sync()` 等热更新落定；`slicer` 类走 `gode.restart`；只有 `page` 类（`main/ rgl/ w/ vendor/ index.html`）才整页重载。`dev.up` 为假（没起服务器）时，gd 按 mtime 自己调 `gm.mods.reload` / `Table.reload`。`gd reload` 保留为强制整页。
+- **自动重载改按 `HOT` 表**（s12 §自动重载）：shot / check 前，`defl/` 的脚本、表、ui 变了不整页重载，只调 `gg.mods.sync()` 等热更新落定；`slicer` 类走 `gode.restart`；只有 `page` 类（`main/ rgl/ w/ vendor/ index.html`）才整页重载。`dev.up` 为假（没起服务器）时，gd 按 mtime 自己调 `gg.mods.reload` / `Table.reload`。`gd reload` 保留为强制整页。
 - `gd.js` 自身改了仍要 `down / up`（不变）。

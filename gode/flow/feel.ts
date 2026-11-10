@@ -17,7 +17,7 @@ export interface Out {
   feel: Feel                               // 每帧
 }
 
-export interface Api {
+export interface GgApi {
   feel: {
     shake(amp: num, sec: num): void        // [新] 爆炸（explode 事件自动调）、模组
   }
@@ -34,7 +34,7 @@ export const c_Feel = {
 export const FEEL = ['bob', 'land', 'hurt', 'shake', 'fov'] as const
 
 export const mod = {
-  id: 'feel', where: 'main',
+  id: 'feel', where: 'main', catalog: 'defl', axis: 'ui', ms: 'M1-9',
   doc: '相机手感：Body + 事件 → 6 个差量（晃动 / 落地下沉 / FOV / 受伤下压 / 抖动）',
   off: 'Pose 只有眼位与朝向，没有晃动、落地下沉、FOV 变化与抖动',
   emit: { feel: 'frame' },

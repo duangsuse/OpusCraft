@@ -1,7 +1,7 @@
 # 入口与引擎概览：一个仓库里的 8 个引擎、11 套渲染器
 
 > 范围：`/home/aa/Proj/mc` 下所有可直接运行的页面、模块与 CLI 入口；`goodPG`（VoxelCraft v3）为主体，其余版本作为对照 / 供体。
-> 前提：仓库根目录起静态服务 `http://localhost:8765/`（本机已起）；系统有 `chromium`。
+> 前提：仓库根目录起静态服务 [open](http://localhost:8765/)（本机已起）；系统有 `chromium`。
 > 路径均相对仓库根。标 `[INFERENCE]` 的是由代码读到、未逐条实跑的示例（参数名与取值来自源码，URL/命令本身未执行）。
 
 ---
@@ -10,16 +10,16 @@
 
 | 入口 | 默认 | 最少参数 | 示例 |
 |---|---|---|---|
-| `/` = `/index.html` | 宿主 B（OPUSCRAFT），`?r=gl` | 无 | `http://localhost:8765/` |
-| `/VoxelCraft.html` | 宿主 A，`v1` | 无 | `http://localhost:8765/VoxelCraft.html?r=v2/gl&seed=20240607` |
-| `/goodGL.html` | 标题界面 | **`#auto`** | `http://localhost:8765/goodGL.html#auto&seed=1&rd=6` |
-| `/goodGP/index.html` | 旧 JS 复刻 | 无 | `http://localhost:8765/goodGP/` |
-| `/goodLiqPG/index.html` | LiqPG | 无 | `http://localhost:8765/goodLiqPG/` |
-| `/goodPG1.html` | Shader Edition 单文件 | 无 | `http://localhost:8765/goodPG1.html?preset=High&autostart=1&seed=12345` |
-| `/goodPG/index.html` | v3 客户端（TS 源入口） | 无 | `http://localhost:8765/goodPG/?mundo=test&autostart=1&offline=1` |
-| `/goodPG/dist/client/index.html` | v3 构建产物 | 无 | `http://localhost:8765/goodPG/dist/client/?mundo=test` |
-| `/bridge-mind.html` | 功能最全的老复刻 | 无 | `http://localhost:8765/bridge-mind.html?pack=res/survivalpack.zip` |
-| `/doc/old.htm` | 青屿（研究原型） | 无 | `http://localhost:8765/doc/old.htm` |
+| `/` = `/index.html` | 宿主 B（OPUSCRAFT），`?r=gl` | 无 | [open](http://localhost:8765/) |
+| `/VoxelCraft.html` | 宿主 A，`v1` | 无 | [open](http://localhost:8765/VoxelCraft.html?r=v2/gl&seed=20240607) |
+| `/goodGL.html` | 标题界面 | **`#auto`** | [open](http://localhost:8765/goodGL.html#auto&seed=1&rd=6) |
+| `/goodGP/index.html` | 旧 JS 复刻 | 无 | [open](http://localhost:8765/goodGP/) |
+| `/goodLiqPG/index.html` | LiqPG | 无 | [open](http://localhost:8765/goodLiqPG/) |
+| `/goodPG1.html` | Shader Edition 单文件 | 无 | [open](http://localhost:8765/goodPG1.html?preset=High&autostart=1&seed=12345) |
+| `/goodPG/index.html` | v3 客户端（TS 源入口） | 无 | [open](http://localhost:8765/goodPG/?mundo=test&autostart=1&offline=1) |
+| `/goodPG/dist/client/index.html` | v3 构建产物 | 无 | [open](http://localhost:8765/goodPG/dist/client/?mundo=test) |
+| `/bridge-mind.html` | 功能最全的老复刻 | 无 | [open](http://localhost:8765/bridge-mind.html?pack=res/survivalpack.zip) |
+| `/doc/old.htm` | 青屿（研究原型） | 无 | [open](http://localhost:8765/doc/old.htm) |
 
 10 个入口全部 `200`（`curl -o /dev/null -w '%{http_code}'` 实测）。`/goodPG/dist/voxelcraft/` **没有** `index.html`，不是入口。
 

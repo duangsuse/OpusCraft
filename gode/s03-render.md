@@ -10,7 +10,7 @@
 | R-1 | M1 宿主是新写的 `gode/index.html`；宿主 B（`index.html` + `gls.js`）留作回归基准，玩法表逐步搬过来 |
 | R-2 | 三个渲染器：`?r=gl`（rgl，基准）、`?r=lite`（goodGL `renderVanilla`，无光影）、map（无头 / 地图，不占 `?r=`） |
 | R-3 | lite 与 rgl 共用同一份网格输出、同一张贴图数组，只换 pass，**可以运行时热切换** |
-| R-4 | map 由 slicer 的 `map` 动词出图块，main 拼到 2D canvas；画风照 `reference-vision/minimap.png`；API `gm.addMiniMap(cx, cz, {zoom, mode, size})` + `mm.markers(fn)` + marker 事件（§3.4） |
+| R-4 | map 由 slicer 的 `map` 动词出图块，main 拼到 2D canvas；画风照 `reference-vision/minimap.png`；API `gm.actOnMap.add(cx, cz, {zoom, mode, size})` + `gm.marks.live(layer, fn)` + marker 事件（§3.4） |
 | R-5 | goodPG 生物走 **goodGL 原生 pass**（骨骼 shader 移植进 rgl pass kit），不走 three 盒子网格 + entComp |
 | R-6 | 水面反射先用 SSR + 回落（天空 + 云）；体素 DDA 反射留作可选（§7） |
 
@@ -74,27 +74,33 @@ export function stats() {}     export function set(kv) {}  export function dispo
 - `mode: 'slice'`：从 `y1 = 地表` 逐层下扫到 `y0`，每层只画 `y ≤ y1` 的最高非空气格。main 按帧请求（预取 ±4 层），循环播放；滚轮暂停并手动拨层。
 - 多级缩放：1 / 2 / 4 / 8 格一像素，缩小时 slicer 先按块降采样再返回。
 
-### 3.4 `gm.addMiniMap` [定 11-08：markers 是函数，有 marker 事件]
+### 3.4 `gm.actOnMap` 与世界标记表 `gm.marks` [定 11-10：原 `gm.addMiniMap`；标记表世界里**一份**，各视图只管层开关]
 
 ```js
-const mm = gm.addMiniMap(cx, cz, { zoom, mode, size })   // cx, cz = 区块坐标（地图中心）
-mm.markers()                       // 读：当前标记列表
-mm.markers([[[x, z], '🏠'], ['@12,-40', '⛏'], ['@home', '🛏']])   // 写：整表替换
-mm.markers(old => [...old, ['@p1', '📍']])                       // 写：函数式更新
-mm.markers(() => gm.mobs.near(64).map(m => [m.P, '🐷']))          // 写：无参函数 = 动态标记，每次重绘时求值
-mm.on({
-  marker_Any:  (m, e) => {},       // 点了任意标记；m = { P, emoji, i }
-  'marker_🏠':  (m, e) => {},       // 点了某种 emoji 的标记
-  hover_Any:   (m, e) => {},       // 悬停（e.leave 为离开）
-  near_Any:    (m, d) => {},       // 玩家走到标记 r 格内（r 默认 4，可在标记第三项给 {r}）
-  tap:         (P, e) => {},       // 点了地图空白处，P = '@x,z^y' 世界坐标
+// 世界标记表（world 持有，存档）：所有视图画同一份
+gm.marks.list()                    // 读：当前标记列表
+gm.marks.list([[[x, z], '🏠'], ['@12,-40', '⛏'], ['@home', '🛏']])   // 写：整表替换
+gm.marks.list(old => [...old, ['@p1', '📍']])                       // 写：函数式更新
+gm.marks.add('@12,-40', '⛏', { layer: 'ore' })  gm.marks.remove('@12,-40')   // 单点增删；opts = { r, label, color, layer }
+gm.marks.live('mobs', () => gm.ents.near(64).map(m => [m.P, '🐷']))   // 动态标记，每次重绘求值；不存档；返回取消函数，模组停用时自动撤销
+
+// 地图侧（规格在 flow/render.ts MapAct）：只管自己的层开关、换算、点选
+gm.actOnMap                        // 默认 = M 键主小地图（id ''）；gm.actOnMap.of(id) 取别的，list() 列出
+const mm = gm.actOnMap.add(cx, cz, { zoom, mode, size })   // cx, cz = 区块坐标（地图中心）；返回 MapAct，mm.id / mm.el
+mm.layer('ore', false)  mm.layers()                         // 这张地图关掉 'ore' 层 / 读各层可见性（没出现的层 = 开）
+mm.scr2xz(sx, sy)  mm.xz2scr(x, z)                          // 屏幕 ↔ 世界 xz；在地图外返回 null
+mm.tap(sx, sy)  mm.center(cx, cz)  mm.zoom(4)  mm.mode('slice')  gm.actOnMap.remove(mm.id)
+gm.on({
+  marker(e) {},                    // e = { map, i, at, emoji, layer, how: 'tap' | 'hover' | 'leave' | 'near', p1 }；按 e.emoji / e.layer 过滤（原 'marker_🏠' 写法取消）
+  map_tap(e) {},                   // 点了地图空白处，e.P = '@x,z^y' 世界坐标
 })
-mm.center(cx, cz)  mm.remove()     // mm.el 是 DOM 元素
 ```
 
-- `markers` 与 s09 的 Ref 同形：**一个函数既读又写**（`markers()` 读，`markers(v)` 写），因此它也能直接挂进面板、被 `&json=` 写、被 `{set}` 消息写。
-- 每个标记是 `[坐标, emoji, opts?]`：坐标是世界格 `[x, z]` 或口诀字符串 `'@x,z' / '@地名' / '@p1'`；`opts = { r, label, color }`。
-- 事件键沿用 s05 的 `类别_名字` 写法，`Any` 是通配；同一事件也作为可订阅事件（`marker:🏠`）发给模组 worker（s07 §2），所以 iframe 和模组都能接到标记点击。
+- 主视图（第一人称画面）同理：`gm.act.layer(name, on?)` 管主视图叠层的层开关，hud 叠层用 `gm.act.xyz2scr` 画同一份 `gm.marks`。
+- `gm.pts` 的地名自动出现在内置层 `'pts'`，不用手写。
+- `marks.list` 与 s09 的 Ref 同形：**一个函数既读又写**（`list()` 读，`list(v)` 写），因此它也能直接挂进面板、被 `&json=` 写、被 `{set}` 消息写。
+- 每个标记是 `[坐标, emoji, opts?]`：坐标是世界格 `[x, z]` 或口诀字符串 `'@x,z' / '@地名' / '@p1'`；`opts = { r, label, color, layer }`（r = 玩家走近几格发 `near`）。
+- 事件是 Ev 里的 `marker` / `map_tap`（载荷带 `p1.who`），模组 worker 按 s07 §2 订阅，所以 iframe 和模组都能接到标记点击。
 - 一个页面可以有多个小地图（例如 clawd 的查看器、钻石箱里的检查点，s08），共用同一份图块缓存（键 `cx,cz,mode,y1,zoom`，区块 `rev` 变化时失效）。
 - 地图物品 [定 11-08]：物品只存 `{cx, cz, zoom, mode}`，拿在手里时实时取图块；存档时另存一张 webp 缩略图进 `pic/`（标题屏和分享用）。没加载过的区块画成空白羊皮纸，依据是区块加载记录（s06）。
 

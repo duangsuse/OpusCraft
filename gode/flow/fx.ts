@@ -45,7 +45,7 @@ export interface FlutterOpt {
   medium?: 'air' | 'water' | 'any'; onLiquid?: 'float' | 'kill' | 'pass'   // 静态：建后不可改（rgl/flutter.js 头注释）
 }
 
-/** 渲染器提供的绘制接口（gm.render.fx）。rgl 全有；lite 至少 burst */
+/** 渲染器提供的绘制接口（gg.render.fx）。rgl 全有；lite 至少 burst */
 export interface RenderFx {
   caps: { fire: boolean; firefly: boolean; flutter: boolean }
   burst(b: Burst): void
@@ -110,7 +110,7 @@ export const c_Fx = {
 }
 
 export const mod = {
-  id: 'fx', where: 'main',
+  id: 'fx', where: 'main', catalog: 'defl', axis: 'look', ms: '未排期',
   off: '没有粒子（挖方块碎屑、萤火虫、落叶、火星、水花），其余不受影响',
   doc: '触发与放置在 main；模拟与绘制在渲染器（RenderFx）',
   emit: {},

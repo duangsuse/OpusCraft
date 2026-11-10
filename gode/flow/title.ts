@@ -5,7 +5,7 @@
  *       ──▶ input（焦点、标题屏预览视角）、audio（BGM、压低）、render、save（暂停时截封面）
  *   页面：<html data-screen="title|paused|ask|loading|game">（kernel BIND）。菜单显示 / 转圈 / 物品栏半透明 / 准星隐藏全由 defl/ui.css 的
  *     html[data-screen=…] 选择器决定，不再有 STATES 那样「状态 × 控件属性」的逐列表 [定 11-09，用户：过度拆解、imgui 味]。游戏只剩一条语义：paused = screen ≠ 'game'。
- *   页面按钮 <button data-act="start"> ──▶ 虚拟键 ──▶ MOVES；输入框 / 列表点选 ──▶ gm.game.start / resume、gm.save.put / remove / export、gm.inv.give（试玩物品）
+ *   页面按钮 <button data-act="start"> ──▶ 虚拟键 ──▶ MOVES；输入框 / 列表点选 ──▶ gg.game.start / resume、gg.save.put / remove / export、gm.p1.bar.give（试玩物品）
  *
  * 画面（IDEA「有趣的优化」+ 存档段）：
  *   - 主界面横排两个按钮，各带一个输入框：左 = seed / 联机码，右 = 粘贴 webp 存档，进去就开。
@@ -22,11 +22,11 @@ export interface Out {
   screen: { s: Screen; was: Screen }
 }
 
-export interface Api {
+export interface GgApi {
   title: {
     screen: Ref<Screen>                                   // 唯一持有者；MOVES 改它，改了发 screen 事件。paused = screen ≠ 'game'
     open(s?: 'title' | 'paused' | 'ask'): void
-    start(a: StartArg): Promise<void>                     // = 左边输入框 / 粘贴 / 列表点选 / &start=（转给 gm.game.start）
+    start(a: StartArg): Promise<void>                     // = 左边输入框 / 粘贴 / 列表点选 / &start=（转给 gg.game.start）
     ask(): Promise<StartArg | null>                       // 'ask'：等用户给一个存档（宿主 B promptXYZB）
   }
 }
@@ -57,11 +57,11 @@ export const ROW = ['name', 'mode', 'age', 'kb', 't'] as const satisfies readonl
 export const SPLASH = ['Now with creepers!', 'Happy farming!', '100% procedural cave!', 'Water flows down now!', 'Punch zombies!', 'Not affiliated with Mojang!', 'Lava is hot!'] as const
 
 export const mod = {
-  id: 'title', where: 'main',
+  id: 'title', where: 'main', catalog: 'defl', axis: 'ui', ms: '未排期',
   doc: '标题屏 / 暂停屏 / 加载条；画面（screen）的唯一持有者。显示全在 ui.html / ui.css',
   off: '启动直接进游戏（screen = game），没有标题屏与暂停屏；Esc 不再暂停',
   emit: { screen: 'edge' },
   sub: ['game_load', 'game_ready', 'save_index'],        // key 由 kernel 的 MOVES 吃，title 不再订阅
-  depends: ['game', 'save', 'inv', 'pane'],            // pane：暂停时展开渲染 / 玩法 root（s09 §6）；按钮点击声由 audio 订阅 key 出（SFX 表）
+  depends: ['game', 'save', 'p1', 'pane'],            // pane：暂停时展开渲染 / 玩法 root（s09 §6）；按钮点击声由 audio 订阅 key 出（SFX 表）
   tables: ['i18n.json'], c_: ['$Title'], save: [],   // 存档列表归 save 模块（M2）
 } as const satisfies Mod

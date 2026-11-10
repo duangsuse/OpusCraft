@@ -55,33 +55,31 @@ setBlock → 清 tile（emit tileRemoved）→ 写 blocks/meta → 高度图
 | D-6 | 文件名与内容不符：`mobsim.js` 里是 Mobs + **Fluids + Fire + RandomTicks**；`gls.js` 里是 Lighting + Mesher + Sky + Weather；`res_vam.js` 里是 Atlas + ResourcePack + MobSkin + **SND** | 找东西靠记忆；音效表混在贴图文件里 |
 | D-7 | 服务定位器：`gg.my(new class X)` 把单例挂到全局 `gg.X`，`index.html` 顶层 `const` 表 | 好处是模组能摸到，坏处是依赖关系看不出来 |
 
-## 3. gode 里的子系统一览 [议]
+## 3. 宿主 B → gode 模块对照 [11-10 重构]
 
-「状态」列用 §1 的四类。「归属」：**main** = 主线程引擎；**w** = slicer / io worker；**defl** = 默认模组（数据）；**r** = 渲染器模块。
+> 归属（main / worker）、层、轴、里程碑**不再在这里维护**：以 README §1 的总表为准（由 `flow/*.ts` 的 `mod` 描述生成）。本表只留两样总表没有的：**宿主 B 里原来在哪**、**属于 §1 的哪一类状态**。
 
-| 子系统 | 宿主 B 位置 | 状态 | 在 gode 的归属 | 订阅 / 产出 | M |
-|---|---|---|---|---|---|
-| 区块 / 世界镜像 | `World` :1084 | 世界 | main `world.js` ✅ | 产出 Δ（§4） | M1 ✅ |
-| 生成 | `Terrain`、`gen.js` | 派生（可重放） | w `slicer.js` + `defl/g/*` ✅ | 产出 `gen` | M1 ✅ |
-| 光照 | `Lighting`（`gls.js`:15） | 派生 | w 初始光 ✅ + main 增量 | 订阅 Δ | M1-8 |
-| 网格 | `Mesher` | 派生 | w `mesh` 动词 ✅ | 订阅 Δ | M1 ✅ |
-| 移动 / 碰撞 | `Physics` :1464、`Player.update` | 实体（玩家） | main `phys.js` ✅ | 读世界 | M1 ✅ |
-| 输入 / 触屏 / 帮助键 | `Input` :1552、`Touch` :3860、`HelpKeys` :4072 | — | main `input.js`：把键 / 触摸归一成**意图**（move / jump / use / tap） | 产出意图 | **未排期** |
-| 交互（挖 / 放 / 使用物品） | `Interaction` :1933 | — | main `interact.js`：意图 → `ontap` → 无返回才走破坏 → `world.set` | 产出 Δ | M3-7 |
-| 玩家状态（HP / 饥饿 / 物品栏） | `player`、`Player`、`HURT` | 实体（`#p1`） | main；机制在引擎，规则在 `defl/hurt` | 订阅 `tick`、Δ | M3 |
-| 物品栏 / 熔炉 / 容器 | `Inventory` :2297、`Furnace` :2332 | 世界（tile）+ 实体 | main 引擎管格子逻辑，`recipe.tsv` 给规则 | 订阅 `tick` | M3-1 |
-| 调度 + 流体 / 火 / 随机 tick | `Scheduler` :525、`Fluids / Fire / RandomTicks`（`mobsim.js`） | 世界（pending 表） | main `sim/`，20 Hz，订阅 Δ。**留 main 还是下沉 sim worker 待议**（s01） | 订阅 Δ → 产出 Δ | **未排期** |
-| Mob / Ent / BIME | `Mobs`（`mobsim.js`）、`MOB_TYPES` | 实体 | main + `defl/mob.json / on.js` | 订阅 `tick`、Δ | M3-6/7 |
-| 粒子 | `Particles` :2731 | 派生（不存） | r 侧或 main `fx/`：订阅 `blk_break` 之类的事后事件 | 订阅事件 | **未排期** |
-| 音效 | `SND`（`res_vam.js`:575） | 派生 | 同上，订阅事件；**文档里全无** | 订阅事件 | **未排期** |
-| 天气 / 天空 / 时钟 | `Sky / Weather`（`gls.js`）、`$Time` | 规则（时钟）+ 派生 | main 时钟 ✅（`boot.js` 最小版）；渲染在 rgl | `c_Time / c_Weather` | M1-9 |
-| 资源（贴图 / 模型 / 包） | `Atlas / ResourcePack / MobSkin` | 规则与资源 | main 加载，`$links` 里的 `{js,zip}`（s06） | 产出 `atlasRebuilt` | M3 |
-| 参数 / 面板 | `gg.rndr / gg.sim`、`menu` | 规则 | main `gg.vars / c_ / gg.pane` | 产出 `set` | **M1-2** |
-| 存档 / 标题屏 / 屏保 | `Save` :3021、`Title`、`Screensaver` | 世界 + 实体 | w `io.js` + main 状态注册表（§5） | 订阅 Δ（pile） | M2 |
-| BBat / gm / λ. | `BBat` :2391、`gm` :2477 | 实体 + 规则 | main；λ. 是 BBat 的 LS 扩展（s08） | 订阅 / 产出 Δ | M4 |
-| Agent 工具 | — | — | `gode/tools/` ✅ | — | M0 ✅ |
-
-**没有排期或没有文档的**：输入 / 触屏、调度与流体 / 火、粒子、音效。它们在宿主 B 里占很大篇幅（`Touch` 一个模块约 210 行，它把触摸合成成键盘事件塞进 `Input.keys`，等于已有一个雏形的意图层），M3 做完不会自动收进来。
+| 子系统 | 宿主 B 位置 | 状态 | gode 模块（`flow/`） |
+|---|---|---|---|
+| 区块 / 世界镜像 | `World` :1084 | 世界 | `world` |
+| 生成 | `Terrain`、`gen.js` | 派生（可重放） | `slicer` + `defl/g/*` |
+| 光照 | `Lighting`（`gls.js`:15） | 派生 | `slicer`（初始光）+ `sim`（增量、接缝） |
+| 网格 | `Mesher` | 派生 | `slicer` 的 `mesh` 动词 |
+| 移动 / 碰撞 | `Physics` :1464、`Player.update` | 实体（玩家） | `p1` |
+| 输入 / 触屏 / 帮助键 | `Input` :1552、`Touch` :3860、`HelpKeys` :4072 | — | `input`（意图层）+ `feel`（相机手感） |
+| 交互（挖 / 放 / 使用物品） | `Interaction` :1933 | — | `interact`（调 `hooks.run('onTap')`，无返回才破坏） |
+| 玩家状态（HP / 饥饿 / 背包 bag / 热键栏 bar） | `player`、`Player`、`HURT`、`Inventory` :2297 | 实体（`#p1`） | `p1`（规则在 `defl/hurt.js`；bag / bar 的格子属玩家） |
+| 储物箱柜 / 工具（bins：箱子、熔炉、工作台） | `Furnace` :2332、箱子 tile | 世界（tile） | `interact`（`gm.bins`；`recipe` 给规则） |
+| 调度 + 流体 / 火 / 随机 tick | `Scheduler` :525、`Fluids / Fire / RandomTicks`（`mobsim.js`） | 世界（pending 表） | `sim`（留 main，只订阅 Δ / tick，s14 Q-2） |
+| Mob / Ent / BIME | `Mobs`（`mobsim.js`）、`MOB_TYPES` | 实体 | `ents` + **`hooks`**（on.js 钩子、comp.js 组件） |
+| 粒子 | `Particles` :2731 | 派生（不存） | `fx`（模拟与绘制在渲染器 `RenderFx`） |
+| 音效 | `SND`（`res_vam.js`:575） | 派生 | `audio` |
+| 天气 / 天空 / 时钟 | `Sky / Weather`（`gls.js`）、`$Time` | 规则（时钟）+ 派生 | `weather`；天空与云在 `render` |
+| 资源（贴图 / 模型 / 包） | `Atlas / ResourcePack / MobSkin` | 规则与资源 | `render`（`c_Pack`）+ `kernel` 的表（`gm.tbl`） |
+| 参数 / 面板 | `gg.rndr / gg.sim`、`menu` | 规则 | `pane` + `kernel` |
+| 存档 / 标题屏 / 屏保 | `Save` :3021、`Title`、`Screensaver` | 世界 + 实体 | `save`（where: dumper）+ `title`；屏保不做 |
+| BBat / gm / λ. | `BBat` :2391、`gm` :2477 | 实体 + 规则 | **flow 里还没有**（s08，README §1.1） |
+| Agent 工具 | — | — | `tools/`，不是游戏模块 |
 
 ## 4. 一条写路径、一种 Δ [议]
 
@@ -93,7 +91,7 @@ setBlock → 清 tile（emit tileRemoved）→ 写 blocks/meta → 高度图
 | 网格 | 受影响的 section | rgl `onBlockChanged` |
 | **pile 存档** | 有序的 place 序列（序号，不认时间戳） | s06 §6 |
 | **联机** | 同一个序列，服务端权威 | s06 S-4、s11 §2 |
-| 模组 `subs` | 事后事件（`blk_*`、`onhit`） | s07 M-3 |
+| 模组 `subs` | 事后事件（`blk_*`、`onHit`） | s07 M-3 |
 
 ```
 意图（输入 / 模组 / 命令）
@@ -161,7 +159,7 @@ export const save = {
 
 > 用户 11-09：子系统先用 TS 写出声明式数据流，再开工程；粒度到 KubeJS / Luanti 模组 API 的程度；模块之间的连接点与数据类型要一眼能懂。
 
-**模块划分（用户定）**：音效（BGM / 持续状态 / SFX）· 粒子（挖方块 / firefly / flutter / fire）· 模拟（流体 / 火 / 光照 BFS）· 天气 · 标题屏 UI · HUD + 命令 · 输入 + 触屏 + 相机抖动。屏保不做。对应 `flow/audio fx sim weather title hud input feel.ts`（s16 起输入拆出 `feel`）、框架 `kernel.ts`；已有或后续里程碑的模块（game world p1 interact ents render save pane slicer）只在 `flow/host.ts` 写连接点。
+**模块划分（用户定）**：音效（BGM / 持续状态 / SFX）· 粒子（挖方块 / firefly / flutter / fire）· 模拟（流体 / 火 / 光照 BFS）· 天气 · 标题屏 UI · HUD + 命令 · 输入 + 触屏 + 相机抖动。屏保不做。对应 `flow/audio fx sim weather title hud input feel.ts`（s16 起输入拆出 `feel`）、框架 `kernel.ts`；已有或后续里程碑的模块（game world p1 interact ents save slicer）只在 `flow/host.ts` 写连接点。**[11-10]** 新增 `flow/hooks.ts`（模组 API 总章：IDEA-sys L99 的钩子模型），每个模块描述多了 `layer / axis / ms` 三个字段（README §1 总表由它们生成）。
 
 **连接点规则（用户定）**：跨模块的数据，信息量不超过它的口诀文本。例：相机 → 渲染器只同步 `Pose`，即 `&p1=@x,z^y,yaw,pitch,fov` 的 6 个数（IDEA L68）；渲染器要的其余信息自己经 gm 取（`Here` 4 Hz、`Clock` 每帧、`gm.world.at`）。rgl 现在读的 `env.flying`（锐阴影距离）不在 Pose 里，改成 p1 切飞行时写 `c_.Gl` 参数。
 
@@ -171,13 +169,13 @@ export const save = {
 |---|---|
 | `Out` | 本模块发出的事件与载荷（合进 `index.ts` 的 `Ev`） |
 | `Api` | 本模块提供的 gm 命名空间（合进 `Gm` = `window.gm` 的形状） |
-| 声明表 | `defl/` 下的表，行类型 + 宿主 B 的现值：`ACTS CAMS`（原 `KEYS`）、`SND SFX LOOPS BGM`、`BURSTS EMIT AMBIENT`、`FLUID HARDEN ABM`、`PRECIP`、`MOVES BIND`（原 `STATES / ELEMS`，s16）、`F3 CMDS` |
+| 声明表 | `defl/` 下的表，行类型 + 宿主 B 的现值：`ACTS CAMS`（原 `KEYS`）、`SND SFX LOOPS BGM`、`BURSTS EMIT AMBIENT`、`FLUID HARDEN`（随机 tick 的 `RANDOM` 列 + `ON_DEFAULT`）、`PRECIP`、`MOVES BIND`（原 `STATES / ELEMS`，s16）、`F3 CMDS` |
 | `c_*` | 面板参数的字面量默认值（s09 §1 最底层） |
 | `mod` | 位置、发出（带频率）、订阅、`depends`（经 gm 调用的命名空间）、读的 `defl/` 表、`c_` 主题、存档键；`core` / `off`（s16）。这是设计期规格，运行时登记处自己观察；`doc` 只是 Ref `mod.<id>.doc` 的初值 |
 
 检查方法：
 
-- `node ~/.bun/install/cache/typescript@5.9.3@@@1/bin/tsc -p gode/flow`：类型检查通过，就说明连接点对得上。共九条检查，见 `index.ts` 头注释：没人发的订阅、一个事件有多个发出者、`emit` 与 `Out` 不一致、同名事件载荷冲突、`depends` 写了不存在的命名空间、表里的事件没订阅，以及 s16 加的三条（MOVES 行、BIND 行、非核心模块要写 `off`）。除第五条外都已用故意弄断的副本验证会报错（s16 §10 的三条与 `depends` 也验过）。
+- `node ~/.bun/install/cache/typescript@5.9.3@@@1/bin/tsc -p gode/flow`：类型检查通过，就说明连接点对得上。共十一条检查，见 `index.ts` 头注释：没人发的订阅、一个事件有多个发出者、`emit` 与 `Out` 不一致、同名事件载荷冲突、`depends` 写了不存在的命名空间、表里的事件没订阅，以及 s16 加的三条（MOVES 行、BIND 行、非核心模块要写 `off`）、11-10 加的两条（`hooks.HOOKS` 表与 `BlockHooks` 的键一致、其触发事件都在 `hooks.sub` 里）；另外 `Mod` 类型强制 `layer / axis / ms`，`layer` 为 `defl` ⇔ 非核心。除第五条外都已用故意弄断的副本验证会报错（s16 §10 的三条与 `depends` 也验过）。
 - `node gode/flow/graph.ts`：打印模块表与事件矩阵。没有模块订阅的事件标「（模组）」，目前有 `biome fire_burn fire_out grow hour cmd`。加参数 `mermaid` 打印流程图。
 
 本节对 §7 的影响：
@@ -199,7 +197,7 @@ export const save = {
 
 - 模块描述符字段：`uses → depends`（有牙：加载顺序 + 受限 gm 视图），`defl → tables`；新增 `core`（引擎核心不可停）和 `off`（默认模组停用后消费者看到什么）；`where` 去掉 `'dom'`（页面是 Ref 的视图，不是运行位置），加 `'worker'`。`doc` 只是运行时 Ref `mod.<id>.doc` 的初值。
 - `STATES`、`ELEMS` 取消，换成 kernel 的 `BIND` 表 + 页面 `html[data-*]`；`KEYS → ACTS`（虚拟键表，`Action` 开放）；`MOVES` 通用化为 `[Ref, 从, 动作, 到]`；`Screen` 开放。
-- `input` 拆出可停用的 `feel`（Pose 大小的 6 个差量 `Feel`）；新增 `kernel`（登记处、脚本加载、MOVES 执行、绑定器、`gm.mods / gm.tbl`）。
-- 状态型事件在持有者命名空间里各有一个同名的「最新值」Ref（`world.here`、`p1.stat`、`inv.hot`、`weather.clock`…），供页面绑定。
+- `input` 拆出可停用的 `feel`（Pose 大小的 6 个差量 `Feel`）；新增 `kernel`（登记处、脚本加载、MOVES 执行、绑定器、`gg.mods / gm.tbl`）。
+- 状态型事件在持有者命名空间里各有一个同名的「最新值」Ref（`world.here`、`p1.stat`、`p1.bar.hot`、`weather.clock`…），供页面绑定。
 
 画面反馈（云、阴影、反射、天气、粒子）带来的改动见 **s15**：新增 `flow/render.ts`（渲染器的连接点与 `c_` 参数主题，原先写在 `host.ts`），`Clock` 改带天气参数行，`Here` 加 `held`。

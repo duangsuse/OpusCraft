@@ -16,17 +16,19 @@
  *   ③ 登记处记录一切：订阅、发出（实时计数）、实际用到的命名空间、c_ 主题、读过的表、虚拟键行、存档键。emit / sub / c_ 不用手写第二遍。
  *      flow/*.ts 是设计期规格（Ev / Gm / 行类型，tsc 检查照跑）；登记处观察到的必须 ⊆ 规格（gd check mods）。
  *      doc 不是元数据：它是 Ref mod.<id>.doc（任何路径都可以有 doc），初值来自 defl/doc.tsv，面板里改、✎ 写回。
- *   ④ 停用 = 撤销该模块名下的全部登记 + 调 down()。引擎核心（Mod.core）不可停；默认模组可停，可被同 id 的模组替换（s07 §4 叠加）。
+ *   ④ 停用 = 撤销该模块名下的全部登记 + 调 down()。引擎核心（Mod.catalog = 'core'）不可停；默认模组可停，可被同 id 的模组替换（s07 §4 叠加）。
  *      停用时依赖它的模块一并停用并提示（mod_change why = 'depends'）。每个可停用模块的 Mod.off 写明「停了之后消费者看到什么」。
+ *      唤醒 [定 11-10，用户]：默认模组可声明 Mod.wake（事件名列表，必须在它的 sub 里）。它停用期间这些事件一发出，kernel 先重新启用它（mod_change why = 'wake'）
+ *      再把事件交给它。只用于「明确的指令」（模组命令 {time} / {weather}）；被动消费（粒子、音效）不唤醒，消费者看 off。
  *   ⑤' 热替换是设计目标 [定 11-09，用户]：tsv / json 外提的本意就是方便热重载，模块脚本也应能热替换（重新 eval 成本很低，F5 再快也要重生世界）。
  *      脚本热替换 = 新源码先编译（语法错 → 保留旧版）→ 旧 down() 的返回值作交接对象 → 撤销旧视图的全部登记 → 新脚本在新视图里 eval → up(prev)；
  *      新脚本抛错就回滚到上一个能跑的版本（重新 eval 旧源码，同样 up(prev)），err 记下、面板标红。全程同步一个 tick，不丢事件。
  *      表热更新 = 就地 diff：改了的行写 Ref（订阅者与面板自动收到），增删行发 tbl_change；所以模块读表必须经 gm.tbl.<名字> 取用，不在加载时缓存副本。
  *      文件变化由开发服务器（gode/tools/dev.js，取代 http-server -p 8765 -c 1）经 SSE 推给页面（DevEvent）；HOT 表决定每类文件怎么处置。没有开发服务器时静默回退。
  *   ⑤ 页面是视图：游戏暴露「值」（Ref → html[data-*] / CSS 变量 / data-bind）与「动作」（data-act = 虚拟键）。没有逐控件推属性的表（STATES / ELEMS 已取消）。
- *   ⑥ 管理工具 = 面板「模组」root（gg.pane）+ gm.mods：列表、启停、改 doc / 参数 / 表行、看订阅与实时发出计数、依赖图。
+ *   ⑥ 管理工具 = 面板「模组」root（gg.pane）+ gg.mods：列表、启停、改 doc / 参数 / 表行、看订阅与实时发出计数、依赖图。
  *
- * 执行者：kernel（core，main）。它加载脚本、记账、执行 MOVES、跑 HTML 绑定器、提供 gm.mods / gm.tbl。
+ * 执行者：kernel（core，main）。它加载脚本、记账、执行 MOVES、跑 HTML 绑定器、提供 gg.mods / gm.tbl。
  * 私有状态交接 [定 11-09，用户：HMR dispose / accept 风格]：gm.on({ up(prev) {…}, down() { return {…} } })。up / down 是模块私有的伪事件（不进 Ev）：
  *   up(prev) 在脚本顶层执行完之后调用，prev = 上一个实例 down() 的返回值（热替换时；首次加载与停用后再启用都是 undefined）；
  *   down() 在热替换 / 停用时调用，返回交接对象（where: 'worker' 的模块要求可结构化克隆）。要跨重载的东西：参数值（$X）与 Ref 本来就保留，私有变量靠这一对钩子交接。
@@ -34,16 +36,17 @@
  *   · 停用被依赖的模块：默认连带停用并提示。备选拒绝停用。
  */
 import type { num, Ref, Action } from './core.ts'
-import type { Mod, Gm, EvName, Where } from './index.ts'
+import type { Mod, Gm, Gg, EvName, Where } from './index.ts'
 import type { PaneRow, RootOpts } from './pane.ts'
 
 export interface Out {
-  mod_change: { id: string; on: boolean; why: 'load' | 'user' | 'depends' | 'error' | 'reload' }   // 启用 / 停用 / 热替换了一个模块（hud 提示、面板刷新）
+  mod_change: { id: string; on: boolean; why: 'load' | 'user' | 'depends' | 'error' | 'reload' | 'wake' }   // 启用 / 停用 / 热替换了一个模块（hud 提示、面板刷新）
   tbl_change: { name: string; added: readonly string[]; removed: readonly string[] }            // 表热更新时有行增删（改行本身走 Ref，不发这个）。自己建了派生索引的模块订阅它
 }
 
 // ── 脚本拿到的三个形参（每模块一份视图；登记自动记在该模块名下，停用时一起撤销）
-export interface Gg {
+/** gg 里每个模块都有的登记工具（不是命名空间，不进 depends）；命名空间部分见 index.ts 的 Gg */
+export interface GgTools {
   ev(target: EventTarget, h: Record<string, (e: Event) => void>): EventTarget            // 宿主 B gg.ev；停用时摘掉
   pane(root: string, rows: readonly PaneRow[], o?: RootOpts): void                       // 面板声明，纯数据（pane.ts）；停用时移除该 root
   after(ms: num, f: () => void): () => void                                              // 计时器也要走视图，停用时才清得掉（脚本里别直接用 setTimeout）
@@ -55,13 +58,14 @@ export type C_ = Record<string, Record<string, unknown>>                        
 export interface Globals { gg: Gg; gm: Gm; c_: C_ }
 declare global { const gg: Gg; const gm: Gm; const c_: C_ }
 
-// ── defl/mod.tsv：模块清单。一行一个；模组同 id 的行覆盖默认行。core 模块不在表里（引擎启动时直接加载）
-export type ModRow = readonly [id: string, file: string, where: 'main' | 'worker', depends: string, on: 0 | 1]
+// ── defl/mod.tsv：模块清单。一行一个；模组同 id 的行覆盖默认行。catalog 'core' 的模块不在表里（引擎启动时直接加载）
+export type ModRow = readonly [id: string, file: string, where: 'main' | 'worker' | 'slicer', depends: string, on: 0 | 1]   // slicer：脚本在每个 slicer worker 里跑，gm 是只含 on({ genChunk }) 的受限代理（hooks.ts ⑤）
 
-// ── 运行时视图：管理面板与 gm.mods 看到的东西。Ref 的路径是 mod.<id>.on / mod.<id>.doc，改它们与改参数同一条路由
+// ── 运行时视图：管理面板与 gg.mods 看到的东西。Ref 的路径是 mod.<id>.on / mod.<id>.doc，改它们与改参数同一条路由
 export interface ModInfo {
-  id: string; file: string; where: Where; core: boolean
-  on: Ref<boolean>                            // 启用开关；core 恒 true，写 false 抛错
+  id: string; file: string; where: Where
+  catalog: 'core' | 'defl' | (string & {})    // 出自哪个目录：引擎核心 / 默认模组 / 第三方模组包名（Mod.catalog 的运行时形式）
+  on: Ref<boolean>                            // 启用开关；catalog 为 'core' 的恒 true，写 false 抛错
   doc: Ref<string>                            // 说明（运行时可编辑；初值 defl/doc.tsv 的 mod.<id> 行）
   off: string                                 // 停用后消费者看到什么（来自 Mod.off）
   depends: readonly string[]                  // mod.tsv 的声明
@@ -79,16 +83,21 @@ export interface Table {
   reload(): Promise<void>                       // 重读各层文件并就地 diff（开发服务器推送时 kernel 自己调；没有服务器时 gd 按 mtime 调）
 }
 
+/** gm 里只有表：模组每次读表都经 gm.tbl.<名字>（热更新是就地 diff，不缓存） */
 export interface Api {
+  tbl: Readonly<Record<string, Table>>                         // gm.tbl.bursts：按文件名（不含扩展名）取。读表必须每次经它取（热更新是就地 diff，缓存的副本会过期）
+}
+/** gg：模组管理与开发服务器 */
+export interface GgApi {
+  popup: { open(o: { url: string; w: num; h: num }): void; close(): void }   // 弹框 iframe（s07 §5：独占输入、sandbox allow-scripts）；hook_popup 事件走它。kernel 是核心，所以弹框不可停
   mods: {
     list(): readonly ModInfo[]
     get(id: string): ModInfo
-    on(id: string, on: boolean): Promise<readonly string[]>   // 启停；返回连带停用的 id；core 抛错
+    on(id: string, on: boolean): Promise<readonly string[]>   // 启停；返回连带停用的 id；catalog 'core' 的抛错
     reload(id: string): Promise<{ ok: boolean; err?: string }>  // 热替换（⑤'）：ok = 新版在跑；false = 回滚到上一版。参数值（gg_v / 存档层）保留
     sync(): Promise<void>                                      // 等已收到的文件事件全部处理完（gd 在 shot / check 前调用，保证截到的是改完之后的样子）
     graph(): readonly { id: string; sub: readonly EvName[]; emit: readonly EvName[]; depends: readonly string[] }[]
   }
-  tbl: Readonly<Record<string, Table>>                         // gm.tbl.bursts：按文件名（不含扩展名）取。读表必须每次经它取（热更新是就地 diff，缓存的副本会过期）
   dev: {                                                       // 开发服务器的页面端（没有服务器时 up 恒为 false，write 抛错、ls 返回 []）
     up: Ref<boolean>                                           // SSE 已连上（html[data-dev]：页面可以显示「热重载已连接」）
     write(path: string, text: string): Promise<void>           // PUT /__dev/write：面板 ✎ 写回 doc.tsv / c_.json / 表行（path = 'gode/defl/doc.tsv'）。带 If-Match，别人（编辑器）先改过就 409，页面先热更新再重试
@@ -155,10 +164,10 @@ export const c_Mods = {
 }
 
 export const mod = {
-  id: 'kernel', where: 'main', core: true,
-  doc: '框架：加载 mod.tsv 里的脚本（受限 gg / gm / c_ 视图）、登记处、热替换、通用 MOVES、HTML 绑定（data-*）、管理 API gm.mods / gm.tbl / gm.dev',
+  id: 'kernel', where: 'main', catalog: 'core', layer: 'kernel', axis: 'ui', ms: '未排期',
+  doc: '框架：加载 mod.tsv 里的脚本（受限 gg / gm / c_ 视图）、登记处、热替换、通用 MOVES、HTML 绑定（data-*）、管理 API gg.mods / gm.tbl / gg.dev',
   emit: { mod_change: 'edge', tbl_change: 'edge' },
-  sub: ['key', 'boot', 'game_ready'],              // MOVES 用到的：key = 全部虚拟键；boot / game_ready 是表里出现的事件名（index.ts 检查两者一致）
+  sub: ['key', 'boot', 'game_ready', 'hook_popup'],              // MOVES 用到的：key = 全部虚拟键；boot / game_ready 是表里出现的事件名（index.ts 检查两者一致）；hook_popup：模组的 {popup} 命令，弹框 iframe 归 kernel（核心，不可停，s07 §5）
   depends: ['input', 'pane'],                      // input.press：data-act 点击
   tables: ['mod.tsv', 'moves.tsv', 'bind.tsv', 'doc.tsv'], c_: ['$Mods'],
   save: ['mods'],                                  // 各模组启用开关的覆盖：按存档记（同一个世界总用同一组模组，Luanti world.mt 的 load_mod_*）

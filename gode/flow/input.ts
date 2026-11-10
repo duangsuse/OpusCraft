@@ -1,7 +1,7 @@
 /**
  * gode/flow/input.ts —— 输入 · 触屏 · 相机，一个核心模块 [定 11-09，用户]（相机手感拆到 feel.ts，可停用）
  *
- *   物理键 / 触屏手势 / 屏幕按钮（data-act、data-btn）/ 命令行 / 模组 gm.input.press ──ACTS 表（虚拟键）──▶ Intent ──▶ p1（物理）、interact（挖放）
+ *   物理键 / 触屏手势 / 屏幕按钮（data-act、data-btn）/ 命令行 / 模组 gm.act.press ──ACTS 表（虚拟键）──▶ Intent ──▶ p1（物理）、interact（挖放）
  *                                                                                     └─▶ key 事件 ──▶ kernel 的 MOVES（screen、cam 转移）、命令行、音频解锁、模组 worker {key}
  *   Body + feel + CAMS ──POSE──▶ Pose ──▶ render、audio（听者）、fx（发射区）、world（Here 采样）、hud（Gizmo）
  *
@@ -12,12 +12,12 @@
  *   - 脚步声的计步搬到 p1（p1_step），本模块只管「看」。
  *   - Pose 是本模块唯一的输出画面数据；渲染器不读 player、不读相机对象（连接点规则 ②）。
  */
-import type { num, XYZ, PStr, Pose, Action, Intent, Ref } from './core.ts'
+import type { num, XYZ, PStr, Pose, Action, Intent, Ref, Blk, Mob, MarkLayers, P1Tag } from './core.ts'
 import type { Mod } from './index.ts'
 import type { MoveRow } from './kernel.ts'
 
 export interface Out {
-  intent: Intent                           // 每帧
+  intent: Intent & P1Tag                           // 每帧
   key: { action: Action | null; code: string }   // 按下边沿（物理键 / 屏幕按钮 / 命令行 / 模组都发；非物理键 code = ''）：kernel 的 MOVES、命令行、音频解锁、模组 worker 的 {key:'G'}（s07 §2）都订阅它
   pose: Pose                               // 每帧，已含晃动 / 下沉 / FOV 变化（feel 在时）
 }
@@ -25,11 +25,26 @@ export interface Out {
 export type CamMode = 'fp' | 'orbit' | 'back'   // [定 11-09，用户：CAMS 只留这三个] = URL &cam=（s09 §8）；也是 cam.mode 的 meta.options 顺序（F4 轮转）
 export type Focus = 'game' | 'ui' | 'text'   // text = 命令行 / 面板输入框在打字：除 ` F3 F4 Esc 外的键不进游戏（s09 §6.1）
 
+/** 点选结果（scr2xyz）：与 aim 事件同形，多一个精确命中点 */
+export interface Hit { P: XYZ; face: num; blk: Blk; mob: Mob | null; id?: num; at: XYZ }
+/** gm.act [定 11-10，用户]：键鼠 / 触屏操作与屏幕 ↔ 世界换算都在这里（模组、gm.test、Agent、命令行共用；页面 data-act 也走 press） */
 export interface Api {
+  act: {
+    press(act: Action, edge?: 'down' | 'up' | 'tap'): void   // 虚拟键。默认 tap = down + up；hold 型动作按住时 down、松开时 up
+    key(code: string, edge?: 'down' | 'up' | 'tap'): void    // 物理键码 'KeyW' / 'Mouse0'：按 ACTS 的键列转成动作，等同键盘 / 鼠标事件（gm.test 与 Agent 用）
+    move(x: num, z: num): void                               // 本帧摇杆 / WASD 合成值，−1..1（同 Intent.move）
+    look(dyaw: num, dpitch: num): void                       // 弧度增量（同 Intent.look，已乘灵敏度）
+    wheel(dy: num): void
+    tap(sx: num, sy: num, how?: 'tap' | 'long' | 'dbl'): void   // 触屏点击屏幕坐标（CSS px，左上原点）：命中屏幕按钮就当按钮，否则查 ACTS 触屏列的区域手势
+    scr2xyz(sx: num, sy: num, reach?: num): Hit | null       // 屏幕点 → 射线选取；没打到（天空 / 超出 reach）返回 null。原 gm.act.scr2xyz（s05）
+    xyz2scr(P: XYZ): readonly [sx: num, sy: num] | null      // 世界点 → 屏幕像素；在相机背后或视锥外返回 null（marker 绘制用）
+  } & MarkLayers                                             // 主视图的标记层开关 [定 11-10]；标记本身在 gm.marks（一份），hud 的叠层用 xyz2scr 画。小地图的同一套在 gm.actOnMap（render.ts）
+}
+/** gg：焦点与相机（装置） */
+export interface GgApi {
   input: {
     focus(to?: Focus): Focus
     lock(): void; unlock(): void
-    press(act: Action, edge?: 'down' | 'up' | 'tap'): void   // 默认 tap = down + up。页面元素 data-act、模组、命令行都走这里；hold 型动作按住时 down、松开时 up
   }
   cam: {
     mode: Ref<CamMode>                             // 也是 $Cam.mode（⚡ 快调）；F4 轮转由 MOVES 的 cam 行改它
@@ -54,7 +69,7 @@ export const ACTS = [
   ['place',    'Mouse2',                       '▣.tap',                   'press', 'game',              '放 / 使用'],
   ['pick',     'KeyF | Mouse1',                'Ⅱ.long',                  'press', 'game',              '取方块'],
   ['drop',     'KeyQ',                         '⛏.dbl | hot.long',        'press', 'game',              '丢弃'],    // λ. 的 Q 牵绳（M4）到时再分键
-  ['inv',      'KeyE',                         '▣.long | hot.dbl',        'press', 'game',              '背包'],
+  ['bag',      'KeyE',                         '▣.long | hot.dbl',        'press', 'game',              '背包（bag）'],
   ['undo',     'Ctrl+KeyZ',                    '⛏.dbl',                   'press', 'game',              '撤销'],    // 宿主 B 触屏 Q：有可撤销时 = Ctrl+Z
   ['noclip',   'KeyV',                         '',                        'press', 'game',              '穿墙'],
   ['mode',     'KeyG',                         '',                        'press', 'game',              '模式'],
@@ -87,7 +102,7 @@ export const MOVES = [
 //    屏幕按钮（⛏ ▣ Ⅱ 🏃）不再是这里的数据：它们是 defl/ui.html 里的 <b data-btn="⛏">（kernel 绑定器把手势转成 press）
 export const c_Touch = {
   look: 1.8, dead: 14, jumpMs: 120, slop: 5, hold: 70, dbl: 150, long: 200, padH: 0.6, padW: 0.27, fullscreen: true,
-  zones: { pad: '左下 60% 高：WASD 摇杆，条上显示 WALK/RUN/DUCK/FLY/SWIM；长按条 = 挖 ↔ 放', look: '画面拖动', right: '右侧区：点 = 跳', hot: '物品栏' },
+  zones: { pad: '左下 60% 高：WASD 摇杆，条上显示 WALK/RUN/DUCK/FLY/SWIM；长按条 = 挖 ↔ 放', look: '画面拖动', right: '右侧区：点 = 跳', hot: '热键栏（bar）' },
 } as const
 
 export const c_Input = { sens: 0.0022 /* 宿主 B Player.SENS */, invertY: false, dbl: 300 /* 双击窗口 ms */ }
@@ -109,7 +124,7 @@ export const c_Cam = {
 export const POSE = ['eye', 'feel', 'cam'] as const
 
 export const mod = {
-  id: 'input', where: 'main', core: true,
+  id: 'input', where: 'main', catalog: 'core', layer: 'core', axis: 'ui', ms: 'M1-9',
   doc: '虚拟键（ACTS）→ Intent / key；Body + feel + 相机模式 → Pose',
   emit: { intent: 'frame', key: 'edge', pose: 'frame' },
   sub: ['p1_move', 'feel', 'screen'],          // screen：标题屏预览视角、焦点；feel：差量（晚一帧，feel.ts）

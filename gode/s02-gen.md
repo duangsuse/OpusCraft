@@ -99,3 +99,9 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
 ## 6. 光照
 
 slicer 在 `generateChunk` 之后算本块初始光照，随 `gen` 应答返回 `light: Uint8Array(65536)`（s01 §4）。
+
+## 7. 生成 phase 钩子 [定 11-10，用户；规格在 `flow/hooks.ts` ⑤]
+
+- phase 固定：`terrain → carve → surface → decorate → structure`。生成钩子是纯函数 `genChunk(phase, buf, ctx)`：`ctx.rng()` 的种子是 hash(seed, cx, cz, phase)，同块同阶段永远同一序列；`ctx.v(':stone')` 把名字转成规范 u16（模组不写生成器的私有 id）；返回值可带 `outside`（§3 的跨块写，`structure` 阶段主要靠它）。
+- **登记**：`defl/mod.tsv` 的 `where = 'slicer'`。脚本在每个 slicer worker 里执行，`gm` 是只含 `gm.on({ genChunk })` 的受限代理（不能碰世界、存档）。
+- **生成器声明自己做了哪些阶段**：`meta.phases`，缺省 = 整块一体 = `terrain carve surface decorate`（不含 `structure`）。模组钩子在对应阶段**之后**追加；`gp / liq / mini` 等供体是整块一个函数，所以目前只有「整块之后」这一个插入点，`structure` 先可用，其余阶段等生成器拆分后才有细插入点。

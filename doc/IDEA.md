@@ -1,3 +1,5 @@
+以下决策均由人类整理，没有AI建议。
+
 
 ==光影关键==
 
@@ -27,6 +29,8 @@ BfsLight+sunDir, biome tint,  **RGBA贴图, PBR贴图： 自发光|视差坑洼�
 
 BIME即Blk方块、Item物件、Mob动物和敌人、Ent实体。 多方块可以并联为右键可交互体(Bat)，但不叫Ent。**方块和Mob，可以带物品栏贴图当Item值来用**
 
+一定要避免：放置态/物品态/非网格态 使用不同的数据类型
+
 Ent的特征是能像磁悬浮那样转。(mat的t; mdlID,animID,turn%)，如矿车-船、抛射物、重力下落/掉落的块和薄片、告示和画框、区域效果如flutter落叶区和firefly火精灵。
 
 Mob是有更多监听的Ent：如刷怪蛋投掷，基于Ent注册的 `.on({blk_Any:P=>{}, ent_arrow:.., item_carrot}` 碰撞事件; ondie, ontap; Name,HP,SPD,drops,ATK(0则为友善); 或 gm.scr2world 查询。大写属性走 hp=HP_buf?? HP 的临时覆盖
@@ -34,6 +38,8 @@ Mob是有更多监听的Ent：如刷怪蛋投掷，基于Ent注册的 `.on({blk_
 ondie那段【左右键覆盖】在Blk类上也支持，HP就是hardness，.tool: 'must shovel Lv1'|'axe' .linkBlk: '[@0,0^-1 farmland]' 这样写
 
 `gm.p1.{P,biome}, dayHour,mob(引用:tpause), bbat` 控制相应的脚本API，服主玩家本身也在mat里有 #p1 Player{P @x,z^y HP .. xp .. items[] spawn @..} 条目 Pusc.json 内只是冗余子集
+
+物品方格：UI统一口径叫grid，玩家的格子叫 bag，前N格是物品栏(bar)，储物箱柜/工具统一叫bins
 
 **存档是 webp|zip, tsv,json 的联合体，哲学是 Compose4Cascade —— 间接查找优于硬编码，无克隆则无新建。 **
 
@@ -79,9 +85,13 @@ VoxelLibre 有手持火把光照，掉落物有厚度，goodLiqPG的方块破坏
 
 存档带的 pic/ 在标题屏有UI，可以多选两个图做对比，可以点开四周看，也可以直接多图复制去发帖
 
-==三大件==
+==三板斧两大件==
 
-pkv(xzyb#matBIME)/c_/gm API × (gpane (Tweakpane分支) + Pass.js) 以glsl里${}getter注入(Fps.引用/()=>/Fpv.值)为基础，提供了动态调优项目基建，同时是边做游戏，边准备MOD生态
+pkv(xzyb#matBIME)/c_/gm API × pgviz地形调整器 × (gm.pane (Tweakpane分支) + Pass.js)，以glsl里${}getter注入(Fps.引用/()=>/Fpv.值)为基础，提供了动态调优项目基建，同时是边做游戏，边准备MOD生态
+
+Smooth Voxels，被称为“3D 的 Markdown”。一个 7×7×7 的体素苹果就能变得很圆。 通过它和新的rgl渲染器配合，以实现游戏内【像素方块和自然风格物件/生物】的协调
+
+XZ1【文本体素】，支持pkv(RLE)风格的SVOX模型、类svg几何，可以由Agent热重载，将方块图层放入玩家背包
 
 大量使用文件夹级预设、两个相关键并成vec2,+-1手调、键区间/默认值可热编辑落盘、[{pickLib}]先划选后改KV、checkbox开关后可看fps差异、前3下拉项目转 `<a>` 折叠时也可见，等等
 

@@ -9,7 +9,7 @@
 |---|---|
 | E-1 | 先移植宿主 B 的 7 种：pig cow sheep chicken zombie skeleton creeper。外观（模型 / 贴图 / 姿态）换成 goodPG 的，AI 沿用 mobsim 的 20 Hz 逻辑与 `c_MobAI`；其余 goodPG 族按「数据 + 姿态」分批加 |
 | E-2 | goodPG 是 TS：写 `tools/vendor-pg.mjs`，用去类型工具把选定文件转成 `gode/vendor/pg/*.js`，`blocks / items` 常量打桩；不改源文件，可以重新同步 |
-| E-3 | mob AI 与流体 tick 在 M1/M2 留在 main（20 Hz）；接口从一开始就用消息动词（`onhit / key`），以后搬进 sim worker 时调用方不用改 |
+| E-3 | mob AI 与流体 tick 在 M1/M2 留在 main（20 Hz）；接口从一开始就用消息动词（`onHit / key`），以后搬进 sim worker 时调用方不用改 |
 
 ## 1. BIME 四要素（IDEA「存档理解」）[定 11-08：声明式表格，不用 `Mob.def(…)` 这类注册调用]
 
@@ -17,13 +17,13 @@
 |---|---|---|---|
 | **B**lk | 方块。多个可以并联成右键可交互体 Bat（**不叫 Ent**） | `:名字` | `:oak_stairs{linkBlk @0,1; half bottom}` |
 | **I**tem | 物品。**方块和 Mob 都可以带物品栏贴图直接当 Item 用**，所以 Item 表只列「纯物品」（材料、食物、工具、gm 值物品） | `:名字` | `:bow`、`:gm_xyz` |
-| **M**ob | 有更多监听的 Ent：`on{…}`、`ondie`、`ontap`、大写属性 | `#名字` | `#zombie`、`#p1` |
+| **M**ob | 有更多监听的 Ent：`on{…}`、`onDie`、`onTap`、大写属性 | `#名字` | `#zombie`、`#p1` |
 | **E**nt | **能像磁悬浮那样转**的东西：`(t; mdlID, animID, turn%)` | `#mdlID.animID` | 矿车、船、抛射物、下落的块和薄片、告示、画框、区域效果（flutter 落叶区、firefly） |
 
 ### 1.1 复用关系
 
 ```
-          ┌──────── 可交互（Name HP drops on ondie ontap）────────┐
+          ┌──────── 可交互（Name HP drops on onDie onTap）────────┐
           │                                                     │
    Blk ───┤ HP = hardness，.tool，.linkBlk                       │
           │                                       Ent（mdl anim turn aabb）
@@ -32,7 +32,7 @@
    Mob ───┴──────────────────────────────── = Ent + 可交互 ───────┘
 ```
 
-- **可交互**是 Blk 与 Mob 共用的一组字段：`Name HP drops on ondie ontap`（IDEA「ondie 那段【左右键覆盖】在 Blk 类上也支持，HP 就是 hardness」）。两张表用同样的字段名，引擎用同一段代码处理伤害、掉落、事件。
+- **可交互**是 Blk 与 Mob 共用的一组字段：`Name HP drops on onDie onTap`（IDEA「ondie 那段【左右键覆盖】在 Blk 类上也支持，HP 就是 hardness」）。两张表用同样的字段名，引擎用同一段代码处理伤害、掉落、事件。
 - **Mob = Ent + 可交互**：Mob 行用 `ent` 字段指向一个 Ent 行，继承它的模型 / 动画 / 碰撞盒；Ent 行本身没有 HP、不掉落。
 - **Item 不重复定义 Blk 和 Mob**：`:oak_log` 拿在手里就是那个方块；`#zombie` 拿在手里就是刷怪蛋式的值物品（投掷 = 生成 Ent，落地 `.born()` 成 Mob）。Item 表只给它们补物品专属字段（堆叠、耐久、食物值）时才出现同名行。
 - **大写属性可临时覆盖**：`Name HP SPD ATK` 等大写字段，运行时读的是 `x.HP_buf ?? 表.HP`。药水、模式、模组 `{set: {'mob.zombie.ATK_buf': 0}}` 写 `_buf`，到期删掉，不改表。小写字段是静态的。
@@ -60,18 +60,18 @@ export default {
       ent_arrow:   (e, hit) => {},   // 被某种 Ent 碰到
       item_carrot: stack => {},      // 被玩家拿着某物品右键 / 喂
     },
-    ondie(by) {}, ontap(p1) {},
+    onDie(e) {}, onTap(e) {},
   },
-  ':torch':   { ontap(p1, P) {} },                 // 返回空 → 走默认破坏（IDEA）
-  ':wheat':   { onRandomTick(P, meta) {} },
+  ':torch':   { onTap(e) {} },                     // 返回空 → 走默认破坏（IDEA）；e 是 BlockEvent（flow/hooks.ts）
+  ':wheat':   { onRandom(e) {} },                  // 要在 blk.tsv 里声明 schedRandom
 };
 ```
 
 - 数据与行为分文件，但**键相同**，加载时按键合并。这是 game-spec §9「按名字后挂钩子」的声明式写法：表保持纯数据，钩子也是一张表。
 - 加载顺序 `defl → $links → $mode`，按键深合并，后加载的覆盖先加载的（s07 §4，Compose4Cascade）。模组只写差异行。
 - 这些 js 表在 main 运行（s07 M-4：有返回值的钩子只在 main）。
-- `on` 的键 = `类别_名字`（`blk / ent / item / marker …`），`Any` 通配。事件来源：物理（碰撞）、交互（右键 / 投掷）、s07 的消息（`onhit`）。
-- 查询：`gm.scr2world(sx, sy)` → 准星下的 Blk / Ent / Mob。
+- `on` 的键 = `类别_名字`（`blk / ent / item / marker …`），`Any` 通配。事件来源：物理（碰撞）、交互（右键 / 投掷）、s07 的消息（`onHit`）。
+- 查询：`gm.act.scr2xyz(sx, sy)` → 准星下的 Blk / Ent / Mob。
 
 ## 3. Ent 运行时与存档
 

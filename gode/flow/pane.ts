@@ -99,7 +99,7 @@ export const c_Pane = {
 }
 
 export const mod = {
-  id: 'pane', where: 'main', core: true,
+  id: 'pane', where: 'main', catalog: 'core', layer: 'kernel', axis: 'ui', ms: 'M1-2',
   doc: 'c_ / Ref 的面板：声明是纯数据；游戏窗口里的 root（左上 / 右上 / 暂停菜单）+ 独立面板页（BroadcastChannel）；两个窗口各一条任务栏',
   emit: { pane_win: 'edge' },
   sub: ['screen', 'key'],            // screen：暂停菜单里的 root 只在暂停屏显示；key：quick（` 键）开关快调 root

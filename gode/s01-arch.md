@@ -1,7 +1,7 @@
 # s01 · 线程拓扑与消息协议
 
 > 上游：IDEA「Worker 都必须响应 `{onkwarg:{seed:..}|{mode}}` 的初始化，以及 `key / onhit` 这类消息」；README G-5、G-6。
-> 玩法消息（`key / onhit / mode` 的具体划分）放在 s07，本节只定**信封**和**生成 / 网格 / IO** 三类 Worker。
+> 玩法消息（`key / onHit / mode` 的具体划分）放在 s07，本节只定**信封**和**生成 / 网格 / IO** 三类 Worker。
 
 ## 1. 拓扑 [定 11-08]
 
@@ -10,7 +10,8 @@ main ── 权威世界镜像（chunks Map）+ 20 Hz tick（流体 / 火 / 随�
   ├─ slicer#1..N   生成 + 初始光照 + 网格（M1）。池大小 max(2, min(8, cores−2))，同 LiqPG。
   │                **渲染器不再自带网格池**，rgl / 简版都通过 ctx 拿到这个池发 {mesh} [定 11-08]
   │     ↑ {onkwarg:{seed, g, …}}       ↓ transfer：区块缓冲 / 网格缓冲
-  ├─ io#1          OPFS 唯一读写者（M2，见 s06）。slicer 生成的区块不经过它；main 落盘时 transfer 过去
+  ├─ dumper#1      存档（OPFS）唯一读写者（M2，见 s06；原名 io）。slicer 生成的区块不经过它；main 落盘时 transfer 过去
+  ├─ net#1         联机传输：心跳 / 重连 / 排队（只写协议，不排期；`flow/net.ts`，s06 §7、s11 §2）。一个权威档，appendOnly Δ 日志 + 低频块 diff
   └─ sim?          流体 / mob 是否下沉到 Worker，M1 之后再议（s07）
 ```
 
@@ -42,7 +43,8 @@ IDEA 的写法是**单键对象**：键是动词，值是参数。gode 全部消
 | Worker | 入口 | 必须实现 | 可选 |
 |---|---|---|---|
 | slicer | **生成器脚本本身**（`?g=` 的 URL），它 import 引擎运行时 `gode/w/slicer.js`（s02 §2） | `onkwarg gen`（生成器写）；`mesh light map`（运行时提供） | `set sample explain spawn tree` |
-| io | `gode/w/io.js`（M2） | `onkwarg read write flush` | `export train` |
+| dumper | `gode/w/dumper.js`（M2） | `onkwarg read write flush` | `export train` |
+| net | `gode/w/net.js`（联机里程碑） | `onkwarg up down` | — |
 | ~~rgl 网格池~~ | 并入 slicer [定 11-08]：`vendor/gl/pool.js` 的 mesh 实现搬进 slicer 的 `mesh` 动词 | — | — |
 
 ## 4. 光照 [定 11-08]
