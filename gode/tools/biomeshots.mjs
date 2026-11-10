@@ -4,7 +4,7 @@
  *
  *   node gode/tools/biomeshots.mjs <gen> [<name>[&<urlparams>]]
  *
- *   <gen>    生成器短名（?g=veg|gp|liq|mini|old|luan0|luanV）
+ *   <gen>    生成器短名（?g=veg|gp|liq|mini|old|pg1|luan0|luanV）
  *   <name>   群系名（精确；all / * / 省略 = 该生成器的全部群系）
  *            紧跟着的 &k=v 是附带 URL 参数，覆盖默认
  *            g/seed/pv/z/terr/tod（默认 seed=20240607 pv=Y z=5 terr=1 tod=14.08）

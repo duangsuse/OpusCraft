@@ -583,3 +583,98 @@
 		border-color: var(--color-accent);
 	}
 }
+/* goodMob: start screen model library (folder list + drop/paste slot), see hacks/patches/0001 */
+#start_screen .library_bar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 12px 0 0 0;
+	align-items: stretch;
+}
+#start_screen .library_bar > button {
+	height: 40px;
+	padding: 0 12px;
+}
+#start_screen .library_drop {
+	flex: 1 1 220px;
+	min-height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 0 12px;
+	border: 2px dashed var(--color-border);
+	border-radius: 6px;
+	color: var(--color-subtle_text);
+	font-size: 12px;
+	text-align: center;
+	cursor: default;
+}
+#start_screen .library_drop > i {
+	font-size: 18px;
+}
+#start_screen .library_drop.over {
+	border-color: var(--color-accent);
+	color: var(--color-light);
+	background-color: var(--color-ui);
+}
+#start_screen .library_grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+	gap: 8px;
+	margin: 12px 0 0 0;
+	padding: 0;
+	list-style: none;
+	max-height: 420px;
+	overflow-y: auto;
+}
+#start_screen .library_item {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-height: 96px;
+	padding: 8px 6px;
+	background-color: var(--color-back);
+	border-radius: 6px;
+	cursor: pointer;
+	overflow: hidden;
+}
+#start_screen .library_item:hover {
+	background-color: var(--color-ui);
+	color: var(--color-light);
+}
+#start_screen .library_item img {
+	max-width: 100%;
+	max-height: 52px;
+	object-fit: contain;
+}
+#start_screen .library_item .icon_wrapper {
+	font-size: 26px;
+	opacity: 0.85;
+}
+#start_screen .library_item > label {
+	max-width: 100%;
+	font-size: 11px;
+	text-align: center;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	cursor: inherit;
+}
+#start_screen .library_kind {
+	position: absolute;
+	top: 4px;
+	right: 6px;
+	font-size: 9px;
+	letter-spacing: 0.04em;
+	color: var(--color-subtle_text);
+	text-transform: uppercase;
+}
+#start_screen .library_empty {
+	margin-top: 12px;
+	color: var(--color-subtle_text);
+	font-size: 12px;
+}

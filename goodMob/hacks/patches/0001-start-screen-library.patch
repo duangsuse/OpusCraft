@@ -1,0 +1,232 @@
+diff --git i/css/start_screen.css w/css/start_screen.css
+index 104aa8d..0d6cd58 100644
+--- i/css/start_screen.css
++++ w/css/start_screen.css
+@@ -582,4 +582,99 @@
+ 	.quick_setup_theme.selected > div {
+ 		border-color: var(--color-accent);
+ 	}
+-}
+\ No newline at end of file
++}
++/* goodMob: start screen model library (folder list + drop/paste slot), see hacks/patches/0001 */
++#start_screen .library_bar {
++	display: flex;
++	flex-wrap: wrap;
++	gap: 8px;
++	margin: 12px 0 0 0;
++	align-items: stretch;
++}
++#start_screen .library_bar > button {
++	height: 40px;
++	padding: 0 12px;
++}
++#start_screen .library_drop {
++	flex: 1 1 220px;
++	min-height: 40px;
++	display: flex;
++	align-items: center;
++	justify-content: center;
++	gap: 8px;
++	padding: 0 12px;
++	border: 2px dashed var(--color-border);
++	border-radius: 6px;
++	color: var(--color-subtle_text);
++	font-size: 12px;
++	text-align: center;
++	cursor: default;
++}
++#start_screen .library_drop > i {
++	font-size: 18px;
++}
++#start_screen .library_drop.over {
++	border-color: var(--color-accent);
++	color: var(--color-light);
++	background-color: var(--color-ui);
++}
++#start_screen .library_grid {
++	display: grid;
++	grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
++	gap: 8px;
++	margin: 12px 0 0 0;
++	padding: 0;
++	list-style: none;
++	max-height: 420px;
++	overflow-y: auto;
++}
++#start_screen .library_item {
++	position: relative;
++	display: flex;
++	flex-direction: column;
++	align-items: center;
++	justify-content: center;
++	gap: 6px;
++	min-height: 96px;
++	padding: 8px 6px;
++	background-color: var(--color-back);
++	border-radius: 6px;
++	cursor: pointer;
++	overflow: hidden;
++}
++#start_screen .library_item:hover {
++	background-color: var(--color-ui);
++	color: var(--color-light);
++}
++#start_screen .library_item img {
++	max-width: 100%;
++	max-height: 52px;
++	object-fit: contain;
++}
++#start_screen .library_item .icon_wrapper {
++	font-size: 26px;
++	opacity: 0.85;
++}
++#start_screen .library_item > label {
++	max-width: 100%;
++	font-size: 11px;
++	text-align: center;
++	white-space: nowrap;
++	overflow: hidden;
++	text-overflow: ellipsis;
++	cursor: inherit;
++}
++#start_screen .library_kind {
++	position: absolute;
++	top: 4px;
++	right: 6px;
++	font-size: 9px;
++	letter-spacing: 0.04em;
++	color: var(--color-subtle_text);
++	text-transform: uppercase;
++}
++#start_screen .library_empty {
++	margin-top: 12px;
++	color: var(--color-subtle_text);
++	font-size: 12px;
++}
+diff --git i/js/interface/start_screen.ts w/js/interface/start_screen.ts
+index e356ce4..46eaa0e 100644
+--- i/js/interface/start_screen.ts
++++ w/js/interface/start_screen.ts
+@@ -207,6 +207,9 @@ onVueSetup(async function() {
+ 		isApp: boolean,
+ 		mobile_layout: boolean
+ 		thumbnails: Record<string, string>,
++		library_items: any[]
++		library_query: string
++		library_drag_over: boolean
+ 		getIconNode: typeof Blockbench.getIconNode,
+ 		slideshow: {
+ 			source: string
+@@ -233,6 +236,9 @@ onVueSetup(async function() {
+ 			isApp,
+ 			mobile_layout: Blockbench.isMobile,
+ 			thumbnails: {},
++			library_items: [] as any[],
++			library_query: '',
++			library_drag_over: false,
+ 			getIconNode: Blockbench.getIconNode,
+ 
+ 			slideshow: [
+@@ -393,6 +399,31 @@ onVueSetup(async function() {
+ 				slideshow_timer = 0;
+ 			},
+ 
++			libraryRefresh(this: StartScreenComponentData) {
++				this.library_items = ((window as any).goodmobHome?.items?.() ?? []);
++			},
++			libraryOpen(item: any) {
++				(window as any).goodmobHome?.open?.(item);
++			},
++			libraryOpenFolder() {
++				(window as any).goodmobHome?.openFolder?.();
++			},
++			libraryDrop(this: StartScreenComponentData, event: DragEvent) {
++				this.library_drag_over = false;
++				let files = event.dataTransfer?.files;
++				if (files && files.length) (window as any).goodmobHome?.dropFiles?.(files);
++			},
++			/**
++			 * Paste while the start screen is up: SVOX text is a model, so a pasted model should open one.
++			 * Ignored while typing in a text field.
++			 */
++			libraryPaste(this: any, event: ClipboardEvent) {
++				if (!this.$el || this.$el.offsetParent === null) return;
++				let target = event.target as HTMLElement | null;
++				if (target && /^(input|textarea)$/i.test(target.tagName)) return;
++				let text = event.clipboardData?.getData('text');
++				if (text) (window as any).goodmobHome?.pasteText?.(text);
++			},
+ 			openLink(this: StartScreenComponentData, link: string) {
+ 				Blockbench.openLink(link);
+ 			},
+@@ -400,6 +431,15 @@ onVueSetup(async function() {
+ 			tl
+ 		},
+ 		computed: {
++			/**
++			 * Start screen model library, filtered by the search bar. The list itself comes from
++			 * window.goodmobHome (see hacks/plugin/home.js); without it the start screen stays as before.
++			 */
++			libraryFiltered(this: StartScreenComponentData) {
++				let query = (this.library_query || '').trim().toLowerCase();
++				if (!query) return this.library_items;
++				return this.library_items.filter((item: any) => (item.name || '').toLowerCase().includes(query));
++			},
+ 			projects() {
+ 				if (!this.search_term) return this.recent;
+ 				let terms = this.search_term.toLowerCase().split(/\s/);
+@@ -413,6 +453,9 @@ onVueSetup(async function() {
+ 		},
+ 		mounted() {
+ 			this.updateThumbnails();
++			this.libraryRefresh();
++			window.addEventListener('goodmob:library', () => this.libraryRefresh());
++			window.addEventListener('paste', this.libraryPaste);
+ 
+ 			setInterval(() => {
+ 				if (this.show_splash_screen && this.slideshow_autoplay && this.$el.offsetParent) {
+@@ -550,6 +593,7 @@ onVueSetup(async function() {
+ 						</div>
+ 
+ 						<div class="start_screen_right" v-else>
++							<template v-if="isApp">
+ 							<h2 v-if="isApp">${tl('mode.start.recent')}</h2>
+ 							<div id="start_screen_view_menu" v-if="isApp && !redact_names">
+ 								<search-bar :hide="true" v-model="search_term"></search-bar>
+@@ -595,6 +639,35 @@ onVueSetup(async function() {
+ 							<div class="button_bar">
+ 								<button style="margin-top: 20px;" onclick="BarItems.open_model.trigger()">${tl('action.open_model')}</button>
+ 							</div>
++							</template>
++							<template v-else>
++								<h2>Models</h2>
++								<div id="start_screen_view_menu">
++									<search-bar :hide="true" v-model="library_query"></search-bar>
++								</div>
++								<div class="library_bar">
++									<button @click="libraryOpenFolder" title="Pick a folder and list the models in it">Open Folder</button>
++									<button onclick="BarItems.open_model.trigger()">${tl('action.open_model')}</button>
++									<div class="library_drop" :class="{over: library_drag_over}"
++										@dragover.prevent="library_drag_over = true"
++										@dragleave="library_drag_over = false"
++										@drop.prevent="libraryDrop">
++										<i class="material-icons">input</i>
++										<span>Drop .vox / .bbmodel / .svox here, or paste SVOX text</span>
++									</div>
++								</div>
++								<ul class="library_grid">
++									<li v-for="item in libraryFiltered" :key="item.key" class="library_item" :title="item.hint || item.name" @click="libraryOpen(item)">
++										<img v-if="item.thumb" :src="item.thumb" loading="lazy" />
++										<span v-else class="icon_wrapper" v-html="getIconNode(item.icon || 'insert_drive_file').outerHTML"></span>
++										<label>{{ item.name }}</label>
++										<span class="library_kind" v-if="item.kind">{{ item.kind }}</span>
++									</li>
++								</ul>
++								<div v-if="library_items.length == 0" class="library_empty">
++									Nothing here yet. Pick a folder, drop a model, or use ${tl('action.open_model')}.
++								</div>
++							</template>
+ 						</div>
+ 
+ 					</section>

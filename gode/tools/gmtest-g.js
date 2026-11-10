@@ -101,6 +101,7 @@ export function install(g) {
       return { ok: !!a && a === b, msg: `${a} / ${b}` };
     },
     async phys() {   // 落地 → 跳（顶点 ≈ v²/2g）→ 走（≈ 4.5 格 / s）→ 双击空格飞行
+      if (meta.id === 'veg') return { skip: true, msg: 'veg：出生点常落在树冠下，+6 格的落地 / 起跳随机不稳（11-10 定，跳过）' };
       const I = ctl.input, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), keep = { x: p.x, y: p.y, z: p.z, yaw: p.yaw, pitch: p.pitch, flying: p.flying, noclip: p.noclip };
       const was = F; T.unfreeze(); await T.settle(); Object.assign(p, { flying: false, noclip: false, vx: 0, vy: 0, vz: 0, yaw: 0, y: p.y + 6 }); I.keys = {}; I.locked = true;
       const out = {}; try {

@@ -61,7 +61,7 @@ gd snap --tag viz-gp          # pgviz 用 snap（shot 是宿主 B 的机位截�
 顶栏 X/Z 两个输入框临时填 `@x,z` 和群系名（只改 value，不回车）；截图前隐藏 gizmo / 右上工具条 / toast，左栏 `nosd`。
 gd 的 `--tag` 不支持路径（会 slug 成 `_`），所以工具按默认名截图后把文件搬到目标目录，并同步改 `shots/index.tsv` 该行的 `files`（同 tag 旧行清掉，免得 prune 删到当前文件）。
 
-**`g` 不限于短名**：`mini/gp/liq/old/luan0/luanV/veg` 映射到 `defl/g/<名>.js`，其它值按 URL 解析（相对或绝对），所以新生成器**不改 viz 也能先看**：
+**`g` 不限于短名**：`mini/gp/liq/old/pg1/luan0/luanV/veg` 映射到 `defl/g/<名>.js`，其它值按 URL 解析（相对或绝对），所以新生成器**不改 viz 也能先看**：
 
 ```bash
 gd go 'gode/viz/?g=../defl/g/v3.js&seed=20240607&pv=Y&p1=@0,0'
@@ -104,7 +104,7 @@ Agent 侧 API（`gd eval '<js>'`，异步的用 `await`；页面里也可直接�
 | V-7 | `mini` 适配器 = **抽副本**：`gen.js` 的逻辑与它依赖的 `Noise / Rand / 方块表` 复制进 `gode/`，宿主 B 不动、只收 knobs；正确性靠 `genhash` 与宿主 B 基线对拍 [11-09，关闭 §5] |
 | V-6 | **俯视 + 侧视**，由**右下角 gizmo** 切换（§2.1）；悬停 gizmo = 沿当前视线轴快放 +N 层；+N 输入下方是「显示空气距离」开关 [11-09] |
 | V-8 | 视口：**3D 窗口**（整块体素，侧视 / 切片用）按缩放自动取大小，默认覆盖画布长边 **100%**（11-09 起；旧 90%）（② `3D 占比`，URL `fill=`），上限 **48** 区块；之外一圈**列级 2D 地表**（每列 type / y / 群系 / 水深 8 B，slicer 引擎动词 `col`），俯视铺满画布、上限 **80×80** 区块；缩放下限 = 2D 刚好铺满，不再出现「中间一块 + 斜纹」。侧视时外圈只画剖面轮廓 [11-09] |
-| V-9 | ↗ 进游戏 = 宿主 B 读 `?seed=&p1=@x,z^y[,yaw]`：直接开一次性世界（不进标题、不暂停、创造飞行、不写存档槽 / `Save.last`、不自动存档；`&test=1` 时让给 gmtest-b）。pgviz 里 `g=mini` 可用（落点：选区中心 > 悬停点 > 视图中心），`gp / liq` 置灰「M1 起可用」 [11-09] |
+| V-9 | ↗ 进游戏（落点：选区中心 > 悬停点 > 视图中心；y：侧视 = 选区中心 / 悬停块自己的 y，俯视 / 仰视 = 该列地表 / 水面 + 8；mini 仍是地表 +1）。**mini 保持宿主 B** `?seed=&p1=@x,z^y`（直接开一次性世界：不进标题、不暂停、创造飞行、不写存档槽 / `Save.last`、不自动存档；`&test=1` 时让给 gmtest-b）。**其余生成器走 gode**：`gode/index.html?g=&seed=&p1=@x,z^y[,yaw]&fly=1`（p1 与宿主 B 同一套写法；宿主对 p1 开局固定俯角 −20°，y = 地表 / 水面 + 8）。朝向：侧视 → 视线方向；俯视 / 仰视不给 yaw。`g=` 也接受 URL 生成器。检查 `viz-game` 验 URL 形状 + 侧视 yaw [11-09，11-10 全生成器接通] |
 | V-10 | **悬停 = 左栏 ③**（方块名、坐标、群系、高度、sample 各字段），不再点击弹探针卡；**选区**（V-14 起改右键）：右键一下 / 两下，视线轴方向深度 `seld`，得一个 **3D 盒**；所有视角都画投影框，切片面穿过时高亮截面；换视角后拖框边改第三轴；⑤ 里 ⎘ 坐标 / ⎘ URL / ⎘ gd / 清除，URL `sel=x0,y0,z0,x1,y1,z1`，Esc 取消 [11-09] |
 | V-11 | gizmo 快放时**左栏浮出小图**，画「同时含主视线轴与扫描轴的平面」的剖面（例：俯视悬停 X 端点 → 南侧视剖面），标出主视图切面（青）、扫描线（黄虚线，同步移动）、光标（品红）、选区（白） [11-09] |
 | V-12 | 切片在**地表模式也可调**（= 把切片面以外削掉再看；拉回最外层 = 地表，URL 不带 `slice`）；**Shift+滚轮**调切片（Ctrl 一次 8 层）；快放时滑块与数值跟着动 [11-09] |
@@ -158,7 +158,7 @@ Agent 侧 API（`gd eval '<js>'`，异步的用 `await`；页面里也可直接�
 
 | 取自 | 元素 | 在 pgviz 里 |
 |---|---|---|
-| minecrafttools 顶栏 | seed + Go、版本下拉、Overworld/Nether/End 分段按钮、X/Z + Go to、Share | seed + Go、**生成器下拉**（mini/gp/liq/URL）、**模式分段按钮**（地表 / 切片 / 层叠）、X/Z 跳转、⎘ 复制 URL、↗ 进游戏（打开 `gode/index.html?g=&seed=&p1=@x,z^y`） |
+| minecrafttools 顶栏 | seed + Go、版本下拉、Overworld/Nether/End 分段按钮、X/Z + Go to、Share | seed + Go、**生成器下拉**（mini/gp/liq/URL）、**模式分段按钮**（地表 / 切片 / 层叠）、X/Z 跳转、⎘ 复制 URL、↗ 进游戏（mini → 宿主 B `index.html?seed=&p1=@x,z^y`；其余 → `gode/index.html?g=&seed=&p1=@x,z^y[,yaw]&fly=1`） |
 | minecrafttools 左栏 Features | 图标 chip 网格、All / None | **图层 chip**：点 = 开关，长按 / 右键 = 独奏，矿 / 植被 chip 带 ▸ 展开子项；All / None |
 | minecrafttools Highlight biome / Grid 下拉 | — | 群系高亮下拉、网格下拉（无 / 区块 / region 32×32） |
 | minecrafttools 右侧竖排工具钮 | ＋ － 定位 准星 尺子 下载 全屏 | 同；**gizmo 固定在地图右下角**（§2.1） |
@@ -314,7 +314,7 @@ gd snap --tag tuned                                            # 前后对照：
 | `E` | 循环 `#modes`（地表 ↔ 切片；V2 的层叠启用后自动入环），toast 提示当前模式 |
 | `R` | 空气距离开 / 关（见 §10） |
 | `C` | 原点菜单「＋添加」：选区最小角 / 无选区时视口中心；同坐标已有则只提示，不重复添加 |
-| `⏎` | ↗ 进游戏（`mini` 以外 toast「M1 起可用」）；`preventDefault`，焦点在某个按钮上时也不会去触发那个按钮 |
+| `⏎` | ↗ 进游戏（所有生成器：mini → 宿主 B，其余 → gode；见 V-9）；`preventDefault`，焦点在某个按钮上时也不会去触发那个按钮 |
 | `Ctrl+⏎` | 一键提交给 Agent（= 「→ Agent」按钮） |
 
 焦点在 `input / select / textarea` 里时全部不触发（顶栏种子框的 ⏎ 仍是 Go）。
@@ -482,7 +482,7 @@ gd snap --tag tuned                                            # 前后对照：
 - 还没做：窗口内「找」（连通块按面积列出、点一下跳过去、＋原点）；结构、层叠文件夹。
 - 检查 `viz-biome`（6 个生成器的矩阵都过；`veg` 也过，11-10）。
 
-- **自动矩阵口径 [11-09 定]**：`gd check --matrix all` = mini / gp / liq / old，**luan0 / luanV 不参与自动测试**（慢，且有 `tools/luanti/parity.mjs` 对拍）；要跑显式 `--matrix luan0,luanV`。
+- **自动矩阵口径 [11-09 定]**：`gd check --matrix all` = mini / gp / liq / old，**luan0 / luanV 不参与自动测试**（慢，且有 `tools/luanti/parity.mjs` 对拍）；要跑显式 `--matrix luan0,luanV`。`pg1` 同样不进默认矩阵（8.8 ms/块，8 池），显式 `--matrix pg1` 全过（11-10）。
 
 ## 17. 默认值 / URL 约定 / 布局收尾 [11-09]
 
@@ -555,3 +555,12 @@ gd snap --tag tuned                                            # 前后对照：
 
 - 左下角读数的选区部分改成**选区尺寸**：`Y 127 ⤧ +@16,16^120`（x 格数, z 格数 ^ y 格数；`+` = 尺寸而不是坐标，俯视整块选区常是 16,16^…）。原来误做成近端格的坐标 `sel @x,z^y`。
 
+
+## 18. `pg1` = goodPG1 生成器移植 [11-10]
+
+- **来源与做法**：`goodPG1.html` 是单文件经典脚本，供体自己的 Worker 路径就是「整段 `<script>` + `self.IS_WORKER=true`」执行（goodPG1.html:3350）。所以不复制、不切行：`vendor/pg1/load.js` 运行时 fetch 原文、切出 `<script>`、`new Function` 执行后返回 `WorldGen / Chunk / BLOCKS / BIOMES / …`（与 `vendor/gp/load.js` 同一思路；顶部对 DOM 的引用都在函数体内或有 `typeof` 守卫，`boot` 只在 `!IS_WORKER` 时挂 load）。
+- **坐标 / 布局**：`(y<<8)|(z<<4)|x` 与规范相同，`WH = 192`、海 63；id 453 个（< 4096）、meta ≤ 5 → `v = id | meta<<12`，不需要 `xlate`。`heights` 按规范从方块重算（供体 `hmap` 跳过 `filter = 0` 的植物，口径不同）。
+- **封闭性**：树 / 结构 / 特征全走 `Writer`（goodPG1.html:2206），越界写入直接丢；`meta.outside = false`，`viz-seam` 的 cross / lost 不适用。
+- **`col` 覆盖**：外圈 2D 用 `column()` 只算列噪声（`h`、群系、`sea - h` 水深、近似地表方块 `bio.top / bio.under`）；整块生成要 8.8 ms，6400 块会超时（同 §14 的做法）。
+- **没有参数**：`meta.knobs = []`（供体 `wtype` 固定 `default`）。`viz-kw` 改成：声明的参数表为空时只验「未知键抛错 + 无参 stats + 覆盖完整」，不 tune。
+- **实测（seed 20240607）**：pgviz 8 池 `8.8 ms/块`（wall 1.9），1024/1024 块 + 1089/1089 列；`gd check --matrix pg1` 19 条全过；`gd reload` 前后同区域方块计数逐项相等；`gode/index.html?g=pg1&seed=20240607` 能开局（78 块，无报错）。

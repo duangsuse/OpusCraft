@@ -112,7 +112,7 @@ export class Input {
 export function makePlayer() {
   return { x: 0, y: 140, z: 0, vx: 0, vy: 0, vz: 0, w: 0.3, h: 1.8, eyeHeight: 1.62, stepHeight: 0.6, yaw: 0, pitch: 0,
     onGround: false, hitX: false, hitZ: false, flying: false, sneaking: false, sprinting: false, noclip: false, inWater: false, headInWater: false,
-    aj: 0, fallStart: 0, lastSpaceTap: 0, sprintLatch: false, lastWTap: 0 };
+    aj: 0, fallStart: 0, lastSpaceTap: 0, sprintLatch: false, lastWTap: 0, _nc: false };   // _nc：noclip 上一帧值（undefined 会让首帧调 unstuck，把 p1 的 y 顶出地面）
 }
 
 export class Controller {

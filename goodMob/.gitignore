@@ -1,0 +1,2 @@
+# local upstream checkouts for authoring hacks/patches (rebuilt by scripts/sync-blockbench.sh)
+hacks/.upstream/

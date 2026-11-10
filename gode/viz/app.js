@@ -1,7 +1,7 @@
 /* gode/viz/app.js —— pgviz 装配（s13 §2、§2.1、§4 V1，V-8…V-12）：状态 / URL 同步、slicer 池流式（3D 窗口 + 外圈 2D）、
    相机（拖动平移、朝光标缩放、Shift+滚轮调切片）、右下 gizmo（点端点 150 ms 淡入切视角；悬停 = 沿视线轴快放 +N 层，
    悬停别的轴端点 = 沿该轴快放切面，左栏小图同步画那个方向的剖面）、③ 悬停的方块、④ 选区（3D 盒，跨视角保留，拖边改范围）、
-   ↗ 进游戏（宿主 B ?seed=&p1=）、读数、状态行、window.viz。
+   ↗ 进游戏（mini → 宿主 B ?seed=&p1=；其余 → gode ?g=&seed=&p1=&fly=1）、读数、状态行、window.viz。
    视角按「相机在哪一侧」命名：top = 在 +Y 往下看；south = 在 +Z 往北（−Z）看；east = 在 +X 往西看；bottom / north / west 反向。 */
 import { Renderer, C2 } from './gl.js';
 import { Store, key } from './store.js';
@@ -83,7 +83,7 @@ const live = () => !!play && !play.frozen;   // 快放中（frozen = 其它轴�
 let hov = null;                        // 最近一次地图悬停：{ px, py, c, r, p }
 let selA = null, edge = null, copied = '', pinV = null, pinK = '', pinPend = false;   // pinV / pinK：③ 近端格的 sample 缓存
 
-const genUrl = (g) => /^(mini|gp|liq|old|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
+const genUrl = (g) => /^(mini|gp|liq|old|pg1|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
 const dpr = () => window.devicePixelRatio || 1;
 
 // ---- 启动 / 重置：换生成器或种子 ----
@@ -479,14 +479,16 @@ function world() {
 
 // ---- UI 同步 ----
 function syncUI() {
-  $('seed').value = S.seed; $('gsel').value = /^(mini|gp|liq|old|luan0|luanV)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade; $('cleg').style.display = S.shade === 'height' ? '' : 'none';
+  $('seed').value = S.seed; $('gsel').value = /^(mini|gp|liq|old|pg1|luan0|luanV|veg)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade; $('cleg').style.display = S.shade === 'height' ? '' : 'none';
   $('rate').value = S.rate; $('minipc').checked = S.minip; $('otextc').checked = S.otext; $('terrsel').value = S.terr; dialUI(); $('side').classList.toggle('lay', S.lay); $('layb').classList.toggle('on', S.lay); $('bmode').value = S.bm; bioUI(); $('airc').checked = S.air; $('gridc').checked = S.grid;
   $('seld').value = S.seld; layerUI();
   $('fillr').value = S.fill; $('fillv').textContent = Math.round(S.fill * 100) + '%';
   $('zv').textContent = `${+S.zoom.toFixed(3)} px/格` + (S.air && S.zoom <= 22 ? '（> 22 才叠数字）' : '');
-  const ok = S.g === 'mini', gb = $('game');
-  gb.classList.toggle('off', !ok); gb.style.opacity = ok ? '' : 0.4;
-  gb.title = ok ? '在宿主 B 打开同种子世界，落在选区中心 / 悬停点 / 视图中心（创造飞行，一次性世界、不写存档）' : 'M1 起可用（宿主 B 只有 mini 地形）';
+  const gb = $('game');
+  gb.classList.remove('off'); gb.style.opacity = '';
+  gb.title = S.g === 'mini'
+    ? '在宿主 B 打开同种子世界，落在选区中心 / 悬停点 / 视图中心（创造飞行，一次性世界、不写存档）'
+    : '在 gode 打开同种子 / 同生成器的世界，落在选区中心 / 悬停点 / 视图中心（飞行；侧视时朝向同视线）';
   if (store) sliceUI(range());
   $('sub').style.display = hasAgent() ? '' : 'none';
   selUI(); pinPanel(); readout(); url(); gizmo();
@@ -969,7 +971,7 @@ addEventListener('keydown', (e) => {
   if (e.target.matches?.('input, select, textarea')) return;
   if (e.key === 'Enter' && !e.altKey && !e.metaKey) {   // ⏎ = 进游戏；Ctrl+⏎ = 一键提交给 Agent（preventDefault：焦点在按钮上时不再触发该按钮）
     e.preventDefault(); if (e.repeat) return;
-    if (e.ctrlKey) submitClick(); else if (S.g === 'mini') $('game').click(); else toast('进游戏：M1 起可用（目前只有 mini 地形）');
+    if (e.ctrlKey) submitClick(); else $('game').click();
     return;
   }
   if (e.key === 'Escape') { if (bs) { bioStop(); return; } if (play?.frozen) { stopPlay(); toast('剖面已取消'); return; } if (selA) selA = null; else S.sel = null; changed(); return; }
@@ -999,15 +1001,23 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => { if (/^(Digit|Numpad)9$/.test(e.code) && live() && play.src === 'key') stopPlay('commit'); });   // 9 松开：快放停在当前层（切片设到那一层）
 addEventListener('blur', () => { if (live()) stopPlay(); });
 
-// ---- ↗ 进游戏（V-9）：宿主 B ?seed=&p1=@x,z^y —— 选区中心 > 悬停点 > 视图中心；y = 该列地表 + 1 ----
-function gameUrl() {
-  let x, z;
-  if (S.sel) { x = Math.floor((S.sel[0] + S.sel[3]) / 2); z = Math.floor((S.sel[2] + S.sel[5]) / 2); }
-  else if (hov) [x, , z] = hov.p; else { x = Math.floor(S.x); z = Math.floor(S.z); }
-  const c = store?.col(x, z), y = c && c.y >= 0 ? `^${Math.max(c.y + c.wd, c.y) + 1}` : '';
-  return new URL(`../../index.html?test=1&seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}${y}`, location.href).href;
+// ---- ↗ 进游戏（V-9）：mini = 宿主 B ?seed=&p1=@x,z^y（不变）；其余 = gode ?g=&seed=&p1=@x,z^y[,yaw]&fly=1（与 index 同一套写法） ----
+// 落点：选区中心 > 悬停点 > 视图中心。y：侧视 = 那个点自己的 y（看哪一层就落到哪一层）；俯视 / 仰视 = 该列地表（或水面）+ 8。
+// 朝向：侧视 → 视线方向（F）；俯视 / 仰视不给 yaw。
+// pitch = −20° 由 gode 宿主对 p1 开局统一设（p1 与 index 一样没有 pitch 字段）。
+function gameUrl(g = S.g) {
+  const side = VIEWS[S.view].F[1] === 0;
+  let x, z, yPt = side ? Math.round(S.y ?? meta.sea ?? 62) : null;   // 侧视：屏幕点的世界 y（选区 / 悬停优先）
+  if (S.sel) { x = Math.floor((S.sel[0] + S.sel[3]) / 2); z = Math.floor((S.sel[2] + S.sel[5]) / 2); if (side) yPt = Math.round((S.sel[1] + S.sel[4]) / 2); }
+  else if (hov) { [x, yPt, z] = hov.p; if (side) yPt = Math.round(yPt); }
+  else { x = Math.floor(S.x); z = Math.floor(S.z); }
+  const c = store?.col(x, z), top = c && c.y >= 0 ? Math.max(c.y + c.wd, c.y) : null;
+  if (g === 'mini') return new URL(`../../index.html?seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}${top === null ? '' : '^' + (top + 1)}`, location.href).href;   // mini 保持原来的 y = 地表 + 1
+  const y = side ? clamp(yPt ?? 0, 0, H - 1) : (top ?? S.slice ?? (meta.sea ?? 62)) + 8;
+  const v = VIEWS[S.view], yaw = v.F[1] === 0 ? Math.atan2(-v.F[0], -v.F[2]) : null;   // 俯视 / 仰视不给朝向
+  return new URL(`../index.html?g=${encodeURIComponent(g)}&seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}^${y}${yaw === null ? '' : ',' + +yaw.toFixed(4)}&fly=1`, location.href).href;
 }
-$('game').onclick = () => { if (S.g === 'mini') window.open(gameUrl(), '_blank'); };
+$('game').onclick = () => window.open(gameUrl(), '_blank');
 
 // ---- 顶栏 / 左栏 ----
 $('go').onclick = () => { S.seed = $('seed').value.trim() || '0'; restart(); };

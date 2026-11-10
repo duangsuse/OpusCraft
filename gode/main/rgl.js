@@ -96,6 +96,8 @@ export function glEnv(world, ctl, clock) {
     get eyeInWater() { return !!p.headInWater; },
     get eyeSky() { const [x, y, z] = eye(); return (world.lightAt(x, y, z) >> 4) / 15; },
     get eyeBlk() { const [x, y, z] = eye(); return (world.lightAt(x, y, z) & 15) / 15; },
+    // 玩家自带光（s13 V-9）：眼里没有任何天光 = 地下 / 封闭空间 → 地形 pass 在眼睛周围加一圈暖光（rgl fancy 的 playerLight）
+    get playerLight() { const [x, y, z] = eye(); return (world.lightAt(x, y, z) >> 4) === 0 ? 1 : 0; },
     get eyeWaterTop() {
       if (!p.headInWater) return undefined;
       const [x, y0, z] = eye(); let y = y0; while (y < H && ctl.tbl.fluid[world.getBlock(x, y + 1, z)]) y++;

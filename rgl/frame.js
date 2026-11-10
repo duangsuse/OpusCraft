@@ -55,7 +55,7 @@ export function createFrameBuilder() {
     st.prevVP = viewProj; st.prevEye = eye.slice();
     const rain = inp.rain || 0, flash = inp.flash || 0, storm = inp.storm || 0;   // remix: storm = 雷暴强度（压暗），flash = 闪电脉冲（goodGL W8.flash）；宿主 B 曾把 storm 当 flash 传，雷暴期间一直过曝
     const F = { w: W, h: H, camPos: eye, proj, view, viewProj: viewProjR, viewProjU: viewProj, invViewProj, taa, prevViewProj: prevVP, camDelta, taaReset, invViewProjSky: invViewProj, planes, near, far,
-      time: inp.time, fancy: true,
+      time: inp.time, fancy: true, playerLight: inp.playerLight || 0,
       sunDir: env.sunDir, moonDir: env.moonDir, pathAxis: env.pathAxis, starRot: env.th, moonPhase: [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875][(inp.dayCount || 0) % 8], cloudTime: inp.cloudTime,
       waving: S.waving, clouds: S.clouds, gamma: S.gamma, flicker: 1.0 + (Math.sin(inp.time * 1000 * 0.011) * 0.02 + Math.sin(inp.time * 1000 * 0.023) * 0.02), renderDist: rdBlocks, volumetric: S.volumetric, pbr: S.pbr !== false, pom: S.pom !== false };
     F.visible = []; F.all = [];                                                                   // remix: R3 前没有区块；R.cull 由 R3 接上

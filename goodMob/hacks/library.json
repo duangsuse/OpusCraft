@@ -1,0 +1,179 @@
+{
+ "models": [
+  {
+   "name": "aapl",
+   "kind": "svox",
+   "file": "reference-ents/aapl"
+  },
+  {
+   "name": "axes",
+   "kind": "svox",
+   "file": "reference-ents/axes"
+  },
+  {
+   "name": "bush",
+   "kind": "svox",
+   "file": "reference-ents/bush"
+  },
+  {
+   "name": "bush1",
+   "kind": "svox",
+   "file": "reference-ents/bush1"
+  },
+  {
+   "name": "chair",
+   "kind": "svox",
+   "file": "reference-ents/chair"
+  },
+  {
+   "name": "crate",
+   "kind": "svox",
+   "file": "reference-ents/crate"
+  },
+  {
+   "name": "fax",
+   "kind": "svox",
+   "file": "reference-ents/fax"
+  },
+  {
+   "name": "fry",
+   "kind": "svox",
+   "file": "reference-ents/fry"
+  },
+  {
+   "name": "gems",
+   "kind": "svox",
+   "file": "reference-ents/gems"
+  },
+  {
+   "name": "jack-o",
+   "kind": "svox",
+   "file": "reference-ents/jack-o"
+  },
+  {
+   "name": "knot",
+   "kind": "svox",
+   "file": "reference-ents/knot"
+  },
+  {
+   "name": "light",
+   "kind": "svox",
+   "file": "reference-ents/light"
+  },
+  {
+   "name": "logo",
+   "kind": "svox",
+   "file": "reference-ents/logo"
+  },
+  {
+   "name": "notes",
+   "kind": "svox",
+   "file": "reference-ents/notes"
+  },
+  {
+   "name": "rkt",
+   "kind": "svox",
+   "file": "reference-ents/rkt"
+  },
+  {
+   "name": "sword",
+   "kind": "svox",
+   "file": "reference-ents/sword"
+  },
+  {
+   "name": "tree",
+   "kind": "svox",
+   "file": "reference-ents/tree"
+  },
+  {
+   "name": "AK47",
+   "kind": "vox",
+   "file": "vox-demo/AK47.vox"
+  },
+  {
+   "name": "Cactus",
+   "kind": "vox",
+   "file": "vox-demo/Cactus.vox"
+  },
+  {
+   "name": "CoffeeLocal",
+   "kind": "vox",
+   "file": "vox-demo/CoffeeLocal.vox"
+  },
+  {
+   "name": "Cow",
+   "kind": "vox",
+   "file": "vox-demo/Cow.vox"
+  },
+  {
+   "name": "Duck",
+   "kind": "vox",
+   "file": "vox-demo/Duck.vox"
+  },
+  {
+   "name": "HotChocolate",
+   "kind": "vox",
+   "file": "vox-demo/HotChocolate.vox"
+  },
+  {
+   "name": "LAMP 5",
+   "kind": "vox",
+   "file": "vox-demo/LAMP 5.vox"
+  },
+  {
+   "name": "Pig",
+   "kind": "vox",
+   "file": "vox-demo/Pig.vox"
+  },
+  {
+   "name": "Scooter",
+   "kind": "vox",
+   "file": "vox-demo/Scooter.vox"
+  },
+  {
+   "name": "Shark",
+   "kind": "vox",
+   "file": "vox-demo/Shark.vox"
+  },
+  {
+   "name": "Sofa 1",
+   "kind": "vox",
+   "file": "vox-demo/Sofa 1.vox"
+  },
+  {
+   "name": "Wardrobe",
+   "kind": "vox",
+   "file": "vox-demo/Wardrobe.vox"
+  },
+  {
+   "name": "axe",
+   "kind": "vox",
+   "file": "vox-demo/axe.vox"
+  },
+  {
+   "name": "fruit stand",
+   "kind": "vox",
+   "file": "vox-demo/fruit stand.vox"
+  },
+  {
+   "name": "full scale sticky piston",
+   "kind": "vox",
+   "file": "vox-demo/full scale sticky piston.vox"
+  },
+  {
+   "name": "pumpkin",
+   "kind": "vox",
+   "file": "vox-demo/pumpkin.vox"
+  },
+  {
+   "name": "upload_temp (1)",
+   "kind": "vox",
+   "file": "vox-demo/upload_temp (1).vox"
+  },
+  {
+   "name": "upload_temp",
+   "kind": "vox",
+   "file": "vox-demo/upload_temp.vox"
+  }
+ ]
+}

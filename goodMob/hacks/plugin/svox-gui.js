@@ -1,8 +1,8 @@
 // Tweak UI (lil-gui) for the SVOX project data: Model, Materials, Layers, Lights, Groups.
 // Every control edits the string props of src/svox.js's data model; the plugin rebuilds the mesh on change and records
 // one undo step per finished edit.
-import GUI from '../vendor/lil-gui/lil-gui.esm.min.js';
-import { kindOf, SPEC, parseProps, stringifyProps, parsePlanar, stringifyPlanar, hex6, nums, fmt, MATERIAL_PRESETS } from '../src/svoxprops.js';
+import GUI from '../../vendor/lil-gui/lil-gui.esm.min.js';
+import { kindOf, SPEC, parseProps, stringifyProps, parsePlanar, stringifyPlanar, hex6, nums, fmt, MATERIAL_PRESETS } from '../../src/svoxprops.js';
 
 const AXIS_LABEL = { x: 'x (left / right)', y: 'y (bottom / top)', z: 'z (front / back)' };
 const SIGN = { '': 'off', '-': '− (low side)', '>': '> (all but ends, low)', '=': 'both sides', '<': '< (all but ends, high)', '+': '+ (high side)' };

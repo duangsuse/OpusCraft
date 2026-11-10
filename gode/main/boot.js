@@ -1,6 +1,6 @@
 /* gode/main/boot.js —— gode 宿主（M1）：起 slicer 池 → 世界镜像 → 控制器 → rgl，主循环。
-   URL：?g=mini|gp|liq|old|luan0|luanV|<worker url>（默认 mini）&seed=（默认 20240607）&rd=（默认 6）&kw=a.b:1,c:2（生成器参数，s02 §2.1）
-        &hour=（0..24，默认 10）&tspeed=（时钟快进：游戏小时 / 秒，默认 0 = 钉住）&pos=x,y,z[,yaw,pitch]（不给 = 出生点）&fly=1&noclip=1&r=gl
+   URL：?g=mini|gp|liq|old|pg1|luan0|luanV|<worker url>（默认 mini）&seed=（默认 20240607）&rd=（默认 6）&kw=a.b:1,c:2（生成器参数，s02 §2.1）
+        &hour=（0..24，默认 10）&tspeed=（时钟快进：游戏小时 / 秒，默认 0 = 钉住）&p1=@x,z[^y][,yaw]（pgviz ↗；与 index.html 同格式，不给 = 出生点；pitch = −20°）&fly=1&noclip=1&r=gl
    Agent / 调试：window.gode = { world, ctl, pool, VR, tbl, meta, clock, pose(), settle(), stats(), errors() } */
 import * as THREE from '../../vendor/npm/three.module.js';
 import { Pool } from '../w/pool.js';
@@ -12,7 +12,7 @@ import { createGl } from './rgl.js';
 
 const q = new URLSearchParams(location.search);
 const G = q.get('g') ?? 'mini', SEED = q.get('seed') ?? '20240607', RD = Math.min(16, +(q.get('rd') ?? 6) || 6);
-const genUrl = (g) => /^(mini|gp|liq|old|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
+const genUrl = (g) => /^(mini|gp|liq|old|pg1|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
 const $ = (id) => document.getElementById(id);
 
 // ---- 错误收集（errors() 取自上次调用以来的）：页面日志之外给 Agent 一个结构化入口
@@ -48,13 +48,25 @@ async function main() {
   let rd = RD, dbg = true;
   input.onkey = (code) => { ctl.key(code); if (code === 'F3') { dbg = !dbg; $('f3').style.display = dbg ? '' : 'none'; } };
 
-  // 出生点：先等 (0,0) 周围的区块，取柱高与海平面的较高者
+  // 出生点：`p1=@x,z[^y][,yaw]`（与宿主 B index.html 同一套写法；y 缺省 = 该列地表 + 8）优先；
+  // 否则问生成器要 `spawn()`（s02 §2），没有 / 超时就回落到 (8,8) 的柱高与海平面较高者。
+  // p1 = pgviz「↗ 进游戏」：pitch 固定 −20°（p1 与 index 一样没有 pitch 字段）。
   status('生成出生区块 …');
-  const pos = q.get('pos')?.split(',').map(Number);
+  const m1 = /^@?(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:\^(-?\d+(?:\.\d+)?))?(?:,(-?[\d.]+))?/.exec(q.get('p1') || '');
+  let pos = m1 ? [+m1[1], m1[3] === undefined ? null : +m1[3], +m1[2], m1[4] === undefined ? 0 : +m1[4], -Math.PI / 9] : null;
+  if (!pos) {
+    const sp = await Promise.race([pool.call('spawn', {}).catch(() => null), new Promise((r) => setTimeout(() => r(null), 2000))]);
+    if (Array.isArray(sp) && sp.length >= 3 && sp.every(Number.isFinite)) pos = [...sp, 0, 0];
+  }
   const cx0 = pos ? Math.floor(pos[0]) >> 4 : 0, cz0 = pos ? Math.floor(pos[2]) >> 4 : 0, px0 = pos ? pos[0] : 8.5, pz0 = pos ? pos[2] : 8.5;
   world.update(px0, pz0, Math.min(rd, 2));
   await new Promise((res, rej) => { const t0 = performance.now(), f = () => world.chunk(cx0, cz0) ? res() : performance.now() - t0 > 20000 ? rej(new Error('出生区块 20 s 没生成出来')) : setTimeout(f, 20); f(); });
-  if (pos) { p.x = pos[0]; p.y = pos[1]; p.z = pos[2]; if (pos[3] !== undefined) p.yaw = pos[3]; if (pos[4] !== undefined) p.pitch = pos[4]; }
+  if (pos) {
+    const bx = Math.floor(pos[0]), bz = Math.floor(pos[2]);
+    p.x = bx + 0.5; p.z = bz + 0.5;   // 与宿主 B 的 p1 一样落在格中心
+    p.y = pos[1] ?? Math.max(world.chunk(cx0, cz0).heights[((bz & 15) << 4) | (bx & 15)] + 8, (meta.sea ?? 62) + 8);
+    p.yaw = pos[3]; p.pitch = pos[4];
+  }
   else { const h = world.chunk(cx0, cz0).heights[(8 << 4) | 8]; p.x = px0; p.z = pz0; p.y = Math.max(h + 1, (meta.sea ?? 62) + 1) + 0.01; }
   p.fallStart = p.y;
   if (q.get('fly') === '1') p.flying = true;

@@ -7,7 +7,8 @@
 // Project data (see src/svox.js) is stored in the .bbmodel under `goodmob_svox`.
 (() => {
   'use strict';
-  const ROOT = new URL('../', document.currentScript.src).href;     // .../goodMob/
+  const PLUGIN = new URL('./', document.currentScript.src).href;     // .../goodMob/hacks/plugin/
+  const ROOT = new URL('../../', document.currentScript.src).href;   // .../goodMob/
 
   const until = async (test, ms = 60000) => {
     const t0 = Date.now();
@@ -23,14 +24,14 @@
     const [{ parseBbmodel }, { toSvox, newData, migrate, ensureLayers, modelScale }, { ramp }, { parseVox }, { gridToBoxes }, { importSvox }, R, { createGui }] = await Promise.all([
       import(ROOT + 'src/bbmodel.js'), import(ROOT + 'src/svox.js'), import(ROOT + 'src/grid.js'),
       import(ROOT + 'src/vox.js'), import(ROOT + 'src/boxes.js'), import(ROOT + 'src/svoximport.js'),
-      import(ROOT + 'plugin/svox-render.js'), import(ROOT + 'plugin/svox-gui.js'),
+      import(PLUGIN + 'svox-render.js'), import(PLUGIN + 'svox-gui.js'),
     ]);
     const css = document.createElement('link');
     css.rel = 'stylesheet'; css.href = ROOT + 'vendor/lil-gui/lil-gui.min.css';
     document.head.append(css);
 
-    // Smooth Voxels runs in a worker (see plugin/svox-worker.js for why it can't share Blockbench's realm).
-    const worker = new Worker(ROOT + 'plugin/svox-worker.js');
+    // Smooth Voxels runs in a worker (see hacks/plugin/svox-worker.js for why it can't share Blockbench's realm).
+    const worker = new Worker(PLUGIN + 'svox-worker.js');
     const pending = new Map();
     let jobId = 0;
     worker.onmessage = ({ data }) => {

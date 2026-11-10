@@ -385,6 +385,7 @@ void main(){
   if (under) amb *= vec3(0.5, 0.75, 0.9);
   float b = lb(blk);
   vec3 torch = ${Fps.torchCol} * b * b * 2.4 * fireFlicker(v_world) * (0.45 + 0.55 * ao) * mix(1.0, cav, 0.6);
+  torch += vec3(1.0, 0.84, 0.62) * ${Fps.playerLight} * exp(-d * 0.16) * 1.9 * (0.35 + 0.65 * ao);   // remix: 玩家自带光（gode：眼里无天光时照周围；playerLight = 0 无影响）
   vec3 minL = vec3(0.004, 0.005, 0.007) * (0.4 + 0.6 * ao);
   vec3 col = diffAlb * (direct + amb + bounce + torch + minL);
   // subsurface transmission (leaves, grass, snow, skin)

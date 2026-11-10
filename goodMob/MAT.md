@@ -133,7 +133,7 @@ lil-gui (single file, vendored under `vendor/`) mounted in the existing SVOX pan
 
 - **D1 groups:** supported. `group` / `clone` / `prefab` lines are kept as data and re-emitted; `material group = X` is a material prop. The cubes themselves stay flat (one Blockbench group per layer); SVOX groups only transform the generated mesh.
 - **D2 lights:** supported (`light` lines, including `atvoxel` by layer name). The library bakes them into vertex colours / visible light spheres, so they render without extra three.js lights.
-- **D3 textures:** every SVOX texture id is backed by one built-in generated image (`makeEnvImage` in `plugin/svox-render.js`, a small studio-style equirect). `%ENVIRONMENT%` and any pasted base64 image are replaced by it. `Copy SVOX` writes `%ENVIRONMENT%` back.
+- **D3 textures:** every SVOX texture id is backed by one built-in generated image (`makeEnvImage` in `hacks/plugin/svox-render.js`, a small studio-style equirect). `%ENVIRONMENT%` and any pasted base64 image are replaced by it. `Copy SVOX` writes `%ENVIRONMENT%` back.
 - **D4 scope:** all P0, P1 and P2 properties in section 2 are editable. Others in the library tables can be added from the "+ add property" dropdown (it lists everything valid for the material type).
 
 ## Implementation
@@ -143,10 +143,10 @@ lil-gui (single file, vendored under `vendor/`) mounted in the existing SVOX pan
 | Props parse/write, planar helpers, presets, widget spec | `src/svoxprops.js` |
 | Project data model, migration from the old `styles` form, SVOX emitter | `src/svox.js` |
 | Worker `parse` result -> grid + data (every colour id = a layer, every `material` line = a shared material) | `src/svoximport.js` |
-| Worker ops `schema` / `parse` / `generate` | `plugin/svox-worker.js` |
-| Real three.js material per SVOX material, env map, built-in image | `plugin/svox-render.js` |
-| lil-gui panel (Layers, Materials, Model, Lights, Groups) | `plugin/svox-gui.js` |
-| Blockbench glue, undo snapshots, clipboard import, Copy SVOX | `plugin/svox-view.js` |
+| Worker ops `schema` / `parse` / `generate` | `hacks/plugin/svox-worker.js` |
+| Real three.js material per SVOX material, env map, built-in image | `hacks/plugin/svox-render.js` |
+| lil-gui panel (Layers, Materials, Model, Lights, Groups) | `hacks/plugin/svox-gui.js` |
+| Blockbench glue, undo snapshots, clipboard import, Copy SVOX | `hacks/plugin/svox-view.js` |
 
 Behaviour worth knowing:
 - Type-dependent controls come from the library's own allowed-types flags (`schema` op), so `roughness` disappears for `lambert`, `shininess` only shows for `phong`, etc. Props that are set but not valid for the type stay listed as `(n/a)`.

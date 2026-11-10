@@ -15,9 +15,14 @@ src/svoxprops.js SVOX settings as strings: parse/write, planar helpers, presets,
 src/svoximport.js SVOX worker parse -> grid + project data
 src/main.js     standalone three.js viewer + layer panel (index.html)
 vendor/         three r164, OrbitControls, Smooth Voxels 2.4.0 (MIT, see vendor/LICENSE), lil-gui 0.21 (MIT, vendor/lil-gui/LICENSE.md)
-blockbench/     Blockbench 5.2.2 web build (GPL-3.0, see blockbench/LICENSE.MD); only edit: one <script> tag in index.html
-plugin/         svox-view.js (Blockbench mode/tool/panel/imports), svox-gui.js (lil-gui panel), svox-render.js (three materials), svox-worker.js (Smooth Voxels off-thread)
-scripts/        sync-blockbench.sh: rebuild blockbench/ from source and re-apply the plugin tag
+blockbench/     Blockbench 5.2.2 web build (GPL-3.0, see blockbench/LICENSE.MD); build artifact — never edit by hand
+hacks/          everything goodMob adds on top of Blockbench (see hacks/README.md)
+  plugin/       svox-view.js (mode/tool/panel/imports), svox-gui.js (lil-gui panel), svox-render.js (materials),
+                svox-worker.js (Smooth Voxels off-thread), defaults.js (default plugin set),
+                home.js (start screen library: built-in manifest, remembered folder, drop/paste)
+  patches/      Blockbench source patch series, applied before the build; small and semantic, rebased on each sync
+scripts/        sync-blockbench.sh: clone upstream, apply hacks/patches, build, re-inject the plugin tags
+                make-library.py: regenerate hacks/library.json (the start screen's built-in models)
 ```
 
 ## Layers
@@ -56,8 +61,8 @@ Same filter, inside the real editor. Nothing in Blockbench's source is modified.
 - **Magic wand tool** (active by default in SVOX mode): click a voxel → flood fill. `match`: same layer / same colour / any; `connect`: 6 or 26; `surface only` (default) keeps the fill on exposed voxels; `whole model` ignores connectivity. Shift adds, Ctrl/Cmd subtracts, click on empty space clears. Click a layer name in the panel to select the whole layer.
 - **Assign** moves the selected voxels into a (new or existing) layer; **Reset** returns them to their group's layer. Cubes are never modified: assignments are per-voxel overrides stored in the `.bbmodel` under `goodmob_svox` (with the layer styles), keyed by voxel position, so they do not follow cubes that are moved later. Assign/Reset and every tweak are Blockbench undo steps (Ctrl+Z / Ctrl+Y).
 
-Run `scripts/sync-blockbench.sh [ref]` to update Blockbench (needs git, node ≥ 20, network).
+Run `scripts/sync-blockbench.sh [ref]` to update Blockbench and re-apply everything in `hacks/` (needs git, node ≥ 20, network).
 
-Why a worker: Blockbench adds enumerable methods to `Array.prototype`, which break Smooth Voxels' `for … in` voxel loops, and Smooth Voxels' top-level classes (e.g. `BoundingBox`) would shadow Blockbench globals. Running it in `plugin/svox-worker.js` avoids both.
+Why a worker: Blockbench adds enumerable methods to `Array.prototype`, which break Smooth Voxels' `for … in` voxel loops, and Smooth Voxels' top-level classes (e.g. `BoundingBox`) would shadow Blockbench globals. Running it in `hacks/plugin/svox-worker.js` avoids both.
 
 Limits: cubes only (meshes skipped), hidden cubes ignored, group rotations ignored, per-cube rotation voxelised by cell-centre sampling.

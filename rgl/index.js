@@ -289,7 +289,7 @@ export function createRenderer(ctx) {
     if (ENV.underwater) ENV.underwater(!!ENV.eyeInWater);                       // 宿主的水下遮罩由着色器代替（每帧隐藏）
     const sharpT = ENV.flying ? P.sharpFly : P.sharpDist; sharpNow = Math.abs(sharpT - sharpNow) < 0.5 ? sharpT : sharpNow + (sharpT - sharpNow) * Math.min(1, dt / 300);
     const F = fb.build({ W, H, eye: [e[12], e[13], e[14]], fwd: [-e[8], -e[9], -e[10]], up: [e[4], e[5], e[6]], fovDeg: camera.fov, rd,
-      tick: day * 24000, dayCount: 0, underwater: ENV.eyeInWater, eyeSky: ENV.eyeSky, eyeBlk: ENV.eyeBlk, waterTop: ENV.eyeWaterTop, rain: wx.rain, storm: wx.thunder, flash: wx.flash || 0, wet: wx.wet, time: D.time != null ? D.time : sec, cloudTime: D.cloudX != null ? D.cloudX : sec, dt, ref: D.ref,
+      tick: day * 24000, dayCount: 0, underwater: ENV.eyeInWater, eyeSky: ENV.eyeSky, eyeBlk: ENV.eyeBlk, waterTop: ENV.eyeWaterTop, playerLight: ENV.playerLight ?? 0, rain: wx.rain, storm: wx.thunder, flash: wx.flash || 0, wet: wx.wet, time: D.time != null ? D.time : sec, cloudTime: D.cloudX != null ? D.cloudX : sec, dt, ref: D.ref,
       S: { ...P, sharpDist: sharpNow, fogEdge: ctx.settings && ctx.settings.fogEdge }, dbg: { fog: P.fog, mist: P.mist } });
     setFrame(F);
     sky.frame(day);

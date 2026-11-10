@@ -36,4 +36,13 @@ export function sample({ x, z }) {
   return { h: c.h, biome: W.biomeOf(c), temp: r(c.temp), humid: r(c.humid), cont: r(c.cont), mount: r(c.mount), river: r(c.river) };
 }
 
+// 螺旋找岸上的出生点（同 old / veg 的做法）：柱高高于海平面、不是山顶，y = 地面 + 2
+export function spawn() {
+  for (let r = 0; r < 600; r += 8) for (let a = 0; a < 8; a++) {
+    const x = Math.round(Math.cos(a * Math.PI / 4) * r * 4), z = Math.round(Math.sin(a * Math.PI / 4) * r * 4), c = W.column(x, z);
+    if (c.h > G.SEA + 1 && c.h < 220) return [x + 0.5, c.h + 2, z + 0.5];
+  }
+  return [0.5, G.SEA + 10, 0.5];
+}
+
 serve(import.meta.url);

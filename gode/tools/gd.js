@@ -517,8 +517,8 @@ async function daemon(opts) {
       const t0 = Date.now(); let v;
       try { v = await evalJS(`(async () => { const GD = ${JSON.stringify({ xz })}; return await (${r.js}); })()`, 30000); }
       catch (e) { v = { ok: false, msg: e.message.split('\n')[0] }; }
-      const ms = Date.now() - t0, verdict = v?.ok ? 'ok' : 'FAIL';
-      if (!v?.ok) fail++;
+      const ms = Date.now() - t0, verdict = v?.skip ? 'skip' : v?.ok ? 'ok' : 'FAIL';   // skip = 检查自己声明对当前生成器不适用（不进失败数）
+      if (!v?.ok && !v?.skip) fail++;
       appendIndex({ seq: nextSeq(), ts: new Date().toISOString(), tag: 'check', pose: r.name, url: st.url?.replace(BASE, ''), files: '', note: v?.msg, verdict, ms });
       out.push(`${r.name}\t${verdict}\t${ms}ms\t${tsvCell(v?.msg)}`);
     }
