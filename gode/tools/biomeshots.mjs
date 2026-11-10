@@ -277,6 +277,9 @@ for (let i = 0; i < picked.length; i++) {
   const [id, name] = picked[i];
   const c = center(id, name);
   if (c.miss) { missing.push(name); console.log(`${i + 1}/${picked.length} ${name} —— 24k 格内没有，跳过`); continue; }
+  // 重跑同一群系：先清掉这个群系的旧层（切层 Y 会随地形变，不清会和新图拼进同一张 _going_deeper）
+  rmSync(join(outDir, 'slc', name), { recursive: true, force: true });
+  rmSync(join(outDir, 'slc', `${name}_going_deeper.webp`), { force: true });
   const paths = { slc: [] }, air = [];
   for (const k of ['top', 'side', 'mine']) {
     evalOk(`(async()=>{${VIEW[k]}await viz.ready();${label(c.cx, c.cz, name)}return 'ok'})()`);

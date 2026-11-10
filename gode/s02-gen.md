@@ -84,12 +84,12 @@ serve(import.meta.url);                  // 末行：运行时再 import 自己�
 | `gp` | goodGP `js/world.js`（`vendor/gp/load.js` 运行时 fetch 供体 util / blocks / world 原文拼成函数执行，零改动；只补 `ASSETS.tiles` 与色图两个桩） | u8 id + u8 meta，`(y<<8)\|(z<<4)\|x`，H 256 | **索引顺序与规范相同**，只需 `type = LUT[id] \| meta<<12` | 不外写（重算 3×3 树表），outside 为空 |
 | `liq` | goodLiqPG `src/world/gen/generator.js` | u16 12+4，`(yi*16+z)*16+x`，y −64…320 | 编码相同，查 LUT；**y + 64，191 以上裁掉**（§5） | `generateChunk` 已返回 `outside` |
 | `old` | 仓库根 `VoxelCraft.html` 的地形生成抽副本（`vendor/old/voxelcraft.js`，s13 §13） | u8 id，`(x*16+z)*96+y`，H 96，海 40，无 meta | 适配器直接写规范 YZX u16（不走 xlate），y 原样 | 无（树全在块内，`meta.outside = false`） |
-| `pg1` | goodPG1.html 的 `WorldGen`（`vendor/pg1/load.js` 运行时切出单文件 `<script>` 执行，零改动；供体自己的 Worker 路径就是 `self.IS_WORKER=true` + 整段脚本，goodPG1.html:3350） | u16，`(y<<8)\|(z<<4)\|x`，H 192，海 63，id 453 / meta ≤ 5 | 索引顺序与规范相同，`v = id \| meta<<12`；heights 按规范从方块重算（供体 hmap 跳过 filter=0 的植物） | 无（结构 / 特征走 Writer 逐块裁剪，`meta.outside = false`） |
+| `pg1` | goodPG1.html 的生成器**副本** `vendor/pg1/gen.js`（`tools/build-pg1.mjs` 从供体切出 §1 核心工具 + §2 注册表 + §4 世界生成；donor 原文不动，`--check` 比对 donor 哈希），`vendor/pg1/load.js` 用 `new Function` 执行（同供体 Worker 路径 `self.IS_WORKER=true`） | u16，`(y<<8)\|(z<<4)\|x`，H 192，海 63，id 453 / meta ≤ 5 | 索引顺序与规范相同，`v = id \| meta<<12`；heights 按规范从方块重算（供体 hmap 跳过 filter=0 的植物） | 无（结构 / 特征 / 入口隧道走 Writer 逐块裁剪，`meta.outside = false`） |
 | `luan0` | Luanti mapgen v7 的**列式独立重写**（`vendor/luanti/{noise,pcg,biome,mapgen,v7}.js`，装配 `defl/g/lt/`，s13 §14） | 无（逐点算，直接写规范 YZX u16） | 原生 y −64…191 ↔ 规范 0…255（+64，同 liq），海 1 ↔ 65 | 无（`meta.outside = false`；树冠按相邻 mapchunk 的装饰结果直接写进本块，s13 §14.1；矿 / 地牢 / 随机游走洞未做） |
 | `luanV` | 同上，`vendor/luanti/valleys.js` | 同上 | 同上 | 同上 |
 | `veg` | goodPG（VoxelCraft v3）`src/shared/world/terrain.ts`，`vendor/v3/terrain.mjs`（97 模块打包，`tools/build-v3.mjs` 生成，勿手改） | u16 状态 id（6 244 个，带朝向 / 水位），`(yi<<8)\|(z<<4)\|x`，y −64…319 | 状态 id 按去 `_<n>` 的名字压成规范 type（1 132 个，`meta=0`）；**y + 64，> 255 裁掉**（同 liq，带 `clip`） | 无（树 / 结构按全局网格算、写回时裁到本块，`meta.outside = false`；箱内容 / 村民 / 结构刷怪无通道，V1 丢弃） |
 
-- `pg1` 没有参数表（供体的 `wtype` 固定 `default`，没有 `terrain.*` / `cave.*` 一类乘子），`meta.knobs = []`；pgviz ④ 参数段为空，`viz.tune` 对它只会报未知键（检查 `viz-kw` 对无参数生成器只验这一条）。
+- `pg1` 的参数表在副本里（`GEN_PARAMS`，11-11 起）：`terrain.mount / terrain.hills / terrain.mountPct / terrain.coast / cave.rate / cave.entrance / tree.dens / ore.mul`，默认值 = SURV 调优值（不是供体原值）；`defl/g/pg1.js` 的 `meta.knobs` 直接引用它，`onkwarg` 走 `resolveParams`。`sample` 回 `h / biome / temp / hum / cont / ero / mnt`（`colInfo`），噪声热力图可用。
 - V1 里 type 就是各生成器自己的 id（gp 0–168、liq 0–227、mini 0–87、old 0–25、pg1 0–452、veg 0–1131），名字表在 `meta.names[type]`，pgviz 按名字着色 / 分类；统一 id LUT 等 s04 定表后再加。veg 的 12 位是硬上限：v3 的 6 244 个状态必须合并（s13 §0 的清单第 1 条）。
 - `Generator` 实例不可重入（gen.md §5），每个 slicer 一个实例。
 - 缺失方块先 SUB 到已有方块，按画面影响分批补（gen.md §5「4a / 4b」）。

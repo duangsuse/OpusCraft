@@ -558,9 +558,14 @@ gd snap --tag tuned                                            # 前后对照：
 
 ## 18. `pg1` = goodPG1 生成器移植 [11-10]
 
-- **来源与做法**：`goodPG1.html` 是单文件经典脚本，供体自己的 Worker 路径就是「整段 `<script>` + `self.IS_WORKER=true`」执行（goodPG1.html:3350）。所以不复制、不切行：`vendor/pg1/load.js` 运行时 fetch 原文、切出 `<script>`、`new Function` 执行后返回 `WorldGen / Chunk / BLOCKS / BIOMES / …`（与 `vendor/gp/load.js` 同一思路；顶部对 DOM 的引用都在函数体内或有 `typeof` 守卫，`boot` 只在 `!IS_WORKER` 时挂 load）。
+- **来源与做法（11-10 原为零改动；11-11 起改为副本）**：`goodPG1.html` 是单文件经典脚本，供体自己的 Worker 路径就是「整段 `<script>` + `self.IS_WORKER=true`」执行（goodPG1.html:3350）。`tools/build-pg1.mjs` 把 §1 核心工具 + §2 注册表 + §4 世界生成切到 `vendor/pg1/gen.js`（切出时 1676 行，跳过纹理 / 渲染 / 玩法 / UI / 存档），`vendor/pg1/load.js` 用 `new Function` 执行后返回 `WorldGen / Chunk / BLOCKS / BIOMES / …`。**副本可手改**（SURV 调优都在这里）；donor 原文不动，`build-pg1.mjs --check` 用 `gen.donor.sha` 比对 donor 是否变了，要重写副本必须 `--force`（会覆盖手改）。
 - **坐标 / 布局**：`(y<<8)|(z<<4)|x` 与规范相同，`WH = 192`、海 63；id 453 个（< 4096）、meta ≤ 5 → `v = id | meta<<12`，不需要 `xlate`。`heights` 按规范从方块重算（供体 `hmap` 跳过 `filter = 0` 的植物，口径不同）。
-- **封闭性**：树 / 结构 / 特征全走 `Writer`（goodPG1.html:2206），越界写入直接丢；`meta.outside = false`，`viz-seam` 的 cross / lost 不适用。
+- **封闭性**：树 / 结构 / 特征 / 入口隧道全走 `Writer`（goodPG1.html:2206），越界写入直接丢；`meta.outside = false`，`viz-seam` 的 cross / lost 不适用。
 - **`col` 覆盖**：外圈 2D 用 `column()` 只算列噪声（`h`、群系、`sea - h` 水深、近似地表方块 `bio.top / bio.under`）；整块生成要 8.8 ms，6400 块会超时（同 §14 的做法）。
-- **没有参数**：`meta.knobs = []`（供体 `wtype` 固定 `default`）。`viz-kw` 改成：声明的参数表为空时只验「未知键抛错 + 无参 stats + 覆盖完整」，不 tune。
-- **实测（seed 20240607）**：pgviz 8 池 `8.8 ms/块`（wall 1.9），1024/1024 块 + 1089/1089 列；`gd check --matrix pg1` 19 条全过；`gd reload` 前后同区域方块计数逐项相等；`gode/index.html?g=pg1&seed=20240607` 能开局（78 块，无报错）。
+- **SURV 调优（11-11）**：副本里加了参数表 `GEN_PARAMS`（`terrain.mount / terrain.hills / terrain.mountPct / cave.rate / cave.entrance / tree.dens / ore.mul`）与 `setGenParams`；`defl/g/pg1.js` 的 `meta.knobs` 引用它，`viz.tune` / `?kw=` 可用。`colInfo(x,z)` 把列气候与三档权重（`temp / hum / cont / ero / mfac / mntW / hillW`）给 `sample`，噪声热力图不再只有 `h / biome`。
+  - **海岸**：`terrain.coast`（0–1，默认 0.8）按「基础高度离海平面 ≤10 格」压 `contH` 的 base（海侧深度 ×0.35、陆侧高差 ×0.45，丘陵再乘 (1−0.6·coast)），压的是 base 而不是最终 h，避免 cont 抖动压出坑。实测：beach 占比 8.5%→10.9%、近岸 8 格高差 ≥5 的列 28.6%→26.1%、海洋占比 29.1%→27.7%。
+  - **地形**：低频山脉因子（`nMisc.fbm2 /900`）分三档，默认 `terrain.mountPct=0.13`（SurvivalCraft 口径）：山心 ≈ `mfac>0.69`、丘陵 0.51–0.63，实测 **66.7 / 20.2 / 13.1 %**（平原 / 丘陵 / 山脉，q 口径 4225 列）；山脉 +130×`ridge^1.7`，丘陵 ±(5+16)`hills`。
+  - **树**：`treeP`（逐列概率）换成 `treeD`（每块期望树数，4×4 格至多一棵），森林 4 / 深林 4.5 / 丛林 4 / 针叶 3.2（供体森林原为 ~18 棵/块）；`treeBlocked()` 再按 SurvivalCraft 的「树周围 4 格无阻挡」做格子键去重（半径 4，Chebyshev），实测森林 2.4–3 棵/块、平原 0.4。
+  - **洞穴**：`cave.rate` 默认 1.5（体积与连通度）；`entrances()` 在 64×64 格上取候选（`cave.entrance` 1.5 ≈ 82% 的格子有入口），挖 2×2 盘旋阶梯井 + 井底 52 步主巷道（每 12 步一条支巷），跨块一致（Writer 只留本块）。`entranceSite(gx,gz)` 单独暴露给出生点评分用。
+  - **出生点**：`spawn()` 按 SurvivalCraft `ScoreSpawnPosition` 口径打分 —— 温带（`temp` 归一 0.45–0.65）、湿度 0.15–0.55、海拔 ≤ `SEA+12`、坡度 ≤ 5、距原点 ≤ 400、非山（`mntW ≤ 0.9`）、非水；640 格内 16 格步长螺旋搜索。附近 160 格内有洞穴入口（`entranceSite()`）加 0.6、320 格内加 0.3；若 160 格内的最佳点比分差 < 1.2 则优先它。`treeNear(x,z,2)` 排除树干/树冠，3×3 高差 >1 扣分（避免贴墙）。返回值扩展成 5 元 `[x,y,z,yaw,pitch]`，yaw 取 8 向里「远处更低 + 近处不挡视线」的一侧。当前 seed 出生 `(243.5,76,121.5)`，3×3 高度 75–76，最近入口 39 格，yaw 135°。
+- **实测（seed 20240607）**：pgviz 8 池约 `7–12 ms/块`（SURV 版；Node 单线程 7.4 ms），`gd check --matrix pg1` 27 条全过；`gd reload` 前后同区域方块计数逐项相等；`gode/index.html?g=pg1&seed=20240607` 能开局。
