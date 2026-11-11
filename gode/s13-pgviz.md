@@ -404,7 +404,7 @@ gd snap --tag tuned                                            # 前后对照：
 - **群系**：VoxelCraft 没有，`surface()` 按地表分类 `ocean / beach / plains / forest（树密度 > 0.02）/ stony_peaks（坡度 ≥ 4）/ snowy_slopes（雪线）`，只给 pgviz 着色与统计，不是原版内容。
 - **knobs**（8 个，同 §7 的命名）：`terrain.contScale shift hillAmp mountAmp`、`cave.rate`、`ore.mul`、`tree.dens`、`plant.dens`。
 - **对拍**：原文件 1096–1190（加 `Chunk / chunks / edits` 桩）与 `vendor/old` 在默认参数下，4 个种子 × 12×12 = 576 块 **0 格差异**（含 36 833 格树叶）。
-- **检查**：`gd check all --matrix old` 13 项全过（`viz-kw` 矿 ×3：3691 → 11433；`viz-trees` 只有 oak；`viz-layers` 2 个场 + 树种）。`gd --matrix all` 现在是 4 个生成器（`mini gp liq old`）；**基线 `baseline.tsv` 还没有 old 的行**（`BASE_GENS` 没改，等人决定要不要 `gd baseline accept`）。
+- **检查**：`gd check all --matrix old` 13 项全过（`viz-kw` 矿 ×3：3691 → 11433；`viz-trees` 只有 oak；`viz-layers` 2 个场 + 树种）。`gd --matrix all` 现在是 **5 个生成器（`mini gp liq old pg1`，11-11 起把 pg1 加进默认）**；**基线 `baseline.tsv` 还没有 old / pg1 的行**（`BASE_GENS` 没改，等人决定要不要 `gd baseline accept`）。
 - 没有湖泊：VoxelCraft 的水只有海平面以下，`water.lake*` 恒为 0。
 
 ## 14. Luanti 系生成器 `luan0` / `luanV` [11-09]
@@ -485,7 +485,7 @@ gd snap --tag tuned                                            # 前后对照：
 - 还没做：窗口内「找」（连通块按面积列出、点一下跳过去、＋原点）；结构、层叠文件夹。
 - 检查 `viz-biome`（6 个生成器的矩阵都过；`veg` 也过，11-10）。
 
-- **自动矩阵口径 [11-09 定]**：`gd check --matrix all` = mini / gp / liq / old，**luan0 / luanV 不参与自动测试**（慢，且有 `tools/luanti/parity.mjs` 对拍）；要跑显式 `--matrix luan0,luanV`。`pg1` 同样不进默认矩阵（8.8 ms/块，8 池），显式 `--matrix pg1` 全过（11-10）。
+- **自动矩阵口径 [11-09 定，11-11 改]**：`gd check --matrix all` = **mini / gp / liq / old / pg1**；**luan0 / luanV / veg 不参与自动测试**（慢，luan 有 `tools/luanti/parity.mjs` 对拍；veg 块均 ~21 ms），要跑显式 `--matrix luan0,luanV,veg`。pg1 的 27 条全过（11-11）。
 
 ## 17. 默认值 / URL 约定 / 布局收尾 [11-09]
 

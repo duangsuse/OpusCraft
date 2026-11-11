@@ -209,27 +209,12 @@ const tsvAll = existsSync(TSV) ? readFileSync(TSV, 'utf8').split('\n').filter(l 
 const tsvRows = tsvAll.slice(1);   // 旧表头丢掉，下面按当前 TSV_COLS 重写（加列后老行缺列 = 空）
 writeFileSync(TSV, TSV_HEAD + TSV_COLS.join('\t') + '\n' + (tsvRows.length ? tsvRows.join('\n') + '\n' : ''));
 
-/** 截图并搬到 <day>/<gen>/<kind>/<name>.webp；返回相对 gen 目录的路径 */
+/** 截图：tag 用 <seed>/<gen>/<kind>/<name>，gd 直接写到 shots/<tag>.webp（不再事后搬文件 / 改 index）。 */
 const shot = (kind, name) => {
-  const out = run('snap', '--tag', `${gen}/${kind}/${name}`, '--note', `${gen}/${kind} ${name}`);
+  const out = run('snap', '--tag', `${SEED_DIR}/${gen}/${kind}/${name}`, '--note', `${gen}/${kind} ${name}`);
   const m = out.match(/^(\d+)\t(.+\.webp)$/m);
   if (!m) throw new Error(`snap 没有回文件路径：\n${out}`);
-  const [, seq, file] = m;
-  const rel = `${kind}/${name}.webp`;
-  mkdirSync(dirname(join(outDir, rel)), { recursive: true });
-  renameSync(join(ROOT, file), join(outDir, rel));
-  // index 行：文件路径改成新位置（tag 已经是 <gen>/<kind>/<name>）；
-  // 同一 tag 的旧行丢掉，否则重跑会撞上 prune（每组只留最后 20 行，会把当前文件删掉）
-  const tag = `${gen}/${kind}/${name}`;
-  const keep = [];
-  for (const line of readFileSync(INDEX, 'utf8').split('\n')) {
-    const c = line.split('\t');
-    if (c[2] === tag && c[0] !== seq) continue;
-    if (c[0] === seq) c[5] = relative(SHOTS, join(outDir, rel));
-    keep.push(c.join('\t'));
-  }
-  writeFileSync(INDEX, keep.join('\n'));
-  return rel;
+  return `${kind}/${name}.webp`;
 };
 
 const center = (id, name) => evalJson(`(async()=>{

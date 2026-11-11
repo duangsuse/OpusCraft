@@ -11,7 +11,7 @@
  *   gd reload                                强制重载（gode/ rgl/ 宿主 B 的 js 有改动时 shot / check 前自动做）
  *   gd pose <名字|@x,z^y,yaw,pitch[,fov]|iso-ne>   名字查 defl/c_.json 的 c_.Bench.poses['<seed>@<g>']，
  *                                            没有就按 plain canopy cave water uw 的规则搜一次并写回
- *   gd shot [pose…] [--tag T] [--note N] [--sheet] [--vs -1|SEQ] [--ref]
+ *   gd shot [pose…] [--tag T] [--note N] [--sheet] [--vs -1|SEQ] [--ref]   T 含 / 时写成 shots/<T>.webp（目录自动建）
  *                                            settle → 截图 → gode/shots/；多机位 + --sheet 拼一张联系表；
  *                                            --vs 每格左右并排「上一张 / 这一张」并标粗差异 Δ%；
  *                                            --ref 按 c_.Bench.ref 拍视觉目标机位，与 gode/reference-vision/ 左右对照
@@ -26,7 +26,7 @@
  *   gd hash <x0,y0,z0,x1,y1,z1|LAST>         区域体素哈希
  *   gd set c_.Path=v …                       值按 JSON 解析，失败当字符串
  *   gd eval '<js>'                           页面里执行（可 await），按值返回
- *   gd check [name…|all] [--matrix mini,gp,liq,old|all（all 不含 luan0 / luanV / veg，要跑显式写）]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
+ *   gd check [name…|all] [--matrix mini,gp,liq,old,pg1|all（all 不含 luan0 / luanV / veg，要跑显式写）]   跑 gode/tools/checks.tsv；不给名字 = 与 git 改动相关的几条；
  *                                            --matrix = pgviz 检查在每个生成器下各跑一遍（行名带 @g，跑完回原页面）
  *   gd perf [--frames 120]                   低频：帧时间中位数 / p95 + 渲染器 stats()，追加到 gode/shots/perf.tsv
  *   gd log [-f]                              页面 console / 异常（自上次调用以来）；-f 持续跟随
@@ -403,9 +403,18 @@ async function daemon(opts) {
   };
   const writeShot = (b64, { tag, pose, note, verdict, ms }) => {
     const seq = nextSeq(), d = day(), slug = s => String(s).replace(/[^\w.@^,-]+/g, '_').slice(0, 40);
-    mkdirSync(join(SHOTS, d), { recursive: true });
-    const file = `${d}/${String(seq).padStart(4, '0')}-${slug(tag)}${pose && pose !== '-' ? '-' + slug(pose) : ''}.webp`;
     const buf = Buffer.from(b64, 'base64');
+    // tag 含 /：当作 shots/ 下的相对路径（<tag>.webp，目录自动建）；否则沿用 <day>/<seq>-<tag>-<pose>
+    let file;
+    if (String(tag).includes('/')) {
+      const segs = String(tag).split('/').map(s => (s === '.' || s === '..' ? '' : slug(s))).filter(Boolean);
+      if (!segs.length) throw new Error('--tag 路径无效：' + tag);
+      file = segs.join('/') + (pose && pose !== '-' ? '-' + slug(pose) : '') + '.webp';
+      mkdirSync(dirname(join(SHOTS, file)), { recursive: true });
+    } else {
+      mkdirSync(join(SHOTS, d), { recursive: true });
+      file = `${d}/${String(seq).padStart(4, '0')}-${slug(tag)}${pose && pose !== '-' ? '-' + slug(pose) : ''}.webp`;
+    }
     writeFileSync(join(SHOTS, file), buf); writeFileSync(join(SHOTS, 'latest.webp'), buf);
     appendIndex({ seq, ts: new Date().toISOString(), tag, pose, url: st.url?.replace(BASE, ''), files: file, note, verdict, ms });
     prune();
@@ -491,7 +500,7 @@ async function daemon(opts) {
   // ── 检查（checks.tsv）──
   const gitChanged = () => { try { return execFileSync('git', ['status', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter(Boolean).map(l => l.slice(3)); } catch { return []; } };
   const globRe = g => new RegExp('^' + g.trim().replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\0').replace(/\*/g, '[^/]*').replace(/\0/g, '.*') + '$');
-  const MATRIX_GENS = ['mini', 'gp', 'liq', 'old'];   // luan0 / luanV / veg 不进自动矩阵（11-09 定：慢、且有 tools/luanti/parity.mjs 对拍；veg 块均 ~21 ms）；要跑时显式 --matrix luan0,luanV,veg
+  const MATRIX_GENS = ['mini', 'gp', 'liq', 'old', 'pg1'];   // luan0 / luanV / veg 不进自动矩阵（慢；veg 块均 ~21 ms）；要跑时显式 --matrix luan0,luanV,veg
   //   实测 11-10：luan0 14 ms/块、luanV 9 ms/块，但 `--matrix luan0,luanV` 一次峰值 ≈5.2 GiB 且两次都没跑完（s13 §14.2）
   const check = async (names, matrix) => {
     if (matrix) {   // --matrix mini,gp,liq,old（all = 这四个；luan0 / luanV 要显式写）：pgviz 检查在每个生成器下各跑一遍，行名带 @g；跑完回到原页面
