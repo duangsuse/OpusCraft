@@ -227,7 +227,7 @@ function shotLoc(file, nth) {
   if (!row) throw new Error(`${relative(ROOT, tsv)} 里没有群系 ${name}`);
   const head = readFileSync(tsv, 'utf8').split('\n').find(l => l.startsWith('# gen=')) ?? '';
   const pick1 = re => (head.match(re) || [])[1];
-  return { rel, abs, seed, gen, kind, name, y, slc, layers, x: +row.x, z: +row.z, hSample: +row.hSample, hTop: +row.hTop, block: row.block,
+  return { rel, abs, seed, gen, kind, name, y, slc, layers, x: +row.x, z: +row.z, hSample: +row.hSample, hTop: +row.hTop, block: row.block, sideView: row.sideView,
     url: pick1(/url=(\S+)/), shade: pick1(/shade=(\S+)/) ?? 'block', xray: +(pick1(/xray=(\d+)/) ?? 0), slcY: row.slcY };
 }
 
@@ -662,7 +662,8 @@ async function daemon(opts) {
       u.searchParams.set('p1', `@${L.x},${L.z}`);
       const url = u.href;
       if (url !== st.url) await navigate(url); else await autoReload();   // 同 URL 也重载更新的页面代码（viz.depth 之类新 API）
-      const view = L.kind === 'side' ? 'south' : 'top', mode = L.slc ? 'slice' : 'surface', shade = L.kind === 'mine' ? 'height' : L.shade;
+      const sv = ['north', 'south', 'east', 'west'].includes(L.sideView) ? L.sideView : 'south';
+      const view = L.kind === 'side' ? sv : 'top', mode = L.slc ? 'slice' : 'surface', shade = L.kind === 'mine' ? 'height' : L.shade;
       await evalJS(`(async () => { const t = ${T};
         // 图册是隐藏左栏 / 右上竖条 / gizmo 拍的：不恢复的话 canvas 尺寸不同，图片像素就对不上世界坐标
         document.getElementById('app').classList.add('nosd');

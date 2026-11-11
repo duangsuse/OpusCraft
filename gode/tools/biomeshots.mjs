@@ -8,6 +8,8 @@
  *   <name>   群系名（精确；all / * / 省略 = 该生成器的全部群系）
  *            紧跟着的 &k=v 是附带 URL 参数，覆盖默认
  *            g/seed/pv/z/terr/tod（默认 seed=20240607 pv=Y z=5 terr=1 tod=14.08）
+ *            &views=top,side,slc,mine（默认全拍；只拍 side 时约 1/4 时间）
+ *            &side=auto|north|south|east|west（auto = 用 viz.silhouette 在四个方向里挑「起伏 + 拱洞」最高的一侧）
  *
  * 产物（都在 gode/shots/<YYMMDD>/ 下）：
  *   <seed>/<gen>/top|side|mine/<群系名>.webp
@@ -99,7 +101,9 @@ for (const kv of extra.replace(/^&/, '').split('&').filter(Boolean)) {
 const slcSpec = (q.get('slc') ?? 'auto').trim();   // 本地参数，不进页面 URL
 const shade = q.get('shade') ?? 'block';            // 用户给的 shade 覆盖默认（其他 URL 参数同理，extra 后写覆盖默认）
 const XRAY = Math.max(0, Math.min(64, Math.round(+(q.get('xray') ?? 12) || 0)));   // 切面往里多少格做半透明叠加
-q.delete('slc');
+const VIEWS_REQ = (q.get('views') ?? 'top,side,slc,mine').split(',').map(x => x.trim()).filter(x => ['top', 'side', 'slc', 'mine'].includes(x));
+const SIDE_MODE = (q.get('side') ?? 'south').trim();
+q.delete('slc'); q.delete('views'); q.delete('side');
 const url = `gode/viz/?${[...q].map(([k, v]) => `${k}=${v}`).join('&')}`;
 
 const env = { ...process.env, GD_HEADLESS: '1', GD_NOPRUNE: '1' };   // 图册一批几百张，别让 gd 的 prune（>500 行时每 tag 只留 20）顺手删旧图
@@ -194,13 +198,14 @@ if (wantName && wantName !== 'all' && wantName !== '*') {
 const outDir = join(SHOTS, SEED_DIR, gen);
 mkdirSync(outDir, { recursive: true });
 const TSV = join(outDir, 'biomes.tsv');
-const TSV_COLS = ['id', 'name', 'x', 'z', 'hSample', 'hTop', 'block', 'temp', 'humid', 'mount', 'cont', 'top', 'side', 'slcY', 'slc', 'air', 'depth', 'mine'];
+const TSV_COLS = ['id', 'name', 'x', 'z', 'hSample', 'hTop', 'block', 'temp', 'humid', 'mount', 'cont', 'top', 'side', 'slcY', 'slc', 'air', 'depth', 'mine', 'sideView'];
 // 只换表头（参数可能变），**已有数据行保留**：部分群系重跑不能把别群系的行冲掉
 const TSV_HEAD = `# gen=${gen} seed=${q.get('seed')} url=${url} slc=${slcSpec} shade=${shade} xray=${XRAY} air=${AIR_N}x${AIR_N}/step${AIR_STEP}\n`
   + `# slcY / slc = 每层 Y 与图片（逗号分隔，顺序一致）；air = 每层「空气占比/平均空气格数/最大」（空格分隔）\n`
   + `# depth = viz.depth({x,z,n:17,step:16,bin:4})：逐 Y 组成（bin 格一档，air/water/lava/ore 千分比）\n`;
-const tsvRows = existsSync(TSV) ? readFileSync(TSV, 'utf8').split('\n').filter(l => l && l[0] !== '#') : [];
-writeFileSync(TSV, TSV_HEAD + (tsvRows.length ? tsvRows.join('\n') + '\n' : TSV_COLS.join('\t') + '\n'));
+const tsvAll = existsSync(TSV) ? readFileSync(TSV, 'utf8').split('\n').filter(l => l && l[0] !== '#') : [];
+const tsvRows = tsvAll.slice(1);   // 旧表头丢掉，下面按当前 TSV_COLS 重写（加列后老行缺列 = 空）
+writeFileSync(TSV, TSV_HEAD + TSV_COLS.join('\t') + '\n' + (tsvRows.length ? tsvRows.join('\n') + '\n' : ''));
 
 /** 截图并搬到 <day>/<gen>/<kind>/<name>.webp；返回相对 gen 目录的路径 */
 const shot = (kind, name) => {
@@ -259,9 +264,18 @@ const center = (id, name) => evalJson(`(async()=>{
 
 const VIEW = {
   top: `viz.set('shade',${JSON.stringify(shade)});viz.set('view','top');viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
-  side: `viz.set('shade',${JSON.stringify(shade)});viz.set('view','south');viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
+  side: (v = 'south') => `viz.set('shade',${JSON.stringify(shade)});viz.set('view',${JSON.stringify(v)});viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
   slc: y => `viz.set('shade',${JSON.stringify(shade)});viz.set('view','top');viz.set('mode','slice');viz.set('slice',${y});viz.set('air',false);viz.set('xray',${XRAY});`,
   mine: `viz.set('shade','height');viz.set('view','top');viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
+};
+/** 侧视方向：auto 时用 viz.silhouette 的起伏 + 4×中空列数挑最壮观的一侧。 */
+const pickSide = c => {
+  if (SIDE_MODE !== 'auto') return SIDE_MODE;
+  const score = v => {
+    const r = evalJson(`JSON.stringify(viz.silhouette({view:${JSON.stringify(v)},x:${c.cx},z:${c.cz},width:128,span:48,n:81}))`);
+    return (r.relief || 0) + 0.05 * (r.hollows || 0);
+  };
+  return ['south', 'north', 'east', 'west'].map(v => [v, score(v)]).sort((a, b) => b[1] - a[1])[0][0];
 };
 /** 顶栏两个输入框填机位 / 群系名。必须放在 ready() 之后：tlUI() 每帧会用视口左上角覆盖未聚焦的输入框。 */
 const label = (cx, cz, name) => `const gx=document.getElementById('gx'),gz=document.getElementById('gz');window.__gv.set.call(gx,'@${cx},${cz}');window.__gv.set.call(gz,${JSON.stringify(name)});`;
@@ -281,14 +295,16 @@ for (let i = 0; i < picked.length; i++) {
   rmSync(join(outDir, 'slc', name), { recursive: true, force: true });
   rmSync(join(outDir, 'slc', `${name}_going_deeper.webp`), { force: true });
   const paths = { slc: [] }, air = [];
-  for (const k of ['top', 'side', 'mine']) {
-    evalOk(`(async()=>{${VIEW[k]}await viz.ready();${label(c.cx, c.cz, name)}return 'ok'})()`);
+  const sideView = pickSide(c);
+  for (const k of ['top', 'side', 'mine'].filter(k => VIEWS_REQ.includes(k))) {
+    const expr = k === 'side' ? VIEW.side(sideView) : VIEW[k];
+    evalOk(`(async()=>{${expr}await viz.ready();${label(c.cx, c.cz, name)}return 'ok'})()`);
     paths[k] = shot(k, name); nShots++;
   }
   // 参考高度取 min(hSample, hTop)：水域的 hTop 是水面 / 冰面（深海 hTop 一律 126，切出来全是水），
   // 取小的才是真地表（海底 / 山峰尖）。两者相等时就是普通陆地列。
   const ref = Math.min(c.hs ?? c.ht ?? (sea ?? 64), c.ht ?? c.hs ?? (sea ?? 64));
-  const slcYs = layerYs(ref);
+  const slcYs = VIEWS_REQ.includes('slc') ? layerYs(ref) : [];
   for (const y of slcYs) {
     const a = evalJson(`(async()=>{${VIEW.slc(y)}await viz.ready();${label(c.cx, c.cz, name)}
       let tot=0,airN=0,sum=0,maxD=0;
@@ -302,14 +318,14 @@ for (let i = 0; i < picked.length; i++) {
   }
   const depth = evalJson(`(async()=>{await viz.ready();return JSON.stringify(viz.depth(${JSON.stringify({ x: c.cx, z: c.cz, n: 17, step: 16, bin: 4 })}))})()`);
   const row = [id, name, c.cx, c.cz, c.hs, c.ht, c.blk, c.temp, c.humid, c.mount, c.cont, paths.top, paths.side,
-    slcYs.join(','), paths.slc.join(','), air.join(' '), JSON.stringify(depth), paths.mine];
+    slcYs.join(','), paths.slc.join(','), air.join(' '), JSON.stringify(depth), paths.mine, sideView];
   writeRow(row);
   console.log(`${i + 1}/${picked.length} ${name} @${c.cx},${c.cz} h=${c.hs}/${c.ht} ${c.blk} slc ${slcYs.join('/')} ${c.err?.length ? 'ERR ' + JSON.stringify(c.err) : 'ok'}`);
 }
 
 stop();
 
-makeGrids(outDir);
+if (VIEWS_REQ.includes('slc')) makeGrids(outDir);
 
 console.log(`\n${gen}: ${picked.length - missing.length} 个群系、共 ${nShots} 张（slc=${slcSpec}）→ ${relative(ROOT, outDir)}`);
 if (missing.length) console.log(`未找到（地表不生成）：${missing.join('、')}`);

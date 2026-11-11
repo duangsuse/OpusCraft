@@ -34,12 +34,15 @@ gd snap --tag viz-gp          # pgviz 用 snap（shot 是宿主 B 的机位截�
 `top`（地表，关切片）/ `side`（南侧视）/ `slc`（**多层切片**）/ `mine`（俯视 + `shade=height`，洞窟 / 空气深度视图），
 存 `gode/shots/<seed>/<gen>/{top,side,mine}/<群系名>.webp` 和 `<seed>/<gen>/slc/<群系名>/@<Y>.webp`（按 seed 分目录、不按日期；层高随群系变，所以 slc 按群系分目录、Y 在文件名里）；
 同时写 `<gen>/biomes.tsv`（中心点 `x,z`、`hSample`/`hTop`/`block`、`sample` 的温度/湿度/山地/大陆度、`slcY`/`slc`/`slcAir`/`air`、`top`/`side`/`mine` 路径）。
-`<name>` 省略或 `all` = 全部；`&` 后是附带 URL 参数（默认 `g=<gen>&seed=20240607&pv=Y&z=5&terr=1&tod=14.08`，后面的覆盖前面的）。
+`<name>` 省略或 `all` = 全部；`&` 后是附带 URL 参数（默认 `g=<gen>&seed=20240607&pv=Y&z=5&terr=1&tod=14.08`，后面的覆盖前面的）。两个**本地**参数（不进页面 URL）：`views=top,side,slc,mine` 只拍其中几项（调山体时 `views=side` 约 4 s/群系），`side=auto|north|south|east|west`——`auto` 用 `viz.silhouette()` 在四个方向里挑「起伏 relief + 0.05×悬挑列」最大的一侧，方向写进 `biomes.tsv` 的 `sideView` 列，`gd open` 会按它恢复视角。
 
 **回到某张图**：`node gode/tools/gd.js open gode/shots/<seed>/<gen>/{top,side,mine}/<群系名>.webp`（或 `.../slc/<群系名>/@<Y>.webp`，或拼图 `.../slc/<群系名>_going_deeper.webp --nth N`，N 从 1 = 最高层，缺省 1）——
 按 `<gen>/biomes.tsv` 首行的参数与那一行的 `x,z` 重新导航（`p1=@x,z`）+ 设 `view`/`mode`/`slice`/`shade`/`xray`，并恢复拍图时的 UI（左栏 `nosd`、隐藏 gizmo / 右上竖条 / toast，所以 canvas 尺寸与像素对应关系和截图一致）。输出：
 `layers`（slc 的全部层路径，`*` 标当前打开的那层）、`probe`（中心点，含 `sample`）、`canvas`（尺寸 / 偏移 / dpr：`--px` 用图里的像素，换算 `canvas = px - rect.left/top`）、`state`（view/mode/slice/xray/shade/zoom）、
 `depth`（slc/mine 默认带，`viz.depth` 的曲线）、可选 `point`（`--px X,Y` 读该像素下的块 + sample）、`sel`（`--px X,Y --sel` 顺手左键选中，之后 `viz.stats()` 就算这块）。
+Agent 侧看「侧视像不像山」用两个新 API（不截图也能给数字）：
+`viz.profile({axis:'x'|'z', at, from, to, n})` → 每列 `top / air / firstAir / have` + `relief / hollows`（竖直剖面）；
+`viz.silhouette({view:'north'|'south'|'east'|'west', x, z, width, span, n})` → 正交侧视的天际线（沿视线方向取每列最高实体）+ `relief / hollows`（顶块下 4 格内有空气的悬挑列）。
 之后照常 `gd eval` / `gd snap`；`gd open` 不会改图册文件。
 
 **slc 层高**（11-10 起替掉固定 `Y=110` —— 山顶和海底切同一刀没意义）：

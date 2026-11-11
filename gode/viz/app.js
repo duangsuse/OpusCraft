@@ -1243,6 +1243,52 @@ window.viz = {
     return { p };
   },
   hover(px, py) { hov = pick(px, py); readout(); hoverPanel(); frame(); return { p: hov.p, d2: !!hov.d2 }; },   // 模拟悬停（CSS 像素，地图左上为原点）
+  /** 竖直剖面：沿 x 或 z 线取每列「最高实体 / 下方空气格 / 是否中空」，给 Agent 读天际线与拱洞。
+      { axis:'x'|'z', at, from, to, n } → { min, max, relief, hollows, points:[{t,top,air,firstAir,have}] } */
+  /** 侧视投影轮廓（正交视角的天际线）：沿视线轴取每列最高实体与「顶块下方是空气」的中空列。
+      { view:'south'|'north'|'east'|'west', x, z, width=128, span=64, n=97 }
+      → { min, max, relief, hollows, points:[{t,top,hollow,have}] }（hollows = 有悬挑/拱洞的射线数） */
+  silhouette(o = {}) {
+    const v = ['north', 'south', 'east', 'west'].includes(o.view) ? o.view : 'south';
+    const cx = Math.round(o.x ?? S.x), cz = Math.round(o.z ?? S.z);
+    const span = Math.round(o.span ?? 64), width = Math.round(o.width ?? 128), n = Math.max(8, Math.min(256, o.n ?? 97));
+    const horizX = v === 'south' || v === 'north', c = horizX ? cx : cz, from = c - (width >> 1), to = c + (width >> 1);
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const t = Math.round(from + (to - from) * i / (n - 1));
+      let top = -1, hollow = 0, have = true;
+      for (let s = -span; s <= span; s += 2) {
+        const x = horizX ? t : cx + s, z = horizX ? cz + s : t;
+        let y = -1;
+        for (let yy = H - 1; yy >= 0; yy--) { const vv = store.get(x, yy, z); if (vv < 0) { have = false; break; } if (vv > 0) { y = yy; break; } }
+        if (y > top) top = y;
+        if (have && y > 0) {   // 悬挑 / 拱：顶块下 6 格内有空气
+          for (let k = 1; k <= 4; k++) if (store.get(x, y - k, z) === 0) { hollow++; break; }
+        }
+      }
+      pts.push({ t, top, hollow, have });
+    }
+    const tops = pts.filter(p => p.have && p.top >= 0).map(p => p.top);
+    return { view: v, x: cx, z: cz, width, span, min: tops.length ? Math.min(...tops) : -1, max: tops.length ? Math.max(...tops) : -1,
+      relief: tops.length ? Math.max(...tops) - Math.min(...tops) : -1, hollows: pts.reduce((a, p) => a + p.hollow, 0), points: pts };
+  },
+  profile(o = {}) {
+    const axis = o.axis === 'z' ? 'z' : 'x', at = Math.round(o.at ?? 0);
+    const from = Math.round(o.from ?? -64), to = Math.round(o.to ?? 64), n = Math.max(2, Math.min(512, o.n ?? 129));
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const t = Math.round(from + (to - from) * i / (n - 1));
+      const x = axis === 'x' ? t : at, z = axis === 'z' ? t : at;
+      let top = -1, have = true;
+      for (let y = H - 1; y >= 0; y--) { const v = store.get(x, y, z); if (v < 0) { have = false; break; } if (v > 0) { top = y; break; } }
+      let air = 0, firstAir = -1;
+      if (have) for (let y = Math.max(0, top - 1); y >= 0; y--) if (store.get(x, y, z) === 0) { air++; if (firstAir < 0) firstAir = y; }
+      pts.push({ t, top, air, firstAir, have });
+    }
+    const tops = pts.filter(p => p.have && p.top >= 0).map(p => p.top);
+    const min = tops.length ? Math.min(...tops) : -1, max = tops.length ? Math.max(...tops) : -1;
+    return { axis, at, from, to, n, min, max, relief: max - min, hollows: pts.filter(p => p.have && p.air > 0).length, points: pts };
+  },
   gameUrl,
   copied: () => copied,
   // 一键提交（同 → Agent 按钮 / Ctrl+⏎）：{ dry:true } 只返回要发的内容；否则发出去并返回 { sent }
