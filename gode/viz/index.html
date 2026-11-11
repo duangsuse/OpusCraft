@@ -18,6 +18,8 @@
   .app.zen { grid-template: 'map map' 1fr / minmax(0, 1fr); } .app.zen #top, .app.zen #side, .app.zen #st, .app.zen #rsz { display: none; }
   .app.nosd { grid-template-columns: 0 minmax(0, 1fr); } .app.nosd #side, .app.nosd #rsz { display: none; }
   #sdbtn { display: none; } .app.nosd #sdbtn { display: inline-block; }
+  .app.nonav { grid-template: 'map' 1fr 'st' auto / minmax(0, 1fr); } .app.nonav #side, .app.nonav #rsz, .app.nonav #top > *:not(#sdbtn) { display: none; }
+  .app.nonav #top { display: block; position: absolute; left: 0; top: 0; z-index: 9; padding: 0; background: none; border: 0; overflow: visible; } .app.nonav #top > #sdbtn { display: inline-block; margin: 8px; }
   #rsz { position: absolute; top: 38px; bottom: 0; left: calc(var(--sw, 300px) - 3px); width: 7px; cursor: ew-resize; z-index: 6; } #rsz:hover, #rsz.on { background: #5aa0ff55; }
   #ctx { position: fixed; z-index: 20; background: var(--pn2); border: 1px solid var(--ac); border-radius: 4px; padding: 3px 0; display: none; box-shadow: 0 4px 14px #000a; }
   #ctx .bar button.on { background: #2a4a78; border-color: var(--ac); }
@@ -92,20 +94,21 @@
 <div class="app" id="app">
   <div id="rsz" title="拖动改左栏宽度；< 140 px 自动隐藏"></div>
   <div id="top">
-    <button id="sdbtn" title="展开左栏">⫷</button>
+    <button id="sdbtn" title="展开顶栏 + 左栏">⫷</button>
     <select id="gsel" title="生成器（s02 §4）"><option value="mini">mini</option><option value="gp">gp</option><option value="liq">liq</option><option value="old">old</option><option value="pg1">pg1</option><option value="luan0">luan0</option><option value="luanV">luanV</option><option value="veg">veg</option></select>
     <input id="seed" placeholder="种子" spellcheck="false"><button id="go">Go</button>
     <span class="sep"></span>
     <span class="seg" id="modes"><button data-m="surface" title="切片面回到最外层（E 循环）。俯视：切片 Y = 已载入的地表最高点。E 切换时选区变成两个截面之间的长条（按 9 扫过）">地表</button><button data-m="slice" title="切片面放到海平面 / 屏幕中心（Shift+滚轮调；E 循环）">切片</button><button data-m="stack" disabled title="V2">层叠</button><button id="layb" style="margin-left:6px;border-radius:4px" title="地理覆盖：左栏变成 ① 世界 / ② 群系 / ③ 方块 / ④ 选区（没有 ② 视图；不进 E 循环）">地理🌍</button></span>
     <span class="sep"></span>
+    <button id="game" title="快捷键 ⏎">↗ 进游戏 (⏎)</button> <button id="sub" style="display:none" title="把选区 / 点列表 / 选中的点 + 选区统计一次发给挂在这个页面上的 Agent（Ctrl+⏎）；任何 ⎘ 复制也会自动通知它">→ Agent</button>
     <span title="地图视口左上角的世界坐标（相对当前原点），实时更新；改了就把左上角移到那里">⌜ X</span> <input id="gx" type="number"> Z <input id="gz" type="number"> <input id="paste" placeholder="粘贴 @x,z 或 @x,z^y" spellcheck="false" title="粘贴 @x,z / @x,z^y（或 gd 复制出的写法）后视口跳到该点居中；回车确认">
     <span class="sep"></span>
-    <button id="game" title="快捷键 ⏎">↗ 进游戏 (⏎)</button> <button id="sub" style="display:none" title="把选区 / 点列表 / 选中的点 + 选区统计一次发给挂在这个页面上的 Agent（Ctrl+⏎）；任何 ⎘ 复制也会自动通知它">→ Agent</button>
+     <button id="navx" style="margin-left:auto" title="收起顶栏（左栏一起收起；左上角 ⫷ / #sdbtn 一起恢复）">✕</button>
   </div>
   <div id="side">
     <details id="fworld"><summary>① 世界 <span class="kv" id="wsum" style="font-weight:400"></span></summary><div class="sec">
       <div class="full kv" id="w1"></div>
-      <label title="3D 窗口（侧视 / 切片用的整块体素，≤ 48 区块）占画布的比例；之外是 2D 地表（≤ 80 区块）">细节绘制</label><div class="row" style="flex-wrap:nowrap"><input id="fillr" type="range" min="0.2" max="1" step="0.05"><span class="num" id="fillv" style="width:38px;text-align:right"></span></div>
+      <label title="3D 窗口（侧视 / 切片用的整块体素，≤ 48 区块）占画布的比例；之外是 2D 地表（≤ 80 区块）。玩家跟随也读这条：离视口中心超过「它 × 半个屏幕」就平滑居中（1 = 到边缘才跟）">细节绘制</label><div class="row" style="flex-wrap:nowrap"><input id="fillr" type="range" min="0.2" max="1" step="0.05"><span class="num" id="fillv" style="width:38px;text-align:right"></span></div>
       <label title="叠在地图上的图层（②视图里的 图层 L / 树种 / 热力图）的不透明度；URL lop=">图层不透明度</label><div class="row" style="flex-wrap:nowrap"><input id="lopr" type="range" min="0.1" max="1" step="0.05" style="flex:1"><span class="num" id="lopv" style="width:38px;text-align:right"></span></div>
       <label title="俯视的地表阴影。默认：西 / 北邻列更高就压暗的台阶式；2.5D 地形：按邻列高度差算坡度的山体阴影，光从 ☀ 时间拨盘的太阳方向来（默认左上）；平滑光照：MC 式每格四角环境光遮蔽，在格内平滑过渡。URL terr=0|1|2">地形着色</label><select id="terrsel"><option value="0">默认</option><option value="1">2.5D 地形</option><option value="2">平滑光照</option></select>
       <label class="full" style="color:var(--fg)"><input type="checkbox" id="gridc"> 区块网格（G）</label>
@@ -118,7 +121,7 @@
       <label>视角 (V 翻向)</label><select id="vsel"><option value="top">俯视 −Y（7）</option><option value="south">南侧视 →北（1）</option><option value="north">北侧视 →南（Ctrl 1）</option><option value="east">东侧视 →西（3）</option><option value="west">西侧视 →东（Ctrl 3）</option><option value="bottom">仰视 +Y（Ctrl 7）</option></select>
       <label title="洞窟：noclip 钻进地下看——岩石 / 地表剔除，只留洞窟空气围出的墙面 / 洞底。俯视 = 玩家站在洞底看到的：颜色 = 洞底高度（深紫蓝 → 浅黄，每 4 格明暗一档，相邻不同高度分得开）、头顶矮的洞压暗、贴墙 / 落差处压暗、岩浆 / 水保持本色；侧视 = 切面后方的洞壁 + 深度雾。">着色 (T)</label><select id="shsel"><option value="block">方块色</option><option value="biome">群系色</option><option value="height">洞窟（地下）</option></select>
       <div id="cleg" class="full" style="display:none"><div style="height:8px;border-radius:3px;background:linear-gradient(90deg,rgb(89,51,166),rgb(38,115,217),rgb(51,191,153),rgb(242,217,89))"></div><div class="kv" style="display:flex;justify-content:space-between"><span>洞底 y 0</span><span>海平面+24</span></div></div>
-      <label title="快捷键 D。圆环拨盘：设一天中的时间（光色 / 太阳方向随之变），或自选光色覆盖；两者只影响地图着色">时间 · 光色</label><div class="row" style="flex-wrap:nowrap"><button id="dbtn" title="打开时间 / 光色拨盘（D）">☀ 拨盘 (D)</button><span class="kv" id="dst"></span></div>
+      <label title="快捷键 K。圆环拨盘：设一天中的时间（光色 / 太阳方向随之变），或自选光色覆盖；两者只影响地图着色">时间 · 光色</label><div class="row" style="flex-wrap:nowrap"><button id="dbtn" title="打开时间 / 光色拨盘（K）">☀ 拨盘 (K)</button><span class="kv" id="dst"></span></div>
       <label id="sllab" title="Shift+滚轮在地图上调；拉到最外层 = 地表">切片 Y</label><div class="row" style="flex-wrap:nowrap"><input id="slr" type="range" min="0" max="255"><span class="num" id="slv" style="width:38px;text-align:right"></span></div>
       <label title="快捷键 L 从后往前循环（Shift+L 反向；树种在最后一项）。叠在地图上的单选图层，只在俯视 / 仰视画：树种 = 树冠 / 树干按种着色；其余是生成器 sample 的各个场（热力图，色阶取已载入数据的 2%…98% 分位）。URL layer=none|tree|f:字段 lop=不透明度">图层 (L)</label><div class="chips" id="lchips"></div>
       <label></label><div id="lleg"></div>
@@ -151,8 +154,10 @@
     <div id="read">—</div>
     <div id="gzhelp"><b>Numpad 操控</b>
 <span>7 / 1 / 3</span>俯视 / 南 / 东（Ctrl 或 Alt = 仰 / 北 / 西）
-<span>4 6 8 2</span>左 / 右 / 上 / 下 翻整页（无重叠）
-<span>5</span>图层暂时关 / 复原
+<span>4 6</span>左右翻一屏（视口宽 ÷ 缩放）
+<span>2 8</span>翻「深度」格（侧视 = 挪切面）
+<span>5</span>原点菜单（⌖ 右键同）
+<span>Del</span>小键盘 Del：图层暂时关 / 复原
 <span>9</span>按住 = 沿视线快放，松开停在那一层
 <span>悬停 gizmo</span>快放（+X 向右扫、+Z 向下扫），移开停在那层
 <span>右键 gizmo</span>翻转方向（Y ↔ −Y，以此类推）

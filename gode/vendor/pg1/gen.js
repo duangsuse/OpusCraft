@@ -14,9 +14,11 @@ const GEN_PARAMS = [
   { k: 'terrain.hills', def: 1, min: 0, max: 2.5, note: '丘陵起伏乘子' },
   { k: 'terrain.mountPct', def: 0.13, min: 0.02, max: 0.5, note: '山脉区域占比（SurvivalCraft ≈ 0.13）' },
   { k: 'terrain.coast', def: 0.8, min: 0, max: 1, note: '海岸带压平 / 浅滩（按 base 离海平面距离；0 = 关）' },
+  { k: 'terrain.mountCut', def: 1, min: 0, max: 1.6, note: '山体削顶：部分山矮 10%~30%（1 = 最多 30%；0 = 关）' },
   { k: 'terrain.spike', def: 1, min: 0, max: 2, note: '高山尖峰/石柱强度' },
   { k: 'terrain.canyon', def: 1, min: 0, max: 2, note: '高山峡谷切割强度' },
   { k: 'mountain.hollow', def: 0.7, min: 0, max: 2, note: '山体中空/拱洞强度（0.7 ≈ 雪线山体空腔 19%）' },
+  { k: 'cave.hall', def: 1, min: 0, max: 2, note: '大溶洞厅（含地下湖）密度乘子；0 = 关' },
   { k: 'cave.rate', def: 1.5, min: 0, max: 3, note: '洞穴体积乘子（1.5 = SURV 连通度）' },
   { k: 'cave.entrance', def: 1.5, min: 0, max: 3, note: '洞穴入口密度乘子（1.5 ≈ 每 64×64 格 82% 有入口）' },
   { k: 'tree.dens', def: 1, min: 0, max: 2, note: '树密度乘子（每块上限见 treeD）' },
@@ -883,14 +885,16 @@ class WorldGen {
       if (coast > 0) hb = hb < SEA ? SEA - (SEA - hb) * (1 - 0.65 * coast) : SEA + (hb - SEA) * (1 - 0.55 * coast);
       const hills = this.nD.fbm2(x / 110, z / 110, 4);
       h = hb + hills * (5 + 16 * hillW + 8 * mntW) * (1 - 0.6 * coast) * PG['terrain.hills'] * (this.wtype === 'amplified' ? 1.8 : 1);
-      h += Math.pow(pvr, 1.7) * 130 * mntW * PG['terrain.mount'] * this.amp;
+      // 山体削顶：约一半的山按低频噪声削掉 10%~30% 的隆起高度（mountCut 0 = 关）
+      const cut = 1 - 0.3 * PG['terrain.mountCut'] * smoothstep(-0.25, 0.35, this.nMisc.fbm2(x / 700 + 90, z / 700 - 40, 2)) * (0.33 + 0.67 * smoothstep(0, 0.8, pvr));
+      h += Math.pow(pvr, 1.7) * 130 * mntW * PG['terrain.mount'] * this.amp * Math.max(0.5, cut);
       // 高山造型（自然公园）：低频尖峰 + 平滑 V 形峡谷
       if (mntW > 0.12) {
         const spike = this.nP.ridge2(x / 90, z / 90, 2);
         h += Math.pow(spike, 4) * 10 * mntW * PG['terrain.spike'];
         const cn = this.nR.fbm2(x / 320 + 411, z / 320 - 277, 3);
         const can = (1 - smoothstep(0, 0.12, Math.abs(cn))) * mntW;
-        if (can > 0) h = Math.max(h - 34 * can * PG['terrain.canyon'], SEA + 2);
+        if (can > 0) h = Math.min(h, Math.max(h - 34 * can * PG['terrain.canyon'], SEA + 2));
       }
       // mushroom islands
       const mush = cont < -0.25 && weird > 0.55;
@@ -955,10 +959,11 @@ class WorldGen {
     }
     // cave density grid (4x4x4)
     const GX = 5, GY = (WH >> 2) + 1, GZ = 5;
-    const G1 = new Float32Array(GX * GY * GZ), G2 = new Float32Array(GX * GY * GZ), G3 = new Float32Array(GX * GY * GZ);
+    const G1 = new Float32Array(GX * GY * GZ), G2 = new Float32Array(GX * GY * GZ), G3 = new Float32Array(GX * GY * GZ), G4 = new Float32Array(GX * GY * GZ);
     for (let gy = 0; gy < GY; gy++) for (let gz = 0; gz < GZ; gz++) for (let gx = 0; gx < GX; gx++) {
       const wx = X0 + gx * 4, wy = gy * 4, wz = Z0 + gz * 4, i = (gy * GZ + gz) * GX + gx;
       G1[i] = this.nCv1.fbm3(wx / 70, wy / 38, wz / 70, 2);
+      G4[i] = this.nCv3.fbm3(wx / 120 + 40, wy / 34, wz / 120 - 60, 2);
       G2[i] = this.nCv2.n3(wx / 42, wy / 26, wz / 42); G3[i] = this.nCv3.n3(wx / 42 + 100, wy / 26, wz / 42);
     }
     const tri = (G, x, y, z) => {
@@ -973,6 +978,15 @@ class WorldGen {
       const t = this.nSt.n3(x / 90 + 50, y / 90, z / 90); return t < -0.3 ? BL.granite : t < 0.05 ? BL.diorite : t < 0.4 ? BL.andesite : BL.tuff;
     };
     const deepY = 12;
+    // 山体中空：先在 (16+2)² 的范围里算好「挖空」布尔场，再按 6 邻居多数补平 → 不留 1~2 格宽的石丝 / 石片
+    const HOL = PG['mountain.hollow']; let HB = null;
+    if (HOL > 0) for (let z = -1; z <= 16; z++) for (let x = -1; x <= 16; x++) {
+      const wx = X0 + x, wz = Z0 + z, mw = mwAt(wx, wz); if (mw <= 0.35) continue;
+      const hh = hAt(wx, wz); if (!HB) HB = new Uint8Array(18 * 18 * WH);
+      for (let y = 19; y <= hh - 2; y++)
+        if (this.nCv2.fbm3(wx / 110 + 13, y / 60, wz / 110 - 29, 2) + (mw - 0.35) * 0.25 * HOL > 0.62) HB[(y * 18 + z + 1) * 18 + x + 1] = 1;
+    }
+    const hb = (x, y, z) => y < 0 || y >= WH ? 0 : HB[(y * 18 + z + 1) * 18 + x + 1];
     for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
       const wx = X0 + x, wz = Z0 + z, h = hAt(wx, wz), bi = bAt(wx, wz), bio = BIOMES[bi], mw = mwAt(wx, wz);
       ch.biomes[(z << 4) | x] = bi;
@@ -1008,13 +1022,14 @@ class WorldGen {
               if (sp < (0.0055 + (y < 40 ? 0.003 : 0)) * cr) cave = !(under && y > h - 8);
               else if (y < h - 7) { const d = tri(G1, x, y, z); if (d > 0.5 - Math.max(0, (40 - y)) * 0.004 - (cr - 1) * 0.06) cave = true; }
             }
-            if (cave) id = y <= 9 ? BL.lava : 0;
+            // 大溶洞厅：低频 3D 噪声，仅中层（y 14~74）、离地表 ≥12；y≤26 且处于「湖区」噪声内的洞格灌水
+            const hall = PG['cave.hall'];
+            if (!cave && hall > 0 && y > 14 && y < 74 && y < h - 12 && tri(G4, x, y, z) > 0.5 - 0.1 * (hall - 1) - Math.abs(y - 40) * 0.0035) cave = true;
+            if (cave) id = y <= 9 ? BL.lava : (y <= 26 && y > 9 && this.nW.n2(wx / 90 + 7, wz / 90) > 0.25) ? BL.water : 0;
           }
-          // 山体中空：大尺度 3D 噪声挖洞厅；贴近地表时成为拱 / 侧窗
-          if (mw > 0.35 && id !== BL.bedrock && id !== 0 && y > 18 && y < h - 1) {
-            const hv = this.nCv1.fbm3(wx / 110, y / 60, wz / 110, 2) + (mw - 0.35) * 0.25 * PG['mountain.hollow'];
-            if (hv > 0.62) id = 0;
-          }
+          // 山体中空（贴近地表时成为拱 / 侧窗）；邻居 ≥4 面是空的石头也挖掉（去丝）
+          if (HB && mw > 0.35 && id !== BL.bedrock && id !== 0 && y > 18 && (hb(x, y, z) ||
+              hb(x - 1, y, z) + hb(x + 1, y, z) + hb(x, y, z - 1) + hb(x, y, z + 1) + hb(x, y - 1, z) + hb(x, y + 1, z) >= 4)) id = 0;
         } else if (y <= SEA) {
           id = BL.water;
           if (y === SEA && (SNOWY.has(bi))) id = BL.ice;
@@ -1074,10 +1089,14 @@ class WorldGen {
   }
   caveDeco(ch, hAt, rng) {
     const blocks = ch.blocks, meta = ch.meta, X0 = ch.cx * 16, Z0 = ch.cz * 16;
-    const lush = this.nH.fbm2(X0 / 300, Z0 / 300, 2) > 0.3, drip = !lush && this.nC.fbm2(X0 / 250 + 70, Z0 / 250, 2) > 0.25;
-    const deepDark = this.nW.fbm2(X0 / 200 + 30, Z0 / 200, 2) > 0.3;
+    // 洞窟分区：按列位置取噪声（约 60~120 格一片），而不是整块一种 → 同一个洞系里会换风格
     for (let z = 0; z < 16; z++) for (let x = 0; x < 16; x++) {
-      const h = hAt(X0 + x, Z0 + z);
+      const wx = X0 + x, wz = Z0 + z, h = hAt(wx, wz);
+      const deepDark = this.nW.fbm2(wx / 120 + 30, wz / 120, 2) > 0.3;
+      const lush = this.nH.fbm2(wx / 80, wz / 80, 2) > 0.22;
+      const drip = this.nC.fbm2(wx / 70 + 70, wz / 70, 2) > 0.2;
+      const shroom = this.nMisc.fbm2(wx / 60 + 9, wz / 60 - 5, 2) > 0.3;
+      const crystal = this.nE.fbm2(wx / 70 - 20, wz / 70 + 33, 2) > 0.35;
       for (let y = 2; y < Math.min(h - 6, WH - 2); y++) {
         const i = idx(x, y, z); if (blocks[i] !== 0) continue;
         const below = blocks[i - 256], above = blocks[i + 256], bb = BLOCKS[below], ba = BLOCKS[above];
@@ -1097,7 +1116,20 @@ class WorldGen {
           else if (ba.opaque && r < 0.1) { blocks[i + 256] = BL.dripstone_block; if (rng() < 0.6) { blocks[i] = BL.pointed_dripstone; meta[i] = 1; } }
           continue;
         }
-        if (r < 0.006 && (bb.opaque || ba.opaque)) { blocks[i] = BL.glow_lichen; meta[i] = bb.opaque ? 4 : 5; }
+        if (shroom && y > 14) {   // 蘑菇洞：菌丝地面 + 蘑菇 + 顶部菌光
+          if (bb.opaque && r < 0.45) { blocks[i - 256] = BL.mycelium; const q = rng(); if (q < 0.1) blocks[i] = BL.red_mushroom; else if (q < 0.2) blocks[i] = BL.brown_mushroom; }
+          else if (ba.opaque && r < 0.02) blocks[i] = BL.shroomlight;
+          continue;
+        }
+        if (crystal && y > 6) {   // 晶洞：方解石地面 + 紫水晶簇 + 地衣
+          if (bb.opaque && below !== BL.bedrock && r < 0.3) { blocks[i - 256] = r < 0.04 ? BL.budding_amethyst : BL.calcite; if (rng() < 0.12) blocks[i] = BL.amethyst_cluster; }
+          else if (ba.opaque && r < 0.35) { blocks[i + 256] = BL.calcite; if (rng() < 0.05) { blocks[i] = BL.glow_lichen; meta[i] = 5; } }
+          continue;
+        }
+        // 普通洞：地面碎石 / 黏土 / 安山岩斑、蛛网、岩浆块、偶尔地衣
+        if (bb.opaque && below !== BL.bedrock && r < 0.14) blocks[i - 256] = r < 0.05 ? BL.gravel : r < 0.08 ? BL.andesite : r < 0.1 ? BL.clay : r < 0.12 ? BL.coarse_dirt : (y < 14 ? BL.magma_block : BL.tuff);
+        else if (r < 0.9 && r > 0.88 && ba.opaque) blocks[i] = BL.cobweb;
+        else if (r < 0.006 && (bb.opaque || ba.opaque)) { blocks[i] = BL.glow_lichen; meta[i] = bb.opaque ? 4 : 5; }
       }
     }
     // amethyst geode (rare, fully inside chunk)
@@ -1138,7 +1170,7 @@ class WorldGen {
     const s = this.seed;
     const cand = (c4x, c4z) => {
       const ax = (c4x << 2) + (ihash(c4x, c4z, 31, s) & 3), az = (c4z << 2) + (ihash(c4x, c4z, 32, s) & 3);
-      const b = BIOMES[this.column(ax, az) >> 8], d = (b.treeD ?? 0) * PG['tree.dens'];
+      const b = BIOMES[(this.column(ax, az) >> 8) & 255], d = (b.treeD ?? 0) * PG['tree.dens'];
       return b.trees && d > 0 && rhash(c4x, c4z, 33, s) < d / 16 ? [ax, az] : null;
     };
     for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
@@ -1218,7 +1250,7 @@ class WorldGen {
     // 4×4 格树候选：返回该格的树锚点 [x,z] 或 null（密度 = 每块期望树数 / 16）
     // 邻居格可能超出 bAt 的 32×32 缓冲，超出时退回 column()（缓存过，代价小）。
     const biomeAtXZ = (x, z) => (x >= X0 - 8 && x < X0 + 24 && z >= Z0 - 8 && z < Z0 + 24)
-      ? BIOMES[bAt(x, z)] : BIOMES[this.column(x, z) >> 8];
+      ? BIOMES[bAt(x, z)] : BIOMES[(this.column(x, z) >> 8) & 255];
     const cellTree = (ccx, ccz) => {
       const ax = (ccx << 2) + (ihash(ccx, ccz, 31, s) & 3), az = (ccz << 2) + (ihash(ccx, ccz, 32, s) & 3);
       const b = biomeAtXZ(ax, az); if (!b) return null;

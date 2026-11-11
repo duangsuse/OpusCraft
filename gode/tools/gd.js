@@ -402,7 +402,8 @@ async function daemon(opts) {
     writeFileSync(INDEX, INDEX_COLS.join('\t') + '\n' + rows.filter(r => keep.has(r)).map(r => INDEX_COLS.map(k => tsvCell(r[k])).join('\t') + '\n').join(''));
   };
   const writeShot = (b64, { tag, pose, note, verdict, ms }) => {
-    const seq = nextSeq(), d = day(), slug = s => String(s).replace(/[^\w.@^,-]+/g, '_').slice(0, 40);
+    // 文件名安全串：保留 Unicode 字母/数字（gp 的群系名是中文，抹成 _ 会让 12 个群系全撞同一个文件）
+    const seq = nextSeq(), d = day(), slug = s => [...String(s).replace(/[^\p{L}\p{N}\p{M}_.@^,-]+/gu, '_')].slice(0, 40).join('');
     const buf = Buffer.from(b64, 'base64');
     // tag 含 /：当作 shots/ 下的相对路径（<tag>.webp，目录自动建）；否则沿用 <day>/<seq>-<tag>-<pose>
     let file;

@@ -38,11 +38,11 @@
  *   mine = 俯视 + shade=height（洞窟 / 空气深度图）
  * 顶栏两个输入框临时填 @x,z 与群系名（只改 value，不触发提交）。
  *
- * gd 的 --tag 不支持路径（会 slug 成 _），所以按默认名截图后把文件搬到目标目录，
- * 并同步改 shots/index.tsv 里该行的 files（tag 直接用目标相对路径）。
+ * 截图 tag 写成 <seed>/<gen>/<kind>/<群系名>，gd 按路径直接落盘（文件名保留中文；旧版 slug 只认 ASCII，
+ * 会把非 ASCII 抹成 _，12 个群系全撞同一个文件）。
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync, readdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -50,13 +50,12 @@ const GODE = dirname(dirname(fileURLToPath(import.meta.url)));
 const ROOT = dirname(GODE);
 const GD = join(GODE, 'tools', 'gd.js');
 const SHOTS = join(GODE, 'shots');
-const INDEX = join(SHOTS, 'index.tsv');
 const PROBE_Y = 64;                          // center() 的 probe 高度：只取列数据（col/sample/h），与切片无关
 const SLC_FRACS = [0.9, 0.6, 0.3, 0.1];      // auto 模式：按 hTop 的比例取 Y
 const AIR_N = 33, AIR_STEP = 8;              // 空气距离采样：以中心为原点 (AIR_N-1)*AIR_STEP 格见方
 
 const hasFF = (() => { try { execFileSync('ffmpeg', ['-version'], { stdio: 'ignore' }); execFileSync('ffprobe', ['-version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
-/** slc/<群系名>/ 的各层 → slc/<群系名>.webp：2 列行优先、Y 从高到低（= tsv slcY），每格 640×360、四周 8 px 黑边。没 ffmpeg 直接跳过 */
+/** slc/<群系名>/ 的各层 → slc/<群系名>_going_deeper.webp：2 列行优先、Y 从高到低（= tsv slcY），每格 640×360、四周 8 px 黑边。没 ffmpeg 直接跳过 */
 function makeGrids(outDir, force) {
   if (!hasFF || (process.env.GD_NOGRID && !force)) return 0;
   const slcDir = join(outDir, 'slc'), PAD = 8, CELL_W = 640, COLS = 2;

@@ -21,7 +21,8 @@ export function blockTable(tbl, names) {
 }
 
 // rgl 的 padded()（rgl/terrain.js）的 YZX 版：18³，p = (y+1)*324 + (z+1)*18 + (x+1)；块缺失 = 石头 + 无光，y < 0 基岩，y ≥ H 空气 + 满天光
-function makePadded(world, lut) {
+// clip = pv 截面（boot 持有，运行时可改）：{ a: 0|1|2 轴, dir: +1|-1 观察者在轴的哪一侧, s: 切片坐标, ver }；观察者一侧、越过切片的格子当空气（天光满）
+function makePadded(world, lut, clip) {
   const bedrock = SH.BID.bedrock;
   return (cx, cz, s) => {
     const pb = new Uint8Array(5832), pm = new Uint8Array(5832), pl = new Uint8Array(5832), y0 = s * 16, cs = [];
@@ -31,10 +32,13 @@ function makePadded(world, lut) {
       for (let x = -1; x <= 16; x++) {
         const cxi = x < 0 ? 0 : x > 15 ? 2 : 1, lx = x & 15, ch = cs[czi * 3 + cxi];
         let p = (z + 1) * 18 + (x + 1);
-        if (!ch) { for (let y = -1; y <= 16; y++, p += 324) { pb[p] = 1; pl[p] = 0; } continue; }
+        const c = clip.on ? clip.a === 0 ? (cx * 16 + x) * clip.dir : clip.a === 2 ? (cz * 16 + z) * clip.dir : 0 : 0, cs_ = clip.s * clip.dir;
+        const cut = clip.on ? clip.a === 1 ? (wy) => wy * clip.dir > cs_ : () => c > cs_ : () => false;
+        if (!ch) { for (let y = -1; y <= 16; y++, p += 324) { if (cut(y0 + y)) { pb[p] = 0; pl[p] = 0xf0; } else { pb[p] = 1; pl[p] = 0; } } continue; }
         const col = (lz << 4) | lx, B = ch.blocks, L = ch.light;
         for (let y = -1; y <= 16; y++, p += 324) {
           const wy = y0 + y;
+          if (cut(wy)) { pb[p] = 0; pl[p] = 0xf0; continue; }
           if (wy < 0) { pb[p] = bedrock; pl[p] = 0; continue; }
           if (wy >= H) { pb[p] = 0; pl[p] = 0xf0; continue; }
           const v = B[(wy << 8) | col]; pb[p] = lut[v & 0xfff]; pm[p] = v >> 12; pl[p] = L[(wy << 8) | col];
@@ -46,8 +50,8 @@ function makePadded(world, lut) {
 }
 
 // 段 s = 连续 4096 格（YZX）：内容哈希（方块 + 光照）与「有没有方块」
-function secHash(ch, s) {
-  const B = ch.blocks, L = ch.light, o = s << 12; let h = 0x811c9dc5 | 0;
+function secHash(ch, s, clip) {
+  const B = ch.blocks, L = ch.light, o = s << 12; let h = 0x811c9dc5 ^ (clip?.on ? clip.ver : 0) | 0;
   for (let i = o; i < o + 4096; i++) { h = Math.imul(h ^ B[i], 16777619); h = Math.imul(h ^ L[i], 16777619); }
   return h;
 }
@@ -68,7 +72,7 @@ class MeshPool {
   get pendingCount() { return this.q.length; }
 }
 
-export function glSource(world, tbl) {
+export function glSource(world, tbl, clip = { on: false }) {
   const cbs = [], lut = tbl.lut;
   world.onChunk((cx, cz, what) => { for (const f of cbs) f(cx, cz, what); });
   const pool = new MeshPool(world.pool);
@@ -76,7 +80,7 @@ export function glSource(world, tbl) {
   world.pool.pump = () => { pool.drain(); world.pump(); prev?.(); };   // 网格先于生成（近处看得见的先出）
   return {
     size: 16, height: H, layout: 'yzx16', meshPool: pool,
-    padded: makePadded(world, lut), secHash, secHas,
+    padded: makePadded(world, lut, clip), secHash: (ch, s) => secHash(ch, s, clip), secHas, clip,
     getChunk(cx, cz) { const c = world.chunks.get(key(cx, cz)); return c ? { blocks: c.blocks, light: c.light, biomes: c.biomes, rev: c.rev } : null; },
     getBlocks(cx, cz) { return world.chunks.get(key(cx, cz))?.blocks; },
     getBlock: (x, y, z) => world.getBlock(x, y, z),
@@ -109,10 +113,10 @@ export function glEnv(world, ctl, clock) {
 }
 
 /** 建 rgl：THREE 是宿主 import 的命名空间；renderer / camera / scene 由宿主建好（共享同一个 WebGL2 上下文，rgl 画完调 resetState 还给 three） */
-export async function createGl({ THREE, renderer, camera, scene, world, tbl, names, ctl, clock, rd }) {
+export async function createGl({ THREE, renderer, camera, scene, world, tbl, names, ctl, clock, rd, clip }) {
   if (tbl.miss.length) console.warn('[gode] goodGL 没有也没有代用品的方块（当石头）:', tbl.miss.join(' '));
   renderer.autoClear = false;
-  const source = glSource(world, tbl);
+  const source = glSource(world, tbl, clip);
   const ctx = {
     THREE, scene, camera, renderer,
     settings: { get rd() { return rd(); }, get fov() { return camera.fov; } },

@@ -36,14 +36,17 @@ const parseSel = (s) => { if (!s) return null; const a = String(s).split(',').ma
 function normSel(a) { return [Math.min(a[0], a[3]), Math.min(a[1], a[4]), Math.min(a[2], a[5]), Math.max(a[0], a[3]), Math.max(a[1], a[4]), Math.max(a[2], a[5])]; }
 // URL 里的点 / 视图（同顶栏粘贴框的 @x,z[^y] 写法；坐标取绝对值，与 origin= 无关）：p1 = 视口中心 `@x,z`（侧视 + `^y` 屏幕中心高度）；pv = 视线轴 `[-]X|Y|Z[:切片]`（正号省略：+ 在 URL 里是空格；Y = 俯视地表，-Y:64 = 仰视切片 64）
 const PN = '(-?\\d+(?:\\.\\d+)?)';
-const parseP1 = (s) => { const m = new RegExp(`^\\s*@?\\s*${PN}\\s*,\\s*${PN}(?:\\s*\\^\\s*${PN})?\\s*$`).exec(s ?? ''); return m ? [Math.round(+m[1]), Math.round(+m[2]), m[3] === undefined ? undefined : Math.round(+m[3])] : null; };
+const parseP1 = (s) => { const m = new RegExp(`^\\s*@?\\s*${PN}\\s*,\\s*${PN}(?:\\s*\\^\\s*${PN})?(?:\\s*,\\s*${PN})?(?:\\s*,\\s*${PN})?\\s*$`).exec(s ?? ''); return m ? [Math.round(+m[1]), Math.round(+m[2]), m[3] === undefined ? undefined : Math.round(+m[3]), m[4] === undefined ? undefined : +m[4], m[5] === undefined ? undefined : +m[5]] : null; };   // 第 4 / 5 位 = yaw / pitch（游戏 p1 的写法，viz 只读不用）
 const parsePv = (s) => { const m = /^\s*([+-]?)([XYZxyz])(?::\s*(-?\d+))?\s*$/.exec(s ?? ''); const v = m && AX_VIEW[(m[1] || '+') + m[2].toUpperCase()]; return v ? { view: v, slice: m[3] === undefined ? null : +m[3] } : null; };
-const fmtPts = (a) => a.map(o => `${o.n}:${o.x},${o.z}`).join(';');
+const ptTxt = (o) => `${o.x},${o.z}${o.y !== undefined && o.y !== null ? ',' + o.y : ''}`;     // 存储 / URL：`x,z[,y]`；y 只在游戏里站在地下时记（boot.js C 键）
+const atTxt = (o) => `@${o.x},${o.z}${o.y !== undefined && o.y !== null ? '^' + o.y : ''}`;   // 显示 / 复制：和点坐标同写法
+const fmtPts = (a) => a.map(o => `${o.n}:${ptTxt(o)}`).join(';');
 const cleanName = (n) => String(n).replace(/[;:,@\n]/g, '_').trim().slice(0, 24) || '_';
-const dedupeOrigins = (a) => { const seen = new Set(); return a.filter(o => { const k = o.x + ',' + o.z; if (seen.has(k)) return false; seen.add(k); return true; }); };   // 按坐标去重，保留第一项
+const samePt = (a, b) => a.x === b.x && a.z === b.z && (a.y ?? null) === (b.y ?? null);   // 原点身份 = x,z,(y)：地下原点不和同列的地表原点合并
+const dedupeOrigins = (a) => { const seen = new Set(); return a.filter(o => { const k = ptTxt(o); if (seen.has(k)) return false; seen.add(k); return true; }); };   // 按坐标去重，保留第一项
 const parseOrigins = (t) => dedupeOrigins(parseOriginsRaw(t));
-const parseOriginsRaw = (t) => String(t || '').split(';').map(x => x.split(':')).filter(a => a.length >= 2).map(a => { const p = a[a.length - 1].split(',').map(Number); return p.length === 2 && p.every(Number.isFinite) ? { n: cleanName(a.slice(0, -1).join(':')), x: Math.round(p[0]), z: Math.round(p[1]) } : null; }).filter(Boolean);
-let lsOrigins = []; try { const raw = localStorage.getItem('pgviz.origins'); lsOrigins = parseOrigins(raw); const clean = lsOrigins.map(o => `${o.n}:${o.x},${o.z}`).join(';'); if (raw !== null && raw !== clean) localStorage.setItem('pgviz.origins', clean); } catch {}   // 启动时顺手清掉 localStorage 里的重复项
+const parseOriginsRaw = (t) => String(t || '').split(';').map(x => x.split(':')).filter(a => a.length >= 2).map(a => { const p = a[a.length - 1].split(',').map(Number); return p.length >= 2 && p.length <= 3 && p.every(Number.isFinite) ? { n: cleanName(a.slice(0, -1).join(':')), x: Math.round(p[0]), z: Math.round(p[1]), ...(p.length > 2 ? { y: Math.round(p[2]) } : {}) } : null; }).filter(Boolean);
+let lsOrigins = []; try { const raw = localStorage.getItem('pgviz.origins'); lsOrigins = parseOrigins(raw); const clean = fmtPts(lsOrigins); if (raw !== null && raw !== clean) localStorage.setItem('pgviz.origins', clean); } catch {}   // 启动时顺手清掉 localStorage 里的重复项
 // 空气距离：开关。开 = 水体风格灰渐变（近亮远暗）；格 > 22 px 时再叠黑色数字。旧 URL 的 air=num|gray|1 都读作开
 function parseAir(v) { return v === true || v === 1 || ['1', 'true', 'num', 'gray'].includes(v); }
 const PV = parsePv(q.get('pv')), P1 = parseP1(q.get('p1'));
@@ -81,6 +84,7 @@ const st = { t0: 0, t1: 0, got: 0, wms: 0, clip: 0, cols: 0, pn: 0 };   // got /
 let waiters = [], fadeEnd = 0, booting = null, bootErr = null, frameReq = 0, gizHover = null, play = null;
 const live = () => !!play && !play.frozen;   // 快放中（frozen = 其它轴的扫描线 / 剖面已停在某层，Esc 取消）
 let hov = null;                        // 最近一次地图悬停：{ px, py, c, r, p }
+let selAB = null;   // 矩形选区的两个角 { box, A, B }（box 必须还是 S.sel 本身才有效；⏎ 进游戏时俯视 B 点用）
 let selA = null, edge = null, copied = '', pinV = null, pinK = '', pinPend = false;   // pinV / pinK：③ 近端格的 sample 缓存
 
 const genUrl = (g) => /^(mini|gp|liq|old|pg1|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
@@ -119,6 +123,26 @@ function focus() {   // 窗口中心（世界 x,z）：侧视切片时沿视线�
   if (S.slice !== null && a === 0) return [S.slice, S.z];
   if (S.slice !== null && a === 2) return [S.x, S.slice];
   return [S.x, S.z];
+}
+// ---- 玩家跟随：平滑居中（ease）----
+let panRAF = 0;
+function stopPan() { if (panRAF) cancelAnimationFrame(panRAF); panRAF = 0; }
+/** 把视图中心平滑挪到 (x,z)：easeInOutCubic，一帧一次 changed()（和拖地图同一条路，chunk 边走边补） */
+function panTo(x, z, ms = 360) {
+  stopPan();
+  const x0 = S.x, z0 = S.z, t0 = performance.now();
+  const step = () => {
+    const k = Math.min(1, (performance.now() - t0) / ms), e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+    S.x = x0 + (x - x0) * e; S.z = z0 + (z - z0) * e; changed();
+    panRAF = k < 1 ? requestAnimationFrame(step) : 0;
+  };
+  panRAF = requestAnimationFrame(step);
+}
+/** 世界点是否还在「跟随范围」里：细节绘制那条 slider 单独读，离视口中心超过 slider × 半个屏幕才跟随（1 = 到边缘） */
+function in2dView(px, pz) {
+  if (!store) return true;
+  const v = VIEWS[S.view], [fx, fz] = focus(), dx = px - fx, dz = pz - fz, f = S.fill;
+  return Math.abs(dx * v.R[0] + dz * v.R[2]) <= f * cv.clientWidth / 2 / S.zoom && Math.abs(dx * v.D[0] + dz * v.D[2]) <= f * cv.clientHeight / 2 / S.zoom;
 }
 function recenter(force) {
   if (!store) return;
@@ -222,7 +246,7 @@ function draw() {
   const e = R.draw(viewParams(v, { res: [w, h], center: center3(), zoom: S.zoom * k, start: rg.start, end: rg.end, air: S.air ? 1 : 0, xray: S.xray | 0, grid: S.grid, clip, mark: mk ? [...mk, 1] : [0, 0, 0, 0] }));
   if (e) errs.push(e);
   layerDraw(rg);
-  ruler(); originMarks(); bioTick(); sliceUI(rg); tlUI();
+  ruler(); originMarks(); p1Mark(); bioTick(); sliceUI(rg); tlUI();
   if (dirty3.size || dirty2.size) frame();
   status();
   if (idle() && !dirty3.size && !dirty2.size && waiters.length) { const ws = waiters; waiters = []; ws.forEach(f => f()); }
@@ -442,6 +466,26 @@ function originMarks() {
   }
 }
 
+// 游戏玩家 P1 标记（连着游戏时画；任意视角）：圆点 + "P1" + 朝向短线（水平朝向投到屏幕上）
+function p1Mark() {
+  if (!store || !gameLive() || !peer.p1 || peer.g !== S.g || String(peer.seed) !== String(S.seed)) return;
+  const [wx, wz, wy, yaw] = peer.p1, v = VIEWS[S.view], c = center3(), w = [wx + 0.5, wy + 1, wz + 0.5];
+  const sc = (q, d) => (d === 0 ? cv.clientWidth : cv.clientHeight) / 2 + [0, 1, 2].reduce((a, i) => a + (q[i] - c[i]) * (d === 0 ? v.R[i] : v.D[i]), 0) * S.zoom;
+  const x = sc(w, 0), y = sc(w, 1), g = $('rul').getContext('2d');
+  const fx = -Math.sin(yaw ?? 0), fz = -Math.cos(yaw ?? 0), ex = (fx * v.R[0] + fz * v.R[2]) * 14, ey = (fx * v.D[0] + fz * v.D[2]) * 14;
+  g.save(); g.lineWidth = 3; g.lineJoin = 'round'; g.font = 'bold 12px ui-monospace, monospace'; g.textBaseline = 'bottom';
+  g.strokeStyle = '#000c'; g.fillStyle = '#ff3a6e'; g.beginPath(); g.arc(x, y, 5, 0, 7); g.stroke(); g.fill();
+  if (yaw !== undefined) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + ex, y + ey); g.strokeStyle = '#000c'; g.lineWidth = 4; g.stroke(); g.strokeStyle = '#ff3a6e'; g.lineWidth = 2; g.stroke(); }
+  g.lineWidth = 3; g.strokeStyle = '#000c'; g.fillStyle = '#fff'; g.strokeText('P1', x + 7, y - 4); g.fillText('P1', x + 7, y - 4);
+  if (peer.xhair) {   // 准星落点（旧 hit）：青色十字 + 到 P1 的细线
+    const q = [peer.xhair[0] + 0.5, peer.xhair[1] + 0.5, peer.xhair[2] + 0.5], hx = sc(q, 0), hy = sc(q, 1);
+    g.strokeStyle = '#4ae0ff88'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y); g.lineTo(hx, hy); g.stroke();
+    g.strokeStyle = '#000c'; g.lineWidth = 4; g.beginPath(); g.moveTo(hx - 5, hy); g.lineTo(hx + 5, hy); g.moveTo(hx, hy - 5); g.lineTo(hx, hy + 5); g.stroke();
+    g.strokeStyle = '#4ae0ff'; g.lineWidth = 2; g.stroke();
+  }
+  g.restore();
+}
+
 // ---- y 刻度（侧视，左缘）：按 meta.h / meta.sea，liq 另标原生 y ----
 function ruler() {
   const c = $('rul'), w = c.clientWidth, h = c.clientHeight, k = dpr();
@@ -626,7 +670,7 @@ function boxFrom(A, B) {
   return b;
 }
 function rightClick(p) {   // 第一下：清空现有选区并记待定角 A（只画预览）；第二下：A、B 成矩形（深度 = 两角中点 ± seld/2）
-  if (selA) { S.sel = boxFrom(selA, p); selA = null; } else { S.sel = null; selA = p; }
+  if (selA) { S.sel = boxFrom(selA, p); selAB = { box: S.sel, A: selA, B: p }; selA = null; } else { S.sel = null; selA = p; }
   changed();
 }
 function edgeAt(px, py) {   // 光标附近的选区边 → { ax, hi }（hi = 是盒的 max 边）
@@ -662,7 +706,7 @@ function toAgent(kind, data = {}) {
 window.gdAck = (seq, listening, pending, kind) => toast((String(kind).startsWith('copy') ? '已复制 · ' : '') + `已通知 Agent #${seq}` + (listening ? '' : '（Agent 暂未在听，留在收件箱）'), 2600);
 // 一键提交：选区 + 点列表 + 悬停 / 选中的点 + 选区统计（Agent 马上有数字可看）
 async function buildSubmit(note) {
-  const b = { note, sel: S.sel, selAt: S.sel ? selAt(S.sel) : undefined, hit: S.hit, origins: S.origins.map(o => ({ ...o })), originsText: S.origins.map(o => `${o.n} @${o.x},${o.z}`).join('\n'), sample: pinPend ? undefined : pinV ?? undefined };
+  const b = { note, sel: S.sel, selAt: S.sel ? selAt(S.sel) : undefined, hit: S.hit, origins: S.origins.map(o => ({ ...o })), originsText: S.origins.map(o => `${o.n} ${atTxt(o)}`).join('\n'), sample: pinPend ? undefined : pinV ?? undefined };
   if (S.sel && store) { try { b.stats = await regionStats(store, meta, S.sel, { sample: (x, z) => pool.call('sample', { x, z }) }); } catch (e) { b.statsErr = e.message; } }
   return b;
 }
@@ -690,6 +734,7 @@ const local = (e) => { const b = cv.getBoundingClientRect(); return [e.clientX -
 cv.addEventListener('contextmenu', (e) => e.preventDefault());
 cv.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 && e.button !== 2) return;
+  stopPan();
   const [px, py] = local(e);
   edge = e.button === 2 ? edgeAt(px, py) : null;   // 选区边只能右键拖
   drag = { x: e.clientX, y: e.clientY, cx: S.x, cy: S.y, cz: S.z, moved: false, btn: e.button, p0: e.button === 2 && store && !edge ? pick(px, py).p : null };
@@ -715,7 +760,7 @@ cv.addEventListener('pointerup', (e) => {
   const [px, py] = local(e);
   if (drag && store && !edge) {
     if (drag.btn === 0 && !drag.moved) { const p = pick(px, py).p; setSelCol(pinBox(p), p); }   // 左键点击 = 选区设为点到位置所在的区块网格（沿视线轴整条）
-    else if (drag.btn === 2 && drag.moved && drag.p0) { S.sel = boxFrom(drag.p0, pick(px, py).p); selA = null; changed(); }   // 右键拖 = 直接拉矩形
+    else if (drag.btn === 2 && drag.moved && drag.p0) { const pB = pick(px, py).p; S.sel = boxFrom(drag.p0, pB); selAB = { box: S.sel, A: drag.p0, B: pB }; selA = null; changed(); }   // 右键拖 = 直接拉矩形
     else if (drag.btn === 2 && !drag.moved) {                                        // 右键点击：一下 = 该格 × seld 深度（同时成为角 A），再一下 = 并进角 B
       const p = pick(px, py).p;
       rightClick(p);
@@ -725,6 +770,7 @@ cv.addEventListener('pointerup', (e) => {
 });
 cv.addEventListener('wheel', (e) => {
   e.preventDefault();
+  stopPan();
   const [px, py] = local(e);
   if (e.shiftKey) {   // Shift+滚轮：切片沿视线方向进 / 退（Ctrl 一次 8 层）
     const d = -Math.sign(e.deltaY || e.deltaX), rg = range();   // 滚轮向上 = 往深处（方向已取反）
@@ -738,26 +784,34 @@ cv.addEventListener('wheel', (e) => {
   }
   if (store) { hov = pick(px, py); readout(); hoverPanel(); }
 }, { passive: false });
-const zoomBy = (f) => { S.zoom = clampZoom(S.zoom * f); changed(); };
+const zoomBy = (f) => { stopPan(); S.zoom = clampZoom(S.zoom * f); changed(); };
 $('zin').onclick = () => zoomBy(2); $('zout').onclick = () => zoomBy(0.5);
-$('home').onclick = () => { S.x = S.origin[0]; S.z = S.origin[1]; changed(); };
+$('home').onclick = () => { stopPan(); S.x = S.origin[0]; S.z = S.origin[1]; changed(); };
 function hideCtx() { $('ctx').style.display = 'none'; endPreview(); }
-const originsStr = () => S.origins.map(o => `${o.n}:${o.x},${o.z}`).join(';');
+const originsStr = () => fmtPts(S.origins);
 function saveOrigins() { try { localStorage.setItem('pgviz.origins', originsStr()); } catch {} url(); renderCtx(); if (store) frame(); }
 function renderCtx() {
   const c = $('ctx'), esc = (t) => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  c.innerHTML = (S.origins.length ? S.origins.map((o, i) => `<div class="oi" data-i="${i}"><input value="${esc(o.n)}" spellcheck="false"><span class="oc">@${o.x},${o.z}</span><span class="ox" title="删除">×</span></div>`).join('') : '<div class="hdr">（空）</div>') +
+  c.innerHTML = (S.origins.length ? S.origins.map((o, i) => `<div class="oi" data-i="${i}"><input value="${esc(o.n)}" spellcheck="false"><span class="oc">${atTxt(o)}</span><span class="ox" title="删除">×</span></div>`).join('') : '<div class="hdr">（空）</div>') +
     '<div class="bar"><button id="oadd" title="选区最小角；无选区时视口中心（快捷键 C）">＋添加 (C)</button><button id="oexp">导出列表</button>' + (hasAgent() ? '<button id="osub" title="点列表 + 选区 → Agent（Ctrl+⏎）">→ Agent</button>' : '') + '<button id="oimp" title="读剪贴板；也可把多行文本粘贴到顶栏的粘贴框">导入</button><button id="ors" class="' + (S.opath ? 'on' : '') + '" title="按列表顺序把原点连成黄色虚线（俯视 / 仰视）；括号里是折线总长（格，欧氏）">路径显示(距离:' + pathLen() + '格子)</button></div>';
   c.querySelectorAll('.oi').forEach(el => {
     const o = S.origins[+el.dataset.i];
     el.onmouseenter = () => previewOrigin(o);
     el.querySelector('input').onchange = (e) => { o.n = cleanName(e.target.value); saveOrigins(); };
     el.querySelector('input').onkeydown = (e) => e.stopPropagation();
-    el.querySelector('.oc').onclick = () => { endPreview(); setOrigin([o.x, o.z]); S.x = o.x + 0.5; S.z = o.z + 0.5; changed(); hideCtx(); };
+    // 点坐标 = viz 跳到该原点（顺手把 hit 设在该列的地表 / 记下的 y）；游戏在线且同生成器 / 种子时一起传送过去（落点同 ⏎ 的 gamePose，有 y 用 y）
+    el.querySelector('.oc').onclick = () => {
+      endPreview(); setOrigin([o.x, o.z]); S.x = o.x + 0.5; S.z = o.z + 0.5;
+      const c = store?.col(o.x, o.z), y = o.y ?? (c && c.y >= 0 ? c.y : Math.round(S.y ?? meta.sea ?? 64));
+      setSelCol([o.x, y, o.z], [o.x, y, o.z]); hideCtx();
+      if (!peerOk()) return;
+      const g = gamePose(); bc.postMessage({ from: 'viz', tp: { x: g.x, y: o.y ?? g.y, z: g.z, yaw: g.yaw, pitch: g.pitch } });
+      toast(`游戏跳到原点 ${o.n} ${atTxt(o)}`);
+    };
     el.querySelector('.ox').onclick = () => { S.origins.splice(+el.dataset.i, 1); endPreview(); saveOrigins(); };
   });
   $('oadd').onclick = () => addOrigin();
-  $('oexp').onclick = () => copy(S.origins.map(o => `${o.n} @${o.x},${o.z}`).join('\n'), 'origins');
+  $('oexp').onclick = () => copy(S.origins.map(o => `${o.n} ${atTxt(o)}`).join('\n'), 'origins');
   if ($('osub')) $('osub').onclick = submitClick;
   $('oimp').onclick = async () => { try { importOrigins(await navigator.clipboard.readText()); } catch (e) { cerr(e); } };
   $('ors').onclick = () => { S.opath = !S.opath; changed(); renderCtx(); };
@@ -765,17 +819,17 @@ function renderCtx() {
 function addOrigin(x, z, name) {
   if (x === undefined) [x, z] = S.sel ? [S.sel[0], S.sel[2]] : [Math.floor(S.x), Math.floor(S.z)];
   x = Math.round(x); z = Math.round(z);
-  const dup = S.origins.findIndex(o => o.x === x && o.z === z);
+  const dup = S.origins.findIndex(o => samePt(o, { x, z }));
   if (dup >= 0) { renderCtx(); const el = $('ctx').querySelector(`.oi[data-i="${dup}"]`); if (el) { el.style.outline = '2px solid #ffa63a'; setTimeout(() => (el.style.outline = ''), 1500); } return dup; }   // 同坐标已有：不重复添加，高亮已有项
   let i = 1; while (S.origins.some(o => o.n === 'C' + i)) i++;
   S.origins.push({ n: name ? cleanName(name) : 'C' + i, x, z }); saveOrigins(); return S.origins.length - 1;
 }
-function importOrigins(text) {   // 每行 `名字 @x,z`（名字可省）；同坐标跳过；同名不同坐标覆盖该名
+function importOrigins(text) {   // 每行 `名字 @x,z[^y]`（名字可省；y = 地下原点，兼容导出格式）；同坐标跳过；同名不同坐标覆盖该名
   let n = 0;
   for (const ln of String(text).split(/\r?\n/)) {
-    const m = ln.match(/^\s*(.*?)\s*@\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)/); if (!m) continue;
-    const o = { n: m[1] ? cleanName(m[1]) : 'C' + (S.origins.length + 1), x: Math.round(+m[2]), z: Math.round(+m[3]) };
-    if (S.origins.some(e => e.x === o.x && e.z === o.z)) continue;
+    const m = ln.match(/^\s*(.*?)\s*@\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)(?:\s*\^\s*(-?\d+(?:\.\d+)?))?/); if (!m) continue;
+    const o = { n: m[1] ? cleanName(m[1]) : 'C' + (S.origins.length + 1), x: Math.round(+m[2]), z: Math.round(+m[3]), ...(m[4] !== undefined ? { y: Math.round(+m[4]) } : {}) };
+    if (S.origins.some(e => samePt(e, o))) continue;
     const k = S.origins.findIndex(e => e.n === o.n);
     if (k >= 0) S.origins[k] = o; else S.origins.push(o); n++;
   }
@@ -825,7 +879,7 @@ function paintPreview(o) {
 function previewOrigin(o) {
   if (!store || live()) return;
   lastPrev = o; previewing = true; const tok = ++pTok, p0 = pool, g0 = pool.gen;
-  $('minik').textContent = `原点预览 ${o.n} @${o.x},${o.z}（俯视）`; showMini();
+  $('minik').textContent = `原点预览 ${o.n} ${atTxt(o)}（俯视）`; showMini();
   const miss = paintPreview(o);
   if (pcache.size > 900) pcache.clear();
   const order = (a, b) => Math.hypot(a[0] * 16 + 8 - o.x, a[1] * 16 + 8 - o.z) - Math.hypot(b[0] * 16 + 8 - o.x, b[1] * 16 + 8 - o.z);
@@ -854,10 +908,11 @@ applyMsz();
     if (d.side) msz.mh = h; else { msz.mh2 = h; msz.mw = Math.round(d.w + e.clientX - d.x); }
     applyMsz(); if (previewing && lastPrev) paintPreview(lastPrev); if (play) draw(); });
   z.addEventListener('pointerup', () => { d = null; z.classList.remove('on'); try { localStorage.setItem('pgviz.mini', JSON.stringify(msz)); } catch {} }); }
-$('home').addEventListener('contextmenu', (e) => {
-  e.preventDefault(); const c = $('ctx'), b = $('home').getBoundingClientRect();
+function showCtx() {   // ⌖ 右键 / Numpad 5：拉开原点菜单（顺手预览当前原点）
+  const c = $('ctx'), b = $('home').getBoundingClientRect();
   renderCtx(); previewOrigin({ n: '当前原点', x: S.origin[0], z: S.origin[1] }); c.style.display = 'block'; c.style.left = Math.max(4, b.left - c.offsetWidth - 6) + 'px'; c.style.top = b.top + 'px';
-});
+}
+$('home').addEventListener('contextmenu', (e) => { e.preventDefault(); showCtx(); });
 addEventListener('pointerdown', (e) => { if (!e.target.closest?.('#ctx, #mrz')) hideCtx(); }, true);
 function setOrigin(o) { S.origin = o.map(Math.round); changed(); world(); }
 $('png').onclick = () => { draw(); const a = document.createElement('a'); a.download = `pgviz-${S.g}-${S.seed}-${S.view}.png`; const o = document.createElement('canvas'); o.width = cv.width; o.height = cv.height; const g = o.getContext('2d'); g.drawImage(cv, 0, 0); if (layerOn()) g.drawImage($('lay'), 0, 0, o.width, o.height); a.href = o.toDataURL('image/png'); a.click(); };
@@ -953,17 +1008,29 @@ let toastT = 0;
 function toast(t, ms = 1400) { const el = $('toast'); el.textContent = t; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => (el.style.opacity = 0), ms); }
 
 // ---- 键盘：7 / 1 / 3，Ctrl（或 Alt：浏览器常吃掉 Ctrl+数字）反向；G 网格；Esc 选区 ----
-// 4 6 8 2：沿屏幕方向翻整整一页（视口大小，前后两页无重叠）
+// 4 6：左右翻一屏（视口宽，前后两页无重叠）；2 8：翻「深度」（选区深度 input）格；侧视里 2 / 8 挪切面（沿视线轴前后）
 function pageBy(sr, sd) {
-  const v = VIEWS[S.view], dx = sr * cv.clientWidth / S.zoom, dy = sd * cv.clientHeight / S.zoom;
-  S.x += v.R[0] * dx + v.D[0] * dy; S.y += v.R[1] * dx + v.D[1] * dy; S.z += v.R[2] * dx + v.D[2] * dy;
+  stopPan();
+  const v = VIEWS[S.view], side = v.F[1] === 0, dx = sr * cv.clientWidth / S.zoom, dy = sd * S.seld;
+  // 侧视看的就是切面：只挪深度中心（S.x / S.z）画面一点不动，得挪切面本身（8 往画面里推、2 往观察者退，y 不变）；
+  // 中心跟着切面走，切回俯视还在同一个位置
+  if (side && !sr) {
+    const rg = range(), c = clamp(Math.round((S.slice ?? rg.outer) - sd * rg.dir * S.seld), rg.lo, rg.hi);
+    if (rg.a === 0) S.x = c; else if (rg.a === 2) S.z = c;
+    setSlice(c);
+    toast(`切片 ${AXN[rg.a]} ${c}`, 900);
+    return;
+  }
+  // 4 / 6 = 屏幕左右；2 / 8 = 屏幕上下（俯视 / 仰视）
+  const ax = v.R.map((t) => t * dx), ay = (side ? v.F.map((t) => -t * dy) : v.D.map((t) => t * dy));
+  S.x += ax[0] + ay[0]; S.y += ax[1] + ay[1]; S.z += ax[2] + ay[2];
   if (v.R[1] || v.D[1]) S.y = clamp(S.y, 0, H - 1);
   changed();
 }
-// 5：图层暂时切成「无」，再按一次复原
+// Del：图层暂时切成「无」，再按一次复原
 let layerStash = null;
 function layerPeek() {
-  if (S.layer !== 'none') { layerStash = S.layer; S.layer = 'none'; changed(); toast('图层：暂时关（5 复原）'); }
+  if (S.layer !== 'none') { layerStash = S.layer; S.layer = 'none'; changed(); toast('图层：暂时关（Del 复原）'); }
   else if (layerStash) { S.layer = layerStash; layerStash = null; changed(); toast('图层：已复原'); }
 }
 const SHADES = ['block', 'biome', 'height'];
@@ -971,12 +1038,14 @@ addEventListener('keydown', (e) => {
   if (e.target.matches?.('input, select, textarea')) return;
   if (e.key === 'Enter' && !e.altKey && !e.metaKey) {   // ⏎ = 进游戏；Ctrl+⏎ = 一键提交给 Agent（preventDefault：焦点在按钮上时不再触发该按钮）
     e.preventDefault(); if (e.repeat) return;
-    if (e.ctrlKey) submitClick(); else $('game').click();
+    if (e.ctrlKey) submitClick(); else enterGame(false);   // ⏎：有选中点 / 选区 = 游戏跳到那儿；游戏在线且没有 = 游戏相机改为望向脚下；游戏不在线 = 开新标签页
     return;
   }
   if (e.key === 'Escape') { if (bs) { bioStop(); return; } if (play?.frozen) { stopPlay(); toast('剖面已取消'); return; } if (selA) selA = null; else S.sel = null; changed(); return; }
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-    if (e.code === 'KeyD' && !e.repeat) { toggleDial(); return; }
+    if (e.code === 'KeyK' && !e.repeat) { toggleDial(); return; }
+    if (e.code === 'NumpadDecimal' && !e.repeat) { e.preventDefault(); layerPeek(); return; }   // 小键盘 Del = 图层暂时关 / 复原（原 5 键）
+    if ((e.code === 'Numpad5' || e.code === 'Digit5') && !e.repeat) { e.preventDefault(); $('ctx').style.display === 'block' ? hideCtx() : showCtx(); return; }   // 5 = 快速拉开原点菜单
     if (e.code === 'KeyT') { S.shade = SHADES[(SHADES.indexOf(S.shade) + 1) % 3]; changed(); return; }
     if (e.code === 'KeyV') { flipView(); return; }   // 和 giz 右键同效：沿视线轴翻到反向（俯视 ↔ 仰视…）
     if (e.code === 'KeyF') { e.preventDefault(); toggleFull(); return; }
@@ -992,7 +1061,7 @@ addEventListener('keydown', (e) => {
   if (!e.ctrlKey && !e.altKey && !e.metaKey && store) {   // Numpad 操控（giz 悬停有帮助）：4 6 8 2 翻页、5 图层暂时关 / 恢复、9 按住快放
     const pg = { 4: [-1, 0], 6: [1, 0], 8: [0, -1], 2: [0, 1] }[d];
     if (pg) { e.preventDefault(); pageBy(pg[0], pg[1]); return; }
-    if (d === '5' && !e.repeat) { e.preventDefault(); layerPeek(); return; }
+    if (d === '0') { e.preventDefault(); if (!e.repeat) enterGame(true); return; }   // 0 = 带当前 pv 截面进游戏（游戏里 0 再往前推 16 格）
     if (d === '9') { e.preventDefault(); if (!e.repeat) startPlay(null, 'key'); return; }
   }
   if (e.key === 'g' || e.key === 'G') { S.grid = !S.grid; changed(); }
@@ -1005,19 +1074,48 @@ addEventListener('blur', () => { if (live()) stopPlay(); });
 // 落点：选区中心 > 悬停点 > 视图中心。y：侧视 = 那个点自己的 y（看哪一层就落到哪一层）；俯视 / 仰视 = 该列地表（或水面）+ 8。
 // 朝向：侧视 → 视线方向（F）；俯视 / 仰视不给 yaw。
 // pitch = −20° 由 gode 宿主对 p1 开局统一设（p1 与 index 一样没有 pitch 字段）。
-function gameUrl(g = S.g) {
+function gamePose() {   // 落点 { x, y, z, yaw|null, top }：gameUrl（新标签页）与广播传送共用
   const side = VIEWS[S.view].F[1] === 0;
   let x, z, yPt = side ? Math.round(S.y ?? meta.sea ?? 62) : null;   // 侧视：屏幕点的世界 y（选区 / 悬停优先）
-  if (S.sel) { x = Math.floor((S.sel[0] + S.sel[3]) / 2); z = Math.floor((S.sel[2] + S.sel[5]) / 2); if (side) yPt = Math.round((S.sel[1] + S.sel[4]) / 2); }
+  if (S.hit) { [x, yPt, z] = S.hit; }   // 点中的那一格最准（选区中心会因取整偏掉半格）
+  else if (S.sel) { x = Math.floor((S.sel[0] + S.sel[3]) / 2); z = Math.floor((S.sel[2] + S.sel[5]) / 2); if (side) yPt = Math.round((S.sel[1] + S.sel[4]) / 2); }
   else if (hov) { [x, yPt, z] = hov.p; if (side) yPt = Math.round(yPt); }
   else { x = Math.floor(S.x); z = Math.floor(S.z); }
   const c = store?.col(x, z), top = c && c.y >= 0 ? Math.max(c.y + c.wd, c.y) : null;
-  if (g === 'mini') return new URL(`../../index.html?seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}${top === null ? '' : '^' + (top + 1)}`, location.href).href;   // mini 保持原来的 y = 地表 + 1
-  const y = side ? clamp(yPt ?? 0, 0, H - 1) : (top ?? S.slice ?? (meta.sea ?? 62)) + 8;
-  const v = VIEWS[S.view], yaw = v.F[1] === 0 ? Math.atan2(-v.F[0], -v.F[2]) : null;   // 俯视 / 仰视不给朝向
-  return new URL(`../index.html?g=${encodeURIComponent(g)}&seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}^${y}${yaw === null ? '' : ',' + +yaw.toFixed(4)}&fly=1`, location.href).href;
+  let y = side ? clamp(yPt - 1, 0, H - 1) : (top ?? S.slice ?? (meta.sea ?? 62)) + 8;   // 侧视：脚在 hit 下 1 格 → 眼睛（+1.62）约在 hit 方块中心，和屏幕中心对上
+  const v = VIEWS[S.view], vert = v.F[1] !== 0;
+  let yaw = vert ? null : Math.atan2(-v.F[0], -v.F[2]), pitch = vert ? undefined : 0;   // 侧视：朝视线方向水平看
+  const ab = vert && S.sel && selAB && selAB.box === S.sel ? selAB : null;
+  if (ab) {   // 俯视 / 仰视 + 矩形选区 A→B：站在 A 点地表 +8 格，朝向 B，向下看 20°（和不带选区的俯视落点同高）
+    const [ax, ay, az] = ab.A, dx = ab.B[0] - ax, dz = ab.B[2] - az;
+    x = Math.floor(ax); z = Math.floor(az); y = clamp(Math.round(ay) + 8, 0, H - 1);
+    yaw = Math.hypot(dx, dz) > 0.01 ? Math.atan2(-dx, -dz) : null; pitch = -Math.PI / 9;
+  }
+  return { x, y, z, yaw, pitch, top };
 }
-$('game').onclick = () => window.open(gameUrl(), '_blank');
+const pvStr = () => sgn(VIEWS[S.view].ax) + (S.slice !== null ? ':' + S.slice : '');
+function gameUrl(g = S.g, withPv = true) {
+  const { x, y, z, yaw, pitch, top } = gamePose();
+  if (g === 'mini') return new URL(`../../index.html?seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}${top === null ? '' : '^' + (top + 1)}`, location.href).href;   // mini 保持原来的 y = 地表 + 1
+  return new URL(`../index.html?g=${encodeURIComponent(g)}&seed=${encodeURIComponent(S.seed)}&p1=@${x},${z}^${y}${yaw === null ? '' : ',' + +yaw.toFixed(4) + (pitch === undefined || pitch === 0 ? '' : ',' + +pitch.toFixed(4))}${withPv ? '&pv=' + pvStr() : ''}${S.tod !== null ? '&hour=' + +S.tod.toFixed(2) : ''}&fly=1`, location.href).href;   // 拨盘时间随 p1 一起带进游戏（boot.js 读 hour）
+}
+// 游戏标签页在线（3.5 s 内收到过它的广播）→ ↗ / ⏎ / 0 = 直接传送过去（落点同 gameUrl，并带上 pv），否则开新标签页
+const gameLive = () => peer && performance.now() - peerAt < 3500;
+// ⏎ 与 0 共用：⏎ = 只关于点位（落点 / 朝向）；0 = 点位 + 当前 pv 截面。游戏在线 → 广播传送，否则开新标签页（URL 同样只在 0 时带 pv）
+const peerOk = () => gameLive() && peer.g === S.g && String(peer.seed) === String(S.seed);
+function enterGame(withPv) {
+  if (S.g === 'mini' || !peerOk()) {
+    if (S.terr !== 1) { S.terr = 1; changed(); }   // 打开游戏 tab：着色调成 2.5D（已经 1 就不重复切）
+    window.open(gameUrl(S.g, withPv), '_blank'); return;
+  }
+  if (!withPv) {   // ⏎：① 游戏有 xhair 且 viz 的 p1（视口中心）正好在 hit 上 → 游戏跳到 xhair；② 否则有 hit / 选区 → 跳到 hit；③ 都没有 → 游戏相机望向脚下
+    const same = S.hit && Math.floor(S.x) === S.hit[0] && Math.floor(S.z) === S.hit[2];
+    if (peer.xhair && same) { const [x, y, z] = peer.xhair; bc.postMessage({ from: 'viz', tp: { x, y: y + 1, z } }); toast(`游戏跳到准星 @${x},${z}^${y + 1}`); return; }
+    if (!peer.xhair && !S.sel) { bc.postMessage({ from: 'viz', tp: { look: 'feet' } }); toast('游戏相机：望向脚下'); return; }
+  }
+  const { x, y, z, yaw, pitch } = gamePose(); bc.postMessage({ from: 'viz', tp: { x, y, z, yaw, pitch }, pv: withPv ? pvStr() : null }); toast(`传送游戏 @${x},${z}^${y}${withPv ? ' ' + pvStr() : ''}`);
+}
+$('game').onclick = () => enterGame(false);
 
 // ---- 顶栏 / 左栏 ----
 $('go').onclick = () => { S.seed = $('seed').value.trim() || '0'; restart(); };
@@ -1049,8 +1147,8 @@ function tlUI() {
   if (ae !== $('gx')) $('gx').value = Math.floor(w[0]) - S.origin[0];
   if (ae !== $('gz')) $('gz').value = Math.floor(w[2]) - S.origin[1];
 }
-$('gx').onchange = () => { const v = +$('gx').value; if ($('gx').value !== '' && isFinite(v)) { S.x += v + S.origin[0] - Math.floor(planeAt(0, 0)[0]); changed(); } tlUI(); };
-$('gz').onchange = () => { const v = +$('gz').value; if ($('gz').value !== '' && isFinite(v)) { S.z += v + S.origin[1] - Math.floor(planeAt(0, 0)[2]); changed(); } tlUI(); };
+$('gx').onchange = () => { stopPan(); const v = +$('gx').value; if ($('gx').value !== '' && isFinite(v)) { S.x += v + S.origin[0] - Math.floor(planeAt(0, 0)[0]); changed(); } tlUI(); };
+$('gz').onchange = () => { stopPan(); const v = +$('gz').value; if ($('gz').value !== '' && isFinite(v)) { S.z += v + S.origin[1] - Math.floor(planeAt(0, 0)[2]); changed(); } tlUI(); };
 // 粘贴：与复制同一套坐标系。`@x,z^y`（1 个点 = 钉住并居中；`@x,z` 无 y = 只居中）、`@x0,z0^y0 @x1,z1^y1`（两角 = 恢复选区并居中）。
 // 坐标相对原点；文本里带 `(origin ox,oz)` 就按它还原（= 复制时的原点）。也认 gd 复制出的 URL / 命令里的 x= z= y=（绝对）。返回 false 或 { kind }
 function jumpTo(text) {
@@ -1073,7 +1171,7 @@ function jumpTo(text) {
   if (y !== undefined) { setSelCol(pinBox([x, y, z]), [x, y, z]); return { kind: 'sel', sel: S.sel }; }
   return { kind: 'jump' };
 }
-const pasteGo = (t) => { const ok = String(t).trim().split(/\r?\n/).length > 1 ? importOrigins(t) > 0 : jumpTo(t); $('paste').value = ''; $('paste').style.borderColor = ok ? '' : 'var(--bad)'; if (!ok) setTimeout(() => ($('paste').style.borderColor = ''), 1200); return ok; };
+const pasteGo = (t) => { stopPan(); const ok = String(t).trim().split(/\r?\n/).length > 1 ? importOrigins(t) > 0 : jumpTo(t); $('paste').value = ''; $('paste').style.borderColor = ok ? '' : 'var(--bad)'; if (!ok) setTimeout(() => ($('paste').style.borderColor = ''), 1200); return ok; };
 $('paste').addEventListener('paste', (e) => { e.preventDefault(); pasteGo(e.clipboardData.getData('text')); });
 $('paste').addEventListener('keydown', (e) => { if (e.key === 'Enter') pasteGo($('paste').value); });
 // 左栏：右边缘拖动 resize（偏好进 localStorage），< 140 px 自动隐藏；⫷ 只在隐藏时显示，点它展开
@@ -1091,7 +1189,10 @@ $('rsz').addEventListener('pointermove', (e) => {
   sw = clamp(Math.round(w), SW_MIN, 720); $('app').style.setProperty('--sw', sw + 'px'); recenter(); frame();
 });
 $('rsz').addEventListener('pointerup', () => { if (!$('rsz')._d) return; $('rsz')._d = false; $('rsz').classList.remove('on'); try { localStorage.setItem('pgviz.sw', sw); } catch {} relayout(); });
-$('sdbtn').onclick = showSide;
+$('sdbtn').onclick = () => { $('app').classList.remove('nonav'); showSide(); };   // ⫷：顶栏 + 左栏一起恢复
+// 顶栏最右 ✕：收起顶栏（顶栏里只留 ⫷），左栏一起收起；#sdbtn / ⫷ 一起恢复
+const nonav = (on) => { $('app').classList.toggle('nonav', on); if (on) $('app').classList.add('nosd'); relayout(); };
+$('navx').onclick = () => nonav(true);
 $('vsel').onchange = () => setView($('vsel').value);
 $('shsel').onchange = () => { S.shade = $('shsel').value; changed(); };
 $('slr').oninput = () => setSlice(+$('slr').value);
@@ -1107,6 +1208,34 @@ $('lchips').addEventListener('click', (e) => { const b = e.target.closest('butto
 $('lopr').oninput = () => { S.lop = clamp(+$('lopr').value, 0.1, 1); changed(); };
 $('gridc').onchange = () => { S.grid = $('gridc').checked; changed(); };
 setInterval(() => { if (store && (busy.size || dirty3.size)) world(); }, 1000);
+// 与游戏标签页互通点位（BroadcastChannel 'gode-sync'，每秒一次；main/boot.js 同名频道）：发视口中心 p1；
+// 收游戏的 p1 / xhair / pv 存进 peer（viz.peer()）；hit 只是 viz 自己的局部状态，不进消息
+const bc = new BroadcastChannel('gode-sync'); let peer = null, peerAt = 0, wasIn2d = null;
+bc.onmessage = (e) => {
+  const m = e.data; if (m?.from !== 'game') return;
+  if (m.origins) { try { S.origins = parseOrigins(localStorage.getItem('pgviz.origins')); } catch {} renderCtx(); url(); if (store) frame(); toast('游戏里新增了原点'); return; }   // 游戏的 C：重读本地存储
+  const wasLive = gameLive();
+  peer = m; peerAt = performance.now(); if (store) frame();   // 重画 P1 标记
+  // 刚连上（之前不在线）：拨盘时间对齐游戏时钟（5 分钟一格）；之后由拨盘驱动游戏（见每秒发的 tod）
+  if (!wasLive && typeof m.hour === 'number' && (S.tod === null || Math.abs(S.tod - m.hour) > 1 / 60)) { S.tod = Math.round(m.hour * 12) / 12; dialUI(); changed(); }
+  // 玩家出了跟随范围（细节绘制 slider × 半屏；1 = 到边缘）：平滑居中。失焦时实时跟；刚连上（wasIn2d === null）先同步一次
+  let in2d = in2dView(m.p1[0], m.p1[1]);
+  if (!in2d && peerOk() && (wasIn2d === null || (wasIn2d === true && !document.hasFocus()))) { panTo(m.p1[0] + 0.5, m.p1[1] + 0.5); toast('玩家不在视野里：视图居中'); in2d = true; }
+  wasIn2d = in2d;
+};
+const hitToCenter = () => { if (!S.hit || !store) return; S.x = S.hit[0] + 0.5; S.z = S.hit[2] + 0.5; if (VIEWS[S.view].F[1] === 0) S.y = S.hit[1]; changed(); };
+// 切回页面 / 标签页恢复：先把 hit 同步到玩家（否则「聚焦 hit」和「跟随玩家」会来回跳），玩家不在范围内再平滑居中过去
+const syncPlayer = () => {
+  if (!peer?.p1 || !peerOk()) return false;
+  const [px, pz, py] = peer.p1;
+  S.hit = [px, py ?? 64, pz];
+  if (in2dView(px, pz)) { changed(); return true; }
+  panTo(px + 0.5, pz + 0.5); wasIn2d = true; toast('玩家不在视野里：视图居中');
+  return true;
+};
+addEventListener('focus', () => { if (!syncPlayer()) hitToCenter(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !syncPlayer()) hitToCenter(); });   // 标签页恢复聚焦
+setInterval(() => bc.postMessage({ from: 'viz', g: S.g, seed: S.seed, p1: [Math.round(S.x), Math.round(S.z), Math.round(S.y ?? meta?.sea ?? 64)], tod: S.tod }), 1000);   // tod 随 p1 一起发：游戏按「值变了才应用」设时钟（tspeed 仍可自己走）
 
 // ---- 生成器参数 / 区域统计（s13 §3 调参闭环） ----
 function setKw(k, v) {
@@ -1243,8 +1372,6 @@ window.viz = {
     return { p };
   },
   hover(px, py) { hov = pick(px, py); readout(); hoverPanel(); frame(); return { p: hov.p, d2: !!hov.d2 }; },   // 模拟悬停（CSS 像素，地图左上为原点）
-  /** 竖直剖面：沿 x 或 z 线取每列「最高实体 / 下方空气格 / 是否中空」，给 Agent 读天际线与拱洞。
-      { axis:'x'|'z', at, from, to, n } → { min, max, relief, hollows, points:[{t,top,air,firstAir,have}] } */
   /** 侧视投影轮廓（正交视角的天际线）：沿视线轴取每列最高实体与「顶块下方是空气」的中空列。
       { view:'south'|'north'|'east'|'west', x, z, width=128, span=64, n=97 }
       → { min, max, relief, hollows, points:[{t,top,hollow,have}] }（hollows = 有悬挑/拱洞的射线数） */
@@ -1272,6 +1399,8 @@ window.viz = {
     return { view: v, x: cx, z: cz, width, span, min: tops.length ? Math.min(...tops) : -1, max: tops.length ? Math.max(...tops) : -1,
       relief: tops.length ? Math.max(...tops) - Math.min(...tops) : -1, hollows: pts.reduce((a, p) => a + p.hollow, 0), points: pts };
   },
+  /** 竖直剖面：沿 x 或 z 线取每列「最高实体 / 下方空气格 / 是否中空」，给 Agent 读天际线与拱洞。
+      { axis:'x'|'z', at, from, to, n } → { min, max, relief, hollows, points:[{t,top,air,firstAir,have}] } */
   profile(o = {}) {
     const axis = o.axis === 'z' ? 'z' : 'x', at = Math.round(o.at ?? 0);
     const from = Math.round(o.from ?? -64), to = Math.round(o.to ?? 64), n = Math.max(2, Math.min(512, o.n ?? 129));
@@ -1290,6 +1419,7 @@ window.viz = {
     return { axis, at, from, to, n, min, max, relief: max - min, hollows: pts.filter(p => p.have && p.air > 0).length, points: pts };
   },
   gameUrl,
+  peer: () => peer,   // 游戏标签页最近一次广播的 { p1:[x,z,y,yaw], xhair（准星落点）, pv }
   copied: () => copied,
   // 一键提交（同 → Agent 按钮 / Ctrl+⏎）：{ dry:true } 只返回要发的内容；否则发出去并返回 { sent }
   async submit(o = {}) { const b = await buildSubmit(o.note); return o.dry ? b : { sent: toAgent('submit', b) }; },
