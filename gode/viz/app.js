@@ -1,7 +1,7 @@
 /* gode/viz/app.js —— pgviz 装配（s13 §2、§2.1、§4 V1，V-8…V-12）：状态 / URL 同步、slicer 池流式（3D 窗口 + 外圈 2D）、
    相机（拖动平移、朝光标缩放、Shift+滚轮调切片）、右下 gizmo（点端点 150 ms 淡入切视角；悬停 = 沿视线轴快放 +N 层，
    悬停别的轴端点 = 沿该轴快放切面，左栏小图同步画那个方向的剖面）、③ 悬停的方块、④ 选区（3D 盒，跨视角保留，拖边改范围）、
-   ↗ 进游戏（mini → 宿主 B ?seed=&p1=；其余 → gode ?g=&seed=&p1=&fly=1）、读数、状态行、window.viz。
+   ↗ 进游戏（mini → 宿主 B ?seed=&p1=；其余 → gode ?g=&seed=&p1=&fly=1）、② 视图 > 缩放 下的「同步切片」（游戏在线时切面跟玩家在当前视线轴上的 x / y / z）、读数、状态行、window.viz。
    视角按「相机在哪一侧」命名：top = 在 +Y 往下看；south = 在 +Z 往北（−Z）看；east = 在 +X 往西看；bottom / north / west 反向。 */
 import { Renderer, C2 } from './gl.js';
 import { Store, key } from './store.js';
@@ -11,6 +11,7 @@ import { regionStats, diffStats } from './stats.js';
 import { Layers } from './layers.js';
 import { seamCheck } from './seam.js';
 import { resolveParams, diffFromDefault, parseKw, fmtKw, flatten } from '../w/params.js';
+import { analyze, summarize } from './cavejob.js';
 
 const $ = (id) => document.getElementById(id);
 const VIEWS = {   // F 视线前向、R 屏幕右、D 屏幕下
@@ -49,6 +50,34 @@ const parseOriginsRaw = (t) => String(t || '').split(';').map(x => x.split(':'))
 let lsOrigins = []; try { const raw = localStorage.getItem('pgviz.origins'); lsOrigins = parseOrigins(raw); const clean = fmtPts(lsOrigins); if (raw !== null && raw !== clean) localStorage.setItem('pgviz.origins', clean); } catch {}   // 启动时顺手清掉 localStorage 里的重复项
 // 空气距离：开关。开 = 水体风格灰渐变（近亮远暗）；格 > 22 px 时再叠黑色数字。旧 URL 的 air=num|gray|1 都读作开
 function parseAir(v) { return v === true || v === 1 || ['1', 'true', 'num', 'gray'].includes(v); }
+const CAVE = 65;   // xray 滑块的特殊值：洞窟（noclip 钻进地下，岩石剔除、只看洞窟空气围出的墙面；原 shade=height）。0 关，1…64 = 切面往里透视多少格
+function parseXray(v) { return v === 'cave' || +v === CAVE ? CAVE : clamp(Math.round(+v || 0), 0, 64); }
+const SHADES = ['block', 'biome', 'thick', 'conn'];   // T 键循环；着色器的 uShade：block 0 biome 1（2 = xray 滑块的洞窟）thick 3 conn 4（连通域 + 竖井红框）
+const SHADE_IDX = { block: 0, biome: 1, thick: 3, conn: 4 };
+// 洞穴分析（cavejob.js / cave.js）：thick / conn 档要分析纹理，viz.cave() 取数字——同一份结果。CAVE_R = 盒半边（格）
+const CAVE_R = 128;
+let caveRes = null, caveJob = null, caveKey = '';
+const thkNeeded = () => S.shade === 'thick' || S.shade === 'conn';
+const caveOpts = (o = {}) => ({ orphMax: Math.max(1, Math.round(o.orphMax ?? 64)), minR: o.minR ?? S.cmin, dropN: Math.round(o.drop ?? S.drop) });   // 默认跟着侧栏的两个滑块（图和数字同口径）
+// 渲染只要 minR 对得上就行（摔落阈值在着色器里比）；viz.cave() 要 metrics = true：dropN 也得对上
+const caveStale = (x, z, r = CAVE_R, tol = 32, o = caveOpts(), metrics = false) => !caveRes || caveRes.rev !== store.rev || caveRes.r !== r || caveRes.orphMax !== o.orphMax || caveRes.minR !== o.minR || (metrics && caveRes.dropN !== o.dropN) || Math.abs(caveRes.cx - x) > tol || Math.abs(caveRes.cz - z) > tol;
+async function caveRun(x, z, r = CAVE_R, o = caveOpts()) {
+  while (caveJob) await caveJob.catch(() => {});
+  const st0 = store; caveJob = analyze(st0, meta, x, z, r, o);
+  try { const a = await caveJob; if (a && store === st0) { caveRes = a; R.setThk(a); } return a; }
+  finally { caveJob = null; frame(); }
+}
+// conn 档的单独高亮：左键点中格（S.hit）自己或六邻里第一个有连通域的洞窟格 → 它的名次（0 = 不高亮）
+function hiComp() {
+  const a = caveRes; if (S.shade !== 'conn' || !a || !S.hit) return 0;
+  for (const [dx, dy, dz] of [[0, 0, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, -1, 0]]) {
+    const x = S.hit[0] + dx - a.x0, y = S.hit[1] + dy, z = S.hit[2] + dz - a.z0;
+    if (x < 0 || y < 0 || z < 0 || x >= a.BX || y >= a.BY || z >= a.BZ) continue;
+    const k = 3 * ((y * a.BZ + z) * a.BX + x); if (a.T[k] > 0 && a.T[k + 1] > 0) return a.T[k + 1];
+  }
+  return 0;
+}
+function caveReset() { caveRes = null; caveKey = ''; R.setThk(null); }
 const PV = parsePv(q.get('pv')), P1 = parseP1(q.get('p1'));
 const legacyXZ = !P1 && q.has('x');   // 旧 URL：x= z= 是世界坐标、zoom= 是缩放；新 URL：z= 是缩放（取整）
 const zoomQ = (() => { const v = q.has('zoom') ? q.get('zoom') : legacyXZ ? null : q.get('z'); return v === null || v === '' || isNaN(+v) ? 2 : +v; })();
@@ -57,14 +86,15 @@ const S = {
   g: q.get('g') || 'gp', seed: q.get('seed') ?? '20240607', view: PV?.view ?? (VIEWS[q.get('view')] ? q.get('view') : 'top'),   // 旧 view= x= z= y= slice= mode= 仍认
   x: P1 ? P1[0] : num('x', 0), y: P1?.[2] ?? num('y', null), z: P1 ? P1[1] : legacyXZ ? num('z', 0) : 0, zoom: zoomQ,
   slice: PV ? PV.slice : q.get('mode') === 'surface' ? null : num('slice', null),    // null = 地表（从最外层开始）
-  fill: clamp(num('fill', 1), 0.2, 1), air: parseAir(q.get('air')), xray: clamp(Math.round(num('xray', 0)), 0, 64), layer: /^(none|tree|f:[\w.-]+)$/.test(q.get('layer') ?? '') ? q.get('layer') : 'none', lop: clamp(num('lop', 0.35), 0.1, 1),
-  shade: ['block', 'biome', 'height'].includes(q.get('shade')) ? q.get('shade') : 'block', grid: q.get('grid') !== '0', sel: parseSel(q.get('sel')) ?? parsePin(q.get('pin')),   // 旧 pin= 3 / 6 元 → sel
+  fill: clamp(num('fill', 1), 0.2, 1), air: parseAir(q.get('air')), xray: q.has('xray') ? parseXray(q.get('xray')) : 30, fog: clamp(num('fog', 0.6), 0, 1), cmin: clamp(num('cmin', 3), 0, 6), drop: clamp(Math.round(num('drop', 4)), 1, 30), layer: /^(none|tree|f:[\w.-]+)$/.test(q.get('layer') ?? '') ? q.get('layer') : 'none', lop: clamp(num('lop', 0.35), 0.1, 1),
+  shade: SHADES.includes(q.get('shade')) ? q.get('shade') : 'block', grid: q.get('grid') !== '0', sel: parseSel(q.get('sel')) ?? parsePin(q.get('pin')),   // 旧 pin= 3 / 6 元 → sel
   origin: parsePair(q.get('origin')) ?? [0, 0], origins: q.has('pts') || q.has('origins') ? parseOrigins(q.get('pts') ?? q.get('origins')) : lsOrigins,   // origins= 旧名
   hit: parsePair3(q.get('hit')), rate: clamp(num('rate', 7), 1, 60), minip: q.get('minip') === '1', otext: q.get('otext') !== '0', terr: parseTerr(q.get('terr')), lay: q.get('lay') === '1', bio: parseBio(q.get('bio')), bm: ['only', 'hl', 'un'].includes(q.get('bm')) ? q.get('bm') : 'hl', tod: parseTod(q.get('tod')), lcol: /^[0-9a-f]{6}$/i.test(q.get('lcol') ?? '') ? q.get('lcol').toLowerCase() : null, opath: q.get('opath') === '1', seld: clamp(num('seld', 16), 1, 256),
+  sync: false,   // ② 视图 > 缩放 下面的「同步切片」：切面跟游戏玩家走（不进 URL / 快照：跟连接状态绑定的实时开关）
 };
 
 // 只有 g seed kw p1 pv shade layer z 随改动实时写进地址栏；其余（sel hit pts bio 与各开关 / 参数）location 里只有「加载时带的」或「最近一次复制 URL / gd 时」的快照
-const snapVals = () => ({ sel: S.sel && [...S.sel], hit: S.hit && [...S.hit], pts: fmtPts(S.origins), bio: [...S.bio], origin: [...S.origin], fill: S.fill, rate: S.rate, minip: S.minip, otext: S.otext, grid: S.grid, terr: S.terr, lay: S.lay, bm: S.bm, tod: S.tod, lcol: S.lcol, opath: S.opath, air: S.air, xray: S.xray, lop: S.lop, seld: S.seld });
+const snapVals = () => ({ sel: S.sel && [...S.sel], hit: S.hit && [...S.hit], pts: fmtPts(S.origins), bio: [...S.bio], origin: [...S.origin], fill: S.fill, rate: S.rate, minip: S.minip, otext: S.otext, grid: S.grid, terr: S.terr, lay: S.lay, bm: S.bm, tod: S.tod, lcol: S.lcol, opath: S.opath, air: S.air, xray: S.xray, fog: S.fog, cmin: S.cmin, drop: S.drop, lop: S.lop, seld: S.seld });
 const snap = { ...snapVals(), pts: q.has('pts') || q.has('origins') ? fmtPts(S.origins) : '' };   // 启动时 pts 不取 localStorage 的
 
 // ---- 错误收集（viz.errors()） ----
@@ -87,7 +117,7 @@ let hov = null;                        // 最近一次地图悬停：{ px, py, c
 let selAB = null;   // 矩形选区的两个角 { box, A, B }（box 必须还是 S.sel 本身才有效；⏎ 进游戏时俯视 B 点用）
 let selA = null, edge = null, copied = '', pinV = null, pinK = '', pinPend = false;   // pinV / pinK：③ 近端格的 sample 缓存
 
-const genUrl = (g) => /^(mini|gp|liq|old|pg1|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
+const genUrl = (g) => /^(mini|gp|liq|old|pg1|luan0|luanV|veg|sck)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
 const dpr = () => window.devicePixelRatio || 1;
 
 // ---- 启动 / 重置：换生成器或种子 ----
@@ -101,7 +131,7 @@ async function boot() {
   meta = await pool.init({ seed: S.seed, g: S.g, kw: S.kw });
   H = meta.h ?? 256;
   if (S.y === null) S.y = meta.sea ?? 64;   // 侧视的屏幕中心高度：默认海平面（liq 127）
-  store = new Store(meta); LY.reset(meta);
+  store = new Store(meta); LY.reset(meta); caveReset();
   pool.call('sample', { x: 0, z: 0 }).then((s) => { LY.setFields(Object.keys(s ?? {}).filter(k => typeof s[k] === 'number' && k !== 'biome')); syncUI(); frame(); }).catch(() => {});
   S.zoom = clampZoom(S.zoom);
   R.alloc(Math.min(MAX3, Math.ceil(wantSizes()[0] / 8) * 8), H); R.clear2(); lutRGB = blockLUT(meta.names ?? []); pcache.clear(); pPend.clear(); R.palette(lutRGB, biomeLUT(meta)); biomeRGB = null;
@@ -221,10 +251,33 @@ function range() {
 const center3 = () => [S.x, S.y, S.z];
 const mode = () => S.slice === null ? 'surface' : 'slice';
 function setSlice(v) { const rg = range(); v = clamp(Math.round(v), rg.lo, rg.hi); S.slice = v === rg.outer ? null : v; changed(); }
+// ---- 同步切片（② 视图 > 缩放 下面）：游戏在线时，切片 = 玩家在当前视线轴上的坐标 —— 俯视 / 仰视 = y，东 / 西侧视 = x，南 / 北侧视 = z ----
+// 返回是否改了 S.slice（调用方负责 changed()；peerOk 在后面才定义，只在事件 / 每秒轮询里调用）
+function syncSlice() {
+  if (!S.sync || !store || !peerOk() || !peer?.p1) return false;
+  const P = peer.p1, a = axisOf(VIEWS[S.view].F), v = Math.round(P[a === 1 ? 2 : a === 0 ? 0 : 1]);
+  if (!Number.isFinite(v)) return false;
+  if (a === 1) {   // Y（俯视 / 仰视）：切片 = 玩家所在那一层，但只在地表以下才跟 —— 站在地面 / 飞在上空时不动你手动调好的切片（否则每秒都被拉回地面）
+    const c = store.col(P[0], P[1]);
+    if (!c || v >= c.h) return false;
+  }
+  const rg = range();
+  let nv = a === 1 ? clamp(v, rg.lo, rg.hi) : v;               // X / Z 直接给切面（窗口中心跟着切片走，见 focus）；Y 夹到世界高度
+  if (a === 1 && rg.dir < 0) nv = Math.min(nv, rg.outer);      // 俯视：高于已载入地表的层没有东西可看 → 停在地表
+  if (a === 1 && nv === rg.outer) nv = null;                   // 正好在最外层 = 地表模式
+  if (nv === S.slice) return false;
+  S.slice = nv; return true;
+}
+function syncSliceUI() {   // 游戏标签页没连（或生成器 / 种子不同）= 禁用；标签写当前会同步的轴
+  const c = $('syncc'), ok = !!store && peerOk();
+  c.disabled = !ok; c.checked = S.sync;
+  $('syncax').textContent = AXN[axisOf(VIEWS[S.view].F)];
+  return ok;
+}
 
 function frame() { if (!frameReq) frameReq = requestAnimationFrame(() => { frameReq = 0; draw(); }); }
 function viewParams(v, o) {
-  const p = { F: v.F, R: v.R, D: v.D, shade: ['block', 'biome', 'height'].indexOf(S.shade), terr: S.terr, bmode: S.bio.length ? { only: 1, hl: 2, un: 3 }[S.bm] : 0, light: lightRGB(), sun: sunDir(), win: store.win, wa: store.w3, win2: store.win2, wa2: store.w2, sea: meta.sea ?? 62 };
+  const p = { F: v.F, R: v.R, D: v.D, shade: S.xray === CAVE ? 2 : SHADE_IDX[S.shade] ?? 0, terr: S.terr, bmode: S.bio.length ? { only: 1, hl: 2, un: 3 }[S.bm] : 0, light: lightRGB(), sun: sunDir(), win: store.win, wa: store.w3, win2: store.win2, wa2: store.w2, sea: meta.sea ?? 62, fog: S.fog, hi: hiComp(), dropN: S.drop };
   if (S.sel) p.inv = [...nearCell(S.sel), 1];
   const box = selA && hov ? [2, boxFrom(selA, hov.p)] : S.sel ? [1, S.sel] : null;
   if (box) Object.assign(p, { sel: box[0], selMin: box[1].slice(0, 3), selMax: box[1].slice(3) });
@@ -233,6 +286,10 @@ function viewParams(v, o) {
 function draw() {
   if (!store) return;
   readout();
+  if (thkNeeded() && idle() && !caveJob) {   // 厚度纹理：块都到齐了才算（到一块就重算太费）；同一 (rev, 中心格) 只试一次，没有块可算时不会空转
+    const [cx, , cz] = center3(), k = `${store.rev},${cx >> 5},${cz >> 5},${S.cmin}`;
+    if (k !== caveKey && caveStale(cx, cz)) { caveKey = k; caveRun(Math.floor(cx), Math.floor(cz)).catch(e => errs.push(String(e))); }
+  }
   let n = 0;
   for (const r of dirty3) { if (store.map.get(key(r.cx, r.cz)) === r) R.upload(r); dirty3.delete(r); if (++n >= 48) break; }
   n = 0;
@@ -243,7 +300,7 @@ function draw() {
   const v = VIEWS[S.view], rg = range();
   const clip = play && play.axis !== rg.a ? [play.axis, -play.sign, clipVal(), 1] : [0, 0, 0, 0];   // 压暗的是「已扫过」的那一侧（扫描方向的背后），所以符号取反
   const mk = hov?.r?.hit ?? hov?.r?.water;
-  const e = R.draw(viewParams(v, { res: [w, h], center: center3(), zoom: S.zoom * k, start: rg.start, end: rg.end, air: S.air ? 1 : 0, xray: S.xray | 0, grid: S.grid, clip, mark: mk ? [...mk, 1] : [0, 0, 0, 0] }));
+  const e = R.draw(viewParams(v, { res: [w, h], center: center3(), zoom: S.zoom * k, start: rg.start, end: rg.end, air: S.air ? 1 : 0, xray: S.xray === CAVE ? 0 : S.xray, grid: S.grid, clip, mark: mk ? [...mk, 1] : [0, 0, 0, 0] }));
   if (e) errs.push(e);
   layerDraw(rg);
   ruler(); originMarks(); p1Mark(); bioTick(); sliceUI(rg); tlUI();
@@ -523,11 +580,12 @@ function world() {
 
 // ---- UI 同步 ----
 function syncUI() {
-  $('seed').value = S.seed; $('gsel').value = /^(mini|gp|liq|old|pg1|luan0|luanV|veg)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade; $('cleg').style.display = S.shade === 'height' ? '' : 'none';
+  $('seed').value = S.seed; $('gsel').value = /^(mini|gp|liq|old|pg1|luan0|luanV|veg|sck)$/.test(S.g) ? S.g : ''; $('vsel').value = S.view; $('shsel').value = S.shade; $('cleg').style.display = S.xray === CAVE ? '' : 'none';
   $('rate').value = S.rate; $('minipc').checked = S.minip; $('otextc').checked = S.otext; $('terrsel').value = S.terr; dialUI(); $('side').classList.toggle('lay', S.lay); $('layb').classList.toggle('on', S.lay); $('bmode').value = S.bm; bioUI(); $('airc').checked = S.air; $('gridc').checked = S.grid;
-  $('seld').value = S.seld; layerUI();
+  $('seld').value = S.seld; layerUI(); $('xrayr').value = S.xray; $('xrayv').textContent = S.xray === CAVE ? '洞窟' : S.xray ? S.xray + ' 格' : '关';
+  $('cminr').value = S.cmin; $('cminv').textContent = S.cmin ? '≥ ' + S.cmin + ' 格' : '关'; $('dropr').value = S.drop; $('dropv').textContent = '≥ ' + S.drop + ' 格';
   $('fillr').value = S.fill; $('fillv').textContent = Math.round(S.fill * 100) + '%';
-  $('zv').textContent = `${+S.zoom.toFixed(3)} px/格` + (S.air && S.zoom <= 22 ? '（> 22 才叠数字）' : '');
+  $('zv').textContent = `${+S.zoom.toFixed(3)} px/格` + (S.air && S.zoom <= 22 ? '（> 22 才叠数字）' : ''); syncSliceUI();
   const gb = $('game');
   gb.classList.remove('off'); gb.style.opacity = '';
   gb.title = S.g === 'mini'
@@ -550,7 +608,7 @@ function urlParams(o = {}, live = false) {   // live = true：快照那组也取
   const p = new URLSearchParams({ g: S.g, seed: S.seed, pv: sgn(V.ax) + (S.slice !== null ? ':' + S.slice : ''), p1: `@${Math.round(S.x)},${Math.round(S.z)}` + (axisOf(V.F) !== 1 ? '^' + Math.round(S.y ?? 64) : ''), z: Math.round(S.zoom) });
   if (S.shade !== 'block') p.set('shade', S.shade); if (S.layer !== 'none') p.set('layer', S.layer);
   if (Object.keys(S.kw).length) p.set('kw', fmtKw(S.kw));
-  if (L.fill !== 1) p.set('fill', L.fill); if (L.rate !== 7) p.set('rate', L.rate); if (L.minip) p.set('minip', 1); if (!L.otext) p.set('otext', 0); if (L.terr) p.set('terr', L.terr); if (L.lay) p.set('lay', 1); if (L.bio.length) p.set('bio', L.bio.join(',')); if (L.bm !== 'hl') p.set('bm', L.bm); if (L.tod !== null) p.set('tod', +L.tod.toFixed(2)); if (L.lcol) p.set('lcol', L.lcol); if (L.opath) p.set('opath', 1); if (L.air) p.set('air', 1); if (L.xray) p.set('xray', L.xray); if (L.lop !== 0.35) p.set('lop', L.lop);
+  if (L.fill !== 1) p.set('fill', L.fill); if (L.rate !== 7) p.set('rate', L.rate); if (L.minip) p.set('minip', 1); if (!L.otext) p.set('otext', 0); if (L.terr) p.set('terr', L.terr); if (L.lay) p.set('lay', 1); if (L.bio.length) p.set('bio', L.bio.join(',')); if (L.bm !== 'hl') p.set('bm', L.bm); if (L.tod !== null) p.set('tod', +L.tod.toFixed(2)); if (L.lcol) p.set('lcol', L.lcol); if (L.opath) p.set('opath', 1); if (L.air) p.set('air', 1); if (L.xray !== 30) p.set('xray', L.xray === CAVE ? 'cave' : L.xray); if (L.fog !== 0.6) p.set('fog', L.fog); if (L.cmin !== 3) p.set('cmin', L.cmin); if (L.drop !== 4) p.set('drop', L.drop); if (L.lop !== 0.35) p.set('lop', L.lop);
   if (!L.grid) p.set('grid', 0); if (L.sel) p.set('sel', L.sel.join(','));
   if (L.origin[0] || L.origin[1]) p.set('origin', L.origin.join(',')); if (L.hit && L.sel && inBox(L.hit, L.sel)) p.set('hit', L.hit.join(','));
   if (L.pts && L.pts.length < 600) p.set('pts', L.pts);
@@ -572,9 +630,11 @@ function setView(v) {
   requestAnimationFrame(() => { f.style.transition = ''; f.style.opacity = 0; });
   fadeEnd = performance.now() + 200;
   const a0 = axisOf(VIEWS[S.view].F), a1 = axisOf(VIEWS[v].F);
-  if (a0 === 1 && a1 !== 1) S.y = Math.round(mapY());                 // 俯视 → 侧视：屏幕中心放在中心列的地表附近
+  // 俯视 / 仰视 → 侧视：切片模式 = 屏幕中心停在你正看的那一层（往地下看过再换视角不回跳）；地表模式 = 中心列地表
+  if (a0 === 1 && a1 !== 1) S.y = S.slice !== null ? S.slice : Math.round(mapY());
   if (a0 !== a1 && S.slice !== null) S.slice = Math.round(a1 === 1 ? S.y : a1 === 0 ? S.x : S.z);   // 切片换轴：过屏幕中心
   S.view = v;
+  syncSlice();   // 同步切片开着：换轴后按新的视线轴取玩家坐标
   changed();
 }
 function mapY() { if (!store) return 64; const c = store.col(Math.floor(S.x), Math.floor(S.z)); return c ? Math.max(c.y + c.wd, meta.sea) : meta?.sea ?? 64; }
@@ -725,7 +785,7 @@ $('scp').onclick = () => S.sel && copy(selAt(S.sel), 'sel');
 $('ssub').onclick = submitClick;
 $('sub').onclick = submitClick;
 $('surl').onclick = () => copy(vizUrl(), 'url');
-$('sgd').onclick = () => copy(`node gode/tools/gd.js go '${location.pathname.replace(/^\//, '')}?${shareQs()}'`, 'gd');
+$('sgd').onclick = () => copy(`node gode/gd.js go '${location.pathname.replace(/^\//, '')}?${shareQs()}'`, 'gd');
 $('sclr').onclick = () => { selA = null; S.sel = null; changed(); };
 
 // ---- 相机：拖动平移、朝光标缩放、Shift+滚轮调切片 ----
@@ -1033,12 +1093,11 @@ function layerPeek() {
   if (S.layer !== 'none') { layerStash = S.layer; S.layer = 'none'; changed(); toast('图层：暂时关（Del 复原）'); }
   else if (layerStash) { S.layer = layerStash; layerStash = null; changed(); toast('图层：已复原'); }
 }
-const SHADES = ['block', 'biome', 'height'];
 addEventListener('keydown', (e) => {
   if (e.target.matches?.('input, select, textarea')) return;
   if (e.key === 'Enter' && !e.altKey && !e.metaKey) {   // ⏎ = 进游戏；Ctrl+⏎ = 一键提交给 Agent（preventDefault：焦点在按钮上时不再触发该按钮）
     e.preventDefault(); if (e.repeat) return;
-    if (e.ctrlKey) submitClick(); else enterGame(false);   // ⏎：有选中点 / 选区 = 游戏跳到那儿；游戏在线且没有 = 游戏相机改为望向脚下；游戏不在线 = 开新标签页
+    if (e.ctrlKey) submitClick(); else enterGame(false);   // ⏎：hit 在玩家身上（p1）= 游戏跳到准星；有选中点 / 选区 = 跳到那儿；都没有 = 相机望向脚下；游戏不在线 = 开新标签页
     return;
   }
   if (e.key === 'Escape') { if (bs) { bioStop(); return; } if (play?.frozen) { stopPlay(); toast('剖面已取消'); return; } if (selA) selA = null; else S.sel = null; changed(); return; }
@@ -1046,7 +1105,7 @@ addEventListener('keydown', (e) => {
     if (e.code === 'KeyK' && !e.repeat) { toggleDial(); return; }
     if (e.code === 'NumpadDecimal' && !e.repeat) { e.preventDefault(); layerPeek(); return; }   // 小键盘 Del = 图层暂时关 / 复原（原 5 键）
     if ((e.code === 'Numpad5' || e.code === 'Digit5') && !e.repeat) { e.preventDefault(); $('ctx').style.display === 'block' ? hideCtx() : showCtx(); return; }   // 5 = 快速拉开原点菜单
-    if (e.code === 'KeyT') { S.shade = SHADES[(SHADES.indexOf(S.shade) + 1) % 3]; changed(); return; }
+    if (e.code === 'KeyT') { S.shade = SHADES[(SHADES.indexOf(S.shade) + 1) % SHADES.length]; changed(); return; }
     if (e.code === 'KeyV') { flipView(); return; }   // 和 giz 右键同效：沿视线轴翻到反向（俯视 ↔ 仰视…）
     if (e.code === 'KeyF') { e.preventDefault(); toggleFull(); return; }
     if (e.repeat) { if (['KeyE', 'KeyR', 'KeyC', 'KeyL'].includes(e.code)) return; }
@@ -1108,10 +1167,10 @@ function enterGame(withPv) {
     if (S.terr !== 1) { S.terr = 1; changed(); }   // 打开游戏 tab：着色调成 2.5D（已经 1 就不重复切）
     window.open(gameUrl(S.g, withPv), '_blank'); return;
   }
-  if (!withPv) {   // ⏎：① 游戏有 xhair 且 viz 的 p1（视口中心）正好在 hit 上 → 游戏跳到 xhair；② 否则有 hit / 选区 → 跳到 hit；③ 都没有 → 游戏相机望向脚下
-    const same = S.hit && Math.floor(S.x) === S.hit[0] && Math.floor(S.z) === S.hit[2];
+  if (!withPv) {   // ⏎：① 游戏有 xhair 且 hit 就在玩家身上（p1）→ 游戏跳到准星（目视位置，连按 = 连续跳）；② 否则有 hit / 选区 → 跳到 hit；③ 都没有 / hit 就是玩家而准星什么都没打到 → 游戏相机望向脚下
+    const same = S.hit && peer.p1 && peer.p1[0] === S.hit[0] && peer.p1[1] === S.hit[2];   // p1 = [x, z, y, yaw]；hit = [x, y, z]
     if (peer.xhair && same) { const [x, y, z] = peer.xhair; bc.postMessage({ from: 'viz', tp: { x, y: y + 1, z } }); toast(`游戏跳到准星 @${x},${z}^${y + 1}`); return; }
-    if (!peer.xhair && !S.sel) { bc.postMessage({ from: 'viz', tp: { look: 'feet' } }); toast('游戏相机：望向脚下'); return; }
+    if (!peer.xhair && (!S.sel || same)) { bc.postMessage({ from: 'viz', tp: { look: 'feet' } }); toast('游戏相机：望向脚下'); return; }
   }
   const { x, y, z, yaw, pitch } = gamePose(); bc.postMessage({ from: 'viz', tp: { x, y, z, yaw, pitch }, pv: withPv ? pvStr() : null }); toast(`传送游戏 @${x},${z}^${y}${withPv ? ' ' + pvStr() : ''}`);
 }
@@ -1204,18 +1263,26 @@ $('minipc').onchange = () => { S.minip = $('minipc').checked; changed(); };
 $('otextc').onchange = () => { S.otext = $('otextc').checked; changed(); };
 $('terrsel').onchange = () => { S.terr = +$('terrsel').value; changed(); };
 $('airc').onchange = () => { S.air = $('airc').checked; changed(); };
+$('syncc').onchange = () => { S.sync = $('syncc').checked; if (syncSlice()) changed(); else syncSliceUI(); };
 $('lchips').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setLayer(b.dataset.l); });
 $('lopr').oninput = () => { S.lop = clamp(+$('lopr').value, 0.1, 1); changed(); };
+$('xrayr').oninput = () => { S.xray = parseXray($('xrayr').value); changed(); };
+$('cminr').oninput = () => { S.cmin = clamp(+$('cminr').value, 0, 6); changed(); };
+$('dropr').oninput = () => { S.drop = clamp(Math.round(+$('dropr').value), 1, 30); changed(); };
 $('gridc').onchange = () => { S.grid = $('gridc').checked; changed(); };
-setInterval(() => { if (store && (busy.size || dirty3.size)) world(); }, 1000);
+setInterval(() => { syncSliceUI(); if (store && (busy.size || dirty3.size)) world(); }, 1000);
 // 与游戏标签页互通点位（BroadcastChannel 'gode-sync'，每秒一次；main/boot.js 同名频道）：发视口中心 p1；
 // 收游戏的 p1 / xhair / pv 存进 peer（viz.peer()）；hit 只是 viz 自己的局部状态，不进消息
 const bc = new BroadcastChannel('gode-sync'); let peer = null, peerAt = 0, wasIn2d = null;
 bc.onmessage = (e) => {
   const m = e.data; if (m?.from !== 'game') return;
   if (m.origins) { try { S.origins = parseOrigins(localStorage.getItem('pgviz.origins')); } catch {} renderCtx(); url(); if (store) frame(); toast('游戏里新增了原点'); return; }   // 游戏的 C：重读本地存储
-  const wasLive = gameLive();
+  const wasLive = gameLive(), p0 = peer?.p1;
   peer = m; peerAt = performance.now(); if (store) frame();   // 重画 P1 标记
+  if (syncSlice()) changed(); else syncSliceUI();   // 同步切片：切面跟着玩家（值 / 轴变了才重算布局）
+  // 玩家点位变了、而 hit 原本就在玩家身上（= 『瞄准』状态）→ hit 跟到新玩家格：
+  // ⏎ 跳到准星后，下一次 ⏎ 还得是「跳到新位置的准星」（连按 = 连续空间跳跃）；点选的目标（hit ≠ 玩家）不会被广播覆盖
+  if (m.p1 && p0 && (m.p1[0] !== p0[0] || m.p1[1] !== p0[1]) && S.hit && S.hit[0] === p0[0] && S.hit[2] === p0[1]) { S.hit = [m.p1[0], m.p1[2], m.p1[1]]; changed(); }
   // 刚连上（之前不在线）：拨盘时间对齐游戏时钟（5 分钟一格）；之后由拨盘驱动游戏（见每秒发的 tod）
   if (!wasLive && typeof m.hour === 'number' && (S.tod === null || Math.abs(S.tod - m.hour) > 1 / 60)) { S.tod = Math.round(m.hour * 12) / 12; dialUI(); changed(); }
   // 玩家出了跟随范围（细节绘制 slider × 半屏；1 = 到边缘）：平滑居中。失焦时实时跟；刚连上（wasIn2d === null）先同步一次
@@ -1224,7 +1291,7 @@ bc.onmessage = (e) => {
   wasIn2d = in2d;
 };
 const hitToCenter = () => { if (!S.hit || !store) return; S.x = S.hit[0] + 0.5; S.z = S.hit[2] + 0.5; if (VIEWS[S.view].F[1] === 0) S.y = S.hit[1]; changed(); };
-// 切回页面 / 标签页恢复：先把 hit 同步到玩家（否则「聚焦 hit」和「跟随玩家」会来回跳），玩家不在范围内再平滑居中过去
+// 切回页面 / 标签页恢复：hit 同步回玩家（= ⏎ 的『瞄准』状态：跳到准星；游戏里瞄一下再切回来就能用）；玩家不在视野里再平滑居中过去
 const syncPlayer = () => {
   if (!peer?.p1 || !peerOk()) return false;
   const [px, pz, py] = peer.p1;
@@ -1266,7 +1333,7 @@ async function regionCall(o) {
 }
 
 // ---- window.viz：给 Agent / gd ----
-const KEYS = { layer: String, lop: Number, g: String, seed: String, view: String, x: Number, y: Number, z: Number, zoom: Number, mode: String, n: Number, rate: Number, minip: Boolean, lay: Boolean, bio: parseBio, bm: (v) => { if (!['only', 'hl', 'un'].includes(v)) throw new Error('bm ∈ only hl un'); return v; }, terr: parseTerr, tod: (v) => parseTod(v), lcol: (v) => /^#?[0-9a-f]{6}$/i.test(v ?? '') ? String(v).replace('#', '').toLowerCase() : null, otext: Boolean, opath: Boolean, air: parseAir, xray: (v) => clamp(Math.round(+v || 0), 0, 64), shade: String, grid: Boolean, fill: Number,
+const KEYS = { layer: String, lop: Number, g: String, seed: String, view: String, x: Number, y: Number, z: Number, zoom: Number, mode: String, n: Number, rate: Number, minip: Boolean, lay: Boolean, bio: parseBio, bm: (v) => { if (!['only', 'hl', 'un'].includes(v)) throw new Error('bm ∈ only hl un'); return v; }, terr: parseTerr, tod: (v) => parseTod(v), lcol: (v) => /^#?[0-9a-f]{6}$/i.test(v ?? '') ? String(v).replace('#', '').toLowerCase() : null, otext: Boolean, opath: Boolean, air: parseAir, xray: parseXray, fog: (v) => clamp(+v || 0, 0, 1), cmin: (v) => clamp(+v || 0, 0, 6), drop: (v) => clamp(Math.round(+v || 4), 1, 30), shade: String, grid: Boolean, fill: Number,
   slice: (v) => v === null || v === '' ? null : Number(v), sel: (v) => v === null || v === '' ? null : Array.isArray(v) ? normSel(v.map(Number)) : parseSel(v),
   origin: (v) => v === null || v === '' ? [0, 0] : Array.isArray(v) ? v.map(Number).map(Math.round) : parsePair(v) ?? [0, 0], pin: (v) => v === null || v === '' ? null : Array.isArray(v) ? parsePin(v.join(',')) : parsePin(v), seld: Number };   // pin = sel 的别名
 window.viz = {
@@ -1275,8 +1342,19 @@ window.viz = {
     await booting;
     if (bootErr) throw bootErr;   // 池加载失败（生成器脚本 404 / 语法错）：立刻失败，不要干等 40 s
     if (!(idle() && !dirty3.size && !dirty2.size)) await new Promise(r => { waiters.push(r); frame(); });
+    if (thkNeeded()) { const [cx, , cz] = center3(); if (caveStale(cx, cz)) await caveRun(Math.floor(cx), Math.floor(cz)); }
     draw(); const w = fadeEnd - performance.now(); if (w > 0) await new Promise(r => setTimeout(r, w));   // 等视角切换的淡出结束
     return true;
+  },
+  // 洞穴分析（EDT 厚度 + 连通 + 摔落高度，口径见 cave.js）：以 (x, z)（缺省视口中心）为中心、半边 r 格（缺省 128，≤ 384）的盒；y 缺省 = 当前切片。
+  // minR（缺省 = 侧栏「最小洞半径」）：剔除比它细的通道再算连通；drop（缺省 = 侧栏「摔落高度」）：竖井的最小落差。
+  // 返回 { box, ymax, open, r50, r90, rmax, thin, comp, big, orph, orphMax, minR, kept, drop: { n, cols, shafts, max }, at?: 该层 y ± band 的同口径数字 }
+  async cave(o = {}) {
+    await window.viz.ready();
+    const [cx, , cz] = center3(), x = Math.floor(o.x ?? cx), z = Math.floor(o.z ?? cz), r = clamp(Math.round(o.r ?? CAVE_R), 16, 384), op = caveOpts(o);
+    const a = caveStale(x, z, r, 0, op, true) ? await caveRun(x, z, r, op) : caveRes;
+    if (!a) throw new Error('viz.cave: 盒里没有已载入的块');
+    return summarize(a, o.y ?? S.slice ?? undefined, o.band ?? 2);
   },
   stats(o) {   // 无参 = 状态；带参 = 区域统计（调参闭环，见 stats.js）
     if (o !== undefined) return regionCall(o);

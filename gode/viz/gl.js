@@ -11,8 +11,8 @@ void main() { vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); gl_Positio
 
 const FS = `#version 300 es
 precision highp float; precision highp int;
-precision highp usampler3D; precision highp isampler2D;
-uniform usampler3D uVox; uniform isampler2D uSlot; uniform isampler2D uCol; uniform isampler2D uSlot2; uniform sampler2D uLut; uniform sampler2D uBio; uniform sampler2D uBsel;
+precision highp usampler3D; precision highp isampler2D; precision highp sampler3D;
+uniform usampler3D uVox; uniform isampler2D uSlot; uniform isampler2D uCol; uniform isampler2D uSlot2; uniform sampler2D uLut; uniform sampler2D uBio; uniform sampler2D uBsel; uniform sampler3D uThk;
 uniform int uW, uWa, uC, uWa2, uH, uSea;
 uniform ivec2 uWin, uWin2;          // 3D / 2D 窗口最小区块
 uniform vec2 uRes, uVp;             // 视口像素大小、左下角
@@ -25,6 +25,10 @@ uniform int uTerr;                  // 俯视的地表阴影：0 默认台阶式
 uniform int uBMode;                 // 群系 finder：0 无 1 只显示（射线里剪枝）2 高亮 3 取消高亮（选中集 = uBsel，256×1 R8）
 uniform vec3 uLight, uSun;          // 光色乘子（时间 / 光色覆盖；默认白）、太阳方向（指向光源；默认左上）
 uniform int uAir, uGrid, uSel, uXray;   // uAir：0 无 1 灰渐变（格 > 22 px 叠黑色数字）；uXray：>0 = 切面往里这么多格内的方块半透明叠加（看穿、洞穴不只是截面）；uSel：0 无 1 选区 2 拉框预览
+uniform float uFog;                 // 深度雾强度 0…1：地下空气距离着色（暖→冷混合）、xray 空气 / 岩石按深度衰减、侧视深度压暗
+uniform int uThkOn;                 // 洞穴分析纹理（cave.js：RGB8 = 距离 × 8 / 连通域名次 / 摔落高度；x,z,y 排布）是否可用；uThkO = 盒最小角 (x,0,z)、uThkS = 盒尺寸 (x,y,z)
+uniform ivec3 uThkO, uThkS;
+uniform int uHi, uDropN;            // conn 档单独高亮的连通域名次（0 = 不高亮）；conn 档画红框的摔落高度阈值（格）
 uniform ivec3 uSelMin, uSelMax;
 uniform ivec4 uClip;                // 端点快放：轴、符号、值、开关 —— 越过的部分压暗并画切线
 uniform ivec4 uInv;                 // 反色标记格 (x,y,z,开关)：选区近端格
@@ -103,6 +107,25 @@ float terrShade(int x, int z, vec2 fr) {   // uTerr 1：光从 uSun 来；平地
 }
 float topLight(int y) { return 0.82 + 0.18 * clamp(float(y - uSea + 32) / 96.0, 0.0, 1.0); }
 
+vec3 airRamp(float t) { vec3 a = vec3(1.0, 0.82, 0.28), b = vec3(0.15, 0.65, 0.75), d = vec3(0.42, 0.22, 0.85); return t < 0.5 ? mix(a, b, t * 2.0) : mix(b, d, t * 2.0 - 1.0); }
+vec4 tx(ivec3 c) {   // 洞穴分析纹理：x = 洞窟格到最近实体的距离（格；0 = 不是洞窟格），y = 连通域名次（1 = 最大域；255 = 孤立小洞；0 = 被最小洞半径剔除的细通道），z = 摔落高度（格，≤ 127），w = 1 危险格（落差 ≥ 阈值的井口 / 坑边，见 cave.js）；没有分析数据 = (-1, 0, 0, 0)
+  if (uThkOn == 0) return vec4(-1.0, 0.0, 0.0, 0.0);
+  ivec3 q = c - uThkO;
+  if (q.x < 0 || q.y < 0 || q.z < 0 || q.x >= uThkS.x || q.y >= uThkS.y || q.z >= uThkS.z) return vec4(-1.0, 0.0, 0.0, 0.0);
+  vec3 t = texelFetch(uThk, ivec3(q.x, q.z, q.y), 0).rgb * 255.0; return vec4(t.x / 8.0, t.y, mod(t.z, 128.0), step(128.0, t.z));
+}
+vec3 compColor(float k) {   // 连通域上色：被剔除的细通道 = 暗灰；最大域 = 亮青（主网络）；孤立小洞 = 洋红；其余按名次取色相（黄金比例分散，避开红色，红色留给竖井框）
+  if (k < 0.5) return vec3(0.28, 0.28, 0.34);
+  if (k < 1.5) return vec3(0.15, 0.85, 0.95);
+  if (k > 254.5) return vec3(0.82, 0.3, 0.8);
+  vec3 p = abs(fract(vec3(mix(0.1, 0.92, fract(k * 0.618034))) + vec3(1.0, 2.0 / 3.0, 1.0 / 3.0)) * 6.0 - 3.0);
+  return 0.95 * mix(vec3(1.0), clamp(p - 1.0, 0.0, 1.0), 0.75);
+}
+vec3 thickRamp(float t) {   // 管半径色带（对数）：1 格深蓝 → 2 青 → 4 黄绿 → 8 橙 → 16+ 红
+  float u = clamp(log2(max(t, 1.0)) / 4.0, 0.0, 1.0);
+  vec3 a = vec3(0.10, 0.12, 0.60), b = vec3(0.08, 0.72, 0.82), c = vec3(0.92, 0.88, 0.20), d = vec3(0.95, 0.30, 0.12);
+  return u < 0.34 ? mix(a, b, u / 0.34) : u < 0.67 ? mix(b, c, (u - 0.34) / 0.33) : mix(c, d, (u - 0.67) / 0.33);
+}
 void main() {
   fa = axisOf(uF);
   vec2 px = vec2(gl_FragCoord.x - uVp.x, uRes.y - (gl_FragCoord.y - uVp.y));
@@ -113,9 +136,11 @@ void main() {
   c[fa] = uStart;
   ivec3 c0 = c;
   int n = (uEnd - uStart) * dir + 1;
+  int xrn = 0;   // xray 只在起点格（切面）在地面或以下时启用：切面在地面以上（含地表模式）按普通渲染
+  { ivec4 g0; if (uXray > 0 && col2(c.x, c.z, g0) && c.y <= g0.y) xrn = uXray; }
   vec3 bg = vec3(0.075, 0.08, 0.095);
   int hitV = 0, wd = 0, dist = 0, waterV = 0, step = 0; bool known = false, hit = false, cave = false;
-  vec3 xacc = vec3(0.0); float xa = 0.0;   // uXray：切面往里每格实体按深度衰减的叠加（前 + 后透出来）
+  vec3 xacc = vec3(0.0); float xa = 0.0; float tFirst = -1.0, cFirst = 0.0, fFirst = 0.0, hFirst = 0.0; ivec3 cA = ivec3(0);   // xrn：切面往里每格实体按深度衰减的叠加（前 + 后透出来）；tFirst / cFirst / fFirst / hFirst：视线上第一格洞窟格的厚度 / 连通域名次 / 摔落高度 / 是否危险格（thick / conn / drop 档）
   for (int i = 0; i < 1024; i++) {
     if (i >= n) break;
     step++;
@@ -123,6 +148,7 @@ void main() {
     int v = vox(c);
     if (v < 0) { if (fa == 1 || known) break; c[fa] += dir; dist++; continue; }
     known = true;
+    if (uShade >= 3 && tFirst < 0.0 && !hit) { vec4 tv = tx(c); if (tv.x > 0.0) { tFirst = tv.x; cFirst = tv.y; fFirst = tv.z; hFirst = tv.w; cA = c; } }
     if (uShade == 2) {   // 洞窟：岩石（含地表）剔除；地表以下、头顶有岩石的空气 = 洞窟空气；进过洞窟后碰到的第一个实体 = 墙面
       bool open = v == 0 || clsOf(lut(v)) != 1;
       if (open) { ivec4 g0; if (col2(c.x, c.z, g0) && c.y < g0.y && underRock(c)) { cave = true; dist++; } }
@@ -131,20 +157,34 @@ void main() {
     }
     if (v != 0) {
       int k = clsOf(lut(v));
-      if (uXray > 0 && (k == 1 || k == 2)) {   // xray：切面往里每格按 alpha 前到后合成；实体用方块色
-        float al = k == 1 ? 0.26 : 0.14;
-        xacc += (1.0 - xa) * al * lut(v).rgb; xa += (1.0 - xa) * al;
+      if (xrn > 0 && (k == 1 || k == 2)) {   // xray：切面往里每格按 alpha 前到后合成；实体用方块色
+        float fd = exp(-1.5 * float(step) / float(xrn));
+        float al = (k == 1 ? 0.12 : 0.08) * mix(1.0, fd, uFog);
+        xacc += (1.0 - xa) * al * lut(v).rgb * (0.6 + 0.4 * fd); xa += (1.0 - xa) * al;
       }
       if (k == 1) {
-        if (!hit) { hitV = v; hit = true; if (uXray == 0) break; }                                   // 无 xray：停在第一格实体
-        if (uXray > 0 && step > uXray) break;
+        if (!hit) { hitV = v; hit = true; if (xrn == 0) break; }                                   // 无 xray：停在第一格实体
+        if (xrn > 0 && step > xrn) break;
       }
       if (k == 2) { if (wd == 0) waterV = v; wd++; }
     }
-    if (uXray > 0 && v == 0 && hit) { float al = 0.10; xacc += (1.0 - xa) * al * vec3(0.62, 0.30, 0.95); xa += (1.0 - xa) * al; }   // 地表以下的空气 = 紫色薄雾：洞 / 空腔在后面透出来（天空不染）
+    if (xrn > 0 && v == 0) {   // 地表以下的空气 = 按深度变色 + 衰减的雾：近亮远淡、暖→冷，洞的远近分层（天空不染）；切面本身在洞里时，岩石前的空气也算
+      ivec4 g0;
+      if (hit || (col2(c.x, c.z, g0) && c.y < g0.y)) {
+        float fd = exp(-0.7 * float(step) / float(xrn)), al = (0.12 + 0.28 * uFog) * fd;
+        vec4 tv = uShade >= 3 ? tx(c) : vec4(-1.0, 0.0, 0.0, 0.0); vec3 ac = airRamp(clamp(float(step) / float(xrn), 0.0, 1.0));
+        if (tv.x > 0.0) {
+          if (uShade == 3) ac = thickRamp(tv.x);
+          else ac = uHi > 0 ? (int(tv.y + 0.5) == uHi ? vec3(1.0, 0.9, 0.3) : vec3(0.22)) : compColor(tv.y);
+        }
+        xacc += (1.0 - xa) * al * ac * 1.5; xa += (1.0 - xa) * al;
+      }
+    }
     if (wd == 0) dist++;
     c[fa] += dir;
   }
+  float edgeLv = fwidth(hit ? floor(float(c.y) / 4.0) : 0.0);
+  float tLv = fwidth(floor(max(tFirst, 0.0) * 0.5)), cLv = fwidth(cFirst);   // thick 档：每 2 格一档的等值线；conn 档：连通域边界（档变处压暗）
   vec3 col; bool shown = known;
   if (!known) {
     ivec4 cv;
@@ -173,7 +213,7 @@ void main() {
       float k = mod(floor((px.x + px.y) / 6.0), 2.0);
       col = bg * (0.8 + 0.25 * k);
     }
-  } else if (!hit && wd == 0) col = bg * 0.6;
+  } else if (!hit && wd == 0 && !(xrn > 0 && xa > 0.0)) col = bg * 0.6;
   else {
     vec3 base;
     if (uShade == 1) { ivec4 cv; base = col2(c.x, c.z, cv) ? bio(cv.z) : vec3(0.5); }
@@ -186,16 +226,39 @@ void main() {
         sh = 1.0 - 0.13 * float(occ);
         if (!solidAt(c - uR) && !solidAt(c - uD)) sh *= 1.06;
       }
-      if (uShade != 2) { if (fa == 1) sh *= topLight(c.y); else sh *= 1.0 - 0.45 * clamp(float(abs(c[fa] - uStart)) / 128.0, 0.0, 1.0); }
+      if (uShade != 2) { if (fa == 1) sh *= topLight(c.y); else sh *= 1.0 - 0.45 * clamp(float(abs(c[fa] - uStart)) / mix(128.0, 48.0, uFog), 0.0, 1.0); }
     }
     col = base * sh;
+    if (uFog > 0.0 && uShade != 2 && uShade != 3 && hit && dist > 0) {   // 空气距离着色：命中格以上 / 视线前的空气步数 → 暖黄→青→蓝紫；只染地表以下，与方块色按比例混合（不覆盖）
+      ivec4 g0;
+      if (col2(c.x, c.z, g0) && c.y < g0.y) {
+        float lum = dot(col, vec3(0.3, 0.59, 0.11));
+        col = mix(col, airRamp(1.0 - exp(-float(dist) / 12.0)) * (0.55 + 0.7 * lum), uFog * 0.8 * smoothstep(0.0, 3.0, float(dist)));
+        if (fa == 1 && uF.y < 0 && edgeLv > 0.0) col *= 1.0 - 0.35 * uFog;   // 洞底落差：每 4 格一档的等高带，档变处压暗成线
+      }
+    }
+    if (uShade == 3 && hit && tFirst > 0.0) {   // 厚度：视线上第一格洞窟空气的距离色（对数色带）混进方块色，等值线压暗
+      float lum = dot(col, vec3(0.3, 0.59, 0.11));
+      col = mix(col, thickRamp(tFirst) * (0.55 + 0.7 * lum), 0.8);
+      if (tLv > 0.0) col *= 0.7;
+    }
+    if (uShade == 4 && hit && tFirst > 0.0) {   // 连通：视线上第一格洞窟格所属连通域的颜色，域边界压暗；uHi > 0 = 只高亮那个域（黄），别的域退成灰度
+      float lum = dot(col, vec3(0.3, 0.59, 0.11));
+      if (uHi > 0 && int(cFirst + 0.5) != uHi) col = vec3(lum) * 0.55;
+      else col = mix(col, (uHi > 0 ? vec3(1.0, 0.9, 0.3) : compColor(cFirst)) * (0.55 + 0.7 * lum), 0.8);
+      if (cLv > 0.0) col *= 0.6;
+      if (hFirst > 0.5) {   // 竖井：视线上第一格洞窟格是危险格（井口 / 坑边：同高度邻格站得住、这格摔落 ≥ 阈值）→ 沿这块危险格的外缘描正红方框（邻格不危险的那几条边，约 1.6 px 宽）
+        float fu = fract(dot(wp, vec3(uR))), fv = fract(dot(wp, vec3(uD))), lw = clamp(1.6 / uZoom, 0.06, 0.45);
+        if ((fu < lw && tx(cA - uR).w < 0.5) || (fu > 1.0 - lw && tx(cA + uR).w < 0.5) || (fv < lw && tx(cA - uD).w < 0.5) || (fv > 1.0 - lw && tx(cA + uD).w < 0.5)) col = vec3(1.0, 0.0, 0.0);
+      }
+    }
     if (uShade == 2 && fa == 1) col = caveFloor(c, hitV);
     else if (uShade == 2) col = mix(vec3(0.02, 0.03, 0.06), col * (0.55 + 0.9 * exp(-float(dist) / 40.0)), 0.25 + 0.75 * exp(-float(dist) / 56.0));   // 洞窟空气的深度雾：越深越暗、偏蓝黑（手电筒式）
     if (wd > 0) {
       vec3 w = uShade == 0 ? lut(waterV).rgb * 0.85 : vec3(0.15, 0.3, 0.7);
       col = hit ? mix(col, w, min(1.0, 0.45 + float(wd) * 0.04)) : w * 0.7;
     }
-    if (uXray > 0) col = xacc + bg * (1.0 - xa);   // xray：纯体积合成（方块色 + 背景），洞 / 空腔是没被填上的暗区
+    if (xrn > 0) col = xacc + bg * (1.0 - xa);   // xray：纯体积合成（方块色 + 背景），洞 / 空腔是没被填上的暗区
   }
   if (uBMode != 0 && (known ? (hit || wd > 0) : shown)) {   // 群系 finder
     ivec2 xz = known ? c.xz : c0.xz; ivec4 bv;
@@ -279,7 +342,7 @@ export class Renderer {
     const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
     for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), k = a.name.replace(/\[0\]$/, ''); this.u[k] = gl.getUniformLocation(p, a.name); }
     gl.uniform1iv(this.u.uFont, FONT);
-    ['uVox', 'uSlot', 'uCol', 'uSlot2', 'uLut', 'uBio', 'uBsel'].forEach((k, i) => gl.uniform1i(this.u[k], i));
+    ['uVox', 'uSlot', 'uCol', 'uSlot2', 'uLut', 'uBio', 'uBsel', 'uThk'].forEach((k, i) => gl.uniform1i(this.u[k], i));
     this.vao = gl.createVertexArray();
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
     this.max3d = gl.getParameter(gl.MAX_3D_TEXTURE_SIZE);
@@ -288,6 +351,7 @@ export class Renderer {
     this.tSlot2 = this.tex(3, gl.TEXTURE_2D); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA16I, C2, C2);
     this.slots2 = new Int16Array(C2 * C2 * 4);
     this.W = 0;
+    this.setThk(null);
   }
   tex(unit, target) { const gl = this.gl, t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(target, t);
     gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.NEAREST); return t; }
@@ -313,6 +377,16 @@ export class Renderer {
   bmask(ids) {   // 群系 finder 的选中集（ids = 群系 id 数组 / null）
     const gl = this.gl, a = new Uint8Array(256); for (const i of ids ?? []) a[i & 255] = 255;
     gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, this.tBsel); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.RED, gl.UNSIGNED_BYTE, a);
+  }
+  // 洞穴分析结果（cavejob.analyze）上传成 R8 3D 纹理；null = 清除
+  setThk(a) {
+    const gl = this.gl; if (this.tThk) gl.deleteTexture(this.tThk);
+    this.tThk = this.tex(7, gl.TEXTURE_3D);
+    if (!a) { gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGB8, 1, 1, 1); this.thk = null; return; }
+    if (Math.max(a.BX, a.BY, a.BZ) > this.max3d) throw new Error(`分析盒 ${a.BX}×${a.BY}×${a.BZ} 超过 MAX_3D_TEXTURE_SIZE ${this.max3d}`);
+    gl.texStorage3D(gl.TEXTURE_3D, 1, gl.RGB8, a.BX, a.BZ, a.BY);
+    gl.texSubImage3D(gl.TEXTURE_3D, 0, 0, 0, 0, a.BX, a.BZ, a.BY, gl.RGB, gl.UNSIGNED_BYTE, a.T);
+    this.thk = { x0: a.x0, z0: a.z0, bx: a.BX, by: a.BY, bz: a.BZ };
   }
   // 一块进 3D 环：体素 + 槽表
   upload(rec) {
@@ -350,6 +424,9 @@ export class Renderer {
     gl.uniform3i(u.uF, ...p.F); gl.uniform3i(u.uR, ...p.R); gl.uniform3i(u.uD, ...p.D);
     gl.uniform1i(u.uStart, p.start); gl.uniform1i(u.uEnd, p.end); gl.uniform1i(u.uShade, p.shade); gl.uniform1i(u.uTerr, p.terr | 0); gl.uniform1i(u.uBMode, p.bmode | 0); gl.uniform3f(u.uLight, ...(p.light ?? [1, 1, 1])); gl.uniform3f(u.uSun, ...(p.sun ?? [-0.5, 0.67, -0.5]));
     gl.uniform1i(u.uAir, p.air | 0); gl.uniform1i(u.uXray, p.xray | 0); gl.uniform1i(u.uGrid, p.grid ? 1 : 0);
+    gl.uniform1f(u.uFog, p.fog ?? 0);
+    gl.uniform1i(u.uThkOn, this.thk ? 1 : 0); gl.uniform1i(u.uHi, p.hi | 0); gl.uniform1i(u.uDropN, p.dropN ?? 4);
+    if (this.thk) { gl.uniform3i(u.uThkO, this.thk.x0, 0, this.thk.z0); gl.uniform3i(u.uThkS, this.thk.bx, this.thk.by, this.thk.bz); }
     gl.uniform4i(u.uClip, ...p.clip); gl.uniform4i(u.uMark, ...p.mark); gl.uniform4i(u.uInv, ...(p.inv ?? [0, 0, 0, 0]));
     gl.uniform1i(u.uSel, p.sel ?? 0); gl.uniform3i(u.uSelMin, ...(p.selMin ?? [0, 0, 0])); gl.uniform3i(u.uSelMax, ...(p.selMax ?? [0, 0, 0]));
     gl.drawArrays(gl.TRIANGLES, 0, 3);

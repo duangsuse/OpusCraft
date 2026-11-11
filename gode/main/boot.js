@@ -1,7 +1,8 @@
 /* gode/main/boot.js —— gode 宿主（M1）：起 slicer 池 → 世界镜像 → 控制器 → rgl，主循环。
-   URL：?g=mini|gp|liq|old|pg1|luan0|luanV|<worker url>（默认 mini）&seed=（默认 20240607）&rd=（默认 6）&kw=a.b:1,c:2（生成器参数，s02 §2.1）
+   URL：?g=mini|gp|liq|old|pg1|luan0|luanV|sc|<worker url>（默认 mini）&seed=（默认 20240607）&rd=（默认 6）&kw=a.b:1,c:2（生成器参数，s02 §2.1）
         &hour=（0..24，默认 10）&tspeed=（时钟快进：游戏小时 / 秒，默认 0 = 钉住）&p1=@x,z[^y][,yaw]（pgviz ↗；与 index.html 同格式，不给 = 出生点；pitch = −20°）&fly=1&noclip=1&r=gl
         &pv=[-]X|Y|Z[:切片]（与 pgviz 同写法：观察者在 +轴侧，切掉越过切片的一侧；0 键 = 切片向视线方向推 16 格；-Y = 仰视切掉切片以下）；每秒经 BroadcastChannel 'gode-sync' 把 p1（= hit，玩家点位）广播给 pgviz 标签页（URL 不动），也收 viz 的
+   键：C = 把脚下加进 pgviz 原点（地下记 y）；连地图（viz 标签页在线）时 Shift+C = 空间跳跃（落到准星指着的方块顶上，射程 = 视距 rd×16 格，连按 = 连续跳）；传送 / 跳跃后立刻广播 p1 / xhair
    Agent / 调试：window.gode = { world, ctl, pool, VR, tbl, meta, clock, pose(), settle(), stats(), errors() } */
 import * as THREE from '../../vendor/npm/three.module.js';
 import { Pool } from '../w/pool.js';
@@ -13,7 +14,7 @@ import { createGl } from './rgl.js';
 
 const q = new URLSearchParams(location.search);
 const G = q.get('g') ?? 'mini', SEED = q.get('seed') ?? '20240607', RD = Math.min(16, +(q.get('rd') ?? 6) || 6);
-const genUrl = (g) => /^(mini|gp|liq|old|pg1|luan0|luanV|veg)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
+const genUrl = (g) => /^(mini|gp|liq|old|pg1|luan0|luanV|veg|sc)$/.test(g) ? new URL(`../defl/g/${g}.js`, import.meta.url).href : new URL(g, location.href).href;
 const $ = (id) => document.getElementById(id);
 
 // ---- 错误收集（errors() 取自上次调用以来的）：页面日志之外给 Agent 一个结构化入口
@@ -104,33 +105,47 @@ async function main() {
     }
     return null;
   }
-  input.onkey = (code) => {
+  // 空间跳跃：落到准星指着的那格方块顶上（viz ⏎ 的「游戏跳到准星」同一落点：y = 方块 + 1，freeSpot 找站得下的地方），朝向不变。
+  // 射程 = 视距（渲染距离 rd 个区块 = rd×16 格），比地图用的 xhair（固定 64 格）远：视野里看得见的山都能跳过去
+  function spaceJump() {
+    const h = hitTest(rd * 16); if (!h) { toastMsg(`空间跳跃：视距 ${Math.round(rd * 16)} 格内没有方块`); return; }
+    const [fx, fy, fz] = freeSpot(h[0] + 0.5, h[1] + 1, h[2] + 0.5, p.yaw);
+    Object.assign(p, { x: fx, y: fy, z: fz, vx: 0, vy: 0, vz: 0, fallStart: fy });
+    toastMsg(`空间跳跃 @${h[0]},${h[2]}^${h[1] + 1}`); postPose();   // 立刻广播新点位：地图那边的 P1 / 准星落点不用等下一秒
+  }
+  input.onkey = (code, e) => {
     if (code === 'Digit0' || code === 'Numpad0') { if (hasPv) { pushClip(); return; } }
-    if (code === 'KeyC') { addOrigin(); return; }
+    if (code === 'KeyC') {   // C = 加原点；连地图（viz 标签页在线）时 Shift+C = 空间跳跃（连按 = 沿准星方向连续跳）
+      if (!e?.shiftKey) addOrigin(); else if (mapLive()) spaceJump();
+      return;
+    }
     ctl.key(code); if (code === 'F3') { dbg = !dbg; $('f3').style.display = dbg ? '' : 'none'; }
   };
   // 与 pgviz 标签页互通点位（BroadcastChannel，每秒一次；地址栏不动）：发 { from:'game', p1:[x,z,y,yaw], xhair:[x,y,z]|null（准星射线打到的第一个固体方块，旧 hit 的含义）, pv, hour }，收 viz 的同样字段存进 gode.peer
-  const bc = new BroadcastChannel('gode-sync'); let urlLive = false, peer = null, lastTod = null;
+  const bc = new BroadcastChannel('gode-sync'); let urlLive = false, peer = null, lastTod = null, peerAt = 0;
+  const mapLive = () => !!peer && performance.now() - peerAt < 3500;   // 地图标签页在线：3.5 s 内收到过它的广播（viz 每秒发一次，同 viz 的 gameLive）
+  function postPose() {
+    if (!urlLive) return;
+    bc.postMessage({ from: 'game', g: G, seed: SEED, p1: [Math.floor(p.x), Math.floor(p.z), Math.round(p.y), +p.yaw.toFixed(3)], xhair: hitTest(), pv: hasPv ? (clip.dir < 0 ? '-' : '') + 'XYZ'[clip.a] + (clip.on ? ':' + clip.s : '') : null, hour: +clock.hour.toFixed(3) });
+  }
   bc.onmessage = (e) => {
-    const m = e.data; if (m?.from !== 'viz') return; peer = m;
+    const m = e.data; if (m?.from !== 'viz') return; peer = m; peerAt = performance.now();
     if (m.pv) setPv(m.pv);
     // 拨盘时间随 p1 一起发来：**值变了才应用**（同一秒的重复广播不再把时钟钉住，tspeed 照常自己走）；viz 复原（null）后允许同样的时间再设一次
     if (m.tod === null) lastTod = null;
     else if (typeof m.tod === 'number' && m.tod !== lastTod) { lastTod = m.tod; clock.hour = ((m.tod % 24) + 24) % 24; }
     // 望向脚下：pitch 贴 −90°，yaw 归 0 —— 相机 screen-up = −Z = 俯视图的地图上方（viz 顶视图 F 是 −Y、D 是 +Z），
     // 于是按下 W（forward = [−sin yaw, 0, −cos yaw]）在俯视图上就是往「上」走
-    if (m.tp?.look === 'feet') { p.yaw = 0; p.pitch = -Math.PI / 2 + 0.01; toastMsg('望向脚下（朝地图上方）'); return; }
+    if (m.tp?.look === 'feet') { p.yaw = 0; p.pitch = -Math.PI / 2 + 0.01; toastMsg('望向脚下（朝地图上方）'); postPose(); return; }
     if (m.tp) {   // viz 的 ⏎ / 0：直接传送（格中心；yaw 为 null = 不改朝向）
       const yaw = typeof m.tp.yaw === 'number' ? m.tp.yaw : p.yaw, [fx, fy, fz] = freeSpot(m.tp.x, m.tp.y, m.tp.z, yaw);
       Object.assign(p, { x: fx, y: fy, z: fz, vx: 0, vy: 0, vz: 0, fallStart: fy, yaw });
       if (typeof m.tp.pitch === 'number') p.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, m.tp.pitch));   // 侧视 = 水平；俯视 A→B = 看向 B
       toastMsg(m.pv ? `正在切片 ${m.pv}（E键+0键关闭）` : `传送 @${Math.floor(m.tp.x)},${Math.floor(m.tp.z)}^${Math.round(m.tp.y)}`);
+      postPose();   // 落点 / 准星立刻回给地图（不等下一秒）：viz 的 P1 标记与 xhair 马上是新的
     }
   };
-  setInterval(() => {
-    if (!urlLive) return;
-    bc.postMessage({ from: 'game', g: G, seed: SEED, p1: [Math.floor(p.x), Math.floor(p.z), Math.round(p.y), +p.yaw.toFixed(3)], xhair: hitTest(), pv: hasPv ? (clip.dir < 0 ? '-' : '') + 'XYZ'[clip.a] + (clip.on ? ':' + clip.s : '') : null, hour: +clock.hour.toFixed(3) });
-  }, 1000);
+  setInterval(postPose, 1000);
 
   // 出生点：`p1=@x,z[^y][,yaw]`（与宿主 B index.html 同一套写法；y 缺省 = 该列地表 + 8）优先；
   // 否则问生成器要 `spawn()`（s02 §2），没有 / 超时就回落到 (8,8) 的柱高与海平面较高者。
@@ -186,7 +201,7 @@ async function main() {
   // ---- Agent 入口
   const raf = () => new Promise(requestAnimationFrame);
   window.gode = {
-    world, ctl, pool, VR, tbl, meta, clock, THREE, camera, renderer, p, clip, pushClip, hitTest, get peer() { return peer; },
+    world, ctl, pool, VR, tbl, meta, clock, THREE, camera, renderer, p, clip, pushClip, hitTest, spaceJump, mapLive, get peer() { return peer; },
     pose(x, y, z, yaw, pitch) { Object.assign(p, { x, y, z, vx: 0, vy: 0, vz: 0 }); if (yaw !== undefined) p.yaw = yaw; if (pitch !== undefined) p.pitch = pitch; },
     // 等区块到齐 + 网格出完（pending = 0）+ 连续 3 帧稳定
     async settle(ms = 20000) {

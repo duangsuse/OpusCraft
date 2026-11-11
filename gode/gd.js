@@ -3,7 +3,7 @@
  * gd — gode 的 Agent 工具：常驻守护进程独占一个浏览器，CLI 每条命令一个请求（gode/s12-agent-tools.md §2）。
  * 零依赖，Node ≥ 22（内置 WebSocket / fetch）或 Bun。
  *
- * 用法  node gode/tools/gd.js <命令> [参数]        （下文 gd = 这一串）
+ * 用法  node gode/gd.js <命令> [参数]        （下文 gd = 这一串）
  *   gd up [--ss] [--seed N] [--rd N] [--size 1280x720] [--url Q]   起守护进程 + 浏览器 + 宿主 B（已在跑则复用）；静态服务不通且 GD_BASE 指向本机时，先拉起 gode/tools/dev.js
  *   gd down                                  关浏览器、杀进程组、删 profile
  *   gd ps                                    守护进程 / 浏览器 pid、空闲时长、当前 URL、残留进程数；静态服务是 dev.js（pid、连着几个页面）/ 别的静态服务 / 不通
@@ -186,7 +186,7 @@ async function launch({ width, height, ss, headless, owner }) {
 //// App ///////////////////////////////////////////////////////////////
 
 const SELF = fileURLToPath(import.meta.url);
-const TOOLS = dirname(SELF), GODE = resolve(TOOLS, '..'), ROOT = resolve(GODE, '..');
+const TOOLS = join(dirname(SELF), 'tools'), GODE = dirname(SELF), ROOT = resolve(GODE, '..');
 const SHOTS = join(GODE, 'shots'), INDEX = join(SHOTS, 'index.tsv'), CJSON = join(GODE, 'defl', 'c_.json'), CHECKS = join(TOOLS, 'checks.tsv');
 const DIR = join(tmpdir(), 'gode-gd'), SOCK = join(DIR, 'sock'), STATE = join(DIR, 'state.json'), DLOG = join(DIR, 'daemon.log');
 const BASE = (process.env.GD_BASE || 'http://localhost:8765/').replace(/\/?$/, '/');
@@ -673,13 +673,13 @@ async function daemon(opts) {
       const url = u.href;
       if (url !== st.url) await navigate(url); else await autoReload();   // 同 URL 也重载更新的页面代码（viz.depth 之类新 API）
       const sv = ['north', 'south', 'east', 'west'].includes(L.sideView) ? L.sideView : 'south';
-      const view = L.kind === 'side' ? sv : 'top', mode = L.slc ? 'slice' : 'surface', shade = L.kind === 'mine' ? 'height' : L.shade;
+      const view = L.kind === 'side' ? sv : 'top', mode = L.slc ? 'slice' : 'surface', shade = L.shade, xray = L.kind === 'mine' ? "'cave'" : L.slc ? L.xray : 0;
       await evalJS(`(async () => { const t = ${T};
         // 图册是隐藏左栏 / 右上竖条 / gizmo 拍的：不恢复的话 canvas 尺寸不同，图片像素就对不上世界坐标
         document.getElementById('app').classList.add('nosd');
         for (const id of ['giz', 'tools', 'toast']) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
         t.set('view', ${JSON.stringify(view)}); t.set('mode', ${JSON.stringify(mode)}); t.set('slice', ${L.slc ? L.y : 'null'});
-        t.set('shade', ${JSON.stringify(shade)}); t.set('xray', ${L.slc ? L.xray : 0}); t.set('air', false); t.set('sel', null);
+        t.set('shade', ${JSON.stringify(shade)}); t.set('xray', ${xray}); t.set('air', false); t.set('sel', null);
         await t.ready(); return 'ok'; })()`, 60000);
       const y = L.slc ? L.y : L.hTop, pxpy = o.px ? String(o.px).split(',').map(Number) : null;
       if (pxpy && !(pxpy.length === 2 && pxpy.every(Number.isFinite))) throw new Error('--px 要 X,Y（图片像素，左上原点）');

@@ -19,7 +19,7 @@
 
 | # | 工具 | 做什么 |
 |---|---|---|
-| T-1 | `gode/tools/gd.js` | 守护进程 + CLI，Agent 唯一入口（§2） |
+| T-1 | `gode/gd.js` | 守护进程 + CLI，Agent 唯一入口（§2） |
 | T-2 | `gode/shots/`（目录）+ `gode/shots/index.html` | 实时截图与画廊（§3） |
 | T-3 | `gm.test`（写在 `gode/index.html` 里，不是 tools） | 页面侧的确定性测试钩子：冻结、settle、机位、体素追加、断言（§4） |
 | T-4 | `defl/c_.json` 的 `c_.Bench.poses` | 机位表，从 `tools/bench-b-poses.json` 与 `handover/tools.md` §3 导入（§5） |
@@ -167,7 +167,7 @@ gd down                                 # 收尾（忘了也会 10 min 自退）
 
 | 文件 | 内容 |
 |---|---|
-| `tools/gd.js` | 守护进程 + CLI，§2 全部命令；`node gode/tools/gd.js help` 即 `--help` |
+| `gd.js` | 守护进程 + CLI，§2 全部命令；`node gode/gd.js help` 即 `--help` |
 | `tools/gmtest-b.js` | 宿主 B 的 `gm.test`（A-5）：`freeze settle pose frame xz mark revert hash probe stats errors set find` + `checks.*` |
 | `tools/gmtest-g.js` | **gode 版**（M1 首刀 11-09）：`host: 'gode'`，同名同参；`boot.js` 启动后自动 import，无需 `&test=1`。没有 mob / tick，`freeze` 只钉时钟与 rgl 相位并冻结控制器；`find` 搜索规则未做（返回 null）；`checks.genhash / phys`（checks.tsv 里 `genhash-g`、`phys`） |
 | `tools/xz.js` | XZ1 解析 + 光栅化（页面与 node 共用） |

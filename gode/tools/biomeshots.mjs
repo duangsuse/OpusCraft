@@ -35,7 +35,7 @@
  *          `&xray=N` 改厚度，`&xray=0` 关。
  *          tsv 的 `air` 列给每层「空气占比/平均空气格数/最大」（33×33 采样、步长 8）；
  *          `depth` 列是逐 Y 组成曲（JSON：4 格一档的空气/水/岩浆/矿石千分比），调 3D 洞穴用。
- *   mine = 俯视 + shade=height（洞窟 / 空气深度图）
+ *   mine = 俯视 + xray=cave（洞窟 / 空气深度图）
  * 顶栏两个输入框临时填 @x,z 与群系名（只改 value，不触发提交）。
  *
  * 截图 tag 写成 <seed>/<gen>/<kind>/<群系名>，gd 按路径直接落盘（文件名保留中文；旧版 slug 只认 ASCII，
@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url';
 
 const GODE = dirname(dirname(fileURLToPath(import.meta.url)));
 const ROOT = dirname(GODE);
-const GD = join(GODE, 'tools', 'gd.js');
+const GD = join(GODE, 'gd.js');
 const SHOTS = join(GODE, 'shots');
 const PROBE_Y = 64;                          // center() 的 probe 高度：只取列数据（col/sample/h），与切片无关
 const SLC_FRACS = [0.9, 0.6, 0.3, 0.1];      // auto 模式：按 hTop 的比例取 Y
@@ -199,11 +199,12 @@ if (wantName && wantName !== 'all' && wantName !== '*') {
 const outDir = join(SHOTS, SEED_DIR, gen);
 mkdirSync(outDir, { recursive: true });
 const TSV = join(outDir, 'biomes.tsv');
-const TSV_COLS = ['id', 'name', 'x', 'z', 'hSample', 'hTop', 'block', 'temp', 'humid', 'mount', 'cont', 'top', 'side', 'slcY', 'slc', 'air', 'depth', 'mine', 'sideView'];
+const TSV_COLS = ['id', 'name', 'x', 'z', 'hSample', 'hTop', 'block', 'temp', 'humid', 'mount', 'cont', 'top', 'side', 'slcY', 'slc', 'air', 'cave', 'caveY', 'depth', 'mine', 'sideView'];
 // 只换表头（参数可能变），**已有数据行保留**：部分群系重跑不能把别群系的行冲掉
 const TSV_HEAD = `# gen=${gen} seed=${q.get('seed')} url=${url} slc=${slcSpec} shade=${shade} xray=${XRAY} air=${AIR_N}x${AIR_N}/step${AIR_STEP}\n`
   + `# slcY / slc = 每层 Y 与图片（逗号分隔，顺序一致）；air = 每层「空气占比/平均空气格数/最大」（空格分隔）\n`
-  + `# depth = viz.depth({x,z,n:17,step:16,bin:4})：逐 Y 组成（bin 格一档，air/water/lava/ore 千分比）\n`;
+  + `# depth = viz.depth({x,z,n:17,step:16,bin:4})：逐 Y 组成（bin 格一档，air/water/lava/ore 千分比）\n`
+  + `# cave = viz.cave({x,z}) 盒内整体（JSON：r50/r90/rmax 洞半径 格、thin 薄洞占比、comp 连通域数、big 最大域占比、orph 孤立小洞数、kept 过滤细通道后留下的比例、drop {n,cols,shafts,max} 竖井列数 / 个数 / 最大落差；minR / drop 阈值取页面侧栏的值，口径见 viz/cave.js）；caveY = 每层 y±2 的 r50/r90/thin/comp/big（空格分隔，顺序同 slcY）\n`;
 const tsvAll = existsSync(TSV) ? readFileSync(TSV, 'utf8').split('\n').filter(l => l && l[0] !== '#') : [];
 const tsvRows = tsvAll.slice(1);   // 旧表头丢掉，下面按当前 TSV_COLS 重写（加列后老行缺列 = 空）
 writeFileSync(TSV, TSV_HEAD + TSV_COLS.join('\t') + '\n' + (tsvRows.length ? tsvRows.join('\n') + '\n' : ''));
@@ -275,7 +276,7 @@ const VIEW = {
   top: `viz.set('shade',${JSON.stringify(shade)});viz.set('view','top');viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
   side: (v = 'south') => `viz.set('shade',${JSON.stringify(shade)});viz.set('view',${JSON.stringify(v)});viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
   slc: y => `viz.set('shade',${JSON.stringify(shade)});viz.set('view','top');viz.set('mode','slice');viz.set('slice',${y});viz.set('air',false);viz.set('xray',${XRAY});`,
-  mine: `viz.set('shade','height');viz.set('view','top');viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
+  mine: `viz.set('view','top');viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray','cave');`,
 };
 /** 侧视方向：auto 时用 viz.silhouette 的起伏 + 4×中空列数挑最壮观的一侧。 */
 const pickSide = c => {
@@ -303,7 +304,7 @@ for (let i = 0; i < picked.length; i++) {
   // 重跑同一群系：先清掉这个群系的旧层（切层 Y 会随地形变，不清会和新图拼进同一张 _going_deeper）
   rmSync(join(outDir, 'slc', name), { recursive: true, force: true });
   rmSync(join(outDir, 'slc', `${name}_going_deeper.webp`), { force: true });
-  const paths = { slc: [] }, air = [];
+  const paths = { slc: [] }, air = [], caveY = [];
   const sideView = pickSide(c);
   for (const k of ['top', 'side', 'mine'].filter(k => VIEWS_REQ.includes(k))) {
     const expr = k === 'side' ? VIEW.side(sideView) : VIEW[k];
@@ -324,10 +325,13 @@ for (let i = 0; i < picked.length; i++) {
       return JSON.stringify({pct:airN/tot,mean:airN?sum/airN:0,max:maxD})})()`);
     paths.slc.push(shot(`slc/${name}`, `@${y}`)); nShots++;
     air.push(`${Math.round(a.pct * 100)}%/${a.mean.toFixed(1)}/${a.max}`);
+    const cy = evalJson(`(async()=>JSON.stringify(await viz.cave({x:${c.cx},z:${c.cz},y:${y}}).then(r=>r.at ?? null,()=>null)))()`);
+    caveY.push(cy ? [cy.r50, cy.r90, cy.thin, cy.comp, cy.big].join('/') : '-');
   }
+  const caveG = evalJson(`(async()=>JSON.stringify(await viz.cave({x:${c.cx},z:${c.cz}}).then(({at,box,ms,...r})=>r,()=>null)))()`);
   const depth = evalJson(`(async()=>{await viz.ready();return JSON.stringify(viz.depth(${JSON.stringify({ x: c.cx, z: c.cz, n: 17, step: 16, bin: 4 })}))})()`);
   const row = [id, name, c.cx, c.cz, c.hs, c.ht, c.blk, c.temp, c.humid, c.mount, c.cont, paths.top, paths.side,
-    slcYs.join(','), paths.slc.join(','), air.join(' '), JSON.stringify(depth), paths.mine, sideView];
+    slcYs.join(','), paths.slc.join(','), air.join(' '), JSON.stringify(caveG), caveY.join(' '), JSON.stringify(depth), paths.mine, sideView];
   writeRow(row);
   console.log(`${i + 1}/${picked.length} ${name} @${c.cx},${c.cz} h=${c.hs}/${c.ht} ${c.blk} slc ${slcYs.join('/')} ${c.err?.length ? 'ERR ' + JSON.stringify(c.err) : 'ok'}`);
 }

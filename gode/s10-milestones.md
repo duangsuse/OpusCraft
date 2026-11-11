@@ -11,7 +11,7 @@
 
 | # | 内容 | 节 | 验收 |
 |---|---|---|---|
-| 1 | `gode/tools/gd.js`：守护进程、进程组、空闲自退、`sweepStale`、复用 :8765；`up down ps go reload eval log` | s12 §2 | 连续 `up / Ctrl-C / kill -9` 十次后 `pgrep -f gode-gd-` 为空；热 `eval` < 200 ms |
+| 1 | `gode/gd.js`：守护进程、进程组、空闲自退、`sweepStale`、复用 :8765；`up down ps go reload eval log` | s12 §2 | 连续 `up / Ctrl-C / kill -9` 十次后 `pgrep -f gode-gd-` 为空；热 `eval` < 200 ms |
 | 2 | `gode/shots/` 实时目录 + 画廊页 + `latest.webp`；`shot --sheet --vs` | s12 §3 | 用户开着画廊页，Agent `gd shot` 后 2 s 内出现 |
 | 3 | `gm.test` 骨架（先挂宿主 B 的等价物验证工具链，gode/index.html 起来后换成 gode 版） | s12 §4 | `freeze → pose → settle → shot` 热路径 < 2 s |
 | 4 | 机位表导入 `c_.Bench.poses`、参考图机位 | s12 §5 | `gd shot --ref` 出与 `reference-vision/` 的对照表 |

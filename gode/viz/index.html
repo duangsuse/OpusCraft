@@ -1,7 +1,7 @@
 <!doctype html>
 <!-- gode/viz/index.html —— pgviz：地形查看与调参（s13，M0）。直接起 s02 的生成器 Worker（defl/g/<g>.js）池，R16UI 3D 纹理轴向步进出图。
-     URL：?g=mini|gp|liq|old|pg1|luan0|luanV|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&rate=12&minip=1&air=1&xray=0&layer=none|tree|f:字段&lop=0.75&shade=block|biome|height&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
-     Agent：window.viz = { ready, stats, c4, airDist, probe, regen, set, errors, sel, pin, click, jump, … }（app.js） -->
+     URL：?g=mini|gp|liq|old|pg1|luan0|luanV|<worker url>&seed=&view=top|bottom|north|south|east|west&x=&z=&y=&zoom=&slice=&fill=0.9&rate=12&minip=1&air=1&xray=0..64|cave（默认 30）&fog=0.6&cmin=0..6（默认 3）&drop=1..30（默认 4）&layer=none|tree|f:字段&lop=0.75&shade=block|biome|thick|conn&grid=1&sel=x0,y0,z0,x1,y1,z1&origin=x,z&origins=名:x,z;…&seld=16
+     Agent：window.viz = { ready, stats, cave, c4, airDist, probe, regen, set, errors, sel, pin, click, jump, … }（app.js） -->
 <html lang="zh">
 <head>
 <meta charset="utf-8">
@@ -110,6 +110,8 @@
       <div class="full kv" id="w1"></div>
       <label title="3D 窗口（侧视 / 切片用的整块体素，≤ 48 区块）占画布的比例；之外是 2D 地表（≤ 80 区块）。玩家跟随也读这条：离视口中心超过「它 × 半个屏幕」就平滑居中（1 = 到边缘才跟）">细节绘制</label><div class="row" style="flex-wrap:nowrap"><input id="fillr" type="range" min="0.2" max="1" step="0.05"><span class="num" id="fillv" style="width:38px;text-align:right"></span></div>
       <label title="叠在地图上的图层（②视图里的 图层 L / 树种 / 热力图）的不透明度；URL lop=">图层不透明度</label><div class="row" style="flex-wrap:nowrap"><input id="lopr" type="range" min="0.1" max="1" step="0.05" style="flex:1"><span class="num" id="lopv" style="width:38px;text-align:right"></span></div>
+      <label title="连通域（T 键 conn）：把比这更细的通道从连通里剔除（形态学开运算：只留能装下半径 ≥ N 格的球的部分；剔除的通道画暗灰）。0 = 关。URL cmin=">最小洞半径</label><div class="row" style="flex-wrap:nowrap"><input id="cminr" type="range" min="0" max="6" step="0.5" style="flex:1"><span class="num" id="cminv" style="width:46px;text-align:right"></span></div>
+      <label title="连通域（T 键 conn）里的竖井红框：从洞窟某格一路摔到实体（落水算安全）的落差 ≥ N 格，且站在边上一步就掉下去的井口 / 坑边，用正红方框圈出。MC 摔 4 格起扣血，≥ 23 格满血必死。URL drop=">摔落高度</label><div class="row" style="flex-wrap:nowrap"><input id="dropr" type="range" min="1" max="30" step="1" style="flex:1"><span class="num" id="dropv" style="width:46px;text-align:right"></span></div>
       <label title="俯视的地表阴影。默认：西 / 北邻列更高就压暗的台阶式；2.5D 地形：按邻列高度差算坡度的山体阴影，光从 ☀ 时间拨盘的太阳方向来（默认左上）；平滑光照：MC 式每格四角环境光遮蔽，在格内平滑过渡。URL terr=0|1|2">地形着色</label><select id="terrsel"><option value="0">默认</option><option value="1">2.5D 地形</option><option value="2">平滑光照</option></select>
       <label class="full" style="color:var(--fg)"><input type="checkbox" id="gridc"> 区块网格（G）</label>
       <label class="full" style="color:var(--fg)" title="快捷键 R。沿视线从切面到第一个实体要穿过的空气格数：灰色渐变（近亮远暗，水体风格），任何缩放都能看；格 > 22 px 时再叠黑色数字（&lt; 10）。URL air=1"><input type="checkbox" id="airc"> 空气距离（R）</label>
@@ -119,14 +121,16 @@
     </div></details>
     <details open id="fview"><summary>② 视图</summary><div class="sec">
       <label>视角 (V 翻向)</label><select id="vsel"><option value="top">俯视 −Y（7）</option><option value="south">南侧视 →北（1）</option><option value="north">北侧视 →南（Ctrl 1）</option><option value="east">东侧视 →西（3）</option><option value="west">西侧视 →东（Ctrl 3）</option><option value="bottom">仰视 +Y（Ctrl 7）</option></select>
-      <label title="洞窟：noclip 钻进地下看——岩石 / 地表剔除，只留洞窟空气围出的墙面 / 洞底。俯视 = 玩家站在洞底看到的：颜色 = 洞底高度（深紫蓝 → 浅黄，每 4 格明暗一档，相邻不同高度分得开）、头顶矮的洞压暗、贴墙 / 落差处压暗、岩浆 / 水保持本色；侧视 = 切面后方的洞壁 + 深度雾。">着色 (T)</label><select id="shsel"><option value="block">方块色</option><option value="biome">群系色</option><option value="height">洞窟（地下）</option></select>
+      <label title="方块色 / 群系色；厚度：洞窟空气按到最近岩石的距离上色（对数色带 蓝 1 格 → 青 → 黄 → 红 16+ 格，每 2 格一圈等值线）；连通域：最大的洞网 = 亮青，孤立小洞 = 洋红，其余按体积名次取色，域边界压暗（与 xray 叠加 = 体积按域上色）。点中（左键）一格 = 只高亮它所在的连通域（黄），别的域退成灰度；竖井（落差 ≥ 摔落高度的井口 / 坑边）用正红方框圈出。厚度 / 连通 / 摔落靠后台分析（cave.js），块到齐后才算。URL shade=block|biome|thick|ao|edl">着色 (T)</label><select id="shsel"><option value="block">方块色</option><option value="biome">群系色</option><option value="thick">厚度（洞粗细）</option><option value="conn">连通域</option></select>
       <div id="cleg" class="full" style="display:none"><div style="height:8px;border-radius:3px;background:linear-gradient(90deg,rgb(89,51,166),rgb(38,115,217),rgb(51,191,153),rgb(242,217,89))"></div><div class="kv" style="display:flex;justify-content:space-between"><span>洞底 y 0</span><span>海平面+24</span></div></div>
       <label title="快捷键 K。圆环拨盘：设一天中的时间（光色 / 太阳方向随之变），或自选光色覆盖；两者只影响地图着色">时间 · 光色</label><div class="row" style="flex-wrap:nowrap"><button id="dbtn" title="打开时间 / 光色拨盘（K）">☀ 拨盘 (K)</button><span class="kv" id="dst"></span></div>
       <label id="sllab" title="Shift+滚轮在地图上调；拉到最外层 = 地表">切片 Y</label><div class="row" style="flex-wrap:nowrap"><input id="slr" type="range" min="0" max="255"><span class="num" id="slv" style="width:38px;text-align:right"></span></div>
       <label title="快捷键 L 从后往前循环（Shift+L 反向；树种在最后一项）。叠在地图上的单选图层，只在俯视 / 仰视画：树种 = 树冠 / 树干按种着色；其余是生成器 sample 的各个场（热力图，色阶取已载入数据的 2%…98% 分位）。URL layer=none|tree|f:字段 lop=不透明度">图层 (L)</label><div class="chips" id="lchips"></div>
       <label></label><div id="lleg"></div>
+      <label title="透视深度（URL xray=N|cave，默认 30）：只在切面位于地面或以下时启用（切面在地面以上 = 普通渲染）。0 关；1…64 = 从切面往里这么多格做前到后半透明合成，岩石 / 水按方块色叠、地表以下的空气按深度染成暖黄→青→蓝紫的雾（强度 URL fog=）。拉到最右 = 洞窟（noclip 钻进地下看——岩石 / 地表剔除，只留洞窟空气围出的墙面 / 洞底。俯视 = 玩家站在洞底看到的：颜色 = 洞底高度（深紫蓝 → 浅黄，每 4 格明暗一档）、头顶矮的洞压暗、贴墙 / 落差处压暗、岩浆 / 水保持本色；侧视 = 切面后方的洞壁 + 深度雾）">透视深度</label><div class="row" style="flex-wrap:nowrap"><input id="xrayr" type="range" min="0" max="65" step="1" style="flex:1"><span class="num" id="xrayv" style="width:46px;text-align:right"></span></div>
       <label title="选区深度：沿视线轴的格数（非俯视的左 / 右键选区用它，俯视一律选到基岩）。快放速度：Numpad 9 按住快放，层 / 秒 1…60，层数 = 当前选区深度（没有选区用选区深度）；在速度框上滚轮可调">深度 · 快放</label><div class="row" style="flex-wrap:nowrap"><input id="seld" type="number" min="1" max="256" style="width:56px" title="选区深度（格）">格 ·<span id="nrow"><input id="rate" type="number" min="1" max="60" style="width:50px" title="快放速度：层 / 秒 1…60">层/秒</span></div>
       <label>缩放</label><span class="num kv" id="zv"></span>
+      <label class="full" style="color:var(--fg)" title="切面跟着游戏玩家走：当前视角的视线轴是 Y / X / Z 时，切片 = 玩家的 y / x / z（游戏标签页每秒广播一次点位；俯视时高于地表就停在最外层 = 地表）。游戏标签页不在线、或生成器 / 种子不同 = 禁用"><input type="checkbox" id="syncc" disabled> 同步切片 <span id="syncax">Y/X/Z</span></label>
     </div></details>
     <details open id="fblock"><summary>③ 方块</summary><div class="sec">
       <div class="full hd">悬停</div><div class="full kv" id="hkv">（把鼠标移到地图上）</div>
