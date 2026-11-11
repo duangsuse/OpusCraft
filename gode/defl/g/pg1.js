@@ -49,7 +49,8 @@ export function gen({ cx, cz }, out) {
 
 export function sample({ x, z }) {
   const o = W.colInfo(Math.floor(x), Math.floor(z)), r = (v) => +v.toFixed(3);
-  return { h: o.h, biome: o.biome, temp: r(o.temp), hum: r(o.hum), cont: r(o.cont), ero: r(o.ero), mnt: r(o.mntW) };
+  // 字段名对齐生成器契约（同 gp/liq）：temp / humid / cont / ero / mount
+  return { h: o.h, biome: o.biome, temp: r(o.temp), humid: r(o.hum), cont: r(o.cont), ero: r(o.ero), mount: r(o.mntW) };
 }
 
 // 只算列噪声：pgviz 外圈 2D 用（整块生成 ~ms 级，6400 块会超时；s13 §14）

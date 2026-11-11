@@ -10,6 +10,7 @@
  *            g/seed/pv/z/terr/tod（默认 seed=20240607 pv=Y z=5 terr=1 tod=14.08）
  *            &views=top,side,slc,mine（默认全拍；只拍 side 时约 1/4 时间）
  *            &side=auto|north|south|east|west（auto = 用 viz.silhouette 在四个方向里挑「起伏 + 拱洞」最高的一侧）
+ *            &keep=1（复用上一轮 biomes.tsv 的中心，做同坐标前后对比；群系已不在那里就重新搜）
  *
  * 产物（都在 gode/shots/<YYMMDD>/ 下）：
  *   <seed>/<gen>/top|side|mine/<群系名>.webp
@@ -103,7 +104,8 @@ const shade = q.get('shade') ?? 'block';            // 用户给的 shade 覆盖
 const XRAY = Math.max(0, Math.min(64, Math.round(+(q.get('xray') ?? 12) || 0)));   // 切面往里多少格做半透明叠加
 const VIEWS_REQ = (q.get('views') ?? 'top,side,slc,mine').split(',').map(x => x.trim()).filter(x => ['top', 'side', 'slc', 'mine'].includes(x));
 const SIDE_MODE = (q.get('side') ?? 'south').trim();
-q.delete('slc'); q.delete('views'); q.delete('side');
+const KEEP = q.get('keep') === '1';   // 复用上一轮 biomes.tsv 的中心（同坐标 A/B）
+q.delete('slc'); q.delete('views'); q.delete('side'); q.delete('keep');
 const url = `gode/viz/?${[...q].map(([k, v]) => `${k}=${v}`).join('&')}`;
 
 const env = { ...process.env, GD_HEADLESS: '1', GD_NOPRUNE: '1' };   // 图册一批几百张，别让 gd 的 prune（>500 行时每 tag 只留 20）顺手删旧图
@@ -262,6 +264,29 @@ const center = (id, name) => evalJson(`(async()=>{
   return JSON.stringify({cx,cz,hs:p.sample.h,ht,blk:t&&t.name,temp:p.sample.temp,humid:p.sample.humid,mount:p.sample.mount,cont:p.sample.cont,biome:chk.sample&&chk.sample.biome,err:viz.errors()});
 })()`);
 
+/** 上一轮 tsv 里该群系的中心（keep=1 时同坐标 A/B；群系已不在那里就退回重新搜）。 */
+const prevCenter = name => {
+  if (!existsSync(TSV)) return null;
+  const lines = readFileSync(TSV, 'utf8').split('\n').filter(l => l && l[0] !== '#');
+  if (!lines.length) return null;
+  const h = lines[0].split('\t'), ix = h.indexOf('x'), iz = h.indexOf('z'), iN = h.indexOf('name');
+  for (const l of lines.slice(1)) { const c = l.split('\t'); if (c[iN] === name) return { x: +c[ix], z: +c[iz] }; }
+  return null;
+};
+const recenter = (prev, ID) => {
+  if (!prev) return null;
+  const r = evalJson(`(async()=>{
+    const x=${prev.x}, z=${prev.z};
+    const p=await viz.probe(x,${PROBE_Y},z);
+    if(!p.sample||p.sample.biome!==${ID}) return JSON.stringify({miss:true});
+    viz.set('bio',[]); viz.set('shade','block'); viz.set('view','top'); viz.set('mode','surface'); viz.set('slice',null);
+    viz.jump('@'+x+','+z); await viz.ready();
+    const ht=p.h, t=ht==null?null:await viz.probe(x,ht,z);
+    return JSON.stringify({cx:x,cz:z,hs:p.sample.h,ht,blk:t&&t.name,temp:p.sample.temp,humid:p.sample.humid,mount:p.sample.mount,cont:p.sample.cont,biome:${ID},err:viz.errors()});
+  })()`);
+  return r.miss ? null : r;
+};
+
 const VIEW = {
   top: `viz.set('shade',${JSON.stringify(shade)});viz.set('view','top');viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
   side: (v = 'south') => `viz.set('shade',${JSON.stringify(shade)});viz.set('view',${JSON.stringify(v)});viz.set('mode','surface');viz.set('slice',null);viz.set('air',false);viz.set('xray',0);`,
@@ -289,7 +314,7 @@ const missing = [];
 let nShots = 0;
 for (let i = 0; i < picked.length; i++) {
   const [id, name] = picked[i];
-  const c = center(id, name);
+  const c = (KEEP && recenter(prevCenter(name), id)) || center(id, name);
   if (c.miss) { missing.push(name); console.log(`${i + 1}/${picked.length} ${name} —— 24k 格内没有，跳过`); continue; }
   // 重跑同一群系：先清掉这个群系的旧层（切层 Y 会随地形变，不清会和新图拼进同一张 _going_deeper）
   rmSync(join(outDir, 'slc', name), { recursive: true, force: true });
